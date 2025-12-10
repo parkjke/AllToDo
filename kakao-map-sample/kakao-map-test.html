@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>카카오맵 테스트 - 버튼 + 현재 위치</title>
+
+<!-- 지도 SDK 로드 -->
+<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=86794be0dfabc2fea6c6d4a059019d0a&autoload=false"></script>
+
+<style>
+  #map {
+      width: 100%;
+      height: 600px;
+  }
+
+  /* 오른쪽 상단 버튼 묶음 */
+  .map-controls {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 999;
+  }
+
+  .control-btn {
+      padding: 8px 12px;
+      background: white;
+      border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      cursor: pointer;
+      font-size: 14px;
+      user-select: none;
+      text-align: center;
+  }
+
+  .control-btn:hover {
+      background: #f2f2f2;
+  }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<!-- 지도 UI 버튼 -->
+<div class="map-controls">
+    <div class="control-btn" id="loginBtn">로그인</div>
+    <div class="control-btn" id="locateBtn">현재 위치</div>
+    <div class="control-btn" id="zoomInBtn">확대</div>
+    <div class="control-btn" id="zoomOutBtn">축소</div>
+    <div class="control-btn" id="rotateBtn">방위 회전</div>
+</div>
+
+<script>
+kakao.maps.load(function () {
+
+    // 지도 초기 위치
+    let center = new kakao.maps.LatLng(37.5665, 126.9780);
+
+    let map = new kakao.maps.Map(document.getElementById('map'), {
+        center: center,
+        level: 3
+    });
+
+    // 현재 위치 마커
+    let currentMarker = null;
+
+    // 📍 현재 위치 표시 함수
+    function displayCurrentLocation() {
+        if (!navigator.geolocation) {
+            alert("GPS를 지원하지 않는 브라우저입니다.");
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(function(pos) {
+            let lat = pos.coords.latitude;
+            let lng = pos.coords.longitude;
+
+            let loc = new kakao.maps.LatLng(lat, lng);
+
+            // 마커가 이미 있으면 위치만 업데이트
+            if (currentMarker) {
+                currentMarker.setPosition(loc);
+            } else {
+                currentMarker = new kakao.maps.Marker({
+                    position: loc,
+                    map: map
+                });
+            }
+
+            map.panTo(loc);  // 위치로 지도 이동
+        }, function() {
+            alert("현재 위치를 가져올 수 없습니다.");
+        });
+    }
+
+    // 🔘 버튼 이벤트 연결
+    document.getElementById("locateBtn").onclick = function() {
+        displayCurrentLocation();
+    };
+
+    document.getElementById("zoomInBtn").onclick = function() {
+        map.setLevel(map.getLevel() - 1);
+    };
+
+    document.getElementById("zoomOutBtn").onclick = function() {
+        map.setLevel(map.getLevel() + 1);
+    };
+
+    let rotation = 0;
+    document.getElementById("rotateBtn").onclick = function() {
+        rotation = (rotation + 45) % 360;
+        map.setHeading(rotation); // 지도 회전
+    };
+
+    document.getElementById("loginBtn").onclick = function() {
+        alert("로그인 기능은 서버 연동 후 구현 가능합니다.");
+    };
+
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,105 @@
+use wasm_bindgen::prelude::*;
+use serde::{Serialize, Deserialize};
+
+#[derive(Serialize, Deserialize)]
+pub struct IntCoordinate {
+    pub lat: i32,
+    pub lng: i32,
+}
+
+#[wasm_bindgen]
+pub fn compress_trajectory(
+    points_flat: &[i32], 
+    min_dist_meters: f64, 
+    angle_thresh_deg: f64
+) -> Vec<i32> {
+    // 1. Reconstruct Points from Flat List
+    let mut points: Vec<IntCoordinate> = Vec::new();
+    for chunk in points_flat.chunks(2) {
+        if chunk.len() == 2 {
+            points.push(IntCoordinate { lat: chunk[0], lng: chunk[1] });
+        }
+    }
+
+    if points.len() <= 2 {
+        return points_flat.to_vec();
+    }
+
+    // 2. Filter Logic (Online Compression Simulation)
+    let mut compressed: Vec<IntCoordinate> = Vec::new();
+    compressed.push(IntCoordinate { lat: points[0].lat, lng: points[0].lng });
+    
+    let mut last_kept = &points[0];
+
+    for i in 1..points.len()-1 {
+        let current = &points[i];
+        
+        // Simple distance approximation for performance (Haversine is expensive in loop)
+        // Or implement accurate one. Let's start with simple Euclidean on Scaled coords for speed?
+        // No, user wants accuracy. Let's use simplified Distance.
+        let dist = distance_meters(last_kept, current);
+        
+        if dist >= min_dist_meters {
+            // Check Angle
+            let next_point = &points[i+1];
+            let b1 = bearing(last_kept, current);
+            let b2 = bearing(current, next_point);
+            let diff = (b1 - b2).abs();
+            let angle_diff = if diff > 180.0 { 360.0 - diff } else { diff };
+            
+            if angle_diff >= angle_thresh_deg {
+                compressed.push(IntCoordinate { lat: current.lat, lng: current.lng });
+                last_kept = current;
+            }
+        }
+    }
+    
+    // Always keep last
+    if let Some(last) = points.last() {
+        compressed.push(IntCoordinate { lat: last.lat, lng: last.lng });
+    }
+
+    // 3. Flatten back to i32 vector
+    let mut result: Vec<i32> = Vec::new();
+    for p in compressed {
+        result.push(p.lat);
+        result.push(p.lng);
+    }
+    
+    result
+}
+
+// --- Helpers ---
+
+fn distance_meters(p1: &IntCoordinate, p2: &IntCoordinate) -> f64 {
+    let lat1 = p1.lat as f64 / 100_000.0;
+    let lng1 = p1.lng as f64 / 100_000.0;
+    let lat2 = p2.lat as f64 / 100_000.0;
+    let lng2 = p2.lng as f64 / 100_000.0;
+    
+    let r = 6371000.0;
+    let phi1 = lat1.to_radians();
+    let phi2 = lat2.to_radians();
+    let dphi = (lat2 - lat1).to_radians();
+    let dlng = (lng2 - lng1).to_radians();
+    
+    let a = (dphi/2.0).sin().powi(2) +
+            phi1.cos() * phi2.cos() * (dlng/2.0).sin().powi(2);
+    let c = 2.0 * a.sqrt().atan2((1.0-a).sqrt());
+    
+    r * c
+}
+
+fn bearing(p1: &IntCoordinate, p2: &IntCoordinate) -> f64 {
+    let lat1 = (p1.lat as f64 / 100_000.0).to_radians();
+    let lat2 = (p2.lat as f64 / 100_000.0).to_radians();
+    let dlng = ((p2.lng - p1.lng) as f64 / 100_000.0).to_radians();
+
+    let y = dlng.sin() * lat2.cos();
+    let x = lat1.cos() * lat2.sin() -
+            lat1.sin() * lat2.cos() * dlng.cos();
+            
+    // atan2 returns -pi to +pi. Convert to degrees 0-360
+    let theta = y.atan2(x);
+    (theta.to_degrees() + 360.0) % 360.0
+}

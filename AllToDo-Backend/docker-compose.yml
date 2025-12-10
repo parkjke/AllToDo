@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=alltodo
+      - POSTGRES_PASSWORD=alltodopass
+      - POSTGRES_DB=alltodo_db
+    ports:
+      - "5432:5432"
+
+  app:
+    build: .
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://alltodo:alltodopass@db:5432/alltodo_db
+      - ENCRYPTION_KEY=change_this_to_a_secure_key_in_production_32_bytes_base64
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:

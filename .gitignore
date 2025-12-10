@@ -1,0 +1,44 @@
+# General
+.DS_Store
+.idea/
+*.iml
+*.log
+*.zip
+*.hprof
+*.pdf
+node_modules/
+build/
+.gradle/
+
+# Android
+**/.gradle/
+**/build/
+**/local.properties
+**/.idea/
+**/.DS_Store
+**/*.iml
+**/captures/
+
+# iOS (Swift)
+**/.DS_Store
+**/DerivedData/
+**/build/
+**/*.xcuserdata/
+**/*.xcworkspace/
+**/Pods/
+**/*.mode1v3
+**/*.mode2v3
+**/*.moved-aside
+**/*.pbxuser
+**/*.perspectivev3
+**/*.xcuserstate
+
+# Python / Backend
+**/__pycache__/
+**/*.py[cod]
+**/venv/
+**/.env
+**/.pytest_cache/
+**/db.sqlite3
+**/instance/
+**/.mypy_cache/

@@ -1,0 +1,97 @@
+{
+  "images" : [
+    {
+      "idiom" : "iphone",
+      "scale" : "2x",
+      "size" : "20x20"
+    },
+    {
+      "idiom" : "iphone",
+      "scale" : "3x",
+      "size" : "20x20"
+    },
+    {
+      "idiom" : "iphone",
+      "scale" : "2x",
+      "size" : "29x29"
+    },
+    {
+      "idiom" : "iphone",
+      "scale" : "3x",
+      "size" : "29x29"
+    },
+    {
+      "idiom" : "iphone",
+      "scale" : "2x",
+      "size" : "40x40"
+    },
+    {
+      "idiom" : "iphone",
+      "scale" : "3x",
+      "size" : "40x40"
+    },
+    {
+      "filename" : "orange-man-120.png",
+      "idiom" : "iphone",
+      "scale" : "2x",
+      "size" : "60x60"
+    },
+    {
+      "filename" : "orange-man-180.png",
+      "idiom" : "iphone",
+      "scale" : "3x",
+      "size" : "60x60"
+    },
+    {
+      "filename" : "orange-man-1024.png",
+      "idiom" : "ios-marketing",
+      "scale" : "1x",
+      "size" : "1024x1024"
+    },
+    {
+      "filename" : "icon 8.png",
+      "idiom" : "iphone",
+      "scale" : "2x",
+      "size" : "38x38"
+    },
+    {
+      "filename" : "icon 7.png",
+      "idiom" : "iphone",
+      "scale" : "3x",
+      "size" : "38x38"
+    },
+    {
+      "filename" : "icon 6.png",
+      "idiom" : "iphone",
+      "scale" : "2x",
+      "size" : "64x64"
+    },
+    {
+      "filename" : "icon 3.png",
+      "idiom" : "iphone",
+      "scale" : "3x",
+      "size" : "64x64"
+    },
+    {
+      "filename" : "icon 4.png",
+      "idiom" : "iphone",
+      "scale" : "2x",
+      "size" : "68x68"
+    },
+    {
+      "filename" : "icon 5.png",
+      "idiom" : "iphone",
+      "scale" : "2x",
+      "size" : "76x76"
+    },
+    {
+      "idiom" : "iphone",
+      "scale" : "2x",
+      "size" : "83.5x83.5"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
