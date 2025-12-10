@@ -1,7 +1,7 @@
 # AllToDo 📅🗺️
 
-**AllToDo**는 지도 기반의 스마트 할 일 관리(To-Do) 및 이동 경로 기록 애플리케이션입니다.
-지도를 통해 할 일을 직관적으로 관리하고, 나의 하루 이동 경로를 기록하여 과거를 되돌아볼 수 있습니다.
+**AllToDo** is a map-based smart To-Do list and path logging application.
+ intuitively manage your tasks on a map and record your daily movements to look back on your past activities.
 
 ![Project Status](https://img.shields.io/badge/Status-Active-success)
 ![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS%20%7C%20Web-blue)
@@ -9,27 +9,85 @@
 
 ---
 
-## ✨ 주요 기능 (Key Features)
+## 🌍 Language
+*   [English](#-english)
+*   [한국어 (Korean)](#-korean)
+
+---
+
+## 🇬🇧 English
+
+### ✨ Key Features
+
+*   **📍 Map-based To-Do Management**
+    *   Pin your tasks (To-Dos) directly onto the map at your current location or any specific place.
+    *   Visualize your tasks geographically to plan efficient routes.
+    *   Check off completed tasks with ease.
+
+*   **👣 Path Logging & Time Travel**
+    *   Automatically records your movement path in the background.
+    *   **Time Travel:** Review your past routes and tasks on specific dates. "Where was I yesterday?"
+    *   Paths are visualized with aesthetic red lines and pins.
+
+*   **🔒 Privacy & Security**
+    *   Personally Identifiable Information (PII) is securely encrypted and stored.
+    *   Location data is used solely for your personal history and experience.
+
+### 🏗️ Project Structure
+
+This repository is a **Monorepo** containing source code for Android, iOS, and the Backend.
+
+| Directory | Description | Stack |
+| :--- | :--- | :--- |
+| **`/AllToDo-Android`** | Android Client App | Kotlin, Jetpack Compose, Kakao Map SDK |
+| **`/AllToDo-iOS`** | iOS Client App | Swift, SwiftUI, Naver Map SDK |
+| **`/AllToDo-Backend`** | Server & API | Python, FastAPI, PostgreSQL |
+
+### 🚀 Getting Started
+
+#### 1. Backend (Server)
+Built with Python FastAPI.
+```bash
+# Activate Virtual Environment
+source AllToDo-Backend/.venv/bin/activate
+
+# Install Dependencies
+pip install -r AllToDo-Backend/requirements.txt
+
+# Run Server (Port 8000)
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+#### 2. Android
+Open `/AllToDo-Android` in Android Studio.
+*   **Requirements:** Android SDK 24+, JDK 17
+*   **Note:** Kakao Map API Key required in `local.properties`.
+
+#### 3. iOS
+Open `/AllToDo-iOS` in Xcode.
+*   **Requirements:** iOS 16.0+, Xcode 15+
+*   **Note:** Naver Map Client ID required.
+
+---
+
+## 🇰🇷 Korean
+
+### ✨ 주요 기능
 
 *   **📍 지도 기반 할 일 관리**
     *   현재 위치 또는 원하는 장소에 '할 일(To-Do)' 핀을 꽂아 메모할 수 있습니다.
     *   지도 위에서 할 일들의 위치를 한눈에 파악하고 효율적인 동선을 계획할 수 있습니다.
-    *   완료된 일은 체크박스로 간단히 정리합니다.
 
 *   **👣 이동 경로 기록 (Path Logging)**
     *   앱이 백그라운드에 있어도 사용자의 이동 경로를 자동으로 기록합니다.
-    *   **시간 여행(Time Travel):** "어제 내가 어디 갔었지?" 과거 특정 날짜의 이동 경로와 수행한 일들을 지도에서 다시 확인할 수 있습니다.
-    *   빨간색 선과 핀으로 이동 경로가 시각적으로 아름답게 표시됩니다.
+    *   **시간 여행(Time Travel):** 과거 특정 날짜의 이동 경로와 수행했던 할 일들을 지도에서 다시 확인할 수 있습니다.
 
 *   **🔒 개인정보 보호 및 보안**
     *   사용자의 민감한 정보(PII)는 강력하게 암호화되어 서버에 저장됩니다.
-    *   위치 데이터는 오직 사용자 본인의 기록 확인 용도로만 사용됩니다.
 
----
+### 🏗️ 프로젝트 구조
 
-## 🏗️ 프로젝트 구조 (Project Structure)
-
-이 프로젝트는 **Android**, **iOS**, **Backend** 코드를 하나의 저장소에서 관리하는 모노레포(Monorepo) 구조입니다.
+이 프로젝트는 Android, iOS, Backend 코드를 하나의 저장소에서 관리하는 **모노레포(Monorepo)** 구조입니다.
 
 | 폴더명 | 설명 | 기술 스택 |
 | :--- | :--- | :--- |
@@ -39,43 +97,5 @@
 
 ---
 
-## 🚀 시작하기 (Getting Started)
-
-### 1. 백엔드 (Server)
-서버는 Python FastAPI로 구축되어 있습니다.
-
-```bash
-# 가상환경 활성화 (MacOS/Linux)
-source AllToDo-Backend/.venv/bin/activate
-
-# 필수 라이브러리 설치
-pip install -r AllToDo-Backend/requirements.txt
-
-# 서버 실행 (포트 8000)
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-### 2. 안드로이드 (Android)
-Android Studio에서 `/AllToDo-Android` 폴더를 열고 빌드하세요.
-*   **필수 요건:** Android SDK 24 이상, JDK 17
-*   **참고:** `local.properties` 파일에 카카오맵 API 키 설정이 필요할 수 있습니다.
-
-### 3. 아이폰 (iOS)
-Xcode에서 `/AllToDo-iOS` 폴더를 열고 빌드하세요.
-*   **필수 요건:** iOS 16.0 이상, Xcode 15 이상
-*   **참고:** 네이버 지도 Client ID 설정이 필요합니다.
-
----
-
-## 🛠️ 기술 스택 (Tech Stack)
-
-*   **Mobile:** Kotlin (Android), Swift (iOS)
-*   **UI Framework:** Jetpack Compose (Android), SwiftUI (iOS)
-*   **Maps:** Kakao Map API (Android), Naver Map API (iOS)
-*   **Server:** FastAPI (Python)
-*   **Database:** PostgreSQL (운영), SQLite (개발)
-
----
-
-## 📝 라이선스
-이 프로젝트는 개인 포트폴리오 및 학습 목적으로 제작되었습니다.
+## 📝 License
+This project is for personal use and portfolio demonstration.
