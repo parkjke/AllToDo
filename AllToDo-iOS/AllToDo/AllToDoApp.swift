@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import CoreLocation
 import KakaoMapsSDK
+import GoogleMaps
 
 @main
 struct AllToDoApp: App {
@@ -10,6 +11,9 @@ struct AllToDoApp: App {
         // Initialize KakaoMapsSDK
         // NOTE: Replace the key if the Android one doesn't work for iOS
         SDKInitializer.InitSDK(appKey: "73c078184e5277946f8078004f60bd51")
+        
+        // Initialize Google Maps SDK
+        GMSServices.provideAPIKey("AIzaSyCeE1yauStrXS0Xw6EUkUEgm5wFK_yBHcE")
         
         // Initialize WASM Engine
         WasmManager.shared.initialize { success in

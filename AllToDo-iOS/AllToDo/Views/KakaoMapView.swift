@@ -16,7 +16,9 @@ struct KakaoMapView: UIViewRepresentable {
     @Binding var rotation: Double
     @ObservedObject var locationManager: AppLocationManager
     var todoItems: [ToDoItem]
+    var userLogs: [UserLog] // [NEW]
     @Binding var selectedItem: ToDoItem?
+    @Binding var selectedClusterItems: [UnifiedMapItem]? // [NEW]
     var onLongTap: ((CLLocationCoordinate2D) -> Void)?
     
     func makeUIView(context: Context) -> KMViewContainer {
@@ -25,14 +27,16 @@ struct KakaoMapView: UIViewRepresentable {
         context.coordinator.createController(view)
         context.coordinator.locationManager = locationManager
         context.coordinator.selectedItemBinding = $selectedItem
+        context.coordinator.selectedClusterBinding = $selectedClusterItems // [NEW]
         context.coordinator.onLongTap = onLongTap
         return view
     }
 
     func updateUIView(_ uiView: KMViewContainer, context: Context) {
         context.coordinator.selectedItemBinding = $selectedItem
+        context.coordinator.selectedClusterBinding = $selectedClusterItems
         context.coordinator.onLongTap = onLongTap
-        context.coordinator.updatePins(todoItems)
+        context.coordinator.updatePins(items: todoItems, logs: userLogs)
         // ...
         
         if action != .none {
@@ -58,6 +62,7 @@ struct KakaoMapView: UIViewRepresentable {
         var hasMovedToUserLocation = false
         var rotationTimer: Timer?
         var selectedItemBinding: Binding<ToDoItem?>?
+        var selectedClusterBinding: Binding<[UnifiedMapItem]?>? // [NEW]
         var onLongTap: ((CLLocationCoordinate2D) -> Void)?
         
         // Anti-Flickering
@@ -66,7 +71,7 @@ struct KakaoMapView: UIViewRepresentable {
         // Launch Animation
         var firstLocationUpdate = true
         
-        var labelIdToItems: [String: ToDoItem] = [:]
+        var labelIdToItems: [String: UnifiedMapItem] = [:] // [FIX] Store UnifiedItem
 
         // ...
 
@@ -235,12 +240,14 @@ struct KakaoMapView: UIViewRepresentable {
         
         var hasAddedStyles = false
         
-        func updatePins(_ items: [ToDoItem]) {
-            // Anti-Flickering: Skip if count didn't change (simplistic check, can be improved with ID hash)
-            if items.count == lastItemCount {
+        // [FIX] Updated Signature
+        func updatePins(items: [ToDoItem], logs: [UserLog]) {
+            // Anti-Flickering: Skip if count didn't change
+            let totalCount = items.count + logs.count
+            if totalCount == lastItemCount {
                 return
             }
-            lastItemCount = items.count
+            lastItemCount = totalCount
             
             guard let controller = controller else { return }
             guard let mapView = controller.getView("mapview") as? KakaoMap else { return }
@@ -270,19 +277,37 @@ struct KakaoMapView: UIViewRepresentable {
                 let userIconStyle = PoiIconStyle(symbol: userImage, anchorPoint: CGPoint(x: 0.5, y: 0.5))
                 let userPerLevel = PerLevelPoiStyle(iconStyle: userIconStyle, level: 0)
                 let userStyle = PoiStyle(styleID: "userStyle", styles: [userPerLevel])
+                let userStyle = PoiStyle(styleID: "userStyle", styles: [userPerLevel])
                 labelManager.addPoiStyle(userStyle)
                 
+                // Add History Style [NEW]
+                let historyImage = createHistoryPinImage()
+                let historyIconStyle = PoiIconStyle(symbol: historyImage, anchorPoint: CGPoint(x: 0.5, y: 1.0))
+                let historyPerLevel = PerLevelPoiStyle(iconStyle: historyIconStyle, level: 0)
+                let historyStyle = PoiStyle(styleID: "historyPinStyle", styles: [historyPerLevel])
+                labelManager.addPoiStyle(historyStyle)
+
                 hasAddedStyles = true
             }
             
+            // Add Todos
             for item in items {
                 guard let loc = item.location else { continue }
                 
-                let labelId = item.id.uuidString
-                labelIdToItems[labelId] = item
+                let labelId = "todo_" + item.id.uuidString
+                labelIdToItems[labelId] = .todo(item)
                 let pos = MapPoint(longitude: loc.longitude, latitude: loc.latitude)
                 
                 addPoiToLayer(layer, styleID: "greenPinStyle", poiID: labelId, at: pos, clickable: true)
+            }
+            
+            // Add Logs [NEW]
+            for log in logs {
+                let labelId = "log_" + log.id.uuidString
+                labelIdToItems[labelId] = .history(log)
+                let pos = MapPoint(longitude: log.longitude, latitude: log.latitude)
+                
+                addPoiToLayer(layer, styleID: "historyPinStyle", poiID: labelId, at: pos, clickable: true)
             }
             
             // Launch Animation Phase 1: Fit All Pins (Show wide view first)
@@ -332,8 +357,6 @@ struct KakaoMapView: UIViewRepresentable {
             }
         }
         
-        func createGreenPinImage() -> UIImage {
-            let size = CGSize(width: 32, height: 32)
             return UIGraphicsImageRenderer(size: size).image { context in
                 UIColor.allToDoGreen.setFill()
                 let circleRect = CGRect(x: 4, y: 0, width: 24, height: 24)
@@ -343,6 +366,33 @@ struct KakaoMapView: UIViewRepresentable {
                 context.cgContext.addLine(to: CGPoint(x: 16, y: 32))
                 context.cgContext.addLine(to: CGPoint(x: 22, y: 20))
                 context.cgContext.fillPath()
+                
+                // Checkmark
+                let config = UIImage.SymbolConfiguration(pointSize: 12, weight: .bold)
+                if let icon = UIImage(systemName: "checkmark", withConfiguration: config)?.withTintColor(.white, renderingMode: .alwaysOriginal) {
+                    icon.draw(at: CGPoint(x: 16 - icon.size.width/2, y: 12 - icon.size.height/2))
+                }
+            }
+        }
+
+        // [NEW] History Pin Image
+        func createHistoryPinImage() -> UIImage {
+            let size = CGSize(width: 32, height: 32)
+            return UIGraphicsImageRenderer(size: size).image { context in
+                UIColor.red.setFill()
+                let circleRect = CGRect(x: 4, y: 0, width: 24, height: 24)
+                context.cgContext.fillEllipse(in: circleRect)
+                
+                context.cgContext.move(to: CGPoint(x: 10, y: 20))
+                context.cgContext.addLine(to: CGPoint(x: 16, y: 32))
+                context.cgContext.addLine(to: CGPoint(x: 22, y: 20))
+                context.cgContext.fillPath()
+                
+                // Clock Icon
+                let config = UIImage.SymbolConfiguration(pointSize: 12, weight: .bold)
+                if let icon = UIImage(systemName: "clock.fill", withConfiguration: config)?.withTintColor(.white, renderingMode: .alwaysOriginal) {
+                    icon.draw(at: CGPoint(x: 16 - icon.size.width/2, y: 12 - icon.size.height/2))
+                }
             }
         }
 
@@ -398,7 +448,9 @@ struct KakaoMapView: UIViewRepresentable {
              print("KakaoMap: POI Tapped \(poiID)")
              if let item = labelIdToItems[poiID] {
                  DispatchQueue.main.async {
-                     self.selectedItemBinding?.wrappedValue = item
+                     // Normalize selection to Cluster for consistency with ContentView
+                     self.selectedClusterBinding?.wrappedValue = [item]
+                     self.selectedItemBinding?.wrappedValue = nil
                  }
              }
         }

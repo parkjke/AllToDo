@@ -53,42 +53,82 @@ struct ContentView: View {
         return userLogs.filter { $0.startTime >= min && $0.startTime <= centerDate }
     }
     
+    // MapProvider Enum moved to UnifiedMapModels.swift
+    
+    @AppStorage("selectedMapProvider") private var mapProvider: MapProvider = .apple
+    
     var mapLayer: some View {
-        AppleMapView(
-            action: $mapAction,
-            rotation: $compassRotation,
-            locationManager: locationManager,
-            todoItems: filteredTodos,
-            userLogs: filteredLogs,
-            selectedItem: $selectedItem,
-            selectedClusterItems: $selectedClusterItems,
-            onLongTap: { coord in
-                let newItem = ToDoItem(
-                    title: "New Task",
-                    dueDate: Date(),
-                    location: LocationData(latitude: coord.latitude, longitude: coord.longitude, name: "Pinned Location")
+        Group {
+            switch mapProvider {
+            case .apple:
+                AppleMapView(
+                    action: $mapAction,
+                    rotation: $compassRotation,
+                    locationManager: locationManager,
+                    todoItems: filteredTodos,
+                    userLogs: filteredLogs,
+                    selectedItem: $selectedItem,
+                    selectedClusterItems: $selectedClusterItems,
+                    onLongTap: handleLongTap,
+                    onUserLocationTap: {},
+                    onDelete: deleteItem,
+                    onDeleteLog: deleteLog,
+                    onSelectLog: { selectedLogForPath = $0 }
                 )
-                modelContext.insert(newItem)
-                try? modelContext.save()
-                print("ContentView: Inserted Item.")
-                selectedItem = newItem
-            },
-            onUserLocationTap: {
-                // No-op (User requested to disable Red Pin tap)
-            },
-            onDelete: { item in
-                modelContext.delete(item)
-                try? modelContext.save()
-            },
-            onDeleteLog: { log in
-                modelContext.delete(log)
-                try? modelContext.save()
-            },
-            onSelectLog: { log in
-                selectedLogForPath = log
+            case .kakao:
+                KakaoMapView(
+                    action: $mapAction,
+                    rotation: $compassRotation,
+                    locationManager: locationManager,
+                    todoItems: filteredTodos,
+                    selectedItem: $selectedItem,
+                    onLongTap: handleLongTap
+                )
+            case .naver:
+                NaverMapView(
+                    action: $mapAction,
+                    rotation: $compassRotation,
+                    locationManager: locationManager,
+                    todoItems: filteredTodos,
+                    userLogs: filteredLogs,
+                    selectedItem: $selectedItem,
+                    selectedClusterItems: $selectedClusterItems,
+                    onLongTap: handleLongTap,
+                    onUserLocationTap: {},
+                    onDelete: deleteItem,
+                    onDeleteLog: deleteLog,
+                    onSelectLog: { selectedLogForPath = $0 }
+                )
+            case .google:
+                GoogleMapView(
+                    action: $mapAction,
+                    rotation: $compassRotation,
+                    locationManager: locationManager,
+                    todoItems: filteredTodos,
+                    userLogs: filteredLogs,
+                    selectedItem: $selectedItem,
+                    selectedClusterItems: $selectedClusterItems,
+                    onLongTap: handleLongTap,
+                    onUserLocationTap: {},
+                    onDelete: deleteItem,
+                    onDeleteLog: deleteLog,
+                    onSelectLog: { selectedLogForPath = $0 }
+                )
             }
-        )
+        }
         .ignoresSafeArea()
+    }
+    
+    private func handleLongTap(_ coord: CLLocationCoordinate2D) {
+        let newItem = ToDoItem(
+            title: "New Task",
+            dueDate: Date(),
+            location: LocationData(latitude: coord.latitude, longitude: coord.longitude, name: "Pinned Location")
+        )
+        modelContext.insert(newItem)
+        try? modelContext.save()
+        print("ContentView: Inserted Item.")
+        selectedItem = newItem
     }
     
     private func deleteItem(_ item: ToDoItem) {

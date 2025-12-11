@@ -19,6 +19,23 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // [FIX] Explicitly initialize Naver Map SDK to resolve auth issues
+        // [FIX] Explicitly initialize Naver Map SDK to resolve auth issues
+        try {
+            val sdk = com.naver.maps.map.NaverMapSdk.getInstance(this)
+            sdk.client = com.naver.maps.map.NaverMapSdk.NaverCloudPlatformClient("i7652syq10")
+            
+            // [DEBUG] Log Package Name to verify match with Console
+            android.util.Log.e("AllToDo", "Current Application ID (Package Name): " + applicationContext.packageName)
+            
+            sdk.onAuthFailedListener = com.naver.maps.map.NaverMapSdk.OnAuthFailedListener { ex ->
+                 android.util.Log.e("AllToDo", "Naver Map Auth Failed: " + ex.message)
+                 android.widget.Toast.makeText(this, "Naver Auth Failed: " + ex.message, android.widget.Toast.LENGTH_LONG).show()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
         setContent {
             AllToDoTheme {
                 // A surface container using the 'background' color from the theme

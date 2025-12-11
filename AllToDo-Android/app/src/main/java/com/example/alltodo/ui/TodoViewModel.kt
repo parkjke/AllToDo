@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable // [FIX] Import
 import javax.inject.Inject
 
 @HiltViewModel
@@ -101,62 +102,68 @@ class TodoViewModel @Inject constructor(
         
         val now = System.currentTimeMillis()
         val endTime = now
-        
-        // Use GlobalScope or NonCancellable to ensure save completes even if UI is destroyed
-        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
-            // Flush remaining
-            if (pendingBuffer.isNotEmpty()) {
-                _debugStatus.value = "Flushing buffer..."
-                processBuffer(force = true)
-            }
-            
-            val totalCount = processedSessionPoints.size
-            if (totalCount == 0) return@launch
-            
-            _debugStatus.value = "Saving $totalCount pts..."
-            
-            // 1. Calculate Midpoint
-            var sumLat: Double = 0.0
-            var sumLng: Double = 0.0
-            for (p in processedSessionPoints) {
-                sumLat += p.latitude
-                sumLng += p.longitude
-            }
-            val avgLat = sumLat / totalCount
-            val avgLon = sumLng / totalCount
-            
-            // 2. Encode
-            val pathJson = StringBuilder("[")
-            for (i in processedSessionPoints.indices) {
-                if (i > 0) pathJson.append(",")
-                val p = processedSessionPoints[i]
-                pathJson.append("{\"lat\":${p.latitude},\"lon\":${p.longitude}}")
-            }
-            pathJson.append("]")
-            
-            val log = com.example.alltodo.data.UserLog(
-                latitude = avgLat,
-                longitude = avgLon,
-                startTime = start,
-                endTime = endTime,
-                pathData = pathJson.toString()
-            )
-            
-            userLogDao.insertLog(log)
-            
-            val msg = "Session Saved: $totalCount pts"
-            com.example.alltodo.services.RemoteLogger.info(msg)
-            // [FIX] Send Data to Server
-            com.example.alltodo.services.RemoteLogger.log("PATH_DATA", pathJson.toString())
-            _debugStatus.value = "Done. $totalCount pts saved."
-            
-            // 3. Clear (on Main Thread if needed, but this is new scope)
-            withContext(Dispatchers.Main) {
-                processedSessionPoints.clear()
-                pendingBuffer.clear()
-                _liveSessionPoints.value = emptyList()
-                sessionStartTime = 0
-                loadUserLogs()
+
+        // [FIX] Snapshot data immediately to prevent Race Condition with clear()
+        val finalPoints = ArrayList(processedSessionPoints)
+        if (pendingBuffer.isNotEmpty()) {
+            finalPoints.addAll(pendingBuffer)
+        }
+
+        // Cleanup immediately (UI Thread)
+        processedSessionPoints.clear()
+        pendingBuffer.clear()
+        _liveSessionPoints.value = emptyList()
+        sessionStartTime = 0
+
+        if (finalPoints.isEmpty()) return
+
+        // [FIX] Use NonCancellable to ensure save completes in background without blocking Main Thread (No ANR)
+        viewModelScope.launch(Dispatchers.IO) {
+            withContext(NonCancellable) {
+                try {
+                    val totalCount = finalPoints.size
+                    
+                    // 1. Calculate Midpoint
+                    var sumLat: Double = 0.0
+                    var sumLng: Double = 0.0
+                    for (p in finalPoints) {
+                        sumLat += p.latitude
+                        sumLng += p.longitude
+                    }
+                    val avgLat = sumLat / totalCount
+                    val avgLon = sumLng / totalCount
+                    
+                    // 2. Encode
+                    val pathJson = StringBuilder("[")
+                    for (i in finalPoints.indices) {
+                        if (i > 0) pathJson.append(",")
+                        val p = finalPoints[i]
+                        pathJson.append("{\"lat\":${p.latitude},\"lon\":${p.longitude}}")
+                    }
+                    pathJson.append("]")
+                    
+                    val log = com.example.alltodo.data.UserLog(
+                        latitude = avgLat,
+                        longitude = avgLon,
+                        startTime = start,
+                        endTime = endTime,
+                        pathData = pathJson.toString()
+                    )
+                    
+                    // Save to DB (Suspend safe)
+                    userLogDao.insertLog(log)
+                    
+                    // Remote Log
+                    com.example.alltodo.services.RemoteLogger.info("Session Saved (Async): $totalCount pts")
+                    com.example.alltodo.services.RemoteLogger.log("PATH_DATA", pathJson.toString())
+
+                    // Refresh logs on UI
+                    loadUserLogs()
+
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    com.example.alltodo.services.RemoteLogger.error("Failed to save session: ${e.message}")
+                }
             }
         }
     }

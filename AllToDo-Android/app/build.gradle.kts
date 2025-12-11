@@ -11,7 +11,7 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.alltodo"
+        applicationId = "kr.co.daam.AllToDo"
         minSdk = 26
         targetSdk = 34
         versionCode = 1
@@ -66,18 +66,21 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
+    
+    // Location
     implementation("com.google.android.gms:play-services-location:21.0.1")
+    
+    // Google Maps SDK
+    implementation("com.google.android.gms:play-services-maps:18.2.0")
+    implementation("com.google.maps.android:maps-compose:4.3.0")
+    implementation("com.google.maps.android:maps-compose-utils:4.3.0")
     
     // Kakao Map SDK
     implementation("com.kakao.maps.open:android:2.13.0")
     
-    // Naver Map SDK - REMOVED
-    // implementation("com.naver.maps:map-sdk:3.23.0")
-    // implementation("io.github.fornewid:naver-map-compose:1.8.0")
+    // Naver Map SDK
+    implementation("com.naver.maps:map-sdk:3.19.0")
     
-    // Location
-    implementation("com.google.android.gms:play-services-location:21.0.1")
-
     // Room
     val roomVersion = "2.6.1"
     implementation("androidx.room:room-runtime:$roomVersion")

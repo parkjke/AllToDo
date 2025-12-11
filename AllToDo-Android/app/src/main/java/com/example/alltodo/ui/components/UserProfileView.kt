@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.alltodo.ui.theme.AllToDoGreen
+import com.example.alltodo.ui.MapProvider
 
 @OptIn(ExperimentalMaterial3Api::class) // [FIX]
 @Composable
@@ -27,7 +28,9 @@ fun UserProfileView(
     maxPopupItems: Int,
     onMaxItemsChange: (Int) -> Unit,
     popupFontSize: Int,
-    onFontSizeChange: (Int) -> Unit
+    onFontSizeChange: (Int) -> Unit,
+    currentMapProvider: MapProvider,
+    onMapProviderChange: (MapProvider) -> Unit
 ) {
     Card(
         modifier = modifier
@@ -133,6 +136,29 @@ fun UserProfileView(
                     onClick = { onFontSizeChange(2) },
                     label = { Text("Large") }
                 )
+            }
+            // Map Provider Settings
+            Divider(modifier = Modifier.padding(vertical = 8.dp))
+            Text("Map Provider", fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
+            Column {
+                MapProvider.values().forEach { provider ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onMapProviderChange(provider) },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = (provider == currentMapProvider),
+                            onClick = { onMapProviderChange(provider) }
+                        )
+                        Text(
+                            text = provider.name,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
+                }
             }
         }
     }

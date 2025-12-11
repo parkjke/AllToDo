@@ -31,3 +31,13 @@ enum UnifiedMapItem: Identifiable {
 class UnifiedAnnotation: MKPointAnnotation {
     var item: UnifiedMapItem?
 }
+
+// [NEW] Map Provider Setting Enum
+enum MapProvider: String, CaseIterable, Identifiable {
+    case apple = "Apple Maps"
+    case kakao = "Kakao Maps"
+    case naver = "Naver Maps"
+    case google = "Google Maps"
+    
+    var id: String { self.rawValue }
+}

@@ -9,6 +9,7 @@ struct UserProfileView: View {
     @State private var message: String = ""
     @AppStorage("maxPopupItems") private var maxPopupItems = 5
     @AppStorage("popupFontSize") private var popupFontSize = 1
+    @AppStorage("selectedMapProvider") private var mapProvider: MapProvider = .apple
     
     var body: some View {
         VStack(spacing: 0) {
@@ -57,6 +58,15 @@ struct UserProfileView: View {
                         Text("Large").tag(2)
                     }
                     .pickerStyle(.segmented)
+                }
+                
+                Section(header: Text("Map Settings")) {
+                    Picker("Map Type", selection: $mapProvider) {
+                        ForEach(MapProvider.allCases) { provider in
+                            Text(provider.rawValue).tag(provider)
+                        }
+                    }
+                    .pickerStyle(.automatic)
                 }
                 
                 if !message.isEmpty {

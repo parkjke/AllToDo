@@ -3,4 +3,6 @@ use_frameworks!
 
 target 'AllToDo' do
   pod 'KakaoMapsSDK'
+  pod 'NMapsMap'
+  pod 'GoogleMaps'
 end

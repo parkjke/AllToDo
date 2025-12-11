@@ -107,8 +107,6 @@
 				96A4A4F62ED271F20000401C /* AllToDo */,
 			);
 			name = AllToDo;
-			packageProductDependencies = (
-			);
 			productName = AllToDo;
 			productReference = 96A4A4F42ED271F20000401C /* AllToDo.app */;
 			productType = "com.apple.product-type.application";
@@ -137,8 +135,6 @@
 			);
 			mainGroup = 96A4A4EB2ED271F20000401C;
 			minimizedProjectReferenceProxies = 1;
-			packageReferences = (
-			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 96A4A4F52ED271F20000401C /* Products */;
 			projectDirPath = "";

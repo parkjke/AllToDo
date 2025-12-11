@@ -1,16 +1,30 @@
 PODS:
+  - GoogleMaps (10.6.0):
+    - GoogleMaps/Maps (= 10.6.0)
+  - GoogleMaps/Maps (10.6.0)
   - KakaoMapsSDK (2.12.10)
+  - NMapsGeometry (1.0.2)
+  - NMapsMap (3.23.0):
+    - NMapsGeometry
 
 DEPENDENCIES:
+  - GoogleMaps
   - KakaoMapsSDK
+  - NMapsMap
 
 SPEC REPOS:
   trunk:
+    - GoogleMaps
     - KakaoMapsSDK
+    - NMapsGeometry
+    - NMapsMap
 
 SPEC CHECKSUMS:
+  GoogleMaps: fb04793688b21f2450a928652f4685a86270a48d
   KakaoMapsSDK: 32040e6268df2447c3f56dc4acada339d8eb8f32
+  NMapsGeometry: 4e02554fa9880ef02ed96b075dc84355d6352479
+  NMapsMap: 1964e6f9073301ad3cbe3a12235ba36f6f6cd905
 
-PODFILE CHECKSUM: 9de9f2018c6a1eced48826090ddbaea9f649e1d9
+PODFILE CHECKSUM: 338ddfc084c76ef4935572aa3c763818c30fb98e
 
 COCOAPODS: 1.16.2

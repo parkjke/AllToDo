@@ -14,7 +14,7 @@ dependencyResolutionManagement {
             url = uri("https://devrepo.kakao.com/nexus/repository/kakaomap-releases/")
             isAllowInsecureProtocol = true
         }
-        // maven("https://naver.jfrog.io/artifactory/maven/") // REMOVED: Causing corrupt artifacts
+        maven("https://repository.map.naver.com/archive/maven")
     }
 }
 

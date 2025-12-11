@@ -57,10 +57,14 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.alltodo.ui.components.RightSideControls
 import com.example.alltodo.ui.components.TopLeftWidget
 import com.example.alltodo.ui.components.TodoListContent
-import com.example.alltodo.ui.components.RightSideControls
-import com.example.alltodo.ui.components.TopLeftWidget
-import com.example.alltodo.ui.components.TodoListContent
+import com.example.alltodo.ui.components.PathDetailPopup
+import com.example.alltodo.ui.components.GooglePathDetailPopup
+import com.example.alltodo.ui.components.NaverPathDetailPopup // [NEW]
+import com.example.alltodo.ui.components.KakaoMapContent
+import com.example.alltodo.ui.components.NaverMapContent // [NEW]
 import com.example.alltodo.ui.components.UserProfileView // [NEW]
+import com.example.alltodo.ui.components.GoogleMapMarkers // [NEW]
+import com.example.alltodo.ui.components.GoogleMapContent // [NEW]
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material.icons.filled.LocationOn
@@ -93,6 +97,8 @@ import kotlinx.coroutines.delay
 import org.json.JSONArray
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlinx.coroutines.launch // [FIX] Import
+import com.kakao.vectormap.camera.CameraAnimation // [FIX] Import
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -119,22 +125,31 @@ fun MainScreen(
     }
 
     val context = LocalContext.current
-    var kakaoMap: KakaoMap? by remember { mutableStateOf(null) }
-    var isMapReady by remember { mutableStateOf(false) }
-    var isSdkInitialized by remember { mutableStateOf(false) } // [FIX] SDK Init Flag
+    var kakaoMap by remember { mutableStateOf<KakaoMap?>(null) }
+    var naverMap by remember { mutableStateOf<com.naver.maps.map.NaverMap?>(null) }
+    
+    // [FIX] Split isMapReady
+    var isKakaoMapReady by remember { mutableStateOf(false) }
+    var isGoogleMapReady by remember { mutableStateOf(false) }
+    var isNaverMapReady by remember { mutableStateOf(false) }
+
+    var isSdkInitialized by remember { mutableStateOf(false) }
     var showBottomSheet by remember { mutableStateOf(false) }
     var showMyInfo by remember { mutableStateOf(false) }
     var compassRotation by remember { mutableStateOf(0f) }
-    
+
     // [NEW] Time Travel & Settings
     var showHistoryMode by remember { mutableStateOf(false) }
     val maxPopupItems by viewModel.maxPopupItems.collectAsState()
     val popupFontSize by viewModel.popupFontSize.collectAsState()
 
+    // Coroutine Scope for Map Animations
+    val scope = rememberCoroutineScope() 
+
     // Selected Cluster/Item for Callout
     var selectedCluster by remember { mutableStateOf<PinCluster?>(null) }
     var selectedClusterPosition by remember { mutableStateOf<Offset?>(null) } // Screen position
-    var showDetailPopup by remember { mutableStateOf<UnifiedItem?>(null) } // [NEW] For detail popup
+    var showDetailPopup by remember { mutableStateOf<UnifiedItem?>(null) } 
 
     // Current Location & Add Todo State
     var currentLocation by remember { mutableStateOf<android.location.Location?>(null) }
@@ -178,255 +193,187 @@ fun MainScreen(
              val k = appInfo.metaData.getString("com.kakao.vectormap.APP_KEY")
              if (k != null) {
                  KakaoMapSdk.init(context, k)
-                 isSdkInitialized = true // [FIX] Signal Ready
+                 isSdkInitialized = true
              }
         } catch (e: Exception) {
              android.util.Log.e("AllToDo", "SDK Init Fail", e)
         }
     }
 
-    // Location Tracking Loop (Buffering via ViewModel)
-    LaunchedEffect(isMapReady) {
-        if (isMapReady) {
-            // Intro Animation (Wide -> Close)
-            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-                    location?.let {
-                        kakaoMap?.moveCamera(CameraUpdateFactory.newCenterPosition(com.kakao.vectormap.LatLng.from(it.latitude, it.longitude), 12))
-                    }
-                }
-                delay(1000)
-                fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-                    location?.let {
-                        kakaoMap?.moveCamera(CameraUpdateFactory.newCenterPosition(com.kakao.vectormap.LatLng.from(it.latitude, it.longitude), 15),
-                            com.kakao.vectormap.camera.CameraAnimation.from(1000, true, true))
-                    }
-                }
-            }
-
-            // Tracking
-            while (true) {
+    // Map Provider State with Persistence
+    val prefs = remember { context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE) }
+    var mapProvider by remember {
+        val saved = prefs.getString("map_provider", "Kakao")
+        val initial = MapProvider.values().find { it.name == saved } ?: MapProvider.Kakao
+        mutableStateOf(initial)
+    }
+    LaunchedEffect(mapProvider) {
+        isKakaoMapReady = false
+        isGoogleMapReady = false
+        isNaverMapReady = false
+        prefs.edit().putString("map_provider", mapProvider.name).apply()
+    }
+    
+    // [FIX] Location Tracking Loop (Buffering via ViewModel)
+    // Dependencies: fusedLocationClient, mapProvider, flags
+    LaunchedEffect(isKakaoMapReady, isGoogleMapReady) {
+        val isReady = when(mapProvider) { // Use simpler logic or just run if provider matches
+           MapProvider.Kakao -> isKakaoMapReady
+           MapProvider.Google -> isGoogleMapReady
+           else -> false
+        }
+        
+        if (isReady) {
+           // Intro Animation specific to Kakao for now
+           if (mapProvider == MapProvider.Kakao) {
+               if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                   fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                       location?.let {
+                           kakaoMap?.moveCamera(CameraUpdateFactory.newCenterPosition(com.kakao.vectormap.LatLng.from(it.latitude, it.longitude), 12))
+                       }
+                   }
+                   delay(1000)
+                   fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                       location?.let {
+                           kakaoMap?.moveCamera(CameraUpdateFactory.newCenterPosition(com.kakao.vectormap.LatLng.from(it.latitude, it.longitude), 15),
+                               com.kakao.vectormap.camera.CameraAnimation.from(1000, true, true))
+                       }
+                   }
+               }
+           }
+           
+           // Common Tracking Loop
+           while (true) {
                 if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
                     fusedLocationClient.lastLocation.addOnSuccessListener { location ->
                         if (location != null) {
-                            currentLocation = location // Update State for UI Pin
+                            currentLocation = location
                             viewModel.saveLocation(location.latitude, location.longitude)
                         }
                     }
                 }
-                delay(5000) // Poll every 5s
-            }
+                delay(5000)
+           }
         }
     }
 
-    var cameraMoveState by remember { mutableStateOf(0) }
-
-
-
-    LaunchedEffect(kakaoMap, userLogs, todoItems, currentLocation, cameraMoveState) {
-        val map = kakaoMap ?: return@LaunchedEffect
-        val labelManager = map.labelManager ?: return@LaunchedEffect
-        val layer = labelManager.getLayer("mainLayer") ?: labelManager.addLayer(com.kakao.vectormap.label.LabelLayerOptions.from("mainLayer"))
-        layer?.removeAll()
-
-        layer?.removeAll()
-
-        // [NEW] Time Filter Logic
-        val now = System.currentTimeMillis()
-        val oneDay = 24 * 60 * 60 * 1000L
-        val targetTime = if (showHistoryMode) now - oneDay else now
-        val minTime = targetTime - oneDay
-        val maxTime = targetTime + oneDay
-
-        val logItems = userLogs.filter { it.startTime in minTime..maxTime }.map { UnifiedItem.History(it) }
-        val todoItemsList = todoItems.filter { 
-            val t = it.createdAt
-            t in minTime..maxTime 
-        }.map { UnifiedItem.Todo(it) }
-        
-        val currentItems = if (currentLocation != null) listOf(UnifiedItem.CurrentLocation(currentLocation!!.latitude, currentLocation!!.longitude)) else emptyList()
-        val allItems = logItems + todoItemsList + currentItems
-
-        if (allItems.isNotEmpty()) {
-            val density = context.resources.displayMetrics.density
-            val clusterThresholdPx = 60 * density
-
-            val screenPoints = allItems.mapNotNull { item ->
-                val latLng = com.kakao.vectormap.LatLng.from(item.latitude, item.longitude)
-                val pt = map.toScreenPoint(latLng)
-                if (pt != null) Triple(item, pt.x.toFloat(), pt.y.toFloat()) else null
-            }
-
-            val clusters = mutableListOf<PinCluster>()
-            val visited = BooleanArray(screenPoints.size)
-
-            for (i in screenPoints.indices) {
-                if (visited[i]) continue
-                val center = screenPoints[i]
-                val clusterItems = mutableListOf<UnifiedItem>()
-                clusterItems.add(center.first)
-                visited[i] = true
-
-                for (j in i + 1 until screenPoints.size) {
-                    if (visited[j]) continue
-                    val other = screenPoints[j]
-                    val dx = center.second - other.second
-                    val dy = center.third - other.third
-                    val dist = kotlin.math.sqrt(dx * dx + dy * dy)
-
-                    if (dist <= clusterThresholdPx) {
-                        clusterItems.add(other.first)
-                        visited[j] = true
-                    }
-                }
-
-                 var hasTodo = false
-                var hasHistory = false
-                var hasCurrent = false
-                clusterItems.forEach { 
-                    if (it is UnifiedItem.Todo) hasTodo = true
-                    if (it is UnifiedItem.History) hasHistory = true
-                    if (it is UnifiedItem.CurrentLocation) hasCurrent = true
-                }
-                val type = when {
-                    hasCurrent -> "current"
-                    hasTodo && hasHistory -> "mixed"
-                    hasTodo -> "todo"
-                    else -> "history"
-                }
-
-                clusters.add(PinCluster(center.first.latitude, center.first.longitude, clusterItems, type, (hasTodo && hasHistory) || (hasCurrent && (hasTodo || hasHistory))))
-            }
-
-            clusters.forEach { cluster ->
-                val styleId = "cluster_${cluster.items.size}_${cluster.type}"
-                var styles = labelManager.getLabelStyles(styleId)
-                if (styles == null) {
-                    val color = when {
-                        cluster.items.any { it is UnifiedItem.CurrentLocation } -> android.graphics.Color.RED
-                        cluster.hasMixed -> 0xFF808080.toInt()
-                        cluster.items.any { it is UnifiedItem.History } -> android.graphics.Color.RED
-                        cluster.items.any { it is UnifiedItem.Todo } -> 0xFF00AA00.toInt()
-                        else -> android.graphics.Color.BLUE
-                    }
-
-                    val bitmap = generateDiamondPin(color, cluster.items.size)
-                    if (bitmap != null) {
-                        styles = labelManager.addLabelStyles(LabelStyles.from(styleId, LabelStyle.from(bitmap)))
-                    }
-                }
-
-                if (styles != null) {
-                    val options = LabelOptions.from(com.kakao.vectormap.LatLng.from(cluster.latitude, cluster.longitude))
-                        .setStyles(styles)
-                        .setClickable(true)
-                    layer?.addLabel(options)
-                }
-            }
-        }
+    // [FIX] Hoisted Google Camera State
+    val googleCameraState = com.google.maps.android.compose.rememberCameraPositionState {
+         position = com.google.android.gms.maps.model.CameraPosition.fromLatLngZoom(
+             com.google.android.gms.maps.model.LatLng(37.5665, 126.9780), 12f
+         )
     }
 
+    // [NEW] Unified Filtering Logic for All Maps
+    val filteredItems by remember(userLogs, todoItems, currentLocation, showHistoryMode) {
+        derivedStateOf {
+            val now = System.currentTimeMillis()
+            val oneDay = 24 * 60 * 60 * 1000L
+            val targetTime = if (showHistoryMode) now - oneDay else now
+            val minTime = targetTime - oneDay
+            val maxTime = targetTime + oneDay
 
+            val logItems = userLogs.filter { it.startTime in minTime..maxTime }.map { UnifiedItem.History(it) }
+            val todoItemsList = if (showHistoryMode) {
+                emptyList()
+            } else {
+                todoItems.filter { 
+                    val t = it.createdAt
+                    t in minTime..maxTime 
+                }.map { UnifiedItem.Todo(it) }
+            }
+            
+            logItems + todoItemsList
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        if (isSdkInitialized) { // [FIX] Only render MapView after SDK Init
-            AndroidView(
-                factory = { ctx ->
-                    try {
-                        MapView(ctx).apply {
-                        start(object : MapLifeCycleCallback() {
-                            override fun onMapDestroy() {}
-                            override fun onMapError(e: Exception?) {
-                                android.util.Log.e("AllToDo", "Map Error: ${e?.message}")
-                            }
-                        }, object : KakaoMapReadyCallback() {
-                            override fun onMapReady(map: KakaoMap) {
-                                kakaoMap = map
-                                isMapReady = true
-
-
-
-                                map.setOnLabelClickListener { _, _, label ->
-                                    val pos = label.position
-                                    val logItems = viewModel.userLogs.value.map { UnifiedItem.History(it) }
-                                    val todoItemsList = viewModel.todoItems.value.map { UnifiedItem.Todo(it) }
-                                    val curr = if (currentLocation != null) listOf(UnifiedItem.CurrentLocation(currentLocation!!.latitude, currentLocation!!.longitude)) else emptyList()
-                                    val all = logItems + todoItemsList + curr
-
-                                    val density = ctx.resources.displayMetrics.density
-                                    val clusterThresholdPx = 60 * density
-
-                                    val screenPoints = all.mapNotNull { item ->
-                                        val pt = map.toScreenPoint(com.kakao.vectormap.LatLng.from(item.latitude, item.longitude))
-                                        if (pt != null) Triple(item, pt.x.toFloat(), pt.y.toFloat()) else null
-                                    }
-
-                                    val clusters = mutableListOf<PinCluster>()
-                                    val visited = BooleanArray(screenPoints.size)
-                                    for (i in screenPoints.indices) {
-                                        if (visited[i]) continue
-                                        val center = screenPoints[i]
-                                        val clusterItems = mutableListOf<UnifiedItem>()
-                                        clusterItems.add(center.first)
-                                        visited[i] = true
-                                        for (j in i + 1 until screenPoints.size) {
-                                            if (visited[j]) continue
-                                            val other = screenPoints[j]
-                                            val dx = (center.second - other.second).toDouble()
-                                            val dy = (center.third - other.third).toDouble()
-                                            val dist = kotlin.math.sqrt(dx * dx + dy * dy)
-                                            if (dist <= clusterThresholdPx) {
-                                                clusterItems.add(other.first)
-                                                visited[j] = true
-                                            }
-                                        }
-                                        clusters.add(PinCluster(center.first.latitude, center.first.longitude, clusterItems))
-                                    }
-
-                                    val clickedCluster = clusters.find {
-                                        Math.abs(it.latitude - pos.latitude) < 0.00001 && Math.abs(it.longitude - pos.longitude) < 0.00001
-                                    }
-
-                                    if (clickedCluster != null) {
-                                        if (selectedCluster?.latitude == clickedCluster.latitude && selectedCluster?.longitude == clickedCluster.longitude) {
-                                            selectedCluster = null
-                                        } else {
-                                            selectedCluster = clickedCluster
-                                        }
-                                    }
-                                    return@setOnLabelClickListener true
-                                }
-
-                                map.setOnCameraMoveEndListener { _, cameraPosition, _ ->
-                                    cameraMoveState++
-                                    compassRotation = -Math.toDegrees(cameraPosition.rotationAngle).toFloat()
-                                }
-                                map.setOnCameraMoveStartListener { _, _ ->
-                                    selectedCluster = null
-                                }
-
-                                map.setOnMapClickListener { _, latLng, _, _ ->
-                                    newTodoLocation = latLng
-                                    showAddTodoDialog = true
-                                }
-                            }
-                        })
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.e("AllToDo", "CRITICAL: Failed to create MapView", e)
-                    android.widget.TextView(ctx).apply {
-                        text = "Map Unavailable: ${e.message}"
-                        setTextColor(android.graphics.Color.RED)
-                    }
+        Box(modifier = Modifier.fillMaxSize()) {
+            when (mapProvider) {
+                MapProvider.Google -> {
+                    GoogleMapContent(
+                        modifier = Modifier.fillMaxSize(),
+                        items = filteredItems,
+                        currentLocation = currentLocation,
+                        cameraPositionState = googleCameraState,
+                        onMapClick = { latLng ->
+                            showDetailPopup = null
+                            selectedCluster = null // Also clear cluster
+                        },
+                        onMapLongClick = { latLng ->
+                            newTodoLocation = latLng
+                            showAddTodoDialog = true
+                        },
+                        onItemClick = { item -> showDetailPopup = item }, // Fallback
+                        onItemClickWithCoords = { item, x, y ->
+                            selectedClusterPosition = Offset(x, y)
+                            selectedCluster = PinCluster(
+                                item.latitude, item.longitude, 
+                                listOf(item), 
+                                if(item is UnifiedItem.Todo) "todo" else "history"
+                            )
+                        },
+                        onClusterClickWithCoords = { items, x, y -> // [FIX] New Callback for Clusters
+                            selectedClusterPosition = Offset(x, y)
+                            // Determine type logic simplistically
+                            val hasTodo = items.any { it is UnifiedItem.Todo }
+                            val hasHistory = items.any { it is UnifiedItem.History }
+                            val type = if(hasTodo && hasHistory) "mixed" else if(hasTodo) "todo" else "history"
+                            
+                            val first = items.firstOrNull() ?: items.first()
+                            selectedCluster = PinCluster(
+                                first.latitude, first.longitude,
+                                items,
+                                type
+                            )
+                        },
+                        onRotationChange = { rot -> compassRotation = rot },
+                        isMapReady = isGoogleMapReady, // [FIX] Use Google flag
+                        onMapLoaded = { isGoogleMapReady = true }, // [FIX] Set Google flag
+                        showHistoryMode = showHistoryMode
+                    )
                 }
-            },
-            modifier = Modifier.fillMaxSize()
-        )
-        } else {
-             Box(Modifier.fillMaxSize().background(Color.White), contentAlignment=Alignment.Center) { 
-                 Text("Initializing Map...") 
-             }
-        }
+
+                MapProvider.Kakao -> {
+                    com.example.alltodo.ui.components.KakaoMapContent(
+                        modifier = Modifier.fillMaxSize(),
+                        isSdkInitialized = isSdkInitialized,
+                        items = filteredItems,
+                        currentLocation = currentLocation,
+                        selectedCluster = selectedCluster,
+                        onMapReady = { map ->
+                            kakaoMap = map
+                            isKakaoMapReady = true // [FIX] Set Kakao flag
+                        },
+                        onClusterClick = { cluster ->
+                            if (selectedCluster?.latitude == cluster.latitude && selectedCluster?.longitude == cluster.longitude) {
+                                selectedCluster = null
+                            } else {
+                                selectedCluster = cluster
+                            }
+                        },
+                        onMapClick = { latLng ->
+                            newTodoLocation = latLng
+                            showAddTodoDialog = true
+                        },
+                        onCameraRotate = { rot -> compassRotation = rot },
+                        onCameraMoveStart = { selectedCluster = null }
+                    )
+                }
+                MapProvider.Naver -> {
+                    NaverMapContent(
+                        modifier = Modifier.fillMaxSize(),
+                        items = filteredItems,
+                        currentLocation = currentLocation,
+                        onMapReady = { map ->
+                            naverMap = map
+                            isNaverMapReady = true // [FIX] Set Naver flag
+                        },
+                        onItemClick = { item -> showDetailPopup = item }
+                    )
+                }
+            }
+
 
         if (showAddTodoDialog) {
             AlertDialog(
@@ -522,12 +469,14 @@ fun MainScreen(
                      .clickable { showMyInfo = false }
              ) {
                  UserProfileView(
-                     modifier = Modifier.align(Alignment.CenterStart).padding(start = 20.dp), // Left aligned, avoiding right controls
+                     modifier = Modifier.align(Alignment.CenterStart).padding(start = 20.dp), // Left aligned,
                      onDismiss = { showMyInfo = false },
                      maxPopupItems = maxPopupItems,
                      onMaxItemsChange = { viewModel.updateMaxPopupItems(it) },
                      popupFontSize = popupFontSize,
-                     onFontSizeChange = { viewModel.updatePopupFontSize(it) }
+                     onFontSizeChange = { viewModel.updatePopupFontSize(it) },
+                     currentMapProvider = mapProvider,
+                     onMapProviderChange = { mapProvider = it }
                  )
              }
         }
@@ -729,23 +678,114 @@ fun MainScreen(
             onHistoryClick = { showHistoryMode = !showHistoryMode }, // [NEW]
             onNotificationClick = {},
             onLoginClick = { showMyInfo = true },
-            onLocationClick = {
-                if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                    fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
-                        loc?.let { kakaoMap?.moveCamera(CameraUpdateFactory.newCenterPosition(com.kakao.vectormap.LatLng.from(it.latitude, it.longitude))) }
+
+            onCompassClick = {
+                when (mapProvider) {
+                    MapProvider.Kakao -> {
+                        kakaoMap?.moveCamera(CameraUpdateFactory.rotateTo(0.0), CameraAnimation.from(500, true, true))
+                        compassRotation = 0f
+                    }
+                    MapProvider.Google -> {
+                         scope.launch {
+                             try {
+                                 googleCameraState.animate(
+                                     com.google.android.gms.maps.CameraUpdateFactory.newCameraPosition(
+                                         com.google.android.gms.maps.model.CameraPosition.Builder(googleCameraState.position)
+                                             .bearing(0f)
+                                             .build()
+                                     ),
+                                     500 // duration ms
+                                 )
+                                 compassRotation = 0f // Update after animation or immediately? UI hides on 0.
+                             } catch (e: Exception) {}
+                         }
+                    }
+                    MapProvider.Naver -> {
+                         val target = naverMap?.cameraPosition?.target ?: com.naver.maps.geometry.LatLng(37.5665, 126.9780)
+                         val currentZoom = naverMap?.cameraPosition?.zoom ?: 15.0
+                         val cameraPosition = com.naver.maps.map.CameraPosition(target, currentZoom, 0.0, 0.0)
+                         val update = com.naver.maps.map.CameraUpdate.toCameraPosition(cameraPosition)
+                             .animate(com.naver.maps.map.CameraAnimation.Easing)
+                         naverMap?.moveCamera(update)
+                         compassRotation = 0f
                     }
                 }
             },
-            onZoomInClick = { kakaoMap?.moveCamera(CameraUpdateFactory.zoomIn()) },
-            onZoomOutClick = { kakaoMap?.moveCamera(CameraUpdateFactory.zoomOut()) },
-            onCompassClick = { kakaoMap?.moveCamera(CameraUpdateFactory.rotateTo(0.0)) }
+            onLocationClick = {
+                 if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                     fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
+                         loc?.let { 
+                             val lat = it.latitude
+                             val lon = it.longitude
+                             when (mapProvider) {
+                                 MapProvider.Kakao -> {
+                                     kakaoMap?.moveCamera(CameraUpdateFactory.newCenterPosition(com.kakao.vectormap.LatLng.from(lat, lon))) 
+                                 }
+                                 MapProvider.Naver -> {
+                                     val update = com.naver.maps.map.CameraUpdate.scrollTo(com.naver.maps.geometry.LatLng(lat, lon))
+                                     naverMap?.moveCamera(update)
+                                 }
+                                 MapProvider.Google -> {
+                                     googleCameraState.move(com.google.android.gms.maps.CameraUpdateFactory.newLatLng(com.google.android.gms.maps.model.LatLng(lat, lon)))
+                                 }
+                                 else -> {}
+                             }
+                         }
+                     }
+                 }
+            },
+            onZoomInClick = { 
+                when (mapProvider) {
+                    MapProvider.Kakao -> kakaoMap?.moveCamera(CameraUpdateFactory.zoomIn())
+                    MapProvider.Naver -> {
+                        val update = com.naver.maps.map.CameraUpdate.zoomBy(1.0)
+                        naverMap?.moveCamera(update)
+                    }
+                    MapProvider.Google -> googleCameraState.move(com.google.android.gms.maps.CameraUpdateFactory.zoomIn())
+                    else -> {}
+                }
+            },
+            onZoomOutClick = { 
+                when (mapProvider) {
+                    MapProvider.Kakao -> kakaoMap?.moveCamera(CameraUpdateFactory.zoomOut())
+                    MapProvider.Naver -> {
+                        val update = com.naver.maps.map.CameraUpdate.zoomBy(-1.0)
+                        naverMap?.moveCamera(update)
+                    }
+                    MapProvider.Google -> googleCameraState.move(com.google.android.gms.maps.CameraUpdateFactory.zoomOut())
+                    else -> {}
+                }
+            }
         )
 
+
+
         if (showPathMode) {
-             PathDetailPopup(
-                 pathPoints = currentPathPoints,
-                 onDismiss = { showPathMode = false }
-             )
+            if (mapProvider == MapProvider.Google) {
+                // Convert Kakao LatLngs (currentPathPoints) to Google LatLngs
+                val googlePoints = currentPathPoints.map {
+                    com.google.android.gms.maps.model.LatLng(it.latitude, it.longitude)
+                }
+                GooglePathDetailPopup(
+                    pathPoints = googlePoints,
+                    onDismiss = { showPathMode = false }
+                )
+            } else if (mapProvider == MapProvider.Naver) {
+                // Convert to Naver LatLngs
+                val naverPoints = currentPathPoints.map {
+                    com.naver.maps.geometry.LatLng(it.latitude, it.longitude)
+                }
+                NaverPathDetailPopup(
+                    pathPoints = naverPoints,
+                    onDismiss = { showPathMode = false }
+                )
+            } else {
+                // Default / Kakao
+                PathDetailPopup(
+                    pathPoints = currentPathPoints,
+                    onDismiss = { showPathMode = false }
+                )
+            }
         }
 
 
@@ -771,151 +811,7 @@ fun MainScreen(
             )
         }
     }
-}
-
-sealed class UnifiedItem {
-    abstract val latitude: Double
-    abstract val longitude: Double
-    abstract val timestamp: Long
-
-    data class Todo(val item: com.example.alltodo.data.TodoItem) : UnifiedItem() {
-        override val latitude get() = item.latitude ?: 0.0
-        override val longitude get() = item.longitude ?: 0.0
-        override val timestamp get() = item.createdAt
-    }
-
-    data class History(val log: com.example.alltodo.data.UserLog) : UnifiedItem() {
-        override val latitude get() = log.latitude
-        override val longitude get() = log.longitude
-        override val timestamp get() = log.startTime
-    }
-
-    data class CurrentLocation(val lat: Double, val lon: Double) : UnifiedItem() {
-        override val latitude get() = lat
-        override val longitude get() = lon
-        override val timestamp get() = System.currentTimeMillis()
     }
 }
 
-// [FIX] Path Detail Popup Component
-@Composable
-fun PathDetailPopup(
-    pathPoints: List<com.kakao.vectormap.LatLng>,
-    onDismiss: () -> Unit
-) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
-             AndroidView(
-                 factory = { ctx ->
-                     MapView(ctx).apply {
-                         start(object : MapLifeCycleCallback() {
-                             override fun onMapDestroy() {}
-                             override fun onMapError(e: Exception?) {}
-                         }, object : KakaoMapReadyCallback() {
-                             override fun onMapReady(map: KakaoMap) {
-                                 // Draw Path Line
-                                 val manager = map.routeLineManager
-                                 val layer = manager?.getLayer("pathLayer") ?: manager?.addLayer("pathLayer", 1000)
-                                 val style = RouteLineStyles.from(RouteLineStyle.from(20f, android.graphics.Color.RED))
-                                 val segment = RouteLineSegment.from(pathPoints, style)
-                                 layer?.addRouteLine(RouteLineOptions.from(segment))
-                                 
-                                 // Draw Red Pins for Start/End/All?
-                                 // User said "Pins color should be Red".
-                                 val labelManager = map.labelManager
-                                 val labelLayer = labelManager?.getLayer("pathLabels") ?: labelManager?.addLayer(com.kakao.vectormap.label.LabelLayerOptions.from("pathLabels"))
-                                 
-                                 // Simple Red Dot Bitmap
-                                 val dotBitmap = createRedDotBitmap()
-                                 val labelStyle = labelManager?.addLabelStyles(LabelStyles.from(LabelStyle.from(dotBitmap)))
-                                 
-                                 if (labelStyle != null) {
-                                     pathPoints.forEach { pt ->
-                                         labelLayer?.addLabel(LabelOptions.from(pt).setStyles(labelStyle))
-                                     }
-                                 }
 
-                                 // Fit Camera
-                                 map.moveCamera(CameraUpdateFactory.fitMapPoints(pathPoints.toTypedArray(), 100))
-                             }
-                         })
-                     }
-                 },
-                 modifier = Modifier.fillMaxSize()
-             )
-             
-             // Close Button
-             IconButton(
-                 onClick = onDismiss,
-                 modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
-             ) {
-                 Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Black)
-             }
-        }
-    }
-}
-
-fun createRedDotBitmap(): Bitmap {
-    val size = 40
-    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(bitmap)
-    val paint = Paint()
-    paint.color = android.graphics.Color.RED
-    paint.isAntiAlias = true
-    canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
-    return bitmap
-}
-
-data class PinCluster(
-    val latitude: Double,
-    val longitude: Double,
-    val items: List<UnifiedItem>,
-    val type: String = "mixed",
-    val hasMixed: Boolean = false
-)
-
-fun generateDiamondPin(color: Int, count: Int): android.graphics.Bitmap? {
-    val width = 100
-    val height = 120
-    val bitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
-    val canvas = android.graphics.Canvas(bitmap)
-
-    val paint = android.graphics.Paint().apply {
-        isAntiAlias = true
-        style = android.graphics.Paint.Style.FILL
-        setColor(color)
-    }
-
-    val path = android.graphics.Path()
-    path.moveTo(width / 2f, 0f)
-    path.lineTo(width.toFloat(), height * 0.4f)
-    path.lineTo(width / 2f, height.toFloat())
-    path.lineTo(0f, height * 0.4f)
-    path.close()
-
-    canvas.drawPath(path, paint)
-
-    if (count > 1) {
-        paint.color = android.graphics.Color.WHITE
-        val cx = width / 2f
-        val cy = height * 0.4f
-        val r = width / 4f
-        canvas.drawCircle(cx, cy, r, paint)
-
-        paint.color = color
-        paint.textSize = 30f
-        paint.textAlign = android.graphics.Paint.Align.CENTER
-        val txt = if (count > 9) "9+" else count.toString()
-        val bounds = android.graphics.Rect()
-        paint.getTextBounds(txt, 0, txt.length, bounds)
-        canvas.drawText(txt, cx, cy - bounds.exactCenterY(), paint)
-    } else {
-        paint.color = android.graphics.Color.WHITE
-        canvas.drawCircle(width / 2f, height * 0.4f, width / 8f, paint)
-    }
-
-    return bitmap
-}
