@@ -1,5 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Users, Building2, ShieldCheck, ArrowRight } from 'lucide-react';
+import LogoIcon from '../../assets/logo_icon.svg';
+import LogoTextKr from '../../assets/Logo-kr.svg';
 import './Dashboard.css';
 
 export default function Dashboard() {
@@ -9,6 +11,11 @@ export default function Dashboard() {
     return (
         <div className="dashboard-container">
             <h2 className="page-title">Dashboard</h2>
+
+            <div className="dashboard-header-logo">
+                <img src={LogoIcon} alt="Logo" className="dash-logo-icon" />
+                <img src={LogoTextEn} alt="AllToDo" className="dash-logo-text" />
+            </div>
 
             <div className="stats-grid">
                 <div className="card stat-card" onClick={() => navigate('/consultation/user')}>

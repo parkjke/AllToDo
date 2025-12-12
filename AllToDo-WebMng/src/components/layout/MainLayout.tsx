@@ -1,5 +1,7 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { Home, Users, Building2, ShieldCheck, LogOut, Phone } from 'lucide-react';
+import { Home, Building2, ShieldCheck, LogOut, Phone } from 'lucide-react';
+import LogoIcon from '../../assets/logo_icon.svg';
+import LogoTextEn from '../../assets/Logo-en.svg';
 import './MainLayout.css';
 
 export default function MainLayout() {
@@ -17,7 +19,10 @@ export default function MainLayout() {
         <div className="layout-container">
             <aside className="sidebar">
                 <div className="sidebar-header">
-                    <div className="logo-placeholder">AllToDo</div>
+                    <div className="logo-container">
+                        <img src={LogoIcon} alt="Logo" className="logo-icon" />
+                        <img src={LogoTextEn} alt="AllToDo" className="logo-text" />
+                    </div>
                     <span className="role-badge">{role.toUpperCase()}</span>
                 </div>
 

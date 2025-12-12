@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import LogoIcon from '../../assets/logo_icon.svg';
+import LogoTextEn from '../../assets/Logo-en.svg';
 import './Auth.css';
 
 export default function Login() {
@@ -31,7 +33,10 @@ export default function Login() {
     return (
         <div className="auth-container">
             <div className="auth-card card">
-                <h1 className="auth-title">AllToDo Mng</h1>
+                <div className="auth-logo-wrapper">
+                    <img src={LogoIcon} alt="Logo" className="auth-logo-icon" />
+                    <img src={LogoTextEn} alt="AllToDo" className="auth-logo-text" />
+                </div>
                 <p className="auth-subtitle">관리자 / 직원 전용 시스템</p>
 
                 <form onSubmit={handleSubmit} className="auth-form">

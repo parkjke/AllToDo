@@ -5,10 +5,35 @@
 }
 
 .page-title {
+    /* Removed simple text title since we have a big logo now */
+    display: none;
     font-size: 1.8rem;
     font-weight: 700;
     color: var(--primary-color);
     margin-bottom: 8px;
+}
+
+.dashboard-header-logo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin: 32px 0 48px 0;
+    animation: fadeIn 0.8s ease-out;
+}
+
+.dash-logo-icon {
+    width: 150px;
+    /* Increased for "Large" display */
+    height: auto;
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+}
+
+.dash-logo-text {
+    width: 300px;
+    /* Wider for Korean text Logo-kr.svg (900x230 ratio) */
+    height: auto;
 }
 
 .stats-grid {

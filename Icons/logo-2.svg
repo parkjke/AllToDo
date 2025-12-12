@@ -1,0 +1,15 @@
+<svg width="512" height="512" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="gradGreen" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:#34C759;stop-opacity:1" /><stop offset="100%" style="stop-color:#008037;stop-opacity:1" /></linearGradient>
+    <linearGradient id="gradRed" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:#FF3B30;stop-opacity:1" /><stop offset="100%" style="stop-color:#B00020;stop-opacity:1" /></linearGradient>
+    <linearGradient id="gradBlue" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:#007AFF;stop-opacity:1" /><stop offset="100%" style="stop-color:#0040DD;stop-opacity:1" /></linearGradient>
+    
+    <path id="pinShape" d="M30,0 C13.431,0 0,13.431 0,30 C0,52.5 30,90 30,90 C30,90 60,52.5 60,30 C60,13.431 46.569,0 30,0 Z M30,42 C23.373,42 18,36.627 18,30 C18,23.373 23.373,18 30,18 C36.627,18 42,23.373 42,30 C42,36.627 36.627,42 30,42 Z"/>
+  </defs>
+
+  <use href="#pinShape" fill="url(#gradGreen)" transform="translate(30, 70) scale(0.9)"/>
+  
+  <use href="#pinShape" fill="url(#gradBlue)" transform="translate(116, 70) scale(0.9)"/>
+
+  <use href="#pinShape" fill="url(#gradRed)" transform="translate(73, 20)"/>
+</svg>

@@ -14,7 +14,8 @@
 }
 
 .sidebar-header {
-    height: 80px;
+    height: 120px;
+    /* Increased from 80px */
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -22,11 +23,26 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.logo-placeholder {
-    font-size: 1.5rem;
-    font-weight: 800;
-    color: var(--white);
-    letter-spacing: -0.5px;
+
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    /* Reduced gap as requested */
+}
+
+.logo-icon {
+    width: 50px;
+    /* Reduced from 70px as requested */
+    height: auto;
+}
+
+.logo-text {
+    height: 25px;
+    /* Increased to 25px as requested */
+    width: auto;
+    filter: brightness(0) invert(1);
+    /* Black text -> White */
 }
 
 .role-badge {

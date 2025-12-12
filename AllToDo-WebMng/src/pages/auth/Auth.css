@@ -13,12 +13,24 @@
     animation: fadeIn 0.5s ease-out;
 }
 
-.auth-title {
-    text-align: center;
-    color: var(--primary-color);
-    margin-bottom: 8px;
-    font-weight: 800;
-    letter-spacing: -0.5px;
+/* .auth-title removed */
+
+.auth-logo-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.auth-logo-icon {
+    width: 50px;
+    height: auto;
+}
+
+.auth-logo-text {
+    height: 28px;
+    width: auto;
 }
 
 .auth-subtitle {
