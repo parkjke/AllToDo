@@ -160,4 +160,29 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
             locationManager.startUpdatingLocation()
         }
     }
+    
+    // [FIX] Missing Delegate Method
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let location = locations.last else { return }
+        
+        // 1. Update Publisher
+        DispatchQueue.main.async {
+            self.currentLocation = location
+        }
+        
+        // 2. Buffer for Path Recording (if active)
+        if isRecording {
+            // Filter: 1s or 5m delta? Logic is in main stream usually, but here we just buffer raw.
+            // Or use distanceFilter from manager.
+            let data = LocationData(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude, name: nil, timestamp: location.timestamp)
+            pendingBuffer.append(data)
+            
+            // Trigger WASM compression if buffer full?
+            if pendingBuffer.count >= 5 {
+                Task {
+                    await processBuffer()
+                }
+            }
+        }
+    }
 }

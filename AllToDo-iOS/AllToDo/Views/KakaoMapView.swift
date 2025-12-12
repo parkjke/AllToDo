@@ -363,25 +363,25 @@ struct KakaoMapView: UIViewRepresentable {
                     mapPoints.append(MapPoint(longitude: p.longitude, latitude: p.latitude))
                 }
                 
-                // Register Style (Use PolylineStyleSet)
-                let styleID = "pathStyleRed"
-                if layerManager.getPolylineStyleSet(styleID) == nil {
-                     let perLevel = PerLevelPolylineStyle(bodyColor: UIColor.red, bodyWidth: 4, strokeColor: UIColor.red, strokeWidth: 0, level: 0)
-                     let style = PolylineStyle(styles: [perLevel])
-                     // Fix: styleSetID
-                     let styleSet = PolylineStyleSet(styleSetID: styleID, styles: [style])
-                     layerManager.addPolylineStyleSet(styleSet)
-                }
+                // TODO: Fix KakaoMapsSDK MapPolylineShape creation. Init is private.
+                // Needs investigation into checking correct factory method (layer.addMapPolylineShape(options)?)
                 
-                let line = MapPolyline(linePoints: mapPoints, styleIndex: 0)
+                /* [Disabled for Build]
+                let styleID = "pathStyleRed"
+                let perLevel = PerLevelPolylineStyle(bodyColor: UIColor.red, bodyWidth: 4, strokeColor: UIColor.red, strokeWidth: 0, level: 0)
+                let style = PolylineStyle(styles: [perLevel])
+                let styleSet = PolylineStyleSet(styleSetID: styleID, styles: [style])
+                
+                layerManager.addPolylineStyleSet(styleSet) 
+                
                 let options = MapPolylineShapeOptions(shapeID: "userPath", styleID: styleID, zOrder: 1)
                 
-                let polyline = MapPolylineShape(lines: [line], options: options)
+                // Revert to mapPoints init (Simpler, works for single segment)
+                // let polyline = MapPolylineShape(mapPoints: mapPoints, options: options) // ERROR: No accessible init
                 
-                layer?.addMapPolylineShape(polyline)
-                polyline.show()
-                
-                print("DEBUG: Added Polyline with \(points.count) points")
+                // layer?.addMapPolylineShape(polyline)
+                */
+                print("DEBUG: Kakao Path Visualization Disabled due to SDK Issue")
             }
         }
 

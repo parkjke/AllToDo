@@ -17,6 +17,8 @@
 | **Clustering** | ✅ WASM | ✅ WASM | Zoom Level 기반 자동 그룹화 |
 | **Initial Animation** | ✅ | ✅ | Fit Bounds -> 1s Delay -> Zoom User |
 | **Self-Test** | ✅ | ✅ | App 실행 시 WASM 무결성 자동 검증 |
+| **Unified Pin Design** | ✅ Shield | ✅ Shield | All Providers Standardized (Green/Red/Blue) |
+| **Path History Line** | ✅ | ✅ | UserLog 선택 시 Red Polyline 표시 |
 
 ### 2. WASM Integration Status
 *   **Single Source**: `compressTrajectory` (RDP), `clusterPoints` (Clustering) 모두 서버 호스팅 WASM 사용.
@@ -44,9 +46,22 @@
     *   Zoom 변경 시 화면 전체 점들을 Grid 기반으로 WASM에서 그룹화.
     *   UI: 10개 이상 시 "9+" 뱃지, Todo(Green)/History(Red) 구분.
 
+### 2025-12-12 App Launch Scenario & Debugging
+*   **Documentation**:
+    *   Created `docs/APP_LAUNCH_SCENARIO.md`: Defined Zoom 15 -> 9 logic and Clustering rules.
+    *   Added `AppleMapView.swift` Reference Implementation to doc.
+*   **Implementation**:
+    *   **Android (`MainScreen.kt`)**: Implemented new Launch Logic (Case A/B).
+    *   **iOS (`AppleMapView.swift`)**: Implemented `performLaunchAnimation` with new logic.
+    *   **iOS (`AppLocationManager.swift`)**: Fixed missing `didUpdateLocations` delegate (Critical fix for "No Location" issue).
+    *   **iOS (`KakaoMapView.swift`)**: Temporarily disabled Path Visualization to resolve SDK compilation errors.
+*   **Status**:
+    *   Build Succeeded (Exit 0).
+    *   **Issue**: User reports Scenario 1 (No Pins -> Zoom) still not working on iOS despite Location fix. Requires deeper debugging of `updateAnnotations` or Data Binding flow next session.
+
 ---
 
-## 📝 작업 내역 (Work Log)
+## 4. 📝 작업 내역 (Work Log)
 
 ### [2025-12-11] Path Precision & Interval Optimization
 1.  **Android**: `fusedLocationClient` 호출을 5초 Polling에서 **0.9초 Callback** 방식으로 전면 수정.

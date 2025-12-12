@@ -302,29 +302,60 @@ struct AppleMapView: UIViewRepresentable {
             guard let userLoc = userLocation else { return }
             firstRender = false
             
-            // 1. Start High (Zoomed Out)
-            let startRegion = MKCoordinateRegion(
-                center: userLoc.coordinate,
-                span: MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5)
-            )
-            mapView.setRegion(startRegion, animated: false)
+            // Filter Valid Pins (Lat/Lng exist)
+            let validItems = parent.todoItems.filter { $0.location != nil }
             
-            // 2. Animate to Close (Zoomed In)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                let endRegion = MKCoordinateRegion(
+            if validItems.isEmpty {
+                // Case A: No Pins -> User Loc (Zoom 15 / Span 0.01) -> 1s -> User Loc (Zoom 9 / Span 0.5)
+                let startRegion = MKCoordinateRegion(
                     center: userLoc.coordinate,
                     span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
                 )
-                MKMapView.animate(withDuration: 1.5, delay: 0, usingSpringWithDamping: 0.8, initialSpringVelocity: 0, options: .curveEaseInOut) {
+                mapView.setRegion(startRegion, animated: false)
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    let endRegion = MKCoordinateRegion(
+                        center: userLoc.coordinate,
+                        span: MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5)
+                    )
                     mapView.setRegion(endRegion, animated: true)
-                    
-                    // Tilt
-                    let camera = mapView.camera
-                    camera.centerCoordinate = userLoc.coordinate
-                    camera.pitch = 45
-                    camera.heading = 0
-                    camera.altitude = 1000
-                    mapView.setCamera(camera, animated: true)
+                }
+            } else {
+                // Case B: Has Pins -> Fit Bounds -> Check Zoom 15 -> 1s -> User Loc (Zoom 9)
+                // 1. Calculate Bounds
+                var mapRect: MKMapRect = .null
+                for item in validItems {
+                    if let loc = item.location {
+                        let point = MKMapPoint(CLLocationCoordinate2D(latitude: loc.latitude, longitude: loc.longitude))
+                        let rect = MKMapRect(origin: point, size: MKMapSize(width: 1, height: 1))
+                        mapRect = mapRect.isNull ? rect : mapRect.union(rect)
+                    }
+                }
+                
+                // 2. Padding
+                let paddedRect = mapView.mapRectThatFits(mapRect, edgePadding: UIEdgeInsets(top: 50, left: 50, bottom: 50, right: 50))
+                var region = MKCoordinateRegion(paddedRect)
+                
+                // 3. Logic: FinalZoom = max(FitZoom, 15)
+                // In MapKit, Zoom 15 is approx Span 0.01. Zoom 9 is approx Span 0.5.
+                // Wide View = Large Span. Close View = Small Span.
+                // "FitZoom < 15" means "View is WIDER than 15" -> "Span > 0.01".
+                // Spec: "If Wide (> 0.01), Force 15 (0.01)".
+                // If Close (< 0.01), Keep Close.
+                
+                if region.span.latitudeDelta > 0.01 {
+                    region.span = MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                }
+                
+                // Center can be region.center (centroid of pins)
+                mapView.setRegion(region, animated: false)
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    let endRegion = MKCoordinateRegion(
+                        center: userLoc.coordinate,
+                        span: MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5)
+                    )
+                    mapView.setRegion(endRegion, animated: true)
                 }
             }
         }

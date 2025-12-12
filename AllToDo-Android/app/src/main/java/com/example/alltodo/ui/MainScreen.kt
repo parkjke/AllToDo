@@ -235,16 +235,73 @@ fun MainScreen(
            // Intro Animation specific to Kakao for now
            if (mapProvider == MapProvider.Kakao) {
                if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                   
+                   // Get User Location & Todo Items
+                   val items = todoItems.filter { it.latitude != null && it.longitude != null }
+                   
                    fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-                       location?.let {
-                           kakaoMap?.moveCamera(CameraUpdateFactory.newCenterPosition(com.kakao.vectormap.LatLng.from(it.latitude, it.longitude), 12))
-                       }
-                   }
-                   delay(1000)
-                   fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-                       location?.let {
-                           kakaoMap?.moveCamera(CameraUpdateFactory.newCenterPosition(com.kakao.vectormap.LatLng.from(it.latitude, it.longitude), 15),
-                               com.kakao.vectormap.camera.CameraAnimation.from(1000, true, true))
+                       location?.let { userLoc ->
+                           val userPos = com.kakao.vectormap.LatLng.from(userLoc.latitude, userLoc.longitude)
+                           
+                           scope.launch {
+                               if (items.isEmpty()) {
+                                   // Case A: No Pins -> User Loc (Zoom 15) -> 1s -> User Loc (Zoom 9)
+                                   kakaoMap?.moveCamera(CameraUpdateFactory.newCenterPosition(userPos, 15))
+                                   delay(1000)
+                                   kakaoMap?.moveCamera(CameraUpdateFactory.newCenterPosition(userPos, 9), 
+                                       com.kakao.vectormap.camera.CameraAnimation.from(1000, true, true))
+                               } else {
+                                   // Case B: Has Pins -> Fit Bounds -> Check Zoom 15 -> 1s -> User Loc (Zoom 9)
+                                   // 1. Calculate Bounds
+                                   var minLat = 90.0; var maxLat = -90.0
+                                   var minLng = 180.0; var maxLng = -180.0
+                                   for (item in items) {
+                                       val lat = item.latitude!!
+                                       val lng = item.longitude!!
+                                       if (lat < minLat) minLat = lat
+                                       if (lat > maxLat) maxLat = lat
+                                       if (lng < minLng) minLng = lng
+                                       if (lng > maxLng) maxLng = lng
+                                   }
+                                   
+                                   // Also include user location? Docs say "All saved pins", doesn't mention user initially.
+                                   // But let's stick to doc: "All saved pins".
+                                   
+                                   // 2. Move to Fit
+                                   val bounds = com.kakao.vectormap.camera.CameraUpdateFactory.fitMapPoints(
+                                       arrayOf(
+                                           com.kakao.vectormap.LatLng.from(minLat, minLng),
+                                           com.kakao.vectormap.LatLng.from(maxLat, maxLng)
+                                       ), 100 // Padding
+                                   )
+                                   kakaoMap?.moveCamera(bounds)
+                                   
+                                   delay(100) // Small delay to let camera settle or just separate commands
+                                   
+                                   // 3. Logic: FinalZoom = max(FitZoom, 15)
+                                   // Kakao Zoom: Level 15 is Detailed. Level 9 is Wide.
+                                   // If FitZoom is 10 (Wide), we want 15? 
+                                   // Spec: "FitZoom < 15 (Wide) -> 15". 
+                                   // Wait, Kakao Zoom 15 IS Detailed. Zoom 1 IS World.
+                                   // So "Wide" means SMALL number.
+                                   // "FitZoom < 15" means it's MORE WIDE than 15.
+                                   // Spec says: "If FitZoom < 15 -> Force 15".
+                                   // So if FitZoom is 10, we force 15.
+                                   // If FitZoom is 18 (Very close), we Keep 18.
+                                   // Correct.
+                                   
+                                   val currentZoom = kakaoMap?.cameraPosition?.zoomLevel ?: 15
+                                   if (currentZoom < 15) {
+                                       kakaoMap?.moveCamera(CameraUpdateFactory.zoomTo(15))
+                                   }
+                                   
+                                   delay(1000)
+                                   
+                                   // 4. Move to User Zoom 9
+                                   kakaoMap?.moveCamera(CameraUpdateFactory.newCenterPosition(userPos, 9),
+                                       com.kakao.vectormap.camera.CameraAnimation.from(1000, true, true))
+                               }
+                           }
                        }
                    }
                }
