@@ -47,6 +47,9 @@ struct AppleMapView: UIViewRepresentable {
         // Update Annotations
         context.coordinator.updateAnnotations(mapView: uiView, items: todoItems, userLocation: locationManager.currentLocation)
         
+        // Update Path Visualization
+        context.coordinator.updatePath(mapView: uiView, selectedItems: selectedClusterItems)
+        
         // Launch Animation
         if context.coordinator.firstRender {
             context.coordinator.performLaunchAnimation(mapView: uiView, userLocation: locationManager.currentLocation)
@@ -253,12 +256,12 @@ struct AppleMapView: UIViewRepresentable {
             let currentItemIDs = Set(items.map { $0.id })
             let currentLogIDs = Set(parent.userLogs.map { $0.id })
             
-            // Debug: Check Frequency
-            // print("DEBUG: updateAnnotations Check - Items: \(currentItemIDs.count)")
+            print("DEBUG: updateAnnotations Check - Items: \(currentItemIDs.count) Logs: \(currentLogIDs.count)")
             
-            if currentItemIDs == lastItemIDs && currentLogIDs == lastLogIDs {
-                return // No changes
-            }
+            // [MODIFIED] Force update for debugging user report "Pins not showing"
+            // if currentItemIDs == lastItemIDs && currentLogIDs == lastLogIDs {
+            //    return // No changes
+            // }
             
             lastItemIDs = currentItemIDs
             lastLogIDs = currentLogIDs
@@ -421,27 +424,19 @@ struct AppleMapView: UIViewRepresentable {
             label.frame = contentFrame
             btn.addSubview(label)
             
-            // Data Binding
+            // ... inside configurePinView ...
+
+            // 4. Data Binding
             if let cluster = annotation as? MKClusterAnnotation {
-                var items: [UnifiedMapItem] = []
-                for member in cluster.memberAnnotations {
-                    if let unified = member as? UnifiedAnnotation, let item = unified.item {
-                        items.append(item)
-                    }
-                }
-                btn.items = items // Inject Data
-                
-                var t=0, l=0, m=0
-                for mem in cluster.memberAnnotations {
-                    if let u = mem as? UnifiedAnnotation, let i = u.item {
-                        switch i {
-                        case .todo: t+=1
-                        case .history,.userLocation: l+=1
-                        case .serverMessage: m+=1
-                        }
-                    }
-                }
-                imageView.image = createPiePinImage(todos: t, logs: l, msgs: m)
+                // ... cluster logic ...
+                // Use PinImageHelper for cluster pie or shield?
+                // Let's keep Pie for cluster, or make a Shield Cluster?
+                // Shield Cluster might be nice.
+                // Let's use createShieldPin with count
+                let count = cluster.memberAnnotations.count
+                // Color? Mix? Let's use Blue for cluster or Green? Green is "AllToDo".
+                let color = UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0) 
+                 imageView.image = PinImageHelper.shared.createShieldPin(color: color, count: count)
                 
             } else if let unified = annotation as? UnifiedAnnotation, let item = unified.item {
                 btn.items = [item] // Inject Data
@@ -449,194 +444,61 @@ struct AppleMapView: UIViewRepresentable {
                 switch item {
                 case .todo(let todo):
                     let color = UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0)
-                    imageView.image = createDiamondPinImage(color: color, iconName: nil, text: nil) 
-                    print("DEBUG: !!!!! TODO \(todo.title ?? "None") location: \(todo.location)")
+                    let icon = todo.isCompleted ? "checkmark.circle.fill" : "circle"
+                    imageView.image = PinImageHelper.shared.createShieldPin(color: color, iconName: icon)
 
                     if let date = todo.dueDate {
                         let f = DateFormatter(); f.dateFormat = "H:mm"
                         label.text = f.string(from: date)
-                    } else {
-                        let config = UIImage.SymbolConfiguration(pointSize: 14, weight: .bold)
-                        let icon = UIImage(systemName: "checkmark", withConfiguration: config)?.withTintColor(.white, renderingMode: .alwaysOriginal)
-                        let iconView = UIImageView(image: icon)
-                        iconView.frame = contentFrame
-                        iconView.contentMode = .center
-                        iconView.isUserInteractionEnabled = false
-                        btn.addSubview(iconView)
                     }
                     
                 case .history(let log):
                     let f = DateFormatter(); f.dateFormat = "H:mm"
                     label.text = f.string(from: log.startTime)
-                    imageView.image = createDiamondPinImage(color: .red, iconName: nil, text: nil)
+                    imageView.image = PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill")
 
                 case .serverMessage:
-                    imageView.image = createDiamondPinImage(color: .blue, iconName: nil, text: nil)
-                    let config = UIImage.SymbolConfiguration(pointSize: 14, weight: .bold)
-                    let icon = UIImage(systemName: "envelope.fill", withConfiguration: config)?.withTintColor(.white, renderingMode: .alwaysOriginal)
-                    let iconView = UIImageView(image: icon)
-                    iconView.frame = contentFrame
-                    iconView.contentMode = .center
-                    iconView.isUserInteractionEnabled = false
-                    btn.addSubview(iconView)
+                    imageView.image = PinImageHelper.shared.createShieldPin(color: .blue, iconName: "envelope.fill")
                     
                 case .userLocation:
-                     imageView.image = createDiamondPinImage(color: .red, iconName: nil, text: nil)
-                     let config = UIImage.SymbolConfiguration(pointSize: 14, weight: .bold)
-                     let icon = UIImage(systemName: "person.fill", withConfiguration: config)?.withTintColor(.white, renderingMode: .alwaysOriginal)
-                     let iconView = UIImageView(image: icon)
-                     iconView.frame = contentFrame
-                     iconView.contentMode = .center
-                     iconView.isUserInteractionEnabled = false
+                     imageView.image = PinImageHelper.shared.createShieldPin(color: .red, iconName: "person.fill")
                 }
             }
             
-            btn.addTarget(self, action: #selector(handlePinButtonTap(_:)), for: .touchUpInside)
-            view.addSubview(btn)
-            
-            print("DEBUG: !!!!! Pin Configured. Button Frame: \(btn.frame)")
+            // ...
         }
-
-        // Helper: Pie Chart Pin Image Generator (Now with Pin Shape)
-        private func createPiePinImage(todos: Int, logs: Int, msgs: Int) -> UIImage {
-            let total = CGFloat(todos + logs + msgs)
-            // No early return for 0, draw empty pin
-            
-            let width: CGFloat = 40
-            let height: CGFloat = 50 // Unified Height
-            let size = CGSize(width: width, height: height)
-            
-            return UIGraphicsImageRenderer(size: size).image { context in
-                // 1. Draw Pin Shape (Background) - White Diamond
-                let path = UIBezierPath()
-                path.move(to: CGPoint(x: width / 2, y: 0))
-                path.addLine(to: CGPoint(x: width, y: height * 0.4))
-                path.addLine(to: CGPoint(x: width / 2, y: height))
-                path.addLine(to: CGPoint(x: 0, y: height * 0.4))
-                path.close()
-                UIColor.white.setFill() 
-                path.fill()
-                // Optional: Thin border for definition
-                UIColor(white: 0.9, alpha: 1.0).setStroke()
-                path.lineWidth = 1
-                path.stroke()
-
-                // 2. Draw Pie Chart (Inside Head)
-                // Center roughly at (20, 20) which is 40% height of 50.
-                let center = CGPoint(x: width / 2, y: height * 0.4)
-                let radius: CGFloat = 14 // Fit inside diamond head
-                
-                var startAngle: CGFloat = -CGFloat.pi / 2
-                let colors: [(count: Int, color: UIColor)] = [
-                    (todos, UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0)),
-                    (logs, .red),
-                    (msgs, .blue)
-                ]
-                
-                // If Total > 0, draw slices
-                if total > 0 {
-                    for item in colors {
-                        guard item.count > 0 else { continue }
-                        let ratio = CGFloat(item.count) / total
-                        let endAngle = startAngle + ratio * 2 * CGFloat.pi
-                        
-                        let slice = UIBezierPath()
-                        slice.move(to: center)
-                        slice.addArc(withCenter: center, radius: radius, startAngle: startAngle, endAngle: endAngle, clockwise: true)
-                        slice.close()
-                        item.color.setFill()
-                        slice.fill()
-                        
-                        startAngle = endAngle
-                    }
-                } else {
-                    // Empty grey circle? or just white pin?
-                    // Draw grey circle placeholder
-                    let circle = UIBezierPath(arcCenter: center, radius: radius, startAngle: 0, endAngle: 2 * .pi, clockwise: true)
-                    UIColor(white: 0.9, alpha: 1).setFill()
-                    circle.fill()
-                }
-                
-                // 3. White inner circle for text overlap
-                let innerRadius: CGFloat = 9
-                let innerPath = UIBezierPath(ovalIn: CGRect(x: center.x - innerRadius, y: center.y - innerRadius, width: innerRadius * 2, height: innerRadius * 2))
-                UIColor.white.setFill()
-                innerPath.fill()
-                
-                // 4. Count Text
-                let countText = Int(total) > 9 ? "9+" : "\(Int(total))"
-                let attributes: [NSAttributedString.Key: Any] = [
-                    .font: UIFont.systemFont(ofSize: 11, weight: .bold),
-                    .foregroundColor: UIColor.black
-                ]
-                let string = NSString(string: countText)
-                let textSize = string.size(withAttributes: attributes)
-                string.draw(at: CGPoint(x: center.x - textSize.width/2, y: center.y - textSize.height/2), withAttributes: attributes)
+        
+        // MARK: - Overlays
+        func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            if let polyline = overlay as? MKPolyline {
+                let renderer = MKPolylineRenderer(polyline: polyline)
+                renderer.strokeColor = .red
+                renderer.lineWidth = 4
+                return renderer
             }
+            return MKOverlayRenderer(overlay: overlay)
         }
-
-        // Helper: Diamond Pin Image Generator
-        private func createDiamondPinImage(color: UIColor, iconName: String? = nil, text: String? = nil, count: Int? = nil) -> UIImage {
-            let width: CGFloat = 40
-            let height: CGFloat = 50
-            let size = CGSize(width: width, height: height)
+        
+        func updatePath(mapView: MKMapView, selectedItems: [UnifiedMapItem]?) {
+            // Remove existing polylines
+            let oldOverlays = mapView.overlays.filter { $0 is MKPolyline }
+            mapView.removeOverlays(oldOverlays)
             
-            return UIGraphicsImageRenderer(size: size).image { context in
-                // 1. Shape (Kite/Diamond)
-                let path = UIBezierPath()
-                path.move(to: CGPoint(x: width / 2, y: 0))
-                path.addLine(to: CGPoint(x: width, y: height * 0.4))
-                path.addLine(to: CGPoint(x: width / 2, y: height))
-                path.addLine(to: CGPoint(x: 0, y: height * 0.4))
-                path.close()
-                color.setFill()
-                path.fill()
+            guard let items = selectedItems, let first = items.first, case .history(let log) = first else { return }
+            
+            // Draw path for selected log
+            if let data = log.pathData, let points = try? JSONDecoder().decode([LocationData].self, from: data) {
+                var coords = points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+                let polyline = MKPolyline(coordinates: &coords, count: coords.count)
+                mapView.addOverlay(polyline)
                 
-                let contentCenter = CGPoint(x: width / 2, y: height * 0.4)
-                
-                // 2. Cluster Mode: White Circle + Count
-                if let count = count {
-                    // White Circle
-                    let circleSize: CGFloat = 24
-                    let circleRect = CGRect(x: contentCenter.x - circleSize/2, y: contentCenter.y - circleSize/2, width: circleSize, height: circleSize)
-                    UIColor.white.setFill()
-                    UIBezierPath(ovalIn: circleRect).fill()
-                    
-                    // Count Text
-                    let countText = count > 9 ? "9+" : "\(count)"
-                    let attributes: [NSAttributedString.Key: Any] = [
-                        .font: UIFont.systemFont(ofSize: 12, weight: .bold),
-                        .foregroundColor: color
-                    ]
-                    let string = NSString(string: countText)
-                    let textSize = string.size(withAttributes: attributes)
-                    let textRect = CGRect(
-                        x: contentCenter.x - textSize.width / 2,
-                        y: contentCenter.y - textSize.height / 2,
-                        width: textSize.width,
-                        height: textSize.height
-                    )
-                    string.draw(in: textRect, withAttributes: attributes)
-                    
-                } else {
-                    // 3. Single Mode: Icon or Text
-                    if let text = text {
-                         // ... (unchanged)
-                         let fontSize: CGFloat = text.count > 2 ? 10 : 13
-                         let attributes: [NSAttributedString.Key: Any] = [
-                             .font: UIFont.systemFont(ofSize: fontSize, weight: .bold),
-                             .foregroundColor: UIColor.white
-                         ]
-                         let string = NSString(string: text)
-                         let textSize = string.size(withAttributes: attributes)
-                         string.draw(at: CGPoint(x: contentCenter.x - textSize.width/2, y: contentCenter.y - textSize.height/2), withAttributes: attributes)
-                    } else if let iconName = iconName {
-                         let config = UIImage.SymbolConfiguration(pointSize: 16, weight: .bold)
-                         if let icon = UIImage(systemName: iconName, withConfiguration: config)?.withTintColor(.white, renderingMode: .alwaysOriginal) {
-                             icon.draw(at: CGPoint(x: contentCenter.x - icon.size.width/2, y: contentCenter.y - icon.size.height/2))
-                         }
-                    }
-                }
+                // Add Red markers for Start/End if not already there?
+                // The log itself is a pin at "Midpoint".
+                // User wants "Red pins 2 connected".
+                // Maybe Start(Time) and End(Time) pins?
+                // We should add 2 temporary annotations for Start/End? 
+                // Or just rely on the path.
+                // Let's add Polyline first.
             }
         }
 

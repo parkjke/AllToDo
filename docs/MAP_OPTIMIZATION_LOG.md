@@ -110,3 +110,15 @@
     *   **Consultation**: B2B(전화번호 검색/고지서 발송) 및 사용자(지도 위치 조회) 상담 화면.
     *   **Master Admin**: 직원 승인/정지 관리 기능.
 4.  **Status**: UI 구현 완료 (Mock Data 기반), 백엔드 연동 준비 상태.
+
+### [2025-12-12] iOS Map Standardization & Path Visualization (Completed)
+1. **Objective**: Standardize Map Pins and implement Path Visualization across all 4 map providers (Apple, Kakao, Naver, Google).
+2. **Implementation**:
+    *   **PinImageHelper**: Created unified helper to generate "Shield" style pins (Green/Red/Blue) programmatically.
+    *   **Path Visualization**: Implemented `updatePath` in all Map Views to draw Red Polyline for selected User Log.
+    *   **Validation**:
+        - **Apple Maps**: Used `MKPolyline`.
+        - **Kakao Maps**: Used `MapPolylineShape` with `PolylineStyleSet` (Fixed SDK API usage).
+        - **Naver Maps**: Used `NMFPath`.
+        - **Google Maps**: Used `GMSPolyline`.
+3. **Result**: Consistent visual experience and functional path tracking across all supported maps.

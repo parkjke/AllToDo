@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 enum LogType: String {
     case motionChange = "MOTION_CHANGE"
@@ -54,7 +55,6 @@ class OptimizationLogger {
         } catch {
             print("OptimizationLogger Error: \(error)")
         }
-    }
     }
     
     func readLogs() -> String? {

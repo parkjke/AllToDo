@@ -208,32 +208,46 @@ struct GoogleMapView: UIViewRepresentable {
                  switch item {
                  case .todo(let t):
                      marker.title = t.title
-                     if let image = UIImage(named: item.imageName) {
-                         marker.icon = image
-                     } else {
-                         marker.icon = UIImage(systemName: "mappin.circle.fill")
-                     }
+                     let iconName = t.isCompleted ? "checkmark.circle.fill" : "circle"
+                     let color = UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0)
+                     marker.icon = PinImageHelper.shared.createShieldPin(color: color, iconName: iconName)
+                     
                  case .history(let l):
                      let timeStr = DateFormatter.localizedString(from: l.startTime, dateStyle: .none, timeStyle: .short)
                      marker.title = timeStr
-                     if let image = UIImage(named: item.imageName) {
-                         marker.icon = image
-                     } else {
-                         marker.icon = UIImage(systemName: "clock.fill")
-                     }
+                     marker.icon = PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill")
+                     
+                 case .userLocation:
+                      marker.icon = PinImageHelper.shared.createShieldPin(color: .red, iconName: "person.fill")
+                      
                  default:
-                     if let image = UIImage(named: item.imageName) {
-                         marker.icon = image
-                     }
+                      marker.icon = PinImageHelper.shared.createShieldPin(color: .blue, iconName: "envelope.fill")
                  }
                  marker.userData = item
              } else {
-                 // Cluster Logic (Placeholder for future)
-                 marker.icon = context.coordinator.createClusterImage(count: cluster.count, isRed: false)
+                 // Cluster Logic
+                 // Use Green Shield for cluster
+                 marker.icon = PinImageHelper.shared.createShieldPin(color: UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0), count: cluster.count)
                  marker.userData = cluster.items
              }
              
              marker.map = uiView
+        }
+        
+        // [NEW] Path Visualization
+        if let items = selectedClusterItems, let first = items.first, case .history(let log) = first,
+           let data = log.pathData, let points = try? JSONDecoder().decode([LocationData].self, from: data), points.count > 1 {
+            
+            let path = GMSMutablePath()
+            for p in points {
+                path.add(CLLocationCoordinate2D(latitude: p.latitude, longitude: p.longitude))
+            }
+            
+            let polyline = GMSPolyline(path: path)
+            polyline.strokeColor = .red
+            polyline.strokeWidth = 4
+            polyline.map = uiView
+            print("DEBUG: Google Map Added Polyline with \(points.count) points")
         }
     }
 }

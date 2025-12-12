@@ -18,14 +18,15 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 16px;
+    gap: 0px;
+    /* Removed gap as requested */
     margin: 32px 0 48px 0;
     animation: fadeIn 0.8s ease-out;
 }
 
 .dash-logo-icon {
-    width: 150px;
-    /* Increased for "Large" display */
+    width: 200px;
+    /* Increased further as requested */
     height: auto;
     filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
 }

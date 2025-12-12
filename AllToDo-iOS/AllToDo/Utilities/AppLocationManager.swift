@@ -1,5 +1,6 @@
 import Foundation
 import CoreLocation
+import CoreMotion
 import Combine
 // LocationData is defined in TaskModel.swift which is in the same module.
 
@@ -119,6 +120,38 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         if activity.cycling { modes.append("Cycling") }
         if activity.unknown { modes.append("Unknown") }
         return modes.joined(separator: ", ")
+    }
+    
+    // [NEW] Session Management
+    func startSession() {
+        isRecording = true
+        processedSessionPoints.removeAll()
+        pendingBuffer.removeAll()
+        debugStatus = "Recording..."
+    }
+    
+    func endSession() async -> (start: Date, end: Date, midLat: Double, midLon: Double, pathData: Data?)? {
+        guard isRecording else { return nil }
+        isRecording = false
+        debugStatus = "Stopping..."
+        
+        // Process remaining buffer
+        await processBuffer()
+        
+        guard !processedSessionPoints.isEmpty else { return nil }
+        
+        let start = processedSessionPoints.first?.timestamp ?? Date()
+        let end = processedSessionPoints.last?.timestamp ?? Date()
+        
+        // Calculate approx midpoint
+        let latSum = processedSessionPoints.reduce(0.0) { $0 + $1.latitude }
+        let lonSum = processedSessionPoints.reduce(0.0) { $0 + $1.longitude }
+        let count = Double(processedSessionPoints.count)
+        
+        // Serialize path data
+        let pathData = try? JSONEncoder().encode(processedSessionPoints)
+        
+        return (start: start, end: end, midLat: latSum / count, midLon: lonSum / count, pathData: pathData)
     }
     
     func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {

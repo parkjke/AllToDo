@@ -51,6 +51,7 @@ struct NaverMapView: UIViewRepresentable {
         
         // 2. Update Pins & Path
         context.coordinator.updateAnnotations(items: todoItems)
+        context.coordinator.updatePath(selectedItems: selectedClusterItems)
         
         // 3. User Location
         if let loc = locationManager.currentLocation {
@@ -170,12 +171,14 @@ struct NaverMapView: UIViewRepresentable {
                 let marker = NMFMarker()
                 marker.position = NMGLatLng(lat: loc.latitude, lng: loc.longitude)
                 
-                let unifiedItem = UnifiedMapItem.todo(item)
-                if let image = UIImage(named: unifiedItem.imageName) {
-                    marker.iconImage = NMFOverlayImage(image: image)
-                } else {
-                    marker.iconImage = NMFOverlayImage(image: UIImage(systemName: "mappin.circle.fill")!)
-                }
+                // Pin Styling
+                let isCompleted = item.isCompleted
+                let iconName = isCompleted ? "checkmark.circle.fill" : "circle"
+                let color = UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0)
+                let image = PinImageHelper.shared.createShieldPin(color: color, iconName: iconName)
+                
+                marker.iconImage = NMFOverlayImage(image: image)
+                marker.anchor = CGPoint(x: 0.5, y: 1.0) // Shield Anchor
                 
                 marker.captionText = item.title
                 marker.captionAlign = .top
@@ -188,24 +191,48 @@ struct NaverMapView: UIViewRepresentable {
             }
             
             // Add Logs (History)
-            // Path Drawing Logic for selected log? Or all logs as pins?
-            // AppleMapView draws pins for logs. Let's match.
             for log in parent.userLogs {
                 let marker = NMFMarker()
                 marker.position = NMGLatLng(lat: log.latitude, lng: log.longitude)
                 
-                let unifiedItem = UnifiedMapItem.history(log)
-                if let image = UIImage(named: unifiedItem.imageName) {
-                    marker.iconImage = NMFOverlayImage(image: image)
-                }
-                
-                // marker.captionText = log.startTime...
+                let image = PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill")
+                marker.iconImage = NMFOverlayImage(image: image)
+                marker.anchor = CGPoint(x: 0.5, y: 1.0)
+
                 marker.touchHandler = { [weak self] (overlay: NMFOverlay) -> Bool in
                     self?.handleMarkerTap(item: .history(log))
                     return true
                 }
                 marker.mapView = map
                 markers.append(marker)
+            }
+        }
+        
+        func updatePath(selectedItems: [UnifiedMapItem]?) {
+            guard let map = mapView else { return }
+            
+            // Clear existing
+            pathOverlay?.mapView = nil
+            pathOverlay = nil
+            
+            guard let items = selectedItems, let first = items.first, case .history(let log) = first else { return }
+            
+            if let data = log.pathData, let points = try? JSONDecoder().decode([LocationData].self, from: data) {
+                if points.count < 2 { return }
+                
+                var latlngs: [NMGLatLng] = []
+                for p in points {
+                    latlngs.append(NMGLatLng(lat: p.latitude, lng: p.longitude))
+                }
+                
+                let path = NMFPath()
+                path.path = NMGLineString(points: latlngs)
+                path.color = .red
+                path.width = 4
+                path.mapView = map
+                
+                self.pathOverlay = path
+                print("DEBUG: Added Naver Path with \(points.count) points")
             }
         }
         

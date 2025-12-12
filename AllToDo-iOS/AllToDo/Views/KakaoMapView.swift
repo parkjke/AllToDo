@@ -37,6 +37,11 @@ struct KakaoMapView: UIViewRepresentable {
         context.coordinator.selectedClusterBinding = $selectedClusterItems
         context.coordinator.onLongTap = onLongTap
         context.coordinator.updatePins(items: todoItems, logs: userLogs)
+        
+        if let mapView = context.coordinator.controller?.getView("mapview") as? KakaoMap {
+            context.coordinator.updatePath(mapView: mapView, selectedItems: selectedClusterItems)
+        }
+        
         // ...
         
         if action != .none {
@@ -304,26 +309,79 @@ struct KakaoMapView: UIViewRepresentable {
         }
         
         // Drawing Helpers - Now using Assets
-        // Drawing Helpers - Now using Assets
+        // Drawing Helpers - Now using PinImageHelper
         func registerAllPinStyles(labelManager: LabelManager) {
-            let pinNames = [
-                "PinTodoReady", "PinTodoDone", "PinTodoCancel", "PinTodoFail",
-                "PinHistory", "PinCurrent",
-                "PinReceiveReady", "PinReceiveDone", "PinReceiveReject"
+            // Map imageName -> (Color, SF Symbol)
+            let strategies: [String: (UIColor, String)] = [
+                "PinTodoReady": (UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0), "circle"),
+                "PinTodoDone": (UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0), "checkmark.circle.fill"),
+                "PinTodoCancel": (.gray, "xmark.circle.fill"),
+                "PinTodoFail": (.red, "exclamationmark.circle.fill"),
+                "PinHistory": (.red, "clock.fill"),
+                "PinCurrent": (.red, "person.fill"),
+                "PinReceiveReady": (.blue, "arrow.down.circle"),
+                "PinReceiveDone": (.blue, "checkmark.circle"),
+                "PinReceiveReject": (.blue, "xmark.circle"),
+                
+                // Fallbacks
+                "PinTodo": (UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0), "circle"),
+                "PinReceive": (.blue, "envelope.fill")
             ]
             
-            for name in pinNames {
+            for (name, style) in strategies {
                 let styleID = "style_" + name
-                let image = UIImage(named: name) ?? UIImage(systemName: "mappin.circle.fill")!
+                let image = PinImageHelper.shared.createShieldPin(color: style.0, iconName: style.1)
                 
                 // All Shields anchor at bottom-center (0.5, 1.0)
                 let anchor = CGPoint(x: 0.5, y: 1.0)
                 
                 let iconStyle = PoiIconStyle(symbol: image, anchorPoint: anchor)
                 let perLevel = PerLevelPoiStyle(iconStyle: iconStyle, level: 0)
-                let style = PoiStyle(styleID: styleID, styles: [perLevel])
+                let pinStyle = PoiStyle(styleID: styleID, styles: [perLevel])
                 
-                labelManager.addPoiStyle(style)
+                labelManager.addPoiStyle(pinStyle)
+            }
+        }
+        
+        // Path Visualization
+        func updatePath(mapView: KakaoMap, selectedItems: [UnifiedMapItem]?) {
+            let layerManager = mapView.getShapeManager()
+            let layer = layerManager.getShapeLayer(layerID: "pathLayer") ?? {
+                return layerManager.addShapeLayer(layerID: "pathLayer", zOrder: 900)
+            }()
+            
+            // Clear existing
+            layer?.removeMapPolylineShape(shapeID: "userPath")
+            
+            guard let items = selectedItems, let first = items.first, case .history(let log) = first else { return }
+            
+            if let data = log.pathData, let points = try? JSONDecoder().decode([LocationData].self, from: data) {
+                if points.count < 2 { return }
+                
+                var mapPoints: [MapPoint] = []
+                for p in points {
+                    mapPoints.append(MapPoint(longitude: p.longitude, latitude: p.latitude))
+                }
+                
+                // Register Style (Use PolylineStyleSet)
+                let styleID = "pathStyleRed"
+                if layerManager.getPolylineStyleSet(styleID) == nil {
+                     let perLevel = PerLevelPolylineStyle(bodyColor: UIColor.red, bodyWidth: 4, strokeColor: UIColor.red, strokeWidth: 0, level: 0)
+                     let style = PolylineStyle(styles: [perLevel])
+                     // Fix: styleSetID
+                     let styleSet = PolylineStyleSet(styleSetID: styleID, styles: [style])
+                     layerManager.addPolylineStyleSet(styleSet)
+                }
+                
+                let line = MapPolyline(linePoints: mapPoints, styleIndex: 0)
+                let options = MapPolylineShapeOptions(shapeID: "userPath", styleID: styleID, zOrder: 1)
+                
+                let polyline = MapPolylineShape(lines: [line], options: options)
+                
+                layer?.addMapPolylineShape(polyline)
+                polyline.show()
+                
+                print("DEBUG: Added Polyline with \(points.count) points")
             }
         }
 
