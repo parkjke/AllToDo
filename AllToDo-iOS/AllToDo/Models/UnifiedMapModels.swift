@@ -38,6 +38,20 @@ enum UnifiedMapItem: Identifiable {
         case .userLocation: return nil // dynamic
         }
     }
+    
+    // [NEW] Asset Image Name Mapping
+    var imageName: String {
+        switch self {
+        case .todo(let item):
+            return item.isCompleted ? "PinTodoDone" : "PinTodoReady"
+        case .history:
+            return "PinHistory"
+        case .serverMessage:
+            return "PinReceiveReady"
+        case .userLocation:
+            return "PinCurrent"
+        }
+    }
 }
 
 // Custom Annotation Class

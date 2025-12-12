@@ -111,11 +111,7 @@ fun KakaoMapContent(
                 if (styles == null) {
                     if (cluster.items.size == 1) {
                         val item = cluster.items.first()
-                        val resId = when (item) {
-                            is UnifiedItem.Todo -> com.example.alltodo.R.drawable.pin_todo
-                            is UnifiedItem.History -> com.example.alltodo.R.drawable.pin_history
-                            is UnifiedItem.CurrentLocation -> com.example.alltodo.R.drawable.pin_current
-                        }
+                        val resId = item.getPinResId()
                         
                          val anchorY = if (item is UnifiedItem.Todo) 1.0f else 0.5f
                          val bitmap = android.graphics.BitmapFactory.decodeResource(context.resources, resId)

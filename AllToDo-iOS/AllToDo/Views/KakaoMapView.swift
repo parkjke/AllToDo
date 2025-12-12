@@ -201,40 +201,20 @@ struct KakaoMapView: UIViewRepresentable {
                 return labelManager.addLabelLayer(option: options)
             }()
             
-            // Checking Style existence: getLabelStyle doesn't exist? Use cache or SDK method?
-            // The user says "LabelManager has no member getLabelStyle".
-            // Correct API is likely just trying to add, or managing ID myself.
-            // As workaround, I'll rely on my 'hasAddedStyles' check or try to create unique IDs.
-            // But efficient way: Just add it once in addViewSucceeded or lazily with a flag.
-            
+            // Check & Register Styles
             if !hasAddedStyles {
-                // Add User Style
-                let userImage = createUserPinImage()
-                let userIconStyle = PoiIconStyle(symbol: userImage, anchorPoint: CGPoint(x: 0.5, y: 0.5))
-                let userPerLevel = PerLevelPoiStyle(iconStyle: userIconStyle, level: 0)
-                let userStyle = PoiStyle(styleID: "userStyle", styles: [userPerLevel])
-                labelManager.addPoiStyle(userStyle)
-                
-                // Add Pin Style
-                let pinImage = createGreenPinImage()
-                let pinIconStyle = PoiIconStyle(symbol: pinImage, anchorPoint: CGPoint(x: 0.5, y: 1.0))
-                let pinPerLevel = PerLevelPoiStyle(iconStyle: pinIconStyle, level: 0)
-                let pinStyle = PoiStyle(styleID: "greenPinStyle", styles: [pinPerLevel])
-                labelManager.addPoiStyle(pinStyle)
-                
+                registerAllPinStyles(labelManager: labelManager)
                 hasAddedStyles = true
             }
             
             let pos = MapPoint(longitude: location.coordinate.longitude, latitude: location.coordinate.latitude)
             
-            if let layer = layer, let poi = layer.getPoi(poiID: "userLabel") {
-                // poi.moveAt exists? Swift interface check: moveAt(point: MapPoint, duration: Int)
-                // If not, remove and add.
-                // Assuming basic: remove and add
-                layer.removePoi(poiID: "userLabel")
-                addPoiToLayer(layer, styleID: "userStyle", poiID: "userLabel", at: pos)
-            } else {
-                addPoiToLayer(layer, styleID: "userStyle", poiID: "userLabel", at: pos)
+            // User Pin uses "style_PinCurrent"
+            if let layer = layer {
+                if layer.getPoi(poiID: "userLabel") != nil {
+                     layer.removePoi(poiID: "userLabel")
+                }
+                addPoiToLayer(layer, styleID: "style_PinCurrent", poiID: "userLabel", at: pos)
             }
         }
         
@@ -267,25 +247,7 @@ struct KakaoMapView: UIViewRepresentable {
             
             // Ensure styles added
             if !hasAddedStyles {
-                let pinImage = createGreenPinImage()
-                let pinIconStyle = PoiIconStyle(symbol: pinImage, anchorPoint: CGPoint(x: 0.5, y: 1.0))
-                let pinPerLevel = PerLevelPoiStyle(iconStyle: pinIconStyle, level: 0)
-                let pinStyle = PoiStyle(styleID: "greenPinStyle", styles: [pinPerLevel])
-                labelManager.addPoiStyle(pinStyle)
-                
-                let userImage = createUserPinImage()
-                let userIconStyle = PoiIconStyle(symbol: userImage, anchorPoint: CGPoint(x: 0.5, y: 0.5))
-                let userPerLevel = PerLevelPoiStyle(iconStyle: userIconStyle, level: 0)
-                let userStyle = PoiStyle(styleID: "userStyle", styles: [userPerLevel])
-                labelManager.addPoiStyle(userStyle)
-                
-                // Add History Style [NEW]
-                let historyImage = createHistoryPinImage()
-                let historyIconStyle = PoiIconStyle(symbol: historyImage, anchorPoint: CGPoint(x: 0.5, y: 1.0))
-                let historyPerLevel = PerLevelPoiStyle(iconStyle: historyIconStyle, level: 0)
-                let historyStyle = PoiStyle(styleID: "historyPinStyle", styles: [historyPerLevel])
-                labelManager.addPoiStyle(historyStyle)
-
+                registerAllPinStyles(labelManager: labelManager)
                 hasAddedStyles = true
             }
             
@@ -294,19 +256,25 @@ struct KakaoMapView: UIViewRepresentable {
                 guard let loc = item.location else { continue }
                 
                 let labelId = "todo_" + item.id.uuidString
-                labelIdToItems[labelId] = .todo(item)
-                let pos = MapPoint(longitude: loc.longitude, latitude: loc.latitude)
+                let unifiedItem = UnifiedMapItem.todo(item)
+                labelIdToItems[labelId] = unifiedItem
                 
-                addPoiToLayer(layer, styleID: "greenPinStyle", poiID: labelId, at: pos, clickable: true)
+                let pos = MapPoint(longitude: loc.longitude, latitude: loc.latitude)
+                let styleID = "style_" + unifiedItem.imageName
+                
+                addPoiToLayer(layer, styleID: styleID, poiID: labelId, at: pos, clickable: true)
             }
             
             // Add Logs [NEW]
             for log in logs {
                 let labelId = "log_" + log.id.uuidString
-                labelIdToItems[labelId] = .history(log)
-                let pos = MapPoint(longitude: log.longitude, latitude: log.latitude)
+                let unifiedItem = UnifiedMapItem.history(log)
+                labelIdToItems[labelId] = unifiedItem
                 
-                addPoiToLayer(layer, styleID: "historyPinStyle", poiID: labelId, at: pos, clickable: true)
+                let pos = MapPoint(longitude: log.longitude, latitude: log.latitude)
+                let styleID = "style_" + unifiedItem.imageName
+                
+                addPoiToLayer(layer, styleID: styleID, poiID: labelId, at: pos, clickable: true)
             }
             
             // Launch Animation Phase 1: Fit All Pins (Show wide view first)
@@ -336,16 +304,27 @@ struct KakaoMapView: UIViewRepresentable {
         }
         
         // Drawing Helpers - Now using Assets
-        func createUserPinImage() -> UIImage {
-            return UIImage(named: "pin_current") ?? UIImage(systemName: "location.circle.fill")!
-        }
-        
-        func createGreenPinImage() -> UIImage {
-            return UIImage(named: "pin_todo") ?? UIImage(systemName: "mappin.circle.fill")!
-        }
-        
-        func createHistoryPinImage() -> UIImage {
-            return UIImage(named: "pin_history") ?? UIImage(systemName: "clock.fill")!
+        // Drawing Helpers - Now using Assets
+        func registerAllPinStyles(labelManager: LabelManager) {
+            let pinNames = [
+                "PinTodoReady", "PinTodoDone", "PinTodoCancel", "PinTodoFail",
+                "PinHistory", "PinCurrent",
+                "PinReceiveReady", "PinReceiveDone", "PinReceiveReject"
+            ]
+            
+            for name in pinNames {
+                let styleID = "style_" + name
+                let image = UIImage(named: name) ?? UIImage(systemName: "mappin.circle.fill")!
+                
+                // All Shields anchor at bottom-center (0.5, 1.0)
+                let anchor = CGPoint(x: 0.5, y: 1.0)
+                
+                let iconStyle = PoiIconStyle(symbol: image, anchorPoint: anchor)
+                let perLevel = PerLevelPoiStyle(iconStyle: iconStyle, level: 0)
+                let style = PoiStyle(styleID: styleID, styles: [perLevel])
+                
+                labelManager.addPoiStyle(style)
+            }
         }
 
         // MARK: - MapControllerDelegate

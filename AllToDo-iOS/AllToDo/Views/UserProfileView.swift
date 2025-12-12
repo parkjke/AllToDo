@@ -18,6 +18,10 @@ struct UserProfileView: View {
                 Text("My Info")
                     .font(.largeTitle)
                     .fontWeight(.bold)
+                    .onTapGesture(count: 3) {
+                        uploadLogs()
+                        message = "Uploading logs..."
+                    }
                 Spacer()
                 Button(action: { isPresented = false }) {
                     Image(systemName: "xmark.circle.fill")
@@ -124,6 +128,74 @@ struct UserProfileView: View {
                 message = "Failed to save: \(error.localizedDescription)"
                 isLoading = false
             }
+        }
+    }
+    
+    // [NEW] Upload Logs
+    private func uploadLogs() {
+        guard let jsonString = OptimizationLogger.shared.readLogs() else {
+             message = "No logs found"
+             return
+        }
+        
+        // Parse
+        let lines = jsonString.components(separatedBy: "\n").filter { !$0.isEmpty }
+        var logs: [[String: Any]] = []
+        let deviceName = UIDevice.current.name 
+        
+        for line in lines {
+            if let data = line.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
+                
+                var mapped: [String: Any] = [:]
+                mapped["level"] = json["type"] as? String ?? "INFO"
+                
+                let val = json["value"] as? String ?? ""
+                let bat = json["battery"] as? String ?? ""
+                mapped["message"] = "\(val) [Bat: \(bat)]"
+                mapped["device"] = deviceName
+                
+                if let ts = json["timestamp"] as? Int {
+                    mapped["timestamp"] = Double(ts) / 1000.0
+                } else {
+                    mapped["timestamp"] = Date().timeIntervalSince1970
+                }
+                
+                logs.append(mapped)
+            }
+        }
+        
+        if logs.isEmpty {
+            message = "No valid logs parsed"
+            return
+        }
+        
+        guard let url = URL(string: "http://175.194.163.56:8003/dev/logs/batch") else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: logs, options: [])
+            
+            isLoading = true
+            URLSession.shared.dataTask(with: request) { data, response, error in
+                DispatchQueue.main.async {
+                    isLoading = false
+                    if let error = error {
+                        message = "Upload Error: \(error.localizedDescription)"
+                        return
+                    }
+                    if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+                        message = "Logs Uploaded! (\(logs.count))"
+                    } else {
+                        message = "Upload Failed: \((response as? HTTPURLResponse)?.statusCode ?? 0)"
+                    }
+                }
+            }.resume()
+        } catch {
+            message = "Encoding Error"
+            isLoading = false
         }
     }
 }

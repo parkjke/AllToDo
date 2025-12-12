@@ -84,9 +84,29 @@
 
 ## 🚀 Next Steps
 1.  **Battery Optimization**: 0.9초 기록은 배터리 소모가 크므로, 정지 상태 감지(Motion Detection) 시 기록 일시 중지 로직 고려.
-3.  **Map Pin Asset Standardization (Design Pending)**:
-    *   **Objective**: 모든 맵(Android/iOS)에서 공통으로 사용할 SVG 핀 에셋 제작 (Shield Shape).
-    *   **ToDo Pin**: Green (Apple Map Style). States: Ready, Done, Cancel, Fail.
-    *   **Receive Pin**: Blue (Apple Map Style). States: Ready, Done, Reject.
-    *   **History/Current Pin**: Red (Apple Map Style). History(Star), Current(TBD).
-    *   *Note: 내부 아이콘(Mark) 디자인은 추후 결정 후 일괄 생성 예정.*
+### [2025-12-12] Map Pin Asset Standardization (Completed)
+1.  **Objective**: Android/iOS 공통 SVG 핀 에셋 표준화 (Shield Shape, Apple Map Style).
+2.  **Implementation**:
+    *   `generate_pins.py`: SVG 자동 생성 (ToDo: Green, History/Current: Red, Receive: Blue).
+    *   **Android**: `svg2vectordrawable`로 XML 변환 및 `MapCommon.kt` 동적 리소스 매핑 적용.
+    *   **iOS**: `integrate_ios_assets.py`로 Asset Catalog 등록 및 `UnifiedMapModels` 이미지 매핑 적용.
+3.  **Result**: 모든 맵 뷰에서 상태별 올바른 핀 아이콘 표시 로직 통합 완료.
+
+### [2025-12-12] Battery Optimization & Log Analysis System
+1.  **Objective**: 정밀 추적으로 인한 배터리 소모 최적화 및 동작 분석.
+2.  **Implementation**:
+    *   **Android (`MotionDetector.kt`)**: Activity Recognition API로 `STILL` 상태 감지 시 위치 업데이트 일시 정지(`removeLocationUpdates`).
+    *   **iOS (`AppLocationManager.swift` / `OptimizationLogger.swift`)**: `CMMotionActivityManager`로 정지 상태 감지 시 `stopUpdatingLocation` 및 로깅.
+    *   **Backend (`dev.py`)**: `/dev/logs/batch` (업로드) 및 `/dev/logs/view` (HTML 뷰어) 구현.
+    *   **Client Upload**: `UserProfileView` Triple Tap 트리거로 로컬 JSON 로그 서버 전송 기능 구현.
+3.  **Result**: 기기 움직임에 따른 지능형 위치 추적 제어 및 원격 로그 분석 체계 구축.
+
+### [2025-12-12] AllToDo-WebMng (Management Console) Kickoff
+1.  **Objective**: 관리자 및 상담원을 위한 웹 콘솔 프론트엔드 구축.
+2.  **Stack**: Vite + React + TypeScript + Vanilla CSS (Premium Design).
+3.  **Implementation**:
+    *   **Auth**: 로그인, 직원 등록(Register) UI.
+    *   **Dashboard**: 주요 통계 및 바로가기.
+    *   **Consultation**: B2B(전화번호 검색/고지서 발송) 및 사용자(지도 위치 조회) 상담 화면.
+    *   **Master Admin**: 직원 승인/정지 관리 기능.
+4.  **Status**: UI 구현 완료 (Mock Data 기반), 백엔드 연동 준비 상태.

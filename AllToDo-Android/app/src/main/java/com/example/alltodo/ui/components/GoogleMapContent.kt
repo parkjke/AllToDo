@@ -161,11 +161,8 @@ fun GoogleMapContent(
             // Determine Icon
             val iconDescriptor = if (isSingle && firstItem != null) {
                 // Formatting Single Item
-                when (firstItem) {
-                    is UnifiedItem.Todo -> com.google.android.gms.maps.model.BitmapDescriptorFactory.fromResource(com.example.alltodo.R.drawable.pin_todo)
-                    is UnifiedItem.History -> com.google.android.gms.maps.model.BitmapDescriptorFactory.fromResource(com.example.alltodo.R.drawable.pin_history)
-                    is UnifiedItem.CurrentLocation -> com.google.android.gms.maps.model.BitmapDescriptorFactory.fromResource(com.example.alltodo.R.drawable.pin_current)
-                }
+                // Formatting Single Item
+                com.google.android.gms.maps.model.BitmapDescriptorFactory.fromResource(firstItem.getPinResId())
             } else {
                 // Cluster Item
                 // Color based on majority or just Red/Green mixed? 

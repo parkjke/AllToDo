@@ -31,6 +31,8 @@
 	<string>We need your location to show tasks nearby and track your daily path.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>We need your location to track your daily path even when the app is in the background.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>We use motion detection to save battery by pausing location tracking when you are stationary.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>

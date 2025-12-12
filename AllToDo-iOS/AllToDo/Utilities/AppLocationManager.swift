@@ -62,6 +62,9 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         }
     }
     
+    // [NEW] Motion Manager
+    private let motionActivityManager = CMMotionActivityManager()
+    
     override init() {
         super.init()
         locationManager.delegate = self
@@ -70,94 +73,52 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         locationManager.distanceFilter = kCLDistanceFilterNone
         locationManager.activityType = .fitness // Keeps GPS active even for small movements
         
+        // [NEW] Allow auto-pause to save battery, but we control it via motion
+        locationManager.pausesLocationUpdatesAutomatically = true 
+        
         locationManager.requestWhenInUseAuthorization()
         locationManager.startUpdatingLocation()
+        
+        startMotionUpdates()
     }
     
-    // ... (omitted) ...
-
-    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let location = locations.last else { return }
-        currentLocation = location
-        
-        if isRecording {
-            let now = Date()
-            var shouldRecord = false
-            
-            if let lastTime = lastRecordedTime {
-                let timeDelta = now.timeIntervalSince(lastTime)
+    private func startMotionUpdates() {
+        if CMMotionActivityManager.isActivityAvailable() {
+            motionActivityManager.startActivityUpdates(to: OperationQueue.main) { [weak self] activity in
+                guard let self = self, let activity = activity else { return }
                 
-                // [MODIFIED] 0.9s Interval as requested
-                if timeDelta >= 0.9 {
-                    shouldRecord = true
-                }
-            } else {
-                shouldRecord = true
-            }
-            
-            if shouldRecord {
-                let data = LocationData(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude, name: nil, timestamp: now)
+                // Logging
+                let type = self.getActivityString(activity)
+                OptimizationLogger.shared.log(type: .motionChange, value: type)
                 
-                // Append to Buffer
-                pendingBuffer.append(data)
-                
-                lastRecordedTime = now
-                lastRecordedLocation = location
-                
-                // Update Debug UI
-                debugStatus = "Rec: \(processedSessionPoints.count) + \(pendingBuffer.count) buf"
-                
-                // Check Batch Size (5)
-                if pendingBuffer.count >= 5 {
-                    Task {
-                        await processBuffer()
-                    }
+                // Logic: High confidence stationary -> Stop Location
+                if activity.stationary && activity.confidence == .high {
+                    self.locationManager.stopUpdatingLocation() // Type-o fixed
+                    // Using paused flag or just stop? Stop is safer for battery, but resume needs trigger.
+                    // Actually, if we stop, how do we resume? 
+                    // CoreMotion continues updates even if GPS stops.
+                    OptimizationLogger.shared.log(type: .locationPause, value: "Stationary High")
+                    // Note: In real world, we might want to keep minimal tracking or significantly lower accuracy
+                    self.locationManager.stopUpdatingLocation()
+                } else {
+                    // Moving or unknown -> Ensure Location Running
+                    // We can check if it's already running by authorized state or flag, but startUpdatingLocation is idempotent usually
+                    self.locationManager.startUpdatingLocation()
+                    OptimizationLogger.shared.log(type: .locationResume, value: "Moving")
                 }
             }
         }
     }
     
-    private var sessionStartTime: Date?
-    private var lastRecordedTime: Date?
-    private var lastRecordedLocation: CLLocation?
-    
-    // [NEW] Start Recording
-    func startSession() {
-        debugStatus = "Starting..."
-        isRecording = true
-        sessionStartTime = Date()
-        processedSessionPoints = []
-        pendingBuffer = []
-        lastRecordedTime = nil
-    }
-    
-    // [NEW] End Recording
-    func endSession() async -> (start: Date, end: Date, midLat: Double, midLon: Double, pathData: Data?)? {
-        isRecording = false
-        debugStatus = "Stopping..."
-        
-        // Process remaining buffer
-        if !pendingBuffer.isEmpty {
-            await processBuffer()
-        }
-        
-        guard let start = sessionStartTime, !processedSessionPoints.isEmpty else {
-            return nil
-        }
-        
-        let end = Date()
-        
-        // Calculate Midpoint
-        let totalLat = processedSessionPoints.reduce(0.0) { $0 + $1.latitude }
-        let totalLon = processedSessionPoints.reduce(0.0) { $0 + $1.longitude }
-        let count = Double(processedSessionPoints.count)
-        let midLat = totalLat / count
-        let midLon = totalLon / count
-        
-        // Encode Path
-        let pathData = try? JSONEncoder().encode(processedSessionPoints)
-        
-        return (start, end, midLat, midLon, pathData)
+    private func getActivityString(_ activity: CMMotionActivity) -> String {
+        var modes: [String] = []
+        if activity.stationary { modes.append("Stationary") }
+        if activity.walking { modes.append("Walking") }
+        if activity.running { modes.append("Running") }
+        if activity.automotive { modes.append("Automotive") }
+        if activity.cycling { modes.append("Cycling") }
+        if activity.unknown { modes.append("Unknown") }
+        return modes.joined(separator: ", ")
     }
     
     func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {

@@ -28,6 +28,24 @@ sealed class UnifiedItem {
         override val longitude get() = lon
         override val timestamp get() = System.currentTimeMillis()
     }
+    
+    fun getPinResId(): Int {
+        return when (this) {
+            is Todo -> {
+                if (item.source != "local") {
+                    // Receive
+                    if (item.completed) com.example.alltodo.R.drawable.pin_receive_done
+                    else com.example.alltodo.R.drawable.pin_receive_ready
+                } else {
+                    // Local Todo
+                    if (item.completed) com.example.alltodo.R.drawable.pin_todo_done
+                    else com.example.alltodo.R.drawable.pin_todo_ready
+                }
+            }
+            is History -> com.example.alltodo.R.drawable.pin_history
+            is CurrentLocation -> com.example.alltodo.R.drawable.pin_current
+        }
+    }
 }
 
 data class PinCluster(

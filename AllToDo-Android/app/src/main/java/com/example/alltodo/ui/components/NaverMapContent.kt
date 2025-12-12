@@ -101,21 +101,13 @@ fun NaverMapContent(
             marker.map = map
             
             // Color/Icon Logic
-            when (item) {
-                is UnifiedItem.Todo -> {
-                    marker.captionText = item.item.text
-                    marker.icon = OverlayImage.fromResource(com.example.alltodo.R.drawable.pin_todo)
-                    // marker.iconTintColor = android.graphics.Color.GREEN // Removed
-                }
-                is UnifiedItem.History -> {
-                    marker.icon = OverlayImage.fromResource(com.example.alltodo.R.drawable.pin_history)
-                    marker.width = 40 // Adjust size for history dots? 
-                    marker.height = 40
-                }
-                is UnifiedItem.CurrentLocation -> {
-                    marker.captionText = "Me"
-                    marker.icon = OverlayImage.fromResource(com.example.alltodo.R.drawable.pin_current)
-                }
+            // Color/Icon Logic
+            marker.icon = OverlayImage.fromResource(item.getPinResId())
+            
+            if (item is UnifiedItem.Todo) {
+                marker.captionText = item.item.text
+            } else if (item is UnifiedItem.CurrentLocation) {
+                marker.captionText = "Me"
             }
             
             marker.setOnClickListener {

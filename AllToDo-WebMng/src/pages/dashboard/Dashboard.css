@@ -1,0 +1,123 @@
+.dashboard-container {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.page-title {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: 8px;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+.stat-card {
+    display: flex;
+    align-items: center;
+    padding: 24px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border-left: 5px solid transparent;
+}
+
+.stat-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.stat-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    margin-right: 16px;
+}
+
+.user-bg {
+    background: linear-gradient(135deg, #3498db, #2980b9);
+}
+
+.b2b-bg {
+    background: linear-gradient(135deg, #9b59b6, #8e44ad);
+}
+
+.master-bg {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+}
+
+.stat-card:nth-child(1) {
+    border-left-color: #3498db;
+}
+
+.stat-card:nth-child(2) {
+    border-left-color: #9b59b6;
+}
+
+.stat-card:nth-child(3) {
+    border-left-color: #e74c3c;
+}
+
+
+.stat-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-label {
+    font-size: 0.9rem;
+    color: #7f8c8d;
+    font-weight: 600;
+}
+
+.stat-value {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text-color);
+    margin-top: 4px;
+}
+
+.arrow-icon {
+    color: #bdc3c7;
+    transition: transform 0.2s;
+}
+
+.stat-card:hover .arrow-icon {
+    transform: translateX(4px);
+    color: var(--primary-color);
+}
+
+.recent-activity h3 {
+    margin-bottom: 16px;
+    color: var(--text-color);
+}
+
+.activity-list {
+    list-style: none;
+}
+
+.activity-list li {
+    padding: 12px 0;
+    border-bottom: 1px solid #f1f1f1;
+    display: flex;
+    font-size: 0.95rem;
+}
+
+.activity-list li:last-child {
+    border-bottom: none;
+}
+
+.activity-list .time {
+    width: 80px;
+    color: #95a5a6;
+    font-weight: 500;
+}

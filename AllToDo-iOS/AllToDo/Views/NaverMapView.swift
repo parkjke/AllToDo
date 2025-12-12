@@ -169,7 +169,14 @@ struct NaverMapView: UIViewRepresentable {
                 guard let loc = item.location else { continue }
                 let marker = NMFMarker()
                 marker.position = NMGLatLng(lat: loc.latitude, lng: loc.longitude)
-                marker.iconImage = NMFOverlayImage(image: createGreenPinImage())
+                
+                let unifiedItem = UnifiedMapItem.todo(item)
+                if let image = UIImage(named: unifiedItem.imageName) {
+                    marker.iconImage = NMFOverlayImage(image: image)
+                } else {
+                    marker.iconImage = NMFOverlayImage(image: UIImage(systemName: "mappin.circle.fill")!)
+                }
+                
                 marker.captionText = item.title
                 marker.captionAlign = .top
                 marker.touchHandler = { [weak self] (overlay: NMFOverlay) -> Bool in
@@ -186,7 +193,12 @@ struct NaverMapView: UIViewRepresentable {
             for log in parent.userLogs {
                 let marker = NMFMarker()
                 marker.position = NMGLatLng(lat: log.latitude, lng: log.longitude)
-                marker.iconImage = NMFOverlayImage(image: createRedPinImage()) // History is Red
+                
+                let unifiedItem = UnifiedMapItem.history(log)
+                if let image = UIImage(named: unifiedItem.imageName) {
+                    marker.iconImage = NMFOverlayImage(image: image)
+                }
+                
                 // marker.captionText = log.startTime...
                 marker.touchHandler = { [weak self] (overlay: NMFOverlay) -> Bool in
                     self?.handleMarkerTap(item: .history(log))
@@ -202,8 +214,13 @@ struct NaverMapView: UIViewRepresentable {
             
             if userMarker == nil {
                 userMarker = NMFMarker()
-                userMarker?.iconImage = NMFOverlayImage(image: createUserPinImage())
-                userMarker?.anchor = CGPoint(x: 0.5, y: 0.5)
+                if let image = UIImage(named: "PinCurrent") {
+                     userMarker?.iconImage = NMFOverlayImage(image: image)
+                }
+                // Anchor bottom-center (0.5, 1.0) because PinCurrent is also a Shield shape now?
+                // Wait, PinCurrent (Crosshair) SVG is circle-like inside a shield?
+                // Per design spec: "Shield (Badge style)". So yes, Bottom-Center.
+                userMarker?.anchor = CGPoint(x: 0.5, y: 1.0)
                 userMarker?.mapView = map
                 userMarker?.zIndex = 100 // Top
             }
@@ -261,20 +278,7 @@ struct NaverMapView: UIViewRepresentable {
              }
         }
         
-        // MARK: - Drawing Helpers (Duplicated from AppleMapView logic for consistency, adapted for UIImage)
-        // Naver Map uses UIImage for markers.
-        
-        func createGreenPinImage() -> UIImage {
-            return UIImage(named: "pin_todo") ?? UIImage(systemName: "mappin.circle.fill")!
-        }
-        
-        func createRedPinImage() -> UIImage {
-            return UIImage(named: "pin_history") ?? UIImage(systemName: "clock.fill")!
-        }
-        
-        func createUserPinImage() -> UIImage {
-             return UIImage(named: "pin_current") ?? UIImage(systemName: "person.circle.fill")!
-        }
+        // Drawing Helpers Removed - Using Assets Directly
         
         // Camera Delegate
         func mapView(_ mapView: NMFMapView, cameraDidChangeByReason reason: Int, animated: Bool) {

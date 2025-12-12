@@ -208,12 +208,23 @@ struct GoogleMapView: UIViewRepresentable {
                  switch item {
                  case .todo(let t):
                      marker.title = t.title
-                     marker.icon = context.coordinator.createGreenPinImage()
+                     if let image = UIImage(named: item.imageName) {
+                         marker.icon = image
+                     } else {
+                         marker.icon = UIImage(systemName: "mappin.circle.fill")
+                     }
                  case .history(let l):
                      let timeStr = DateFormatter.localizedString(from: l.startTime, dateStyle: .none, timeStyle: .short)
                      marker.title = timeStr
-                     marker.icon = context.coordinator.createRedPinImage()
-                 default: break
+                     if let image = UIImage(named: item.imageName) {
+                         marker.icon = image
+                     } else {
+                         marker.icon = UIImage(systemName: "clock.fill")
+                     }
+                 default:
+                     if let image = UIImage(named: item.imageName) {
+                         marker.icon = image
+                     }
                  }
                  marker.userData = item
              } else {
@@ -228,14 +239,8 @@ struct GoogleMapView: UIViewRepresentable {
 }
 
 extension GoogleMapView.Coordinator {
-    // [FIX] Updated to use Assets
-    func createGreenPinImage() -> UIImage {
-        return UIImage(named: "pin_todo") ?? UIImage(systemName: "mappin.circle.fill")!
-    }
-    
-    func createRedPinImage() -> UIImage {
-         return UIImage(named: "pin_history") ?? UIImage(systemName: "clock.fill")!
-    }
+    // [FIX] Updated to use Assets - Helper functions removed
+
 
     func createClusterImage(count: Int, isRed: Bool) -> UIImage {
         let size = CGSize(width: 40, height: 40)

@@ -250,6 +250,23 @@ fun MainScreen(
                }
            }
            
+            // Motion Detection Logic
+            var isMoving by remember { mutableStateOf(true) }
+            val motionListener = remember {
+                object : com.example.alltodo.utils.MotionListener {
+                    override fun onMotionStateChanged(moving: Boolean) {
+                        isMoving = moving
+                    }
+                }
+            }
+            val motionDetector = remember { com.example.alltodo.utils.MotionDetector(context, motionListener) }
+            
+            // Start Motion Detection
+            DisposableEffect(Unit) {
+                motionDetector.start()
+                onDispose { motionDetector.stop() }
+            }
+
            // Common Tracking Loop - [FIX] Use Callback instead of Polling
            val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 900)
                .setMinUpdateIntervalMillis(900)
@@ -263,19 +280,27 @@ fun MainScreen(
                    }
                }
            }
-
-           if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-               try {
-                   fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
-               } catch (e: SecurityException) {
-                   e.printStackTrace()
+           
+           // Toggle Location Updates based on Motion
+           LaunchedEffect(isMoving) {
+               if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                   if (isMoving) {
+                        try {
+                            fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
+                            com.example.alltodo.utils.OptimizationLogger.log(context, com.example.alltodo.utils.LogType.LOCATION_RESUME, "User Moving")
+                        } catch (e: SecurityException) { e.printStackTrace() }
+                   } else {
+                        fusedLocationClient.removeLocationUpdates(locationCallback)
+                        com.example.alltodo.utils.OptimizationLogger.log(context, com.example.alltodo.utils.LogType.LOCATION_PAUSE, "User Stationary")
+                   }
                }
            }
-
-           try {
-               awaitCancellation()
-           } finally {
-               fusedLocationClient.removeLocationUpdates(locationCallback)
+           
+           // Cleanup on exit
+           DisposableEffect(Unit) {
+               onDispose {
+                   fusedLocationClient.removeLocationUpdates(locationCallback)
+               }
            }
         }
     }
