@@ -2,8 +2,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import MainLayout from './components/layout/MainLayout';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
+import Dashboard from './pages/dashboard/Dashboard';
 // Placeholders
-const Dashboard = () => <h2>Dashboard</h2>;
+// const Dashboard removed
 const B2BConsultation = () => <h2>B2B Consultation</h2>;
 const UserConsultation = () => <h2>User Consultation</h2>;
 const MasterAdmin = () => <h2>Master Admin</h2>;

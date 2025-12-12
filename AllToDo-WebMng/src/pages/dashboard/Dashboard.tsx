@@ -10,11 +10,11 @@ export default function Dashboard() {
 
     return (
         <div className="dashboard-container">
-            <h2 className="page-title">Dashboard</h2>
+
 
             <div className="dashboard-header-logo">
                 <img src={LogoIcon} alt="Logo" className="dash-logo-icon" />
-                <img src={LogoTextEn} alt="AllToDo" className="dash-logo-text" />
+                <img src={LogoTextKr} alt="AllToDo" className="dash-logo-text" />
             </div>
 
             <div className="stats-grid">
