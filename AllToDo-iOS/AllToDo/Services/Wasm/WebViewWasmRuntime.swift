@@ -93,6 +93,16 @@ final class WebViewWasmRuntime: NSObject, WasmRuntime, WKNavigationDelegate {
                 return null;
             }
         }
+        
+        function cluster(points, cellSizeMeters) {
+            try {
+                var int32Array = new Int32Array(points);
+                var result = wasm_bindgen.cluster_points(int32Array, cellSizeMeters);
+                return Array.from(result);
+            } catch (e) {
+                return null;
+            }
+        }
         </script>
         </body>
         </html>
@@ -174,6 +184,28 @@ final class WebViewWasmRuntime: NSObject, WasmRuntime, WKNavigationDelegate {
         } else {
              print("[WASM_RUNTIME] Invalid Result Type: \(type(of: rawResult)) - \(rawResult ?? "nil")")
              throw NSError(domain: "WebViewWasm", code: -3, userInfo: [NSLocalizedDescriptionKey: "Invalid result format"])
+        }
+    }
+
+    
+    func clusterPoints(_ points: [Int32], cellSizeMeters: Double) async throws -> [Int32] {
+        let pointsJson = points.description
+        // Ensure 'cluster' function exists in JS. We need to add it to HTML.
+        // Assuming we update HTML below or in this same edit.
+        // Let's rely on the updated HTML string which I will modify now.
+        
+        let js = "cluster(\(pointsJson), \(cellSizeMeters))"
+        let rawResult = try await webView.evaluateJavaScript(js)
+        
+        if let array = rawResult as? [NSNumber] {
+             return array.map { $0.int32Value }
+        } else if let array = rawResult as? [Int] {
+             return array.map { Int32($0) }
+        } else if let array = rawResult as? [Double] {
+             return array.map { Int32($0) }
+        } else {
+             print("[WASM_RUNTIME] Invalid Cluster Result Type")
+             return []
         }
     }
 }

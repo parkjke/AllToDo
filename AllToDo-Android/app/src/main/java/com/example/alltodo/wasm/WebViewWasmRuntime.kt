@@ -102,6 +102,19 @@ class WebViewWasmRuntime(private val context: Context) : WasmRuntime {
                         return null;
                     }
                 }
+                
+                function cluster(pointsJson, cellSizeMeters) {
+                    try {
+                        const points = JSON.parse(pointsJson);
+                        const int32Array = new Int32Array(points);
+                        const result = wasm_bindgen.cluster_points(int32Array, cellSizeMeters);
+                        return Array.from(result);
+                    } catch (e) {
+                         // Fallback or Error
+                         console.error("Cluster Error: " + e);
+                         return null;
+                    }
+                }
                 </script>
                 </body>
                 </html>
@@ -190,6 +203,68 @@ class WebViewWasmRuntime(private val context: Context) : WasmRuntime {
                        }
                    } catch (e: Exception) {
                        android.util.Log.e("WebViewWasm", "Parse Error: $result", e)
+                   }
+                }
+                latch.countDown()
+            }
+        }
+        
+        try {
+            latch.await(2000, java.util.concurrent.TimeUnit.MILLISECONDS)
+        } catch (e: InterruptedException) {
+            e.printStackTrace()
+        }
+        
+        return resultList
+    }
+        return resultList
+    }
+
+    override fun clusterPoints(points: List<Int>, cellSizeMeters: Int): List<Int> {
+        if (!isReady) return emptyList()
+
+        var resultList: List<Int> = emptyList()
+        val latch = CountDownLatch(1)
+        
+        val pointsJson = points.toString()
+        // Call JS wrapper `cluster_points`
+        // Note: JS side expects `cluster_points(points_flat, cell_size_m)`
+        // Glue code signature: `cluster_points(points_flat, cell_size_m)`
+        // We need a JS bridge function similar to `compress` called `cluster`
+        
+        // Let's inject a new JS bridge function dynamically or rely on one if we added it?
+        // Wait, we need to check if we added `cluster` function to HTML in init block.
+        // Looking at previous valid file read, we only added `compress` function.
+        // We need to modify `init` block to add `cluster` function too. 
+        // BUT, since we can't edit `init` block easily without replacing huge chunk,
+        // we can try to call `wasm_bindgen.cluster_points` directly via helper or 
+        // assume we will update `init` block in next step. 
+        
+        // Let's assume we update `init` block to include `cluster` function wrapper.
+        // Or we can define it one-off here? No, context is lost.
+        
+        // Actually, let's use `WasmManager` or `WebViewWasmRuntime`'s init to update the HTML template.
+        // For now, I will assume the function name `cluster` exists in JS (I will add it in next step).
+        
+        val js = "JSON.stringify(cluster('$pointsJson', $cellSizeMeters))"
+        
+        handler.post {
+            webView?.evaluateJavascript(js) { result ->
+                if (result != null && result != "null") {
+                   try {
+                       var cleanResult = result
+                       if (cleanResult.startsWith("\"") && cleanResult.endsWith("\"")) {
+                           cleanResult = cleanResult.substring(1, cleanResult.length - 1)
+                       }
+                       cleanResult = cleanResult.replace("\\\"", "\"")
+                       
+                       val gson = com.google.gson.Gson()
+                       val parsed = gson.fromJson(cleanResult, Array<Int>::class.java)
+                       if (parsed != null) {
+                           resultList = parsed.toList()
+                       }
+                   } catch (e: Exception) {
+                       android.util.Log.e("WebViewWasm", "Cluster Parse Error: $result", e)
                    }
                 }
                 latch.countDown()

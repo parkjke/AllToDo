@@ -80,6 +80,20 @@ class WasmManager @Inject constructor(
         return result
     }
 
+    // [NEW] Clustering Support
+    fun cluster(points: List<Int>, cellSizeMeters: Int): List<Int> {
+        val start = System.currentTimeMillis()
+        // android.util.Log.d(TAG, "⚡️ Executing WASM 'clusterPoints' with ${points.size/2} points...")
+        
+        val result = runtime.clusterPoints(points, cellSizeMeters)
+        
+        val duration = System.currentTimeMillis() - start
+        // android.util.Log.d(TAG, "✨ Cluster Success: ${points.size/2} -> ${result.size/3} clusters (${duration}ms)")
+        lastErrorMessage = null
+        // onStatusUpdate?.invoke("Cluster: ${duration}ms")
+        return result
+    }
+
     private fun checkForUpdate() {
         try {
             android.util.Log.d(TAG, "🔍 Checking for updates at: $versionUrl")
@@ -132,11 +146,51 @@ class WasmManager @Inject constructor(
             storage.save(bundle.version, body)
             
             android.util.Log.d(TAG, "🎉 (3/3) Download & Load Complete. Version: ${bundle.version}")
-            true
+            
+            // [NEW] Self-Test Routine
+            verifyWasm()
+            
+            return true
         } catch (e: Exception) {
             android.util.Log.e(TAG, "❌ Connection FAILED: ${e.message}")
             e.printStackTrace()
             false
+        }
+    }
+
+    private fun verifyWasm() {
+        android.util.Log.d(TAG, "🧪 Starting WASM Self-Test (RDP + Clustering)...")
+        try {
+            // 1. RDP Test Case
+            // (0,0) -> (1,1) -> (2,2) with thresh=5m. Expected: (0,0) -> (2,2)
+            val rdpPoints = listOf(0, 0, 100000, 100000, 200000, 200000) 
+            val rdpResult = runtime.compressTrajectory(rdpPoints, 5, 5)
+            
+            val rdpPassed = if (rdpResult.size == 4) {
+                 val p1 = "${rdpResult[0]},${rdpResult[1]}"
+                 val p2 = "${rdpResult[2]},${rdpResult[3]}"
+                 (p1 == "0,0" && p2 == "200000,200000")
+            } else false
+            
+            // 2. Clustering Test Case
+            // 2 points close to each other: (0,0) and (10,10) (approx 1.4m dist)
+            // Cell Size: 100m. Expected: 1 Cluster with count 2.
+            val clusterPoints = listOf(0, 0, 100, 100)
+            val clusterResult = runtime.clusterPoints(clusterPoints, 100)
+            
+            val clusterPassed = if (clusterResult.size == 3) {
+                val count = clusterResult[2]
+                count == 2
+            } else false
+
+            if (rdpPassed && clusterPassed) {
+                android.util.Log.d(TAG, "✅ WASM Self-Test PASSED (RDP & Clustering)")
+                onStatusUpdate?.invoke("WASM Verified (RDP+Cluster)")
+            } else {
+                android.util.Log.e(TAG, "❌ WASM Self-Test FAILED: RDP=$rdpPassed, Cluster=$clusterPassed")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e(TAG, "❌ WASM Self-Test Error: ${e.message}")
         }
     }
 

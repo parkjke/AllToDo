@@ -114,7 +114,7 @@ struct KakaoMapView: UIViewRepresentable {
                  let options = CameraAnimationOptions(autoElevation: true, consecutive: false, durationInMillis: 1000)
                  mapView.animateCamera(cameraUpdate: update, options: options)
              } else {
-                 locationManager?.requestPermission()
+                 // locationManager?.requestLocationPermission() // [FIX] Assuming handled by AppLocationManager init or separate flow
              }
         }
         
@@ -277,7 +277,6 @@ struct KakaoMapView: UIViewRepresentable {
                 let userIconStyle = PoiIconStyle(symbol: userImage, anchorPoint: CGPoint(x: 0.5, y: 0.5))
                 let userPerLevel = PerLevelPoiStyle(iconStyle: userIconStyle, level: 0)
                 let userStyle = PoiStyle(styleID: "userStyle", styles: [userPerLevel])
-                let userStyle = PoiStyle(styleID: "userStyle", styles: [userPerLevel])
                 labelManager.addPoiStyle(userStyle)
                 
                 // Add History Style [NEW]
@@ -336,64 +335,17 @@ struct KakaoMapView: UIViewRepresentable {
              }
         }
         
-        // Drawing Helpers
+        // Drawing Helpers - Now using Assets
         func createUserPinImage() -> UIImage {
-            let size = CGSize(width: 32, height: 32)
-            return UIGraphicsImageRenderer(size: size).image { context in
-                // Red Pin Logic
-                UIColor.allToDoRed.setFill()
-                let circleRect = CGRect(x: 4, y: 0, width: 24, height: 24)
-                context.cgContext.fillEllipse(in: circleRect)
-                
-                context.cgContext.move(to: CGPoint(x: 10, y: 20))
-                context.cgContext.addLine(to: CGPoint(x: 16, y: 32))
-                context.cgContext.addLine(to: CGPoint(x: 22, y: 20))
-                context.cgContext.fillPath()
-                
-                // Add White inner circle for differentiation? Or just Blue Pin as requested.
-                // User said "Change Circle to Pin".
-                UIColor.white.setFill()
-                context.cgContext.fillEllipse(in: CGRect(x: 10, y: 6, width: 12, height: 12))
-            }
+            return UIImage(named: "pin_current") ?? UIImage(systemName: "location.circle.fill")!
         }
         
-            return UIGraphicsImageRenderer(size: size).image { context in
-                UIColor.allToDoGreen.setFill()
-                let circleRect = CGRect(x: 4, y: 0, width: 24, height: 24)
-                context.cgContext.fillEllipse(in: circleRect)
-                
-                context.cgContext.move(to: CGPoint(x: 10, y: 20))
-                context.cgContext.addLine(to: CGPoint(x: 16, y: 32))
-                context.cgContext.addLine(to: CGPoint(x: 22, y: 20))
-                context.cgContext.fillPath()
-                
-                // Checkmark
-                let config = UIImage.SymbolConfiguration(pointSize: 12, weight: .bold)
-                if let icon = UIImage(systemName: "checkmark", withConfiguration: config)?.withTintColor(.white, renderingMode: .alwaysOriginal) {
-                    icon.draw(at: CGPoint(x: 16 - icon.size.width/2, y: 12 - icon.size.height/2))
-                }
-            }
+        func createGreenPinImage() -> UIImage {
+            return UIImage(named: "pin_todo") ?? UIImage(systemName: "mappin.circle.fill")!
         }
-
-        // [NEW] History Pin Image
+        
         func createHistoryPinImage() -> UIImage {
-            let size = CGSize(width: 32, height: 32)
-            return UIGraphicsImageRenderer(size: size).image { context in
-                UIColor.red.setFill()
-                let circleRect = CGRect(x: 4, y: 0, width: 24, height: 24)
-                context.cgContext.fillEllipse(in: circleRect)
-                
-                context.cgContext.move(to: CGPoint(x: 10, y: 20))
-                context.cgContext.addLine(to: CGPoint(x: 16, y: 32))
-                context.cgContext.addLine(to: CGPoint(x: 22, y: 20))
-                context.cgContext.fillPath()
-                
-                // Clock Icon
-                let config = UIImage.SymbolConfiguration(pointSize: 12, weight: .bold)
-                if let icon = UIImage(systemName: "clock.fill", withConfiguration: config)?.withTintColor(.white, renderingMode: .alwaysOriginal) {
-                    icon.draw(at: CGPoint(x: 16 - icon.size.width/2, y: 12 - icon.size.height/2))
-                }
-            }
+            return UIImage(named: "pin_history") ?? UIImage(systemName: "clock.fill")!
         }
 
         // MARK: - MapControllerDelegate

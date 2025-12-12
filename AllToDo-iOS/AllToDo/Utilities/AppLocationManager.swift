@@ -3,132 +3,79 @@ import CoreLocation
 import Combine
 // LocationData is defined in TaskModel.swift which is in the same module.
 
+struct ClusterItem: Identifiable {
+    let id = UUID()
+    let coordinate: CLLocationCoordinate2D
+    let count: Int
+    var items: [UnifiedMapItem] // Items belonging to this cluster
+}
+
 class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let locationManager = CLLocationManager()
     
     @Published var currentLocation: CLLocation?
     @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
     
-    override init() {
-        super.init()
-        locationManager.delegate = self
-        locationManager.desiredAccuracy = kCLLocationAccuracyBest
-        locationManager.requestWhenInUseAuthorization()
-        locationManager.startUpdatingLocation()
-    }
-    
+    // [NEW] Request Permission Explicitly
     func requestPermission() {
         locationManager.requestWhenInUseAuthorization()
     }
     
-    // MARK: - Session Logic
-    // [NEW] Streaming RDP buffers
-    private var processedSessionPoints: [LocationData] = [] // Permanently stored (in memory) until save
-    private var pendingBuffer: [LocationData] = [] // Temporary buffer for batching
-    
-    private var sessionStartTime: Date?
-    
+    // [NEW] Recording State
     @Published var isRecording = false
-    
     @Published var debugStatus: String = "Ready"
-    @Published var lastResult: String = "No previous session"
-
-    func startSession() {
-        processedSessionPoints.removeAll()
-        pendingBuffer.removeAll()
-        sessionStartTime = Date()
-        isRecording = true
-        debugStatus = "Recording... (0 pts)"
-        print("AppLocationManager: Session Started")
-        RemoteLogger.info("Session Started")
-    }
+    @Published var processedSessionPoints: [LocationData] = []
     
-    // Updated to handle streaming storage
-    func endSession() async -> (start: Date, end: Date, midLat: Double, midLon: Double, pathData: Data?)? {
-        isRecording = false
-        guard let start = sessionStartTime, (!processedSessionPoints.isEmpty || !pendingBuffer.isEmpty) else {
-            debugStatus = "Session Ended (Empty)"
-            return nil
-        }
-        
-        let end = Date()
-        
-        // Flush remaining buffer
-        if !pendingBuffer.isEmpty {
-            debugStatus = "Flushing buffer (\(pendingBuffer.count))..."
-            await processBuffer(force: true)
-        }
-        
-        let totalCount = processedSessionPoints.count
-        debugStatus = "Saving \(totalCount) points..."
-        
-        // 1. Calculate Midpoint
-        let midLat = processedSessionPoints.reduce(0) { $0 + $1.latitude } / Double(max(1, totalCount))
-        let midLon = processedSessionPoints.reduce(0) { $0 + $1.longitude } / Double(max(1, totalCount))
-        
-        // 2. Encode
-        let pathData = try? JSONEncoder().encode(processedSessionPoints)
-        
-        let msg = "Session Saved: \(totalCount) pts"
-        lastResult = msg
-        debugStatus = "Done. \(totalCount) pts saved."
-        RemoteLogger.info(msg)
-        
-        // 3. Clear
-        processedSessionPoints.removeAll()
-        pendingBuffer.removeAll()
-        sessionStartTime = nil
-        
-        return (start, end, midLat, midLon, pathData)
-    }
+    // [NEW] Buffer for Batch Processing
+    var pendingBuffer: [LocationData] = []
     
-    // [NEW] Batch Processing
-    // Processes points in pendingBuffer and moves them to processedSessionPoints
-    private func processBuffer(force: Bool = false) async {
+    // [NEW] Process Buffer with WASM
+    func processBuffer() async {
         guard !pendingBuffer.isEmpty else { return }
         
-        // Take snapshot to process
-        let pointsToProcess = pendingBuffer
-        pendingBuffer.removeAll() // Clear immediately to allow new incoming points
+        let batch = pendingBuffer // Capture current batch
+        pendingBuffer.removeAll() // Clear buffer immediately
         
-        // Optimization: Keep the last point of this batch as the start of the next batch? 
-        // User requested "delete processed", implying simple segmentation.
-        // However, standard RDP on chunks might cause disconnected vertices if not careful.
-        // But since we just append points, they are connected lines.
-        // The issue is simply simplification quality at the boundary.
-        // For simplicity and to match request exactly: Just process and append.
-        
-        // Convert to Flat Int
-        let flatPoints: [Int32] = pointsToProcess.flatMap {
-            [Int32($0.latitude * 100_000), Int32($0.longitude * 100_000)]
+        // Convert to Int32 array [lat, lon, lat, lon...]
+        var rawPoints: [Int32] = []
+        for p in batch {
+            rawPoints.append(Int32(p.latitude * 1_000_000)) // Micro-degrees
+            rawPoints.append(Int32(p.longitude * 1_000_000))
         }
         
-        let startTime = Date()
         // Call WASM
-        let compressedFlat = await WasmManager.shared.compress(points: flatPoints)
-        let duration = Date().timeIntervalSince(startTime) * 1000
+        let compressed = await WasmManager.shared.compress(points: rawPoints)
         
-        // Reconstruct
-        var newProcessed: [LocationData] = []
-        var i = 0
-        while i < compressedFlat.count - 1 {
-            let lat = Double(compressedFlat[i]) / 100_000.0
-            let lng = Double(compressedFlat[i+1]) / 100_000.0
-            // We lose individual timestamps. Use current time or interpolate?
-            // User just wants visual path.
-            newProcessed.append(LocationData(latitude: lat, longitude: lng, name: nil, timestamp: Date()))
-            i += 2
+        // Convert back to LocationData
+        var resultBatch: [LocationData] = []
+        for i in stride(from: 0, to: compressed.count, by: 2) {
+            let lat = Double(compressed[i]) / 1_000_000.0
+            let lon = Double(compressed[i+1]) / 1_000_000.0
+            // We use approximate timestamp of the batch for simplicity or interpolate
+            // Use last point's time? Or just 'now'
+            resultBatch.append(LocationData(latitude: lat, longitude: lon, name: nil, timestamp: Date()))
         }
         
-        // Append to main storage (MainActor since this is async)
-        await MainActor.run {
-            self.processedSessionPoints.append(contentsOf: newProcessed)
-            let logMsg = "Batch RDP: \(pointsToProcess.count) -> \(newProcessed.count) pts (\(String(format: "%.1f", duration))ms)"
-            print(logMsg)
-            RemoteLogger.info(logMsg)
+        DispatchQueue.main.async {
+            self.processedSessionPoints.append(contentsOf: resultBatch)
+            self.debugStatus = "Saved: \(self.processedSessionPoints.count) pts"
         }
     }
     
+    override init() {
+        super.init()
+        locationManager.delegate = self
+        // [MODIFIED] High accuracy and no distance filter to ensure frequent updates (approximating 1s stream)
+        locationManager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
+        locationManager.distanceFilter = kCLDistanceFilterNone
+        locationManager.activityType = .fitness // Keeps GPS active even for small movements
+        
+        locationManager.requestWhenInUseAuthorization()
+        locationManager.startUpdatingLocation()
+    }
+    
+    // ... (omitted) ...
+
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
         currentLocation = location
@@ -140,14 +87,9 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
             if let lastTime = lastRecordedTime {
                 let timeDelta = now.timeIntervalSince(lastTime)
                 
-                // [CHANGED] 1s Interval as requested
-                if timeDelta >= 1.0 {
+                // [MODIFIED] 0.9s Interval as requested
+                if timeDelta >= 0.9 {
                     shouldRecord = true
-                }
-                // Distance/Heading checks can remain as secondary triggers, 
-                // but 1s is aggressive enough to catch corners usually.
-                else if let lastLoc = lastRecordedLocation {
-                    if location.distance(from: lastLoc) > 10.0 { shouldRecord = true }
                 }
             } else {
                 shouldRecord = true
@@ -175,8 +117,48 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         }
     }
     
+    private var sessionStartTime: Date?
     private var lastRecordedTime: Date?
     private var lastRecordedLocation: CLLocation?
+    
+    // [NEW] Start Recording
+    func startSession() {
+        debugStatus = "Starting..."
+        isRecording = true
+        sessionStartTime = Date()
+        processedSessionPoints = []
+        pendingBuffer = []
+        lastRecordedTime = nil
+    }
+    
+    // [NEW] End Recording
+    func endSession() async -> (start: Date, end: Date, midLat: Double, midLon: Double, pathData: Data?)? {
+        isRecording = false
+        debugStatus = "Stopping..."
+        
+        // Process remaining buffer
+        if !pendingBuffer.isEmpty {
+            await processBuffer()
+        }
+        
+        guard let start = sessionStartTime, !processedSessionPoints.isEmpty else {
+            return nil
+        }
+        
+        let end = Date()
+        
+        // Calculate Midpoint
+        let totalLat = processedSessionPoints.reduce(0.0) { $0 + $1.latitude }
+        let totalLon = processedSessionPoints.reduce(0.0) { $0 + $1.longitude }
+        let count = Double(processedSessionPoints.count)
+        let midLat = totalLat / count
+        let midLon = totalLon / count
+        
+        // Encode Path
+        let pathData = try? JSONEncoder().encode(processedSessionPoints)
+        
+        return (start, end, midLat, midLon, pathData)
+    }
     
     func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
         authorizationStatus = status

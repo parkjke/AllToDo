@@ -105,7 +105,7 @@ struct NaverMapView: UIViewRepresentable {
                     update.animationDuration = 1.0
                     map.moveCamera(update)
                 } else {
-                    parent.locationManager.requestPermission()
+                    // parent.locationManager.requestPermission() // Not exposed
                 }
             case .rotateNorth:
                 let update = NMFCameraUpdate(heading: 0)
@@ -265,65 +265,15 @@ struct NaverMapView: UIViewRepresentable {
         // Naver Map uses UIImage for markers.
         
         func createGreenPinImage() -> UIImage {
-            let size = CGSize(width: 40, height: 50)
-            return UIGraphicsImageRenderer(size: size).image { context in
-                UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0).setFill() // Green
-                
-                // Diamond Shape
-                let path = UIBezierPath()
-                path.move(to: CGPoint(x: 20, y: 0))
-                path.addLine(to: CGPoint(x: 40, y: 20))
-                path.addLine(to: CGPoint(x: 20, y: 50)) // Tip
-                path.addLine(to: CGPoint(x: 0, y: 20))
-                path.close()
-                path.fill()
-                
-                // White Checkmark or Icon
-                let config = UIImage.SymbolConfiguration(pointSize: 14, weight: .bold)
-                if let icon = UIImage(systemName: "checkmark", withConfiguration: config)?.withTintColor(.white, renderingMode: .alwaysOriginal) {
-                    icon.draw(at: CGPoint(x: 20 - icon.size.width/2, y: 20 - icon.size.height/2))
-                }
-            }
+            return UIImage(named: "pin_todo") ?? UIImage(systemName: "mappin.circle.fill")!
         }
         
         func createRedPinImage() -> UIImage {
-            let size = CGSize(width: 40, height: 50)
-            return UIGraphicsImageRenderer(size: size).image { context in
-                UIColor.red.setFill()
-                
-                let path = UIBezierPath()
-                path.move(to: CGPoint(x: 20, y: 0))
-                path.addLine(to: CGPoint(x: 40, y: 20))
-                path.addLine(to: CGPoint(x: 20, y: 50))
-                path.addLine(to: CGPoint(x: 0, y: 20))
-                path.close()
-                path.fill()
-                
-                // History Icon (Clock? Map?)
-                let config = UIImage.SymbolConfiguration(pointSize: 14, weight: .bold)
-                if let icon = UIImage(systemName: "clock.fill", withConfiguration: config)?.withTintColor(.white, renderingMode: .alwaysOriginal) {
-                    icon.draw(at: CGPoint(x: 20 - icon.size.width/2, y: 20 - icon.size.height/2))
-                }
-            }
+            return UIImage(named: "pin_history") ?? UIImage(systemName: "clock.fill")!
         }
         
         func createUserPinImage() -> UIImage {
-             let size = CGSize(width: 32, height: 32)
-             return UIGraphicsImageRenderer(size: size).image { context in
-                 UIColor.red.setFill() // User is Red Dot/Pin
-                 let circle = UIBezierPath(ovalIn: CGRect(x: 0, y: 0, width: 32, height: 32))
-                 circle.fill()
-                 
-                 UIColor.white.setStroke()
-                 circle.lineWidth = 3
-                 circle.stroke()
-                 
-                 // Person Icon
-                 let config = UIImage.SymbolConfiguration(pointSize: 14, weight: .bold)
-                 if let icon = UIImage(systemName: "person.fill", withConfiguration: config)?.withTintColor(.white, renderingMode: .alwaysOriginal) {
-                       icon.draw(at: CGPoint(x: 16 - icon.size.width/2, y: 16 - icon.size.height/2))
-                 }
-             }
+             return UIImage(named: "pin_current") ?? UIImage(systemName: "person.circle.fill")!
         }
         
         // Camera Delegate

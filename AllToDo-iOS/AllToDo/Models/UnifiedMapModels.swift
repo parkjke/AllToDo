@@ -25,6 +25,19 @@ enum UnifiedMapItem: Identifiable {
         case .userLocation: return Date()
         }
     }
+    var location: CLLocationCoordinate2D? {
+        switch self {
+        case .todo(let item): 
+            if let loc = item.location {
+                return CLLocationCoordinate2D(latitude: loc.latitude, longitude: loc.longitude)
+            }
+            return nil
+        case .history(let log):
+            return CLLocationCoordinate2D(latitude: log.latitude, longitude: log.longitude)
+        case .serverMessage: return nil
+        case .userLocation: return nil // dynamic
+        }
+    }
 }
 
 // Custom Annotation Class

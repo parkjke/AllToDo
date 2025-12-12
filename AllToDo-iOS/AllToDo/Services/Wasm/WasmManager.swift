@@ -9,40 +9,62 @@ final class WasmManager {
     
     // Updated IP
     private let advancedURL = URL(string: "http://175.194.163.56:8003/wasm/advanced")!
+    private let versionURL = URL(string: "http://175.194.163.56:8003/wasm/version")!
     
     private init() {}
+    
+    struct VersionResponse: Codable {
+        let version: String
+    }
     
     func initialize(completion: @escaping (Bool) -> Void) {
         print("[WASM_STATUS] 🚀 Initializing WASM Manager...")
         
         Task {
-            // 1. Storage
+            // 1. Storage Load
+            var isLoaded = false
             if let (_, blobJson) = WasmStorage.shared.load() {
                 if let bundle = try? JSONDecoder().decode(WasmBundle.self, from: blobJson),
                    let decrypted = try? WasmCrypto.shared.decrypt(bundle: bundle) {
                     do {
                         try await runtime.loadModule(decrypted)
                         print("[WASM_STATUS] ✅ Loaded stored WASM (Version: \(bundle.version))")
-                        completion(true)
-                        return
+                        isLoaded = true
                     } catch {
                         print("[WASM_STATUS] ❌ Failed to load stored WASM: \(error)")
                     }
                 }
             }
             
-            print("[WASM_STATUS] ℹ️ No valied stored WASM found. Checking server...")
-            
-            // 2. Network Check
-            let success = await fetchAdvancedWasm()
-            if success {
-                print("[WASM_STATUS] 🎉 Successfully loaded WASM from Server")
-                completion(true)
-            } else {
-                print("[WASM_STATUS] ⚠️ Server download failed. Using Fallback.")
-                await loadFallback()
-                completion(false)
+            if !isLoaded {
+                 print("[WASM_STATUS] ℹ️ No valid stored WASM found. Loading Fallback & Checking Server...")
+                 await loadFallback()
             }
+            
+            // Notify App is ready (using Stored or Fallback)
+            completion(true)
+            
+            // 2. Check for Updates in Background (Unified Logic with Android)
+            await checkForUpdate()
+        }
+    }
+    
+    private func checkForUpdate() async {
+        print("[WASM_STATUS] 🔍 Checking for updates at: \(versionURL)...")
+        do {
+            let (data, _) = try await session.data(from: versionURL)
+            let serverVer = try JSONDecoder().decode(VersionResponse.self, from: data).version
+            
+            let (storedVer, _) = WasmStorage.shared.load() ?? ("0.0.0", Data())
+            
+            if serverVer != storedVer {
+                print("[WASM_STATUS] 🆕 New version found: \(serverVer) (Current: \(storedVer)). Downloading...")
+                _ = await fetchAdvancedWasm()
+            } else {
+                print("[WASM_STATUS] ✅ Up to date (\(storedVer))")
+            }
+        } catch {
+            print("[WASM_STATUS] ❌ Update check error: \(error.localizedDescription)")
         }
     }
     
@@ -70,12 +92,51 @@ final class WasmManager {
             WasmStorage.shared.save(version: bundle.version, blobJson: data)
             
             print("[WASM_STATUS] 🎉 (3/3) Download & Load Complete. Version: \(bundle.version)")
+            
+            // [NEW] Self-Test
+            await verifyWasm()
+            
             return true
         } catch {
             print("[WASM_STATUS] ❌ Connection FAILED: \(error.localizedDescription)")
             // Detailed error for easier debugging
             print("[WASM_STATUS] 🛑 Error Details: \(error)")
             return false
+        }
+    }
+
+    private func verifyWasm() async {
+        print("[WASM_STATUS] 🧪 Starting WASM Self-Test (RDP + Clustering)...")
+        do {
+            // 1. RDP Test
+            let rdpPoints: [Int32] = [0, 0, 100000, 100000, 200000, 200000]
+            let rdpResult = try await runtime.compressTrajectory(rdpPoints, minDistMeters: 5.0, angleThreshDeg: 5.0)
+            
+            var rdpPassed = false
+            if rdpResult.count == 4 {
+                if rdpResult[0] == 0 && rdpResult[2] == 200000 {
+                    rdpPassed = true
+                }
+            }
+            
+            // 2. Clustering Test
+            let clusterPoints: [Int32] = [0, 0, 100, 100]
+            // Safe to call now as Protocol is updated
+            let clusterResult = try await runtime.clusterPoints(clusterPoints, cellSizeMeters: 100.0)
+            
+            var clusterPassed = false
+            if clusterResult.count == 3 {
+                 let count = clusterResult[2]
+                 if count == 2 { clusterPassed = true }
+            }
+            
+            if rdpPassed && clusterPassed {
+                 print("[WASM_STATUS] ✅ WASM Self-Test PASSED (RDP + Clustering)")
+            } else {
+                 print("[WASM_STATUS] ❌ WASM Self-Test FAILED: RDP=\(rdpPassed), Cluster=\(clusterPassed)")
+            }
+        } catch {
+             print("[WASM_STATUS] ❌ WASM Self-Test Error: \(error)")
         }
     }
     

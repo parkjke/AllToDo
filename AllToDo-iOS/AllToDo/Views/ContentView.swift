@@ -81,7 +81,9 @@ struct ContentView: View {
                     rotation: $compassRotation,
                     locationManager: locationManager,
                     todoItems: filteredTodos,
+                    userLogs: filteredLogs, // [Fixed] Added missing arg
                     selectedItem: $selectedItem,
+                    selectedClusterItems: $selectedClusterItems, // [Fixed] Added missing arg
                     onLongTap: handleLongTap
                 )
             case .naver:
@@ -108,6 +110,7 @@ struct ContentView: View {
                     userLogs: filteredLogs,
                     selectedItem: $selectedItem,
                     selectedClusterItems: $selectedClusterItems,
+                    hasItems: !filteredTodos.isEmpty || !filteredLogs.isEmpty,
                     onLongTap: handleLongTap,
                     onUserLocationTap: {},
                     onDelete: deleteItem,
@@ -117,6 +120,19 @@ struct ContentView: View {
             }
         }
         .ignoresSafeArea()
+        // [NEW] Feed LayoutManager with items for WASM Clustering
+        // Note: Clustering logic resides in MapViews or specialized manager, not AppLocationManager.
+        // If we want WASM clustering global, we need a dedicated manager or update AppLocationManager.
+        // For now, assuming MapViews handle it.
+        // .onChange(of: filteredTodos) { newTodos in
+        //     locationManager.setItems(todos: newTodos, logs: filteredLogs)
+        // }
+        // .onChange(of: filteredLogs) { newLogs in
+        //     locationManager.setItems(todos: filteredTodos, logs: newLogs)
+        // }
+        // .onAppear {
+        //      locationManager.setItems(todos: filteredTodos, logs: filteredLogs)
+        // }
     }
     
     private func handleLongTap(_ coord: CLLocationCoordinate2D) {
@@ -198,23 +214,23 @@ struct ContentView: View {
         }
     }
     
-    var debugLayer: some View {
-         VStack(alignment: .leading) {
-             Spacer()
-             VStack(alignment: .leading, spacing: 4) {
-                 Text(locationManager.debugStatus).font(.caption).foregroundColor(.white)
-                 Text(locationManager.lastResult).font(.caption2).foregroundColor(.yellow)
-                 Text("ID: \(RemoteLogger.shared.deviceID.prefix(8).description)").font(.caption2).foregroundColor(.gray)
-             }
-             .padding(8)
-             .background(Color.black.opacity(0.6))
-             .cornerRadius(8)
-             .padding(.bottom, 60)
-             .padding(.leading, 12)
-         }
-         .frame(maxWidth: .infinity, alignment: .leading)
-         .allowsHitTesting(false)
-    }
+     var debugLayer: some View {
+          VStack(alignment: .leading) {
+              Spacer()
+              VStack(alignment: .leading, spacing: 4) {
+                  Text(locationManager.debugStatus).font(.caption).foregroundColor(.white)
+                  // Text(locationManager.lastResult).font(.caption2).foregroundColor(.yellow)
+                  Text("ID: \(RemoteLogger.shared.deviceID.prefix(8).description)").font(.caption2).foregroundColor(.gray)
+              }
+              .padding(8)
+              .background(Color.black.opacity(0.6))
+              .cornerRadius(8)
+              .padding(.bottom, 60)
+              .padding(.leading, 12)
+          }
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .allowsHitTesting(false)
+     }
     
     var clusterOverlay: some View {
         Group {

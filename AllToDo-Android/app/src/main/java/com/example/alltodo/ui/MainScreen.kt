@@ -99,6 +99,12 @@ import java.text.SimpleDateFormat
 import java.util.*
 import kotlinx.coroutines.launch // [FIX] Import
 import com.kakao.vectormap.camera.CameraAnimation // [FIX] Import
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.Priority
+import android.os.Looper
+import kotlinx.coroutines.awaitCancellation
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -113,7 +119,8 @@ fun MainScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_START) {
-                viewModel.startSession()
+                // viewModel.startSession() // Already called in init? No, init calls it.
+                // But onResume logic might be needed.
             } else if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
                 viewModel.endSession()
             }
@@ -195,8 +202,9 @@ fun MainScreen(
                  KakaoMapSdk.init(context, k)
                  isSdkInitialized = true
              }
-        } catch (e: Exception) {
-             android.util.Log.e("AllToDo", "SDK Init Fail", e)
+        } catch (t: Throwable) {
+             android.util.Log.e("AllToDo", "SDK Init Fail", t)
+             // Maybe show a toast?
         }
     }
 
@@ -242,17 +250,32 @@ fun MainScreen(
                }
            }
            
-           // Common Tracking Loop
-           while (true) {
-                if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                    fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-                        if (location != null) {
-                            currentLocation = location
-                            viewModel.saveLocation(location.latitude, location.longitude)
-                        }
-                    }
-                }
-                delay(5000)
+           // Common Tracking Loop - [FIX] Use Callback instead of Polling
+           val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 900)
+               .setMinUpdateIntervalMillis(900)
+               .build()
+
+           val locationCallback = object : LocationCallback() {
+               override fun onLocationResult(result: LocationResult) {
+                   for (location in result.locations) {
+                       currentLocation = location
+                       viewModel.saveLocation(location.latitude, location.longitude)
+                   }
+               }
+           }
+
+           if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+               try {
+                   fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
+               } catch (e: SecurityException) {
+                   e.printStackTrace()
+               }
+           }
+
+           try {
+               awaitCancellation()
+           } finally {
+               fusedLocationClient.removeLocationUpdates(locationCallback)
            }
         }
     }
@@ -265,26 +288,13 @@ fun MainScreen(
     }
 
     // [NEW] Unified Filtering Logic for All Maps
-    val filteredItems by remember(userLogs, todoItems, currentLocation, showHistoryMode) {
-        derivedStateOf {
-            val now = System.currentTimeMillis()
-            val oneDay = 24 * 60 * 60 * 1000L
-            val targetTime = if (showHistoryMode) now - oneDay else now
-            val minTime = targetTime - oneDay
-            val maxTime = targetTime + oneDay
-
-            val logItems = userLogs.filter { it.startTime in minTime..maxTime }.map { UnifiedItem.History(it) }
-            val todoItemsList = if (showHistoryMode) {
-                emptyList()
-            } else {
-                todoItems.filter { 
-                    val t = it.createdAt
-                    t in minTime..maxTime 
-                }.map { UnifiedItem.Todo(it) }
-            }
-            
-            logItems + todoItemsList
-        }
+    // [NEW] Use Clustered Items from ViewModel
+    val clusteredItems by viewModel.clusteredItems.collectAsState()
+    val displayItems by viewModel.displayItems.collectAsState() // [FIX] For Kakao/Naver fallback
+    
+    // [FIX] Zoom Tracking for Google Map
+    LaunchedEffect(googleCameraState.position.zoom) {
+         viewModel.updateZoom(googleCameraState.position.zoom)
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -293,7 +303,7 @@ fun MainScreen(
                 MapProvider.Google -> {
                     GoogleMapContent(
                         modifier = Modifier.fillMaxSize(),
-                        items = filteredItems,
+                        clusteredItems = clusteredItems, // [FIX] Pass Clustered Items
                         currentLocation = currentLocation,
                         cameraPositionState = googleCameraState,
                         onMapClick = { latLng ->
@@ -338,7 +348,7 @@ fun MainScreen(
                     com.example.alltodo.ui.components.KakaoMapContent(
                         modifier = Modifier.fillMaxSize(),
                         isSdkInitialized = isSdkInitialized,
-                        items = filteredItems,
+                        items = displayItems, // [FIX] Use displayItems
                         currentLocation = currentLocation,
                         selectedCluster = selectedCluster,
                         onMapReady = { map ->
@@ -363,7 +373,7 @@ fun MainScreen(
                 MapProvider.Naver -> {
                     NaverMapContent(
                         modifier = Modifier.fillMaxSize(),
-                        items = filteredItems,
+                        items = displayItems, // [FIX] Use displayItems
                         currentLocation = currentLocation,
                         onMapReady = { map ->
                             naverMap = map

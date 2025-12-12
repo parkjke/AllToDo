@@ -104,14 +104,17 @@ fun NaverMapContent(
             when (item) {
                 is UnifiedItem.Todo -> {
                     marker.captionText = item.item.text
-                    marker.iconTintColor = android.graphics.Color.GREEN
+                    marker.icon = OverlayImage.fromResource(com.example.alltodo.R.drawable.pin_todo)
+                    // marker.iconTintColor = android.graphics.Color.GREEN // Removed
                 }
                 is UnifiedItem.History -> {
-                    marker.iconTintColor = android.graphics.Color.RED
+                    marker.icon = OverlayImage.fromResource(com.example.alltodo.R.drawable.pin_history)
+                    marker.width = 40 // Adjust size for history dots? 
+                    marker.height = 40
                 }
                 is UnifiedItem.CurrentLocation -> {
                     marker.captionText = "Me"
-                    marker.iconTintColor = android.graphics.Color.BLUE // Or User Icon
+                    marker.icon = OverlayImage.fromResource(com.example.alltodo.R.drawable.pin_current)
                 }
             }
             

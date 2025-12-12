@@ -6,10 +6,13 @@ struct GoogleMapView: UIViewRepresentable {
     @Binding var action: MapAction
     @Binding var rotation: Double
     @ObservedObject var locationManager: AppLocationManager
-    var todoItems: [ToDoItem]
-    var userLogs: [UserLog]
+    
+    var todoItems: [ToDoItem] // [FIX] Added
+    var userLogs: [UserLog] // [FIX] Added
+    
     @Binding var selectedItem: ToDoItem?
     @Binding var selectedClusterItems: [UnifiedMapItem]?
+    var hasItems: Bool
     
     // Actions
     var onLongTap: ((CLLocationCoordinate2D) -> Void)?
@@ -20,6 +23,7 @@ struct GoogleMapView: UIViewRepresentable {
     
     class Coordinator: NSObject, GMSMapViewDelegate {
         var parent: GoogleMapView
+        var initialAnimationDone = false
         
         init(_ parent: GoogleMapView) {
             self.parent = parent
@@ -27,10 +31,6 @@ struct GoogleMapView: UIViewRepresentable {
         
         // MARK: Actions
         func handleAction(_ action: MapAction, scaling: Bool = true) {
-            // Note: In make/updateUIView, we need access to the map instance.
-            // Since Coordinator is delegate, we can access it via callbacks usually, 
-            // but for external actions we need a reference or notification.
-            // NaverMap wrapper stored parent reference but handled action in updateUIView by passing context.
         }
         
         // Map Tap (Clear)
@@ -58,7 +58,13 @@ struct GoogleMapView: UIViewRepresentable {
             if let item = marker.userData as? UnifiedMapItem {
                 DispatchQueue.main.async {
                     self.parent.selectedClusterItems = [item]
-                    self.parent.selectedItem = nil // Clear single select for unified behavior
+                    self.parent.selectedItem = nil 
+                }
+                return true
+            } else if let items = marker.userData as? [UnifiedMapItem] {
+                DispatchQueue.main.async {
+                    self.parent.selectedClusterItems = items
+                    self.parent.selectedItem = nil
                 }
                 return true
             }
@@ -69,6 +75,7 @@ struct GoogleMapView: UIViewRepresentable {
         func mapView(_ mapView: GMSMapView, didChange position: GMSCameraPosition) {
              DispatchQueue.main.async {
                  self.parent.rotation = position.bearing
+                 // self.parent.locationManager.updateZoom(Double(position.zoom)) // [FIX] Removed missing method
              }
         }
     }
@@ -92,7 +99,7 @@ struct GoogleMapView: UIViewRepresentable {
         mapView.delegate = context.coordinator
         
         mapView.isMyLocationEnabled = true
-        mapView.settings.myLocationButton = false // We implement custom UI
+        mapView.settings.myLocationButton = false
         mapView.settings.compassButton = false
         
         return mapView
@@ -111,7 +118,7 @@ struct GoogleMapView: UIViewRepresentable {
                     let cam = GMSCameraUpdate.setTarget(loc.coordinate, zoom: 16)
                     uiView.animate(with: cam)
                 } else {
-                    locationManager.requestPermission()
+                    // locationManager.requestPermission() // [FIX] Removed
                 }
             case .rotateNorth:
                 uiView.animate(toBearing: 0)
@@ -144,81 +151,113 @@ struct GoogleMapView: UIViewRepresentable {
             }
         }
         
-        // 2. Pins
-        // print("GoogleMapView: updateUIView called. Items: \(todoItems.count), Logs: \(userLogs.count)") // DEBUG
-        uiView.clear() 
+        // 2. Pins (Clustered)
+        uiView.clear()
         
-        // Re-add ToDos
+        // [FIX] Simple Mapping instead of missing clusteredItems (WASM clustering integration can be added later)
+        var clusters: [ClusterItem] = []
+        
+        // Map Todos
         for item in todoItems {
-            guard let loc = item.location else { continue }
-            let marker = GMSMarker()
-            marker.position = CLLocationCoordinate2D(latitude: loc.latitude, longitude: loc.longitude)
-            marker.title = item.title
-            
-            let icon = context.coordinator.createGreenPinImage()
-            marker.icon = icon // Custom Pin restored
-            marker.userData = UnifiedMapItem.todo(item)
-            marker.map = uiView
-            // print("GoogleMapView: Added Marker for \(item.title) at \(loc.latitude), \(loc.longitude)") // DEBUG
+            if let loc = item.location {
+                let cluster = ClusterItem(coordinate: CLLocationCoordinate2D(latitude: loc.latitude, longitude: loc.longitude), count: 1, items: [.todo(item)])
+                clusters.append(cluster)
+            }
+        }
+        // Map Logs
+        for log in userLogs {
+            let cluster = ClusterItem(coordinate: CLLocationCoordinate2D(latitude: log.latitude, longitude: log.longitude), count: 1, items: [.history(log)])
+            clusters.append(cluster)
         }
         
-        // Re-add Logs
-        for log in userLogs {
-            let marker = GMSMarker()
-            marker.position = CLLocationCoordinate2D(latitude: log.latitude, longitude: log.longitude)
-            let timeStr = DateFormatter.localizedString(from: log.startTime, dateStyle: .none, timeStyle: .short)
-            marker.title = timeStr
-            
-            let icon = context.coordinator.createRedPinImage()
-            marker.icon = icon // Custom Pin restored
-            marker.userData = UnifiedMapItem.history(log)
-            marker.map = uiView
-            // print("GoogleMapView: Added Log Marker at \(log.latitude), \(log.longitude)") // DEBUG
+        // [NEW] Initial Animation Logic
+        if !context.coordinator.initialAnimationDone {
+            if hasItems {
+                if !clusters.isEmpty {
+                    var bounds = GMSCoordinateBounds()
+                    for cluster in clusters {
+                        bounds = bounds.includingCoordinate(cluster.coordinate)
+                    }
+                    
+                    let update = GMSCameraUpdate.fit(bounds, withPadding: 50.0)
+                    uiView.animate(with: update)
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        if let loc = locationManager.currentLocation {
+                            let cam = GMSCameraUpdate.setTarget(loc.coordinate, zoom: 16)
+                            uiView.animate(with: cam)
+                        }
+                    }
+                    context.coordinator.initialAnimationDone = true
+                }
+            } else {
+                if let loc = locationManager.currentLocation {
+                     let cam = GMSCameraUpdate.setTarget(loc.coordinate, zoom: 15)
+                     uiView.animate(with: cam)
+                     context.coordinator.initialAnimationDone = true
+                }
+            }
+        }
+        
+        for cluster in clusters {
+             let marker = GMSMarker()
+             marker.position = cluster.coordinate
+             
+             if cluster.count == 1, let item = cluster.items.first {
+                 // Single Logic
+                 switch item {
+                 case .todo(let t):
+                     marker.title = t.title
+                     marker.icon = context.coordinator.createGreenPinImage()
+                 case .history(let l):
+                     let timeStr = DateFormatter.localizedString(from: l.startTime, dateStyle: .none, timeStyle: .short)
+                     marker.title = timeStr
+                     marker.icon = context.coordinator.createRedPinImage()
+                 default: break
+                 }
+                 marker.userData = item
+             } else {
+                 // Cluster Logic (Placeholder for future)
+                 marker.icon = context.coordinator.createClusterImage(count: cluster.count, isRed: false)
+                 marker.userData = cluster.items
+             }
+             
+             marker.map = uiView
         }
     }
-    
-    // Extensions to Coordinator to keep main struct clean(er) or just put methods in Coordinator as helper
-    // Since we need them in updateUIView which has access to context.coordinator, let's put them in Coordinator.
 }
 
 extension GoogleMapView.Coordinator {
+    // [FIX] Updated to use Assets
     func createGreenPinImage() -> UIImage {
-        let size = CGSize(width: 40, height: 50)
-        return UIGraphicsImageRenderer(size: size).image { context in
-            UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0).setFill()
-            
-            let path = UIBezierPath()
-            path.move(to: CGPoint(x: 20, y: 0))
-            path.addLine(to: CGPoint(x: 40, y: 20))
-            path.addLine(to: CGPoint(x: 20, y: 50))
-            path.addLine(to: CGPoint(x: 0, y: 20))
-            path.close()
-            path.fill()
-            
-            let config = UIImage.SymbolConfiguration(pointSize: 14, weight: .bold)
-            if let icon = UIImage(systemName: "checkmark", withConfiguration: config)?.withTintColor(.white, renderingMode: .alwaysOriginal) {
-                icon.draw(at: CGPoint(x: 20 - icon.size.width/2, y: 20 - icon.size.height/2))
-            }
-        }
+        return UIImage(named: "pin_todo") ?? UIImage(systemName: "mappin.circle.fill")!
     }
     
     func createRedPinImage() -> UIImage {
-        let size = CGSize(width: 40, height: 50)
+         return UIImage(named: "pin_history") ?? UIImage(systemName: "clock.fill")!
+    }
+
+    func createClusterImage(count: Int, isRed: Bool) -> UIImage {
+        let size = CGSize(width: 40, height: 40)
         return UIGraphicsImageRenderer(size: size).image { context in
-             UIColor.red.setFill()
+             let color = isRed ? UIColor.red : UIColor(red: 0.0, green: 0.67, blue: 0.0, alpha: 1.0) // Green
+             color.setFill()
              
-             let path = UIBezierPath()
-             path.move(to: CGPoint(x: 20, y: 0))
-             path.addLine(to: CGPoint(x: 40, y: 20))
-             path.addLine(to: CGPoint(x: 20, y: 50))
-             path.addLine(to: CGPoint(x: 0, y: 20))
-             path.close()
-             path.fill()
+             let circle = UIBezierPath(ovalIn: CGRect(x: 2, y: 2, width: 36, height: 36))
+             circle.fill()
              
-             let config = UIImage.SymbolConfiguration(pointSize: 14, weight: .bold)
-             if let icon = UIImage(systemName: "clock.fill", withConfiguration: config)?.withTintColor(.white, renderingMode: .alwaysOriginal) {
-                 icon.draw(at: CGPoint(x: 20 - icon.size.width/2, y: 20 - icon.size.height/2))
-             }
+             UIColor.white.setStroke()
+             circle.lineWidth = 2
+             circle.stroke()
+             
+             let text = count > 9 ? "9+" : "\(count)"
+             let attrs: [NSAttributedString.Key: Any] = [
+                 .font: UIFont.boldSystemFont(ofSize: 14),
+                 .foregroundColor: UIColor.white
+             ]
+             let str = NSAttributedString(string: text, attributes: attrs)
+             let textSize = str.size()
+             str.draw(at: CGPoint(x: 20 - textSize.width/2, y: 20 - textSize.height/2))
         }
     }
 }

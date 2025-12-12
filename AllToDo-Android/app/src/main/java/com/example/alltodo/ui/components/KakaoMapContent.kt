@@ -109,17 +109,32 @@ fun KakaoMapContent(
                 val styleId = "cluster_${cluster.items.size}_${cluster.type}"
                 var styles = labelManager.getLabelStyles(styleId)
                 if (styles == null) {
-                    val color = when {
-                        cluster.items.any { it is UnifiedItem.CurrentLocation } -> android.graphics.Color.RED
-                        cluster.hasMixed -> 0xFF808080.toInt()
-                        cluster.items.any { it is UnifiedItem.History } -> android.graphics.Color.RED
-                        cluster.items.any { it is UnifiedItem.Todo } -> 0xFF00AA00.toInt()
-                        else -> android.graphics.Color.BLUE
-                    }
+                    if (cluster.items.size == 1) {
+                        val item = cluster.items.first()
+                        val resId = when (item) {
+                            is UnifiedItem.Todo -> com.example.alltodo.R.drawable.pin_todo
+                            is UnifiedItem.History -> com.example.alltodo.R.drawable.pin_history
+                            is UnifiedItem.CurrentLocation -> com.example.alltodo.R.drawable.pin_current
+                        }
+                        
+                         val anchorY = if (item is UnifiedItem.Todo) 1.0f else 0.5f
+                         val bitmap = android.graphics.BitmapFactory.decodeResource(context.resources, resId)
+                         val finalStyle = LabelStyle.from(bitmap).setAnchorRatio(0.5f, anchorY)
+                         styles = labelManager.addLabelStyles(LabelStyles.from(styleId, finalStyle))
 
-                    val bitmap = generateDiamondPin(color, cluster.items.size)
-                    if (bitmap != null) {
-                        styles = labelManager.addLabelStyles(LabelStyles.from(styleId, LabelStyle.from(bitmap)))
+                    } else {
+                        val color = when {
+                            cluster.items.any { it is UnifiedItem.CurrentLocation } -> android.graphics.Color.RED
+                            cluster.hasMixed -> 0xFF808080.toInt()
+                            cluster.items.any { it is UnifiedItem.History } -> android.graphics.Color.RED
+                            cluster.items.any { it is UnifiedItem.Todo } -> 0xFF00AA00.toInt()
+                            else -> android.graphics.Color.BLUE
+                        }
+    
+                        val bitmap = generateDiamondPin(color, cluster.items.size)
+                        if (bitmap != null) {
+                            styles = labelManager.addLabelStyles(LabelStyles.from(styleId, LabelStyle.from(bitmap)))
+                        }
                     }
                 }
 
@@ -224,10 +239,10 @@ fun KakaoMapContent(
                             }
                         })
                     }
-                } catch (e: Exception) {
-                    Log.e("AllToDo", "CRITICAL: Failed to create MapView", e)
+                } catch (t: Throwable) {
+                    Log.e("AllToDo", "CRITICAL: Failed to create MapView", t)
                     TextView(ctx).apply {
-                        text = "Map Unavailable: ${e.message}"
+                        text = "Map Unavailable: ${t.message}"
                         setTextColor(Color.RED)
                     }
                 }

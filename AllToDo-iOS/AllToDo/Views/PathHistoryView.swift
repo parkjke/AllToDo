@@ -174,10 +174,12 @@ struct NaverPathMapView: UIViewRepresentable {
         // Path
         let path = NMFPath()
         let points = coordinates.map { NMGLatLng(lat: $0.latitude, lng: $0.longitude) }
-        path.points = points
-        path.color = .red
-        path.width = 10
-        path.mapView = map
+        if points.count >= 2 {
+            path.path = NMGLineString(points: points)
+            path.color = .red
+            path.width = 10
+            path.mapView = map
+        }
         
         // Markers
         let start = NMFMarker(position: points.first!)
@@ -243,35 +245,43 @@ struct KakaoPathMapView: UIViewRepresentable {
         }
         
         func addViewSucceeded(_ viewName: String, viewInfoName: String) {
-            guard let mapView = controller?.getView("pathmap") as? KakaoMap else { return }
+            guard let mapView = controller?.getView("mapview") as? KakaoMap else { return }
             hasDrawn = true
             
-            guard !coordinates.isEmpty else { return }
+            guard !coordinates.isEmpty, coordinates.count >= 2 else { return }
             
-            // Draw Route (RouteLine)
-            let manager = mapView.getRouteLineManager()
-            let layer = manager.getLayer(layerID: "pathLayer") ?? manager.addLayer(layerID: "pathLayer", zOrder: 0)
+            let manager = mapView.getShapeManager()
             
-            let style = RouteLineStyle(styleID: "redPath", width: 20)
-            style.strokeColor = try! UIColor(red: 1, green: 0, blue: 0, alpha: 1).cgColor // Red
-            // Correct API check: RouteLineStyle might default strokeColor?
-            // "strokeColor is not a member". It's usually 'lineWidth', 'strokeColor' defined in constructor or properties.
-            // Check SDK docs or guess based on Android 'RouteLineStyles.from'.
-            // Actually RouteLineStyle() creates a clean obj.
-            // Try simplistic approach.
+            // Layer
+            // Note: addShapeLayer(layerID:zOrder:) might act as creator directly if Options struct is hidden/different.
+            let layer = manager.getShapeLayer(layerID: "pathLayer") ?? manager.addShapeLayer(layerID: "pathLayer", zOrder: 0)
             
-            // Simpler: Use ShapeManager for Polyline if RouteLine is complex? 
-            // Reuse Android logic: RouteLineSegment.
+            guard let shapeLayer = layer else { return }
             
+            // Style
+            let style = PolylineStyle(styles: [
+                PerLevelPolylineStyle(bodyColor: UIColor.red, bodyWidth: 16, strokeColor: UIColor.clear, strokeWidth: 0, level: 0)
+            ])
+            // Fix param: styleSetID
+            let styleSet = PolylineStyleSet(styleSetID: "redPolyline", styles: [style])
+            manager.addPolylineStyleSet(styleSet)
+            
+            // Points
             let points = coordinates.map { MapPoint(longitude: $0.longitude, latitude: $0.latitude) }
-            let segment = RouteLineSegment(startPoint: points.first!, endPoint: points.last!)
-            // Wait, Segment needs ALL points?
-            // "RouteLineSegment(points: [MapPoint], style: RouteLineStyle)"
             
-            // Let's assume simplest Segment API
-            // ... (Actual implementation heavily depends on Kakao API spec)
+            // Create Polyline Shape Options
+            let options = MapPolylineShapeOptions(shapeID: "historyLine", styleID: "redPolyline", zOrder: 0)
             
-            // Fallback: Just Fit View for now to ensure visibility
+            // Add Line to Options
+            let line = MapPolyline(line: points, styleIndex: 0)
+            options.polylines.append(line)
+            
+            // Add Shape to Layer
+            if let shape = shapeLayer.addMapPolylineShape(options) {
+                 shape.show()
+            }
+            
+            // Fit Bounds
             let minLat = coordinates.map{$0.latitude}.min()!
             let maxLat = coordinates.map{$0.latitude}.max()!
             let minLon = coordinates.map{$0.longitude}.min()!
@@ -282,7 +292,7 @@ struct KakaoPathMapView: UIViewRepresentable {
             let rect = AreaRect(southWest: sw, northEast: ne)
             
             let update = CameraUpdate.make(area: rect)
-            mapView.moveCamera(cameraUpdate: update)
+            mapView.moveCamera(update)
         }
     }
 }

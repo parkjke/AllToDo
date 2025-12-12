@@ -57,6 +57,167 @@ class TodoViewModel @Inject constructor(
     private val _liveSessionPoints = MutableStateFlow<List<LocationEntity>>(emptyList())
     val liveSessionPoints: StateFlow<List<LocationEntity>> = _liveSessionPoints.asStateFlow()
 
+    // [NEW] Unified Data & Clustering
+    private val _displayItems = MutableStateFlow<List<com.example.alltodo.ui.UnifiedItem>>(emptyList())
+    val displayItems: StateFlow<List<com.example.alltodo.ui.UnifiedItem>> = _displayItems.asStateFlow()
+
+    data class PinClusterItem(
+        val latitude: Double,
+        val longitude: Double,
+        val count: Int,
+        val items: List<com.example.alltodo.ui.UnifiedItem>
+    )
+
+    private val _clusteredItems = MutableStateFlow<List<PinClusterItem>>(emptyList())
+    val clusteredItems: StateFlow<List<PinClusterItem>> = _clusteredItems.asStateFlow()
+
+    private val _currentZoom = MutableStateFlow(15f)
+    private val _showHistoryMode = MutableStateFlow(false)
+    val showHistoryMode: StateFlow<Boolean> = _showHistoryMode.asStateFlow()
+
+    fun updateZoom(zoom: Float) {
+        if (_currentZoom.value != zoom) {
+             _currentZoom.value = zoom
+             recalculateClusters()
+        }
+    }
+    
+    fun toggleHistoryMode() {
+        _showHistoryMode.value = !_showHistoryMode.value
+        updateFilteredItems()
+    }
+    
+    private fun updateFilteredItems() {
+        viewModelScope.launch(Dispatchers.Default) {
+             val todos = _todoItems.value
+             val logs = _userLogs.value
+             val isHistory = _showHistoryMode.value
+             
+             val now = System.currentTimeMillis()
+             val oneDay = 24 * 60 * 60 * 1000L
+             // If History Mode: Show items from Yesterday
+             // If Normal Mode: Show items from Today
+             // (Logic copied from MainScreen)
+             val targetTime = if (isHistory) now - oneDay else now
+             val minTime = targetTime - oneDay
+             val maxTime = targetTime + oneDay
+
+             val filteredLogItems = logs.filter { it.startTime in minTime..maxTime }.map { com.example.alltodo.ui.UnifiedItem.History(it) }
+             val filteredTodoItems = if (isHistory) {
+                 emptyList()
+             } else {
+                 todos.filter {
+                     val t = it.createdAt
+                     t in minTime..maxTime
+                 }.map { com.example.alltodo.ui.UnifiedItem.Todo(it) }
+             }
+             
+             val combined = filteredLogItems + filteredTodoItems
+             withContext(Dispatchers.Main) {
+                 _displayItems.value = combined
+                 recalculateClusters()
+             }
+        }
+    }
+
+    private fun recalculateClusters() {
+        val items = _displayItems.value
+        val zoom = _currentZoom.value
+        if (items.isEmpty()) {
+            _clusteredItems.value = emptyList()
+            return
+        }
+
+        viewModelScope.launch(Dispatchers.Default) {
+             // 1. Prepare Points for WASM
+             // [lat, lng, lat, lng...] * 100000
+             val flatPoints = items.flatMap { item ->
+                 val (lat, lng) = when(item) {
+                     is com.example.alltodo.ui.UnifiedItem.Todo -> item.item.latitude to item.item.longitude
+                     is com.example.alltodo.ui.UnifiedItem.History -> item.log.latitude to item.log.longitude
+                     else -> null to null
+                 }
+                 if (lat != null && lng != null && lat != 0.0) {
+                     listOf((lat * 100_000).toInt(), (lng * 100_000).toInt())
+                 } else {
+                     emptyList()
+                 }
+             }
+             
+             if (flatPoints.isEmpty()) {
+                 _clusteredItems.value = emptyList()
+                 return@launch
+             }
+
+             // 2. Calculate Cell Size based on Zoom
+             // Resolution (m/px) ~= 156543 * cos(lat) / 2^zoom
+             // Let's assume lat=37, cos(37) ~= 0.798
+             // Res ~= 125000 / 2^zoom
+             // Cell Size (100px) ~= 12,500,000 / 2^zoom
+             val resolution = 12_500_000.0 / Math.pow(2.0, zoom.toDouble())
+             val cellSizeMeters = resolution.toInt().coerceAtLeast(10) // Min 10m
+
+             // 3. Call WASM
+             // Returns [lat, lng, count, lat, lng, count...]
+             val clustersFlat = wasmManager.cluster(flatPoints, cellSizeMeters)
+             
+             // 4. Map Clusters to Items (Nearest Neighbor Assignment)
+             val newClusters = mutableListOf<PinClusterItem>()
+             
+             // Parse Clusters
+             for (i in 0 until clustersFlat.size step 3) {
+                 val cLat = clustersFlat[i] / 100_000.0
+                 val cLng = clustersFlat[i+1] / 100_000.0
+                 val count = clustersFlat[i+2]
+                 
+                 // Find items belonging to this cluster
+                 // Since WASM only returns counts, we need to re-assign.
+                 // Ideally WASM should return Indices, but per current spec it returns Count.
+                 // We will simply assign items to the closest cluster center.
+                 
+                 // NOTE: This logic is imperfect efficiently (O(N*K)), but for <1000 items it's fine.
+                 newClusters.add(PinClusterItem(cLat, cLng, count, mutableListOf()))
+             }
+             
+             // Assign Items
+             // Optimization: Prepare cluster centers list first?
+             if (newClusters.isNotEmpty()) {
+                 items.forEach { item ->
+                     val (lat, lng) = when(item) {
+                         is com.example.alltodo.ui.UnifiedItem.Todo -> item.item.latitude to item.item.longitude
+                         is com.example.alltodo.ui.UnifiedItem.History -> item.log.latitude to item.log.longitude
+                         else -> null to null
+                     }
+                     if (lat != null && lng != null) {
+                         // Find nearest cluster
+                         var minDist = Double.MAX_VALUE
+                         var bestCluster: PinClusterItem? = null
+                         
+                         for (cluster in newClusters) {
+                             val dLat = cluster.latitude - lat
+                             val dLng = cluster.longitude - lng
+                             val distSq = dLat*dLat + dLng*dLng
+                             if (distSq < minDist) {
+                                 minDist = distSq
+                                 bestCluster = cluster
+                             }
+                         }
+                         
+                         // Cast to MutableList to add (dirty but works if we recreated PinClusterItem or held generic list)
+                         // Actually PinClusterItem items is List val. We need a helper DTO or modify list.
+                         // Let's assume we can somehow mutate or we rebuild.
+                         // Rebuilding map is cleaner.
+                         (bestCluster?.items as? MutableList)?.add(item)
+                     }
+                 }
+             }
+
+             withContext(Dispatchers.Main) {
+                 _clusteredItems.value = newClusters
+             }
+        }
+    }
+
     
     // [NEW] Streaming RDP buffers
     private val processedSessionPoints = mutableListOf<LocationEntity>() // Permanently stored in memory
@@ -210,6 +371,7 @@ class TodoViewModel @Inject constructor(
         viewModelScope.launch {
             todoRepository.allTodos.collect { items: List<TodoItem> ->
                 _todoItems.value = items
+                updateFilteredItems()
             }
         }
     }
@@ -226,6 +388,7 @@ class TodoViewModel @Inject constructor(
         viewModelScope.launch {
             userLogDao.getAllLogs().collect { logs ->
                 _userLogs.value = logs
+                updateFilteredItems()
             }
         }
     }
@@ -292,9 +455,9 @@ class TodoViewModel @Inject constructor(
     }
 
     fun saveLocation(latitude: Double, longitude: Double) {
-        // Buffering Logic: Only record every 1 second (Optimized)
+        // Buffering Logic: Only record every 0.9 second (Optimized)
         val now = System.currentTimeMillis()
-        if (now - lastRecordedTime < 1000) {
+        if (now - lastRecordedTime < 900) {
             return
         }
         
