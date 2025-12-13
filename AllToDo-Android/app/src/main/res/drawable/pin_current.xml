@@ -14,17 +14,12 @@
                 android:endX="1.67"
                 android:endY="120">
                 <item
-                    android:color="#FF000000"
+                    android:color="#4A90E2"
                     android:offset="0"/>
                 <item
-                    android:color="#FF000000"
+                    android:color="#0056D2"
                     android:offset="1"/>
             </gradient>
         </aapt:attr>
     </path>
-    <group
-        android:scaleX="0.6"
-        android:scaleY="0.6"
-        android:translateY="-5">
-    </group>
 </vector>

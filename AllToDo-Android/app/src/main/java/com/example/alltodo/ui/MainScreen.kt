@@ -26,6 +26,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.ui.zIndex
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.Surface
@@ -57,6 +58,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.alltodo.ui.components.RightSideControls
 import com.example.alltodo.ui.components.TopLeftWidget
 import com.example.alltodo.ui.components.TodoListContent
+import androidx.compose.ui.draw.alpha
 import com.example.alltodo.ui.components.PathDetailPopup
 import com.example.alltodo.ui.components.GooglePathDetailPopup
 import com.example.alltodo.ui.components.NaverPathDetailPopup // [NEW]
@@ -105,6 +107,7 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.Priority
 import android.os.Looper
 import kotlinx.coroutines.awaitCancellation
+import com.google.maps.android.compose.rememberCameraPositionState // [FIX] Import
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -113,6 +116,17 @@ fun MainScreen(
 ) {
     val todoItems by viewModel.todoItems.collectAsState()
     val userLogs by viewModel.userLogs.collectAsState() // Observe Sessions
+
+    // [FIX] Hoist Google Map Camera State with Default Seoul Position (Prevents Africa Flash)
+    val googleCameraPositionState = rememberCameraPositionState {
+        position = com.google.android.gms.maps.model.CameraPosition.fromLatLngZoom(
+            com.google.android.gms.maps.model.LatLng(37.5665, 126.9780), 
+            15f
+        )
+    }
+
+    // [FIX] Hoist Animation State to prevent reset on Recomposition
+    var initialAnimationDone by remember { mutableStateOf(false) }
 
     // Lifecycle - Session Management
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
@@ -171,19 +185,31 @@ fun MainScreen(
     // Fused Location Client
     val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
 
+    // Permission State
+    var hasLocationPermission by remember {
+        mutableStateOf(
+            ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+
     // Permission Launcher
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { _ -> }
+    ) { permissions ->
+        hasLocationPermission = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+    }
 
     // Request permissions on start
     LaunchedEffect(Unit) {
-        locationPermissionLauncher.launch(
-            arrayOf(
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION
+        if (!hasLocationPermission) {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
             )
-        )
+        }
     }
 
     // [FIX] Ensure Session Ends on Exit
@@ -211,8 +237,8 @@ fun MainScreen(
     // Map Provider State with Persistence
     val prefs = remember { context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE) }
     var mapProvider by remember {
-        val saved = prefs.getString("map_provider", "Kakao")
-        val initial = MapProvider.values().find { it.name == saved } ?: MapProvider.Kakao
+        val saved = prefs.getString("map_provider", "Google") // [DEBUG] Default to Google to test new logic
+        val initial = MapProvider.values().find { it.name == saved } ?: MapProvider.Google
         mutableStateOf(initial)
     }
     LaunchedEffect(mapProvider) {
@@ -224,141 +250,107 @@ fun MainScreen(
     
     // [FIX] Location Tracking Loop (Buffering via ViewModel)
     // Dependencies: fusedLocationClient, mapProvider, flags
-    LaunchedEffect(isKakaoMapReady, isGoogleMapReady) {
-        val isReady = when(mapProvider) { // Use simpler logic or just run if provider matches
-           MapProvider.Kakao -> isKakaoMapReady
-           MapProvider.Google -> isGoogleMapReady
-           else -> false
+    // [FIX] Moved Composable Declarations out of LaunchedEffect
+    
+    // Motion Detection Logic
+    var isMoving by remember { mutableStateOf(true) }
+    val motionListener = remember {
+        object : com.example.alltodo.utils.MotionListener {
+            override fun onMotionStateChanged(moving: Boolean) {
+                isMoving = moving
+            }
         }
-        
-        if (isReady) {
-           // Intro Animation specific to Kakao for now
-           if (mapProvider == MapProvider.Kakao) {
-               if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                   
-                   // Get User Location & Todo Items
-                   val items = todoItems.filter { it.latitude != null && it.longitude != null }
-                   
-                   fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-                       location?.let { userLoc ->
-                           val userPos = com.kakao.vectormap.LatLng.from(userLoc.latitude, userLoc.longitude)
-                           
-                           scope.launch {
-                               if (items.isEmpty()) {
-                                   // Case A: No Pins -> User Loc (Zoom 15) -> 1s -> User Loc (Zoom 9)
-                                   kakaoMap?.moveCamera(CameraUpdateFactory.newCenterPosition(userPos, 15))
-                                   delay(1000)
-                                   kakaoMap?.moveCamera(CameraUpdateFactory.newCenterPosition(userPos, 9), 
-                                       com.kakao.vectormap.camera.CameraAnimation.from(1000, true, true))
-                               } else {
-                                   // Case B: Has Pins -> Fit Bounds -> Check Zoom 15 -> 1s -> User Loc (Zoom 9)
-                                   // 1. Calculate Bounds
-                                   var minLat = 90.0; var maxLat = -90.0
-                                   var minLng = 180.0; var maxLng = -180.0
-                                   for (item in items) {
-                                       val lat = item.latitude!!
-                                       val lng = item.longitude!!
-                                       if (lat < minLat) minLat = lat
-                                       if (lat > maxLat) maxLat = lat
-                                       if (lng < minLng) minLng = lng
-                                       if (lng > maxLng) maxLng = lng
-                                   }
-                                   
-                                   // Also include user location? Docs say "All saved pins", doesn't mention user initially.
-                                   // But let's stick to doc: "All saved pins".
-                                   
-                                   // 2. Move to Fit
-                                   val bounds = com.kakao.vectormap.camera.CameraUpdateFactory.fitMapPoints(
-                                       arrayOf(
-                                           com.kakao.vectormap.LatLng.from(minLat, minLng),
-                                           com.kakao.vectormap.LatLng.from(maxLat, maxLng)
-                                       ), 100 // Padding
-                                   )
-                                   kakaoMap?.moveCamera(bounds)
-                                   
-                                   delay(100) // Small delay to let camera settle or just separate commands
-                                   
-                                   // 3. Logic: FinalZoom = max(FitZoom, 15)
-                                   // Kakao Zoom: Level 15 is Detailed. Level 9 is Wide.
-                                   // If FitZoom is 10 (Wide), we want 15? 
-                                   // Spec: "FitZoom < 15 (Wide) -> 15". 
-                                   // Wait, Kakao Zoom 15 IS Detailed. Zoom 1 IS World.
-                                   // So "Wide" means SMALL number.
-                                   // "FitZoom < 15" means it's MORE WIDE than 15.
-                                   // Spec says: "If FitZoom < 15 -> Force 15".
-                                   // So if FitZoom is 10, we force 15.
-                                   // If FitZoom is 18 (Very close), we Keep 18.
-                                   // Correct.
-                                   
-                                   val currentZoom = kakaoMap?.cameraPosition?.zoomLevel ?: 15
-                                   if (currentZoom < 15) {
-                                       kakaoMap?.moveCamera(CameraUpdateFactory.zoomTo(15))
-                                   }
-                                   
-                                   delay(1000)
-                                   
-                                   // 4. Move to User Zoom 9
-                                   kakaoMap?.moveCamera(CameraUpdateFactory.newCenterPosition(userPos, 9),
-                                       com.kakao.vectormap.camera.CameraAnimation.from(1000, true, true))
-                               }
-                           }
-                       }
-                   }
-               }
-           }
-           
-            // Motion Detection Logic
-            var isMoving by remember { mutableStateOf(true) }
-            val motionListener = remember {
-                object : com.example.alltodo.utils.MotionListener {
-                    override fun onMotionStateChanged(moving: Boolean) {
-                        isMoving = moving
-                    }
+    }
+    val motionDetector = remember { com.example.alltodo.utils.MotionDetector(context, motionListener) }
+    
+    // Start Motion Detection
+    DisposableEffect(Unit) {
+        motionDetector.start()
+        onDispose { motionDetector.stop() }
+    }
+
+    // Common Tracking Loop
+    val locationRequest = remember {
+         LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 900)
+            .setMinUpdateIntervalMillis(900)
+            .build()
+    }
+
+    val locationCallback = remember {
+        object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                for (location in result.locations) {
+                    currentLocation = location
+                    viewModel.saveLocation(location.latitude, location.longitude)
                 }
             }
-            val motionDetector = remember { com.example.alltodo.utils.MotionDetector(context, motionListener) }
-            
-            // Start Motion Detection
-            DisposableEffect(Unit) {
-                motionDetector.start()
-                onDispose { motionDetector.stop() }
+        }
+    }
+    
+    // Toggle Location Updates based on Motion
+    // [FIX] Use state-backed permission flag so LaunchedEffect triggers on grant
+    LaunchedEffect(isMoving, hasLocationPermission) {
+        if (hasLocationPermission) {
+            if (isMoving) {
+                 try {
+                     fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
+                     com.example.alltodo.utils.OptimizationLogger.log(context, com.example.alltodo.utils.LogType.LOCATION_RESUME, "User Moving")
+                 } catch (e: SecurityException) { e.printStackTrace() }
+            } else {
+                 fusedLocationClient.removeLocationUpdates(locationCallback)
+                 com.example.alltodo.utils.OptimizationLogger.log(context, com.example.alltodo.utils.LogType.LOCATION_PAUSE, "User Stationary")
             }
+        }
+    }
+    
+    // Cleanup on exit
+    DisposableEffect(Unit) {
+        onDispose {
+            fusedLocationClient.removeLocationUpdates(locationCallback)
+        }
+    }
 
-           // Common Tracking Loop - [FIX] Use Callback instead of Polling
-           val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 900)
-               .setMinUpdateIntervalMillis(900)
-               .build()
+    // Camera Init Logic (Kakao Only)
+    // Camera Init Logic (Kakao Only)
+    LaunchedEffect(isKakaoMapReady, todoItems, currentLocation, mapProvider) {
+        // 맵이 준비되지 않았거나, 공급자가 카카오가 아니면 아무것도 하지 않음
+        if (!isKakaoMapReady || mapProvider != MapProvider.Kakao) return@LaunchedEffect
 
-           val locationCallback = object : LocationCallback() {
-               override fun onLocationResult(result: LocationResult) {
-                   for (location in result.locations) {
-                       currentLocation = location
-                       viewModel.saveLocation(location.latitude, location.longitude)
-                   }
-               }
-           }
-           
-           // Toggle Location Updates based on Motion
-           LaunchedEffect(isMoving) {
-               if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                   if (isMoving) {
-                        try {
-                            fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
-                            com.example.alltodo.utils.OptimizationLogger.log(context, com.example.alltodo.utils.LogType.LOCATION_RESUME, "User Moving")
-                        } catch (e: SecurityException) { e.printStackTrace() }
-                   } else {
-                        fusedLocationClient.removeLocationUpdates(locationCallback)
-                        com.example.alltodo.utils.OptimizationLogger.log(context, com.example.alltodo.utils.LogType.LOCATION_PAUSE, "User Stationary")
-                   }
-               }
-           }
-           
-           // Cleanup on exit
-           DisposableEffect(Unit) {
-               onDispose {
-                   fusedLocationClient.removeLocationUpdates(locationCallback)
-               }
-           }
+        // 사용자 현재 위치가 없으면 아무것도 하지 않음
+        val userLocation = currentLocation ?: return@LaunchedEffect
+        val userPos = com.kakao.vectormap.LatLng.from(userLocation.latitude, userLocation.longitude)
+
+        // 지도에 표시할 유효한 아이템들만 필터링
+        val items = todoItems.filter { it.latitude != null && it.longitude != null }
+
+        // [FIX] 아이템 개수에 따라 분기 처리
+        when {
+            // Case 1: 아이템이 없을 경우, 사용자 위치로 이동
+            items.isEmpty() -> {
+                kakaoMap?.moveCamera(CameraUpdateFactory.newCenterPosition(userPos, 15))
+            }
+            // Case 2: 아이템이 1개일 경우, 해당 아이템 위치로 이동
+            items.size == 1 -> {
+                val singleItem = items.first()
+                val itemPos = com.kakao.vectormap.LatLng.from(singleItem.latitude!!, singleItem.longitude!!)
+                kakaoMap?.moveCamera(CameraUpdateFactory.newCenterPosition(itemPos, 15))
+            }
+            // Case 3: 아이템이 2개 이상일 경우, 모든 아이템이 보이도록 이동
+            else -> {
+                try {
+                    val points = items.map { com.kakao.vectormap.LatLng.from(it.latitude!!, it.longitude!!) }.toTypedArray()
+                    // fitMapPoints는 2개 이상의 포인트가 필요함
+                    if (points.size > 1) {
+                        val bounds = com.kakao.vectormap.camera.CameraUpdateFactory.fitMapPoints(points, 100) // Padding
+                        kakaoMap?.moveCamera(bounds)
+                    } else {
+                         kakaoMap?.moveCamera(CameraUpdateFactory.newCenterPosition(userPos, 15))
+                    }
+                } catch (e: Exception) {
+                    // 혹시 모를 오류 발생 시 안전하게 사용자 위치로 이동
+                    kakaoMap?.moveCamera(CameraUpdateFactory.newCenterPosition(userPos, 15))
+                }
+            }
         }
     }
 
@@ -368,11 +360,17 @@ fun MainScreen(
              com.google.android.gms.maps.model.LatLng(37.5665, 126.9780), 12f
          )
     }
-
+    
     // [NEW] Unified Filtering Logic for All Maps
     // [NEW] Use Clustered Items from ViewModel
     val clusteredItems by viewModel.clusteredItems.collectAsState()
     val displayItems by viewModel.displayItems.collectAsState() // [FIX] For Kakao/Naver fallback
+    
+    // [DEBUG] Global Data Trace (Logs even if Map is not shown)
+    LaunchedEffect(currentLocation, clusteredItems) {
+        val count = clusteredItems.sumOf { it.items.size }
+        android.util.Log.d("MainScreenData", "[DataUpdate] Location=${if(currentLocation!=null) "READY" else "WAITING"}, Items=$count")
+    }
     
     // [FIX] Zoom Tracking for Google Map
     LaunchedEffect(googleCameraState.position.zoom) {
@@ -380,91 +378,138 @@ fun MainScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            when (mapProvider) {
-                MapProvider.Google -> {
-                    GoogleMapContent(
-                        modifier = Modifier.fillMaxSize(),
-                        clusteredItems = clusteredItems, // [FIX] Pass Clustered Items
-                        currentLocation = currentLocation,
-                        cameraPositionState = googleCameraState,
-                        onMapClick = { latLng ->
-                            showDetailPopup = null
-                            selectedCluster = null // Also clear cluster
-                        },
-                        onMapLongClick = { latLng ->
-                            newTodoLocation = latLng
-                            showAddTodoDialog = true
-                        },
-                        onItemClick = { item -> showDetailPopup = item }, // Fallback
-                        onItemClickWithCoords = { item, x, y ->
-                            selectedClusterPosition = Offset(x, y)
-                            selectedCluster = PinCluster(
-                                item.latitude, item.longitude, 
-                                listOf(item), 
-                                if(item is UnifiedItem.Todo) "todo" else "history"
-                            )
-                        },
-                        onClusterClickWithCoords = { items, x, y -> // [FIX] New Callback for Clusters
-                            selectedClusterPosition = Offset(x, y)
-                            // Determine type logic simplistically
-                            val hasTodo = items.any { it is UnifiedItem.Todo }
-                            val hasHistory = items.any { it is UnifiedItem.History }
-                            val type = if(hasTodo && hasHistory) "mixed" else if(hasTodo) "todo" else "history"
-                            
-                            val first = items.firstOrNull() ?: items.first()
-                            selectedCluster = PinCluster(
-                                first.latitude, first.longitude,
-                                items,
-                                type
-                            )
-                        },
-                        onRotationChange = { rot -> compassRotation = rot },
-                        isMapReady = isGoogleMapReady, // [FIX] Use Google flag
-                        onMapLoaded = { isGoogleMapReady = true }, // [FIX] Set Google flag
-                        showHistoryMode = showHistoryMode
-                    )
-                }
+    // [FIX] Persistent Map Views to prevent crashes on provider switch
+    Box(modifier = Modifier.fillMaxSize()) {
+        val googleAlpha = if (mapProvider == MapProvider.Google) 1f else 0f
+        val googleZ = if (mapProvider == MapProvider.Google) 2f else 0f
+        
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .zIndex(googleZ)
+                .background(if(mapProvider == MapProvider.Google) Color.Transparent else Color.Black) // Debug/Fallback
+        ) {
+             // Google Map is robust, can be conditional, but let's keep it for consistency or conditional if heavy
+             // [FIX] Wait for Location to prevent "Africa" (0,0) display
+             if (currentLocation != null) {
+                 androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize().alpha(googleAlpha)) {
+                     GoogleMapContent(
+                            modifier = Modifier.fillMaxSize(),
+                            clusteredItems = clusteredItems,
+                            currentLocation = currentLocation,
+                            cameraPositionState = googleCameraPositionState, // [FIX] Pass state
+                            onMapClick = { latLng ->
+                                if (mapProvider == MapProvider.Google) {
+                                    showDetailPopup = null
+                                    selectedCluster = null
+                                }
+                            },
+                            onMapLongClick = { latLng ->
+                                if (mapProvider == MapProvider.Google) {
+                                    newTodoLocation = latLng
+                                    showAddTodoDialog = true
+                                }
+                            },
+                            onItemClick = { item -> if (mapProvider == MapProvider.Google) showDetailPopup = item },
+                            onItemClickWithCoords = { item, x, y ->
+                                if (mapProvider == MapProvider.Google) {
+                                    selectedClusterPosition = Offset(x, y)
+                                    selectedCluster = PinCluster(
+                                        item.latitude, item.longitude, 
+                                        listOf(item), 
+                                        if(item is UnifiedItem.Todo) "todo" else "history"
+                                    )
+                                }
+                            },
+                            onClusterClickWithCoords = { items, x, y ->
+                                if (mapProvider == MapProvider.Google) {
+                                    selectedClusterPosition = Offset(x, y)
+                                    val hasTodo = items.any { it is UnifiedItem.Todo }
+                                    val hasHistory = items.any { it is UnifiedItem.History }
+                                    val type = if(hasTodo && hasHistory) "mixed" else if(hasTodo) "todo" else "history"
+                                    val first = items.firstOrNull() ?: items.first()
+                                    selectedCluster = PinCluster(first.latitude, first.longitude, items, type)
+                                }
+                            },
+                            onRotationChange = { rot -> if (mapProvider == MapProvider.Google) compassRotation = rot },
+                            isMapReady = isGoogleMapReady,
+                            onMapLoaded = { isGoogleMapReady = true },
+                            showHistoryMode = showHistoryMode,
+                            initialAnimationDone = initialAnimationDone,
+                            onInitialAnimationDone = { initialAnimationDone = true }
+                     )
+                 }
+             } else if (mapProvider == MapProvider.Google) {
+                 // [FIX] Loading Indicator while waiting for location
+                 androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                     CircularProgressIndicator(color = Color.Gray)
+                 }
+             }
+        }
 
-                MapProvider.Kakao -> {
-                    com.example.alltodo.ui.components.KakaoMapContent(
-                        modifier = Modifier.fillMaxSize(),
-                        isSdkInitialized = isSdkInitialized,
-                        items = displayItems, // [FIX] Use displayItems
-                        currentLocation = currentLocation,
-                        selectedCluster = selectedCluster,
-                        onMapReady = { map ->
-                            kakaoMap = map
-                            isKakaoMapReady = true // [FIX] Set Kakao flag
-                        },
-                        onClusterClick = { cluster ->
+        val kakaoAlpha = if (mapProvider == MapProvider.Kakao) 1f else 0f
+        val kakaoZ = if (mapProvider == MapProvider.Kakao) 2f else 0f
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .zIndex(kakaoZ)
+        ) {
+            // Kakao Map MUST be kept alive to avoid native crashes
+            androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize().alpha(kakaoAlpha)) {
+                com.example.alltodo.ui.components.KakaoMapContent(
+                    modifier = Modifier.fillMaxSize(),
+                    isSdkInitialized = isSdkInitialized,
+                    items = displayItems,
+                    currentLocation = currentLocation,
+                    selectedCluster = selectedCluster,
+                    onMapReady = { map ->
+                        kakaoMap = map
+                        isKakaoMapReady = true
+                    },
+                    onClusterClick = { cluster ->
+                        if (mapProvider == MapProvider.Kakao) {
                             if (selectedCluster?.latitude == cluster.latitude && selectedCluster?.longitude == cluster.longitude) {
                                 selectedCluster = null
                             } else {
                                 selectedCluster = cluster
                             }
-                        },
-                        onMapClick = { latLng ->
+                        }
+                    },
+                    onMapClick = { latLng ->
+                        if (mapProvider == MapProvider.Kakao) {
                             newTodoLocation = latLng
                             showAddTodoDialog = true
-                        },
-                        onCameraRotate = { rot -> compassRotation = rot },
-                        onCameraMoveStart = { selectedCluster = null }
-                    )
-                }
-                MapProvider.Naver -> {
-                    NaverMapContent(
-                        modifier = Modifier.fillMaxSize(),
-                        items = displayItems, // [FIX] Use displayItems
-                        currentLocation = currentLocation,
-                        onMapReady = { map ->
-                            naverMap = map
-                            isNaverMapReady = true // [FIX] Set Naver flag
-                        },
-                        onItemClick = { item -> showDetailPopup = item }
-                    )
-                }
+                        }
+                    },
+                    onCameraRotate = { rot -> if (mapProvider == MapProvider.Kakao) compassRotation = rot },
+                    onCameraMoveStart = { if (mapProvider == MapProvider.Kakao) selectedCluster = null }
+                )
             }
+        }
+
+        val naverAlpha = if (mapProvider == MapProvider.Naver) 1f else 0f
+        val naverZ = if (mapProvider == MapProvider.Naver) 2f else 0f
+        
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .zIndex(naverZ)
+        ) {
+             androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize().alpha(naverAlpha)) {
+                NaverMapContent(
+                    modifier = Modifier.fillMaxSize(),
+                    items = displayItems,
+                    currentLocation = currentLocation,
+                    onMapReady = { map ->
+                        naverMap = map
+                        isNaverMapReady = true
+                    },
+                    onItemClick = { item -> if (mapProvider == MapProvider.Naver) showDetailPopup = item }
+                )
+             }
+        }
+    }
 
 
         if (showAddTodoDialog) {
@@ -510,8 +555,12 @@ fun MainScreen(
                     TodoListContent(
                         todoItems = todoItems,
                         onAddTodo = { text ->
-                            val lat = currentLocation?.latitude ?: 0.0
-                            val lon = currentLocation?.longitude ?: 0.0
+                            // [FIX] Use Map Center if Current Location is unknown, ensuring Pin visibility
+                            val fallback = googleCameraPositionState.position.target
+                            val cur = currentLocation
+                            val lat = if (cur != null && cur.latitude != 0.0) cur.latitude else fallback.latitude
+                            val lon = if (cur != null && cur.longitude != 0.0) cur.longitude else fallback.longitude
+                            
                             viewModel.addTodo(text, lat, lon)
                         },
                         onToggleTodo = { viewModel.toggleTodo(it) },
@@ -780,9 +829,9 @@ fun MainScreen(
                     MapProvider.Google -> {
                          scope.launch {
                              try {
-                                 googleCameraState.animate(
+                                 googleCameraPositionState.animate(
                                      com.google.android.gms.maps.CameraUpdateFactory.newCameraPosition(
-                                         com.google.android.gms.maps.model.CameraPosition.Builder(googleCameraState.position)
+                                         com.google.android.gms.maps.model.CameraPosition.Builder(googleCameraPositionState.position)
                                              .bearing(0f)
                                              .build()
                                      ),
@@ -818,7 +867,9 @@ fun MainScreen(
                                      naverMap?.moveCamera(update)
                                  }
                                  MapProvider.Google -> {
-                                     googleCameraState.move(com.google.android.gms.maps.CameraUpdateFactory.newLatLng(com.google.android.gms.maps.model.LatLng(lat, lon)))
+                                     scope.launch {
+                                         googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(com.google.android.gms.maps.model.LatLng(lat, lon), 15f))
+                                     }
                                  }
                                  else -> {}
                              }
@@ -904,6 +955,6 @@ fun MainScreen(
         }
     }
     }
-}
+
 
 

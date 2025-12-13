@@ -73,14 +73,15 @@ struct ContentView: View {
     // Time Filtering Logic
     var filteredTodos: [ToDoItem] {
         let centerDate = showHistoryMode ? selectedDate : Date()
-        let min = Calendar.current.date(byAdding: .day, value: -30, to: centerDate)!
-        let max = Calendar.current.date(byAdding: .day, value: 30, to: centerDate)!
+        // Logic: "24 hours window" (Restore User Scenario)
+        let min = Calendar.current.date(byAdding: .hour, value: -24, to: centerDate)!
+        let max = Calendar.current.date(byAdding: .hour, value: 24, to: centerDate)!
         let count = todoItems.count
         let filtered = todoItems.filter {
             guard let d = $0.dueDate else { return true }
             return d >= min && d <= max
         }
-        print("DEBUG: ContentView Filter - Total: \(count) Filtered: \(filtered.count) (Min: \(min) Max: \(max))")
+        print("DEBUG: ContentView Filter (Restored) - Total: \(count) Filtered: \(filtered.count)")
         return filtered
     }
     

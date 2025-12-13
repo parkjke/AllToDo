@@ -264,20 +264,53 @@ struct NaverPathMapView: UIViewRepresentable {
         // Markers
         let start = NMFMarker(position: points.first!)
         start.captionText = "Start"
-        if let img = UIImage(named: "PinHistory") { start.iconImage = NMFOverlayImage(image: img) }
-        else { start.iconImage = NMFOverlayImage(image: PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill")) }
+        if let img = UIImage(named: "PinHistory")?.resized(to: CGSize(width: 40, height: 50)) {
+            start.iconImage = NMFOverlayImage(image: img)
+        } else {
+            // Fallback: Create Shield -> Resize -> (Force Unwrap safe as createShield returns image usually, but handle if nil)
+            let shield = PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill")
+            if let resized = shield.resized(to: CGSize(width: 40, height: 50)) {
+                start.iconImage = NMFOverlayImage(image: resized)
+            }
+        }
         start.mapView = map
         
         let end = NMFMarker(position: points.last!)
         end.captionText = "End"
-        if let img = UIImage(named: "PinHistory") { end.iconImage = NMFOverlayImage(image: img) }
-        else { end.iconImage = NMFOverlayImage(image: PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill")) }
+        if let img = UIImage(named: "PinHistory")?.resized(to: CGSize(width: 40, height: 50)) {
+            end.iconImage = NMFOverlayImage(image: img)
+        } else {
+             let shield = PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill")
+             if let resized = shield.resized(to: CGSize(width: 40, height: 50)) {
+                 end.iconImage = NMFOverlayImage(image: resized)
+             }
+        }
         end.mapView = map
         
         // Fit Bounds
         let bounds = NMGLatLngBounds(southWest: points.first!, northEast: points.last!) // Rough init
         var finalBounds = bounds
         points.forEach { finalBounds = finalBounds.expand(toPoint: $0) }
+        
+        // [FIX] Limit Max Zoom (Minimum Span ~ 0.003)
+        let sw = finalBounds.southWest
+        let ne = finalBounds.northEast
+        let latDelta = ne.lat - sw.lat
+        let lonDelta = ne.lng - sw.lng
+        
+        // If delta is too small, expand bounds
+        let minDelta = 0.003
+        if latDelta < minDelta || lonDelta < minDelta {
+            let centerLat = (ne.lat + sw.lat) / 2
+            let centerLon = (ne.lng + sw.lng) / 2
+            
+            let newLatDelta = max(latDelta, minDelta)
+            let newLonDelta = max(lonDelta, minDelta)
+            
+            let newSW = NMGLatLng(lat: centerLat - newLatDelta/2, lng: centerLon - newLonDelta/2)
+            let newNE = NMGLatLng(lat: centerLat + newLatDelta/2, lng: centerLon + newLonDelta/2)
+            finalBounds = NMGLatLngBounds(southWest: newSW, northEast: newNE)
+        }
         
         let update = NMFCameraUpdate(fit: finalBounds, paddingInsets: UIEdgeInsets(top: 50, left: 50, bottom: 50, right: 50))
         map.moveCamera(update)

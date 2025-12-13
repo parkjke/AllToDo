@@ -27,6 +27,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import android.widget.Toast
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+
 @OptIn(ExperimentalMaterial3Api::class) // [FIX]
 @Composable
 fun UserProfileView(
@@ -42,13 +45,16 @@ fun UserProfileView(
     Card(
         modifier = modifier
             .width(300.dp)
-            .padding(16.dp),
+            .padding(16.dp)
+            .heightIn(max = 600.dp), // Limit height to ensure it fits reasonably in screen usually
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Header
@@ -57,7 +63,7 @@ fun UserProfileView(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp)) 
+                Divider(modifier = Modifier.padding(vertical = 16.dp)) 
 
                 val context = androidx.compose.ui.platform.LocalContext.current
                 val scope = rememberCoroutineScope()
@@ -69,22 +75,10 @@ fun UserProfileView(
                     color = AllToDoGreen,
                     modifier = Modifier.pointerInput(Unit) {
                         detectTapGestures(
-                            onTap = { 
-                                // Single tap logic if needed
-                            },
-                            onDoubleTap = {
-                                // Double tap logic
-                            },
-                            onLongPress = {
-                                // Long press
-                            }
-                        ) {
-                             // This block is for simple tap, but we want multi-tap count.
-                             // detectTapGestures doesn't provide tap count directly in a single callback easily for exact customized count?
-                             // wait, detectTapGestures HAS onDoubleTap.
-                             // For Triple Tap, we might need custom logic or just use double tap for now?
-                             // Or simply, use a counter state.
-                        }
+                            onTap = { },
+                            onDoubleTap = { },
+                            onLongPress = { }
+                        )
                     }
                     // Let's use a simpler Clickable with counter for Triple Tap
                     .clickable { 
@@ -212,6 +206,7 @@ fun UserProfileView(
                             onClick = { onMapProviderChange(provider) }
                         )
                         Text(
+                            text = provider.name,
                             style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier.padding(start = 8.dp)
                         )

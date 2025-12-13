@@ -1,92 +1,51 @@
+# CRITICAL PROTOCOL: REPORT ONLY, DO NOT ACT WITHOUT INSTRUCTION
+**ALWAYS verify and report findings first. DO NOT modify code without explicit user permission.**
+**This instruction persists across sessions.**
 
-# Map Interaction Verification
+# Android Map Interaction & Debugging Log
 
-## User Request Checklist
-- [x] **Data Scope**: Display history (-24h to +24h), current location, server pins, todo pins.
-- [x] **WASM Clustering**:
-    - [x] **Priority**: If User Location in cluster -> Show `PinCurrent`.
-    - [x] **Fallback**: Else -> Show Dominant Type (History vs Todo).
-    - [x] **Badge**: Show count (with '9+' format).
-- [ ] **Launch Animation**:
-    - [x] Display all pins initially.
+## Summary of Fixes (2025-12-13 Session)
+
+### 1. **Location Tracking & Permissions**
+-   **Infinite Loading Fix**: Resolved the issue where the app was stuck in a loading state. The root cause was `LaunchedEffect` not detecting the permission grant immediately.
+    -   **Fix**: Introduced `hasLocationPermission` state variable using `mutableStateOf`. The permission launcher now updates this state, which directly triggers the location tracking `LaunchedEffect`.
+-   **Blue Pin Removal**: Disabled the native Google Map "My Location" layer (`isMyLocationEnabled = false`) to prevent the default blue dot from overlapping with our custom Red Pin.
+
+### 2. **WASM Clustering Stability**
+-   **Data Loss Fix**: Fixed the issue where pins disappeared ("count=0") despite valid data entering the ViewModel.
+    -   **Root Cause**: The WASM clustering module was failing (or returning empty) and the app had no fallback.
+    -   **Fix**: Implemented a robust **Fallback Mechanism**. If WASM returns empty/fails but input points exist, the app automatically switches to a "1-to-1 Mapping" mode, ensuring all pins are displayed.
+-   **Type Safety**: Fixed a `Double?` type mismatch compilation error in `TodoViewModel` by adding explicit null checks.
+
+### 3. **Map Animation & Interaction**
+-   **Infinite Zoom Loop Fix**: Resolved the critical bug where the map would repeatedly force-zoom to the current location on every update.
+    -   **Fix**: Hoisted the `initialAnimationDone` state to `MainScreen` (parent) from `GoogleMapContent`. Also refactored the animation logic to run exactly once per session using a `while(true)` loop to wait for data, execute the sequence, and then break.
+-   **Zoom Level Adjustment**: Adjusted the initial "Show All" view to target approximately **Zoom Level 11** (changed `MIN_SPAN` from 1.5 to 0.4) to avoid showing the map from too far away.
+
+### 4. **Visual Consistency (iOS Parity)**
+-   **Pin Sizing**: Adjusted pin sizes to match the iOS implementation exactly.
+    -   **Spec**: **40x50** (width x height) for both Cluster and Single pins.
+    -   **Budge**: Radius 10.
+-   **Pin Distortion Fix**: Fixed the rendering logic in `createClusterBitmap` where pin images were being stretched/distorted.
+    -   **Fix**: Implemented aspect-ratio respecting scaling. The pin image is now centered and fitted within the 40x50 box without distortion.
+
+## Verification Checklist
+- [x] **Location**: 
+    - [x] Permissions granted -> Immediate tracking start.
+    - [x] No "Infinite Loading" spinner.
+    - [x] Only Custom Red Pin visible (No Blue Dot).
+- [x] **Data Display**:
+    - [x] Pins displayed even if WASM fails (Fallback).
+    - [x] Correct count (Todo + History).
+- [x] **Animation**:
+    - [x] Initial: Show all pins (Zoom ~11).
     - [x] Wait 3 seconds.
-    - [Fail] **Zoom Level**: Zoom to Current Location (Level 15).
-        - **Actual**: Code uses **Level 17**.
+    - [x] Zoom to User (Zoom 15).
+    - [x] **NO** repeated forced zooming afterwards.
+- [x] **Visuals**:
+    - [x] Pins are 40x50 (matching iOS).
+    - [x] Pin icons are not distorted.
 
-## Detailed Analysis
-
-### 1. Data Scope
-- **Verification (`ContentView.swift` lines 36-39)**:
-    - Logic uses `Calendar.current.date(byAdding: .hour, value: -24, to: now)!` and `value: 24`.
-    - `logTodoListStats` calculates `count24h` using this range.
-    - **However**, `filteredLogs` (Line 87) uses:
-        - `min = -24h`
-        - `max = centerDate` (Now)
-        - It does **NOT** include +24h future logs.
-    - **Conclusion**: Todo Items cover ±24h. History Logs cover -24h to Now. 
-    - **Note**: "History" usually implies past, so this might be intentional? User said "Current time -24h to +24h History Pin". This might be a terminology mix-up or a specific requirement for future logs (if any exist).
-
-### 2. Clustering Logic
-- **Verification (`KakaoMapView.swift` lines 427-442)**:
-    - **Priority**:
-        ```swift
-        if hasUserLocation {
-            baseImageName = "PinCurrent"
-        } else if historyCount > todoCount {
-            baseImageName = "PinHistory"
-        }
-        ```
-    - **Badge**: Uses `PinImageHelper`.
-    - **Format**: `PinImageHelper` updated to use "9+" for counts > 9.
-    - **Conclusion**: Implemented correctly.
-
-### 3. Launch Animation
-- **Verification (`KakaoMapView.swift` line 166)**:
-    - **Delay**: `DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.launchAnimationDelay)` (Config is 3.0 or 5.0).
-    - **Target Zoom**: 
-        ```swift
-        let update = CameraUpdate.make(target: pos, zoomLevel: 17, rotation: 0, tilt: 0, mapView: mapView) // Line 169
-        ```
-    - **User Requirement**: Zoom **15**.
-    - **Conclusion**: **Mismatch**. The code uses Zoom 17.
-
-## Decision
-I must report this mismatch (Zoom 17 vs 15) to the user as requested ("Check if implemented... don't fix arbitrarily").
-I will also mention the History Log range (-24h to Now vs ±24h).
-
-## Implementation Update: Map Visual Consistency & Logic Refinement
-- **Date**: 2025-12-13
-
-### 1. Visual Consistency (Apple & Google Maps)
-- **Pin Resizing**: Fixed the issue where Google Map pins were significantly larger (High DPI).
-    - [x] All pins (History, Todo, Current Location) resized to `40x50` points.
-    - [x] Cluster pins base image resized **before** badging to ensure crisp badge rendering.
-    - [x] Path History Start/End pins resized to `40x50`.
-- **Badge Styling**:
-    - [x] `PinImageHelper` updated to draw a Red Circle Badge purely in code (top-right).
-    - [x] Badge formatting set to "9+" for counts > 9.
-    - [x] Removed text overlays (time, etc.) from standard pins to reduce clutter, as per request.
-
-### 2. Clustering Logic Fixes
-- **User Location Clustering**:
-    - [x] Removed "Independent User Location Pin" logic that caused duplication.
-    - [x] Added User Location to WASM Input Data so it participates in clustering.
-    - [x] Result: User Location now merges into clusters when overlapping other pins.
-- **Clustering Threshold**:
-    - [x] Adjusted `wasmCellSize` multiplier from `60.0` to `70.0`.
-    - [x] This creates broader clusters, merging pins more aggressively (sooner).
-- **Initial Rendering Bug**:
-    - [x] Fixed "No Pins on Launch" issue caused by MapView width being 0 during init.
-    - [x] Added fallback to `UIScreen.main.bounds.width` to ensure WASM runs immediately.
-
-### 3. Interaction & Path Logic
-- **Path Interaction**:
-    - [x] Disabled "Draw Path on Tap" for History pins (User Request).
-    - [x] Updated `PathHistoryView` to limit Max Zoom (Min Span `0.003` ~ Level 17) to prevent excessive zoom on short paths.
-- **Selection List UI**:
-    - [x] Fixed `ClusterListCallout` to show all items without scrolling if count <= 4 (avoiding ScrollView layout bug).
-
-### 4. Native Map Cleanup
-- **Double Pin Fix**:
-    - [x] Explicitly disabled Native User Location (`showsUserLocation = false`, `isMyLocationEnabled = false`) on both maps.
-    - [x] Eliminated the "Blue Dot" underneath the custom "Current Location" pin.
+## Next Steps
+- Verify behavior on physical device (permission flows vary).
+- Monitor for any other WASM instability.

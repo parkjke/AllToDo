@@ -30,6 +30,39 @@ struct NaverMapView: UIViewRepresentable {
         view.mapView.touchDelegate = context.coordinator
         view.mapView.addCameraDelegate(delegate: context.coordinator)
         
+        // [FIX] Initial Camera Calculation (User Location > Pins Centroid > Seoul)
+        var initialTarget = NMGLatLng(lat: 37.5665, lng: 126.9780) // Default Seoul
+        
+        if let userLoc = locationManager.currentLocation {
+            initialTarget = NMGLatLng(lat: userLoc.coordinate.latitude, lng: userLoc.coordinate.longitude)
+        } else {
+            // Calculate Centroid
+            var latSum: Double = 0
+            var lonSum: Double = 0
+            var count: Double = 0
+            
+            for item in todoItems {
+                if let loc = item.location {
+                    latSum += loc.latitude
+                    lonSum += loc.longitude
+                    count += 1
+                }
+            }
+            for log in userLogs {
+                latSum += log.latitude
+                lonSum += log.longitude
+                count += 1
+            }
+            
+            if count > 0 {
+                initialTarget = NMGLatLng(lat: latSum / count, lng: lonSum / count)
+            }
+        }
+        
+        let update = NMFCameraUpdate(scrollTo: initialTarget, zoomTo: 16)
+        update.animation = .none
+        view.mapView.moveCamera(update)
+        
         // Initial Delegate Call
         context.coordinator.mapView = view.mapView
         
@@ -49,16 +82,12 @@ struct NaverMapView: UIViewRepresentable {
             }
         }
         
-        // 2. Update Pins & Path
-        context.coordinator.updateAnnotations(items: todoItems)
-        context.coordinator.updatePath(selectedItems: selectedClusterItems)
-        
-        // 3. User Location
-        if let loc = locationManager.currentLocation {
-            context.coordinator.updateUserLocation(loc)
+        // 2. Trigger Clustering (Only if not in first render sequence)
+        if !context.coordinator.firstRender {
+            context.coordinator.refreshWasmClusters()
         }
         
-        // 4. Launch Animation
+        // 3. Launch Animation
         if context.coordinator.firstRender {
              context.coordinator.performLaunchAnimation(userLocation: locationManager.currentLocation)
         }
@@ -74,11 +103,7 @@ struct NaverMapView: UIViewRepresentable {
         var firstRender = true
         
         var markers: [NMFMarker] = []
-        var pathOverlay: NMFPath?
-        var userMarker: NMFMarker?
-        
-        var lastItemIDs: Set<UUID> = []
-        var lastLogIDs: Set<UUID> = []
+        // var pathOverlay: NMFPath? // Disabled
         
         init(_ parent: NaverMapView) {
             self.parent = parent
@@ -105,8 +130,6 @@ struct NaverMapView: UIViewRepresentable {
                     update.animation = .fly
                     update.animationDuration = 1.0
                     map.moveCamera(update)
-                } else {
-                    // parent.locationManager.requestPermission() // Not exposed
                 }
             case .rotateNorth:
                 let update = NMFCameraUpdate(heading: 0)
@@ -114,152 +137,231 @@ struct NaverMapView: UIViewRepresentable {
                 update.animationDuration = 0.5
                 map.moveCamera(update)
             case .zoomToFit:
-                fitToAllPins(userLocation: parent.locationManager.currentLocation)
+                // Simple Fit to User (or Pins if implemented)
+                 if let loc = parent.locationManager.currentLocation {
+                    let update = NMFCameraUpdate(scrollTo: NMGLatLng(lat: loc.coordinate.latitude, lng: loc.coordinate.longitude), zoomTo: 16)
+                    map.moveCamera(update)
+                 }
             case .launchSequence:
-                // [NEW] Relaunch
                 performLaunchAnimation(userLocation: parent.locationManager.currentLocation)
             case .none: break
             }
         }
         
-        func fitToAllPins(userLocation: CLLocation?) {
-            guard let map = mapView else { return }
-            
-            var bounds = NMGLatLngBounds()
-            var hasPoints = false
-            
-            if let user = userLocation {
-                bounds = NMGLatLngBounds(southWest: NMGLatLng(lat: user.coordinate.latitude, lng: user.coordinate.longitude),
-                                         northEast: NMGLatLng(lat: user.coordinate.latitude, lng: user.coordinate.longitude))
-                hasPoints = true
-            }
-            
-            for marker in markers {
-                let pos = marker.position
-                if !hasPoints {
-                    bounds = NMGLatLngBounds(southWest: pos, northEast: pos)
-                    hasPoints = true
-                } else {
-                    bounds = bounds.expand(toPoint: pos)
-                }
-            }
-            
-            if hasPoints {
-                let update = NMFCameraUpdate(fit: bounds, paddingInsets: UIEdgeInsets(top: 50, left: 50, bottom: 50, right: 50))
-                update.animation = .fly
-                update.animationDuration = 1.0
-                map.moveCamera(update)
-            }
-        }
-        
-        // MARK: - Update Logic
+        // MARK: - Legacy Update (Bridged to WASM)
         func updateAnnotations(items: [ToDoItem]) {
-            guard let map = mapView else { return }
-            
-            // Diff Check (Simple)
-            let currentItemIDs = Set(items.map { $0.id })
-            let currentLogIDs = Set(parent.userLogs.map { $0.id })
-            
-            if currentItemIDs == lastItemIDs && currentLogIDs == lastLogIDs { return }
-            lastItemIDs = currentItemIDs
-            lastLogIDs = currentLogIDs
-            
-            // Clear Old
-            markers.forEach { $0.mapView = nil }
-            markers.removeAll()
-            
-            // Add ToDos
-            for item in items {
-                guard let loc = item.location else { continue }
-                let marker = NMFMarker()
-                marker.position = NMGLatLng(lat: loc.latitude, lng: loc.longitude)
-                
-                // Pin Styling
-                let isCompleted = item.isCompleted
-                let iconName = isCompleted ? "checkmark.circle.fill" : "circle"
-                let color = UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0)
-                let image = PinImageHelper.shared.createShieldPin(color: color, iconName: iconName)
-                
-                marker.iconImage = NMFOverlayImage(image: image)
-                marker.anchor = CGPoint(x: 0.5, y: 1.0) // Shield Anchor
-                
-                marker.captionText = item.title
-                marker.captionAlign = .top
-                marker.touchHandler = { [weak self] (overlay: NMFOverlay) -> Bool in
-                    self?.handleMarkerTap(item: .todo(item))
-                    return true
-                }
-                marker.mapView = map
-                markers.append(marker)
-            }
-            
-            // Add Logs (History)
-            for log in parent.userLogs {
-                let marker = NMFMarker()
-                marker.position = NMGLatLng(lat: log.latitude, lng: log.longitude)
-                
-                let image = PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill")
-                marker.iconImage = NMFOverlayImage(image: image)
-                marker.anchor = CGPoint(x: 0.5, y: 1.0)
-
-                marker.touchHandler = { [weak self] (overlay: NMFOverlay) -> Bool in
-                    self?.handleMarkerTap(item: .history(log))
-                    return true
-                }
-                marker.mapView = map
-                markers.append(marker)
-            }
+            refreshWasmClusters()
         }
         
         func updatePath(selectedItems: [UnifiedMapItem]?) {
-            guard let map = mapView else { return }
-            
-            // Clear existing
-            pathOverlay?.mapView = nil
-            pathOverlay = nil
-            
-            guard let items = selectedItems, let first = items.first, case .history(let log) = first else { return }
-            
-            if let data = log.pathData, let points = try? JSONDecoder().decode([LocationData].self, from: data) {
-                if points.count < 2 { return }
-                
-                var latlngs: [NMGLatLng] = []
-                for p in points {
-                    latlngs.append(NMGLatLng(lat: p.latitude, lng: p.longitude))
-                }
-                
-                let path = NMFPath()
-                path.path = NMGLineString(points: latlngs)
-                path.color = .red
-                path.width = 4
-                path.mapView = map
-                
-                self.pathOverlay = path
-                print("DEBUG: Added Naver Path with \(points.count) points")
-            }
+             // [FIX] Disabled Path Drawing as per user request
+             return
         }
         
         func updateUserLocation(_ location: CLLocation) {
+            // Handled by WASM now
+            refreshWasmClusters()
+        }
+        
+        // MARK: - WASM Clustering
+        func refreshWasmClusters() {
             guard let map = mapView else { return }
             
-            if userMarker == nil {
-                userMarker = NMFMarker()
-                if let image = UIImage(named: "PinCurrent") {
-                     userMarker?.iconImage = NMFOverlayImage(image: image)
-                }
-                // Anchor bottom-center (0.5, 1.0) because PinCurrent is also a Shield shape now?
-                // Wait, PinCurrent (Crosshair) SVG is circle-like inside a shield?
-                // Per design spec: "Shield (Badge style)". So yes, Bottom-Center.
-                userMarker?.anchor = CGPoint(x: 0.5, y: 1.0)
-                userMarker?.mapView = map
-                userMarker?.zIndex = 100 // Top
+            // [FIX] Fallback to Screen Width to prevent initial render failure
+            var widthPixels = map.frame.width
+            if widthPixels <= 0 {
+                widthPixels = UIScreen.main.bounds.width
             }
-            userMarker?.position = NMGLatLng(lat: location.coordinate.latitude, lng: location.coordinate.longitude)
+            
+            let zoom = map.zoomLevel
+            let centerLat = map.cameraPosition.target.lat
+            
+            // Meter/Pixel Calc: 156543.03392 * cos(lat) / 2^zoom
+            let metersPerPixel = 156543.03392 * cos(centerLat * .pi / 180.0) / pow(2, zoom)
+            let wasmCellSize = metersPerPixel * 100.0 // [FIX] Increased to 100.0 for Naver Map to ensure overlapping pins merge
+            
+            // Prepare Data
+            let currentItems = parent.todoItems
+            let currentLogs = parent.userLogs
+            let userLocation = parent.locationManager.currentLocation
+            
+            var allItems: [UnifiedMapItem] = []
+            var rawPoints: [Int32] = []
+            
+            for item in currentItems {
+                if let loc = item.location {
+                    allItems.append(.todo(item))
+                    rawPoints.append(Int32(loc.latitude * 1_000_000))
+                    rawPoints.append(Int32(loc.longitude * 1_000_000))
+                }
+            }
+            for log in currentLogs {
+                allItems.append(.history(log))
+                rawPoints.append(Int32(log.latitude * 1_000_000))
+                rawPoints.append(Int32(log.longitude * 1_000_000))
+            }
+            // [FIX] Include User Location in Clustering
+            if let userLoc = userLocation {
+                allItems.append(.userLocation)
+                rawPoints.append(Int32(userLoc.coordinate.latitude * 1_000_000))
+                rawPoints.append(Int32(userLoc.coordinate.longitude * 1_000_000))
+            }
+            
+            Task {
+                let result = await WasmManager.shared.cluster(points: rawPoints, cellSize: wasmCellSize)
+                
+                await MainActor.run {
+                    self.renderWasmResults(mapView: map, clusterResult: result, allItems: allItems)
+                }
+            }
+        }
+        
+        @MainActor
+        func renderWasmResults(mapView: NMFMapView, clusterResult: [Int32], allItems: [UnifiedMapItem]) {
+            // [FIX] Disable Native Location Overlay (Blue Dot)
+            mapView.locationOverlay.hidden = true
+            
+            // Clear Old Markers
+            markers.forEach { $0.mapView = nil }
+            markers = []
+            
+            // Parse Buckets (Simple Assignment)
+            struct Centroid { let lat: Double; let lon: Double; let count: Int }
+            var centroids: [Centroid] = []
+            
+            if clusterResult.count % 3 == 0 {
+                for i in stride(from: 0, to: clusterResult.count, by: 3) {
+                    let lat = Double(clusterResult[i]) / 1_000_000.0
+                    let lon = Double(clusterResult[i+1]) / 1_000_000.0
+                    let count = Int(clusterResult[i+2])
+                    centroids.append(Centroid(lat: lat, lon: lon, count: count))
+                }
+            }
+            
+            var clusters: [[UnifiedMapItem]] = Array(repeating: [], count: centroids.count)
+            
+            for item in allItems {
+                var itemLat: Double = 0
+                var itemLon: Double = 0
+                switch item {
+                case .todo(let t): if let l = t.location { itemLat = l.latitude; itemLon = l.longitude }
+                case .history(let l): itemLat = l.latitude; itemLon = l.longitude
+                case .userLocation: 
+                    if let u = parent.locationManager.currentLocation { itemLat = u.coordinate.latitude; itemLon = u.coordinate.longitude }
+                default: break
+                }
+                
+                var bestIdx = -1
+                var minDist = Double.greatestFiniteMagnitude
+                
+                for (idx, c) in centroids.enumerated() {
+                    let dLat = itemLat - c.lat
+                    let dLon = itemLon - c.lon
+                    let dist = dLat*dLat + dLon*dLon
+                    if dist < minDist {
+                        minDist = dist
+                        bestIdx = idx
+                    }
+                }
+                
+                if bestIdx >= 0 {
+                    clusters[bestIdx].append(item)
+                }
+            }
+            
+            // Create Markers
+            for (idx, items) in clusters.enumerated() {
+                guard !items.isEmpty else { continue }
+                let centroid = centroids[idx]
+                let marker = NMFMarker()
+                
+                // Position
+                if items.count == 1 {
+                    let item = items[0]
+                    switch item {
+                    case .todo(let t): if let l = t.location { marker.position = NMGLatLng(lat: l.latitude, lng: l.longitude) }
+                    case .history(let l): marker.position = NMGLatLng(lat: l.latitude, lng: l.longitude)
+                    case .userLocation: if let u = parent.locationManager.currentLocation { marker.position = NMGLatLng(lat: u.coordinate.latitude, lng: u.coordinate.longitude) }
+                    default: marker.position = NMGLatLng(lat: centroid.lat, lng: centroid.lon)
+                    }
+                } else {
+                    marker.position = NMGLatLng(lat: centroid.lat, lng: centroid.lon)
+                }
+                
+                // [FIX] Logic for Base Image & Badge (Same as Apple/Google)
+                var userLocationFound = false
+                var historyCount = 0
+                var todoReadyCount = 0
+                var todoDoneCount = 0
+                var messageCount = 0
+                
+                for item in items {
+                    switch item {
+                    case .userLocation: userLocationFound = true
+                    case .history: historyCount += 1
+                    case .todo(let t): if t.isCompleted { todoDoneCount += 1 } else { todoReadyCount += 1 }
+                    case .serverMessage: messageCount += 1
+                    }
+                }
+                
+                var baseName = "PinTodoReady"
+                if userLocationFound {
+                    baseName = "PinCurrent"
+                } else {
+                    let counts = [("PinHistory", historyCount), ("PinTodoReady", todoReadyCount), ("PinTodoDone", todoDoneCount), ("PinReceiveReady", messageCount)]
+                    if let max = counts.max(by: { $0.1 < $1.1 }), max.1 > 0 { baseName = max.0 }
+                }
+                
+                let color: UIColor
+                if baseName == "PinHistory" { color = .red }
+                else if baseName == "PinReceiveReady" { color = .blue }
+                else { color = UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0) }
+                
+                // [FIX] Resize Base Image FIRST to 40x50
+                let baseImage = UIImage(named: baseName)?.resized(to: CGSize(width: 40, height: 50))
+                
+                // [FIX] Overlay Badge ONLY if count > 1
+                let displayCount: Int? = items.count > 1 ? items.count : nil
+                let finalImage = PinImageHelper.shared.createShieldPin(color: color, count: displayCount, baseImage: baseImage)
+                
+                marker.iconImage = NMFOverlayImage(image: finalImage)
+                marker.anchor = CGPoint(x: 0.5, y: 1.0) 
+                
+                // Interaction
+                marker.touchHandler = { [weak self] (overlay: NMFOverlay) -> Bool in
+                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                    generator.impactOccurred()
+                    
+                    DispatchQueue.main.async {
+                        // [FIX] Distinguish Single Todo vs Cluster
+                        if items.count == 1, let first = items.first {
+                            switch first {
+                            case .todo(let item):
+                                self?.parent.selectedItem = item
+                                self?.parent.selectedClusterItems = nil
+                            default:
+                                self?.parent.selectedClusterItems = items
+                                self?.parent.selectedItem = nil
+                            }
+                        } else {
+                            self?.parent.selectedClusterItems = items
+                            self?.parent.selectedItem = nil
+                        }
+                    }
+                    return true
+                }
+                
+                marker.mapView = mapView
+                markers.append(marker)
+            }
         }
         
         func performLaunchAnimation(userLocation: CLLocation?) {
             guard let loc = userLocation, let map = mapView else { return }
             firstRender = false
+            
+            // Refresh
+            refreshWasmClusters()
             
             // Start High
             let start = NMFCameraUpdate(scrollTo: NMGLatLng(lat: loc.coordinate.latitude, lng: loc.coordinate.longitude), zoomTo: 5)
@@ -267,7 +369,7 @@ struct NaverMapView: UIViewRepresentable {
             map.moveCamera(start)
             
             // Animate In
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.launchAnimationDelay) {
                 let end = NMFCameraUpdate(scrollTo: NMGLatLng(lat: loc.coordinate.latitude, lng: loc.coordinate.longitude), zoomTo: 16)
                 end.animation = .fly
                 end.animationDuration = 2.0
@@ -275,9 +377,8 @@ struct NaverMapView: UIViewRepresentable {
             }
         }
         
-        // MARK: - Interactions
+        // MARK: - Delegate Methods
         func mapView(_ mapView: NMFMapView, didTapMap latlng: NMGLatLng, point: CGPoint) {
-            // Deselect logic if needed
             DispatchQueue.main.async {
                 self.parent.selectedItem = nil
                 self.parent.selectedClusterItems = nil
@@ -286,36 +387,20 @@ struct NaverMapView: UIViewRepresentable {
         
         func mapView(_ mapView: NMFMapView, didLongTapMap latlng: NMGLatLng, point: CGPoint) {
             let coord = CLLocationCoordinate2D(latitude: latlng.lat, longitude: latlng.lng)
-            
-            // Feedback
             let generator = UIImpactFeedbackGenerator(style: .medium)
             generator.impactOccurred()
-            
             DispatchQueue.main.async {
                 self.parent.onLongTap?(coord)
             }
         }
         
-        func handleMarkerTap(item: UnifiedMapItem) {
-             let generator = UIImpactFeedbackGenerator(style: .medium)
-             generator.impactOccurred()
-            
-             DispatchQueue.main.async {
-                 // For now, simple selection. Clustering requires more logic which we can refine.
-                 // Treat as cluster of 1 for consistent UI
-                 self.parent.selectedClusterItems = [item]
-                 self.parent.selectedItem = nil
-             }
-        }
-        
-        // Drawing Helpers Removed - Using Assets Directly
-        
-        // Camera Delegate
         func mapView(_ mapView: NMFMapView, cameraDidChangeByReason reason: Int, animated: Bool) {
              let heading = mapView.cameraPosition.heading
              DispatchQueue.main.async {
                  self.parent.rotation = heading
              }
+             // Trigger Re-clustering on movement
+             refreshWasmClusters()
         }
     }
 }

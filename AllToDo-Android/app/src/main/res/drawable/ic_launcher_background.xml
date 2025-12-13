@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="1024"
+    android:viewportHeight="1024">
+
+    <!-- 1. Background Fill (#F2E6D9) -->
+    <path
+        android:fillColor="#F2E6D9"
+        android:pathData="M0,0 h1024 v1024 h-1024 z" />
+
+    <!-- 2. Decorative Lines -->
+    <!-- Path 1: Stroke #DDD, Width 60 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#DDDDDD"
+        android:strokeWidth="60"
+        android:pathData="M-10 300 Q 300 250 500 50 T 1034 200" />
+
+    <!-- Path 2: Stroke #FFF, Width 80 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="80"
+        android:pathData="M200 -10 Q 250 400 600 600 T 800 1034" />
+
+    <!-- Path 3: Stroke #DDD, Width 50 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#DDDDDD"
+        android:strokeWidth="50"
+        android:pathData="M-10 700 Q 400 650 700 800 T 1034 750" />
+
+    <!-- Path 4: Stroke #FFF, Width 70 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="70"
+        android:pathData="M600 -10 L 400 1034" />
+
+    <!-- 3. Corner Accents (#CDEAC0, Opacity 0.8) -->
+    <path
+        android:fillColor="#CDEAC0"
+        android:fillAlpha="0.8"
+        android:pathData="M800 0 L 1024 0 L 1024 300 Q 900 250 800 0 Z" />
+
+    <path
+        android:fillColor="#CDEAC0"
+        android:fillAlpha="0.8"
+        android:pathData="M0 800 L 0 1024 L 300 1024 Q 200 900 0 800 Z" />
+
+</vector>

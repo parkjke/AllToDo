@@ -217,8 +217,7 @@ class WebViewWasmRuntime(private val context: Context) : WasmRuntime {
         
         return resultList
     }
-        return resultList
-    }
+
 
     override fun clusterPoints(points: List<Int>, cellSizeMeters: Int): List<Int> {
         if (!isReady) return emptyList()

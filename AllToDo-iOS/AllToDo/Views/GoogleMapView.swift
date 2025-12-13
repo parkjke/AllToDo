@@ -23,18 +23,46 @@ struct GoogleMapView: UIViewRepresentable {
     
     func makeUIView(context: Context) -> GMSMapView {
         let options = GMSMapViewOptions()
-        options.camera = GMSCameraPosition.camera(withLatitude: 37.5665, longitude: 126.9780, zoom: 10)
-        let mapView = GMSMapView(options: options)
-        mapView.delegate = context.coordinator
+        options.frame = .zero
+        
+        // [FIX] Initial Camera Calculation (User Location > Pins Centroid > Seoul)
+        var initialTarget = CLLocationCoordinate2D(latitude: 37.5665, longitude: 126.9780) // Default Seoul
+        
+        if let userLoc = locationManager.currentLocation {
+            initialTarget = userLoc.coordinate
+        } else {
+            // Calculate Centroid
+            var latSum: Double = 0
+            var lonSum: Double = 0
+            var count: Double = 0
+            
+            for item in todoItems {
+                if let loc = item.location {
+                    latSum += loc.latitude
+                    lonSum += loc.longitude
+                    count += 1
+                }
+            }
+            for log in userLogs {
+                latSum += log.latitude
+                lonSum += log.longitude
+                count += 1
+            }
+            
+            if count > 0 {
+                initialTarget = CLLocationCoordinate2D(latitude: latSum / count, longitude: lonSum / count)
+            }
+        }
+        
+        options.camera = GMSCameraPosition.camera(withTarget: initialTarget, zoom: 15.0)
+        
+        let view = GMSMapView(options: options)
+        view.isMyLocationEnabled = false // [FIX] Hide native Blue Dot
+        view.delegate = context.coordinator
         
         // [Parity] Disable System UI to match Apple Map Custom UI
-        mapView.isMyLocationEnabled = false 
-        mapView.settings.myLocationButton = false
-        mapView.settings.compassButton = false
-        mapView.settings.rotateGestures = true
-        mapView.settings.tiltGestures = false 
         
-        return mapView
+        return view
     }
     
     func updateUIView(_ uiView: GMSMapView, context: Context) {
@@ -48,22 +76,16 @@ struct GoogleMapView: UIViewRepresentable {
             }
         }
         
-        // [FIX] Ensure clusters are refreshed when SwiftUI state changes (e.g. items loaded, location updated)
-        // This fixes the "Pins not showing on load" issue because idleAt might not fire immediately or reliably on first load.
-        context.coordinator.refreshWasmClusters(mapView: uiView)
+        // [FIX] Ensure clusters are refreshed when SwiftUI state changes, BUT avoid redundant calls at init
+        // Only refresh if not in first render sequence (Launch Animation handles the first refresh)
+        if !context.coordinator.firstRender {
+             context.coordinator.refreshWasmClusters(mapView: uiView)
+        }
         
         // Launch Animation
         if context.coordinator.firstRender {
             context.coordinator.performLaunchAnimation(mapView: uiView, userLocation: locationManager.currentLocation)
         }
-        // But doing it here might be too frequent. 
-        // Apple Map triggers mostly on RegionChange. 
-        // We can force a refresh if data changed. 
-        // For simplicity/parity, we rely on region change OR explicit refresh calls.
-        // But if user adds an item while map is static, we need update.
-        // Simple fix: Call refreshWasmClusters here if needed, debounced.
-        // For now, let's trigger it.
-        context.coordinator.refreshWasmClusters(mapView: uiView)
     }
     
     func makeCoordinator() -> Coordinator {
@@ -152,8 +174,20 @@ struct GoogleMapView: UIViewRepresentable {
             // Handle Marker Tap
             if let custom = marker as? WasmClusterMarker {
                 DispatchQueue.main.async {
-                    self.parent.selectedClusterItems = custom.items
-                    self.parent.selectedItem = nil
+                    // [FIX] Distinguish Single Todo vs Cluster
+                    if custom.items.count == 1, let first = custom.items.first {
+                        switch first {
+                        case .todo(let item):
+                            self.parent.selectedItem = item
+                            self.parent.selectedClusterItems = nil
+                        default:
+                            self.parent.selectedClusterItems = custom.items
+                            self.parent.selectedItem = nil
+                        }
+                    } else {
+                        self.parent.selectedClusterItems = custom.items
+                        self.parent.selectedItem = nil
+                    }
                 }
                 return true
             }

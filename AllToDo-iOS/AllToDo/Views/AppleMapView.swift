@@ -24,6 +24,38 @@ struct AppleMapView: UIViewRepresentable {
         mapView.isRotateEnabled = true
         mapView.isPitchEnabled = false
         
+        // [FIX] Initial Region Calculation (User Location > Pins Centroid > Seoul)
+        var initialCenter = CLLocationCoordinate2D(latitude: 37.5665, longitude: 126.9780) // Default Seoul
+        
+        if let userLoc = locationManager.currentLocation {
+            initialCenter = userLoc.coordinate
+        } else {
+            // Calculate Centroid of Pins
+            var latSum: Double = 0
+            var lonSum: Double = 0
+            var count: Double = 0
+            
+            for item in todoItems {
+                if let loc = item.location {
+                    latSum += loc.latitude
+                    lonSum += loc.longitude
+                    count += 1
+                }
+            }
+            for log in userLogs {
+                latSum += log.latitude
+                lonSum += log.longitude
+                count += 1
+            }
+            
+            if count > 0 {
+                initialCenter = CLLocationCoordinate2D(latitude: latSum / count, longitude: lonSum / count)
+            }
+        }
+        
+        let region = MKCoordinateRegion(center: initialCenter, span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02))
+        mapView.setRegion(region, animated: false)
+        
         // Long Press Gesture
         let longPress = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleLongPress(_:)))
         longPress.minimumPressDuration = 0.3 // Make it snappier (default is 0.5)
@@ -365,7 +397,6 @@ struct AppleMapView: UIViewRepresentable {
         
         // MARK: - Launch Animation
         func performLaunchAnimation(mapView: MKMapView, userLocation: CLLocation?) {
-            guard let userLoc = userLocation else { return }
             firstRender = false
             
             // Initial Cluster Calculation
@@ -373,27 +404,67 @@ struct AppleMapView: UIViewRepresentable {
             
             // [LOG] Start Animation
             OptimizationLogger.shared.logLaunchStep(step: "setup map zoom", data: [
-                "action": "WASM Launch",
+                "action": "WASM Launch (Restored)",
                 "wait": "3.0s"
             ])
             
-            // Initial View: Broad
-             let region = MKCoordinateRegion(center: userLoc.coordinate, span: MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5))
-             mapView.setRegion(region, animated: false)
+            // 1. Gather Points from Filtered Data
+            var points: [CLLocationCoordinate2D] = []
+            for item in parent.todoItems { if let l = item.location { points.append(l.coordinate) } }
+            for log in parent.userLogs { points.append(log.coordinate) }
             
-            // Wait & Zoom
             let delay = AppConfig.launchAnimationDelay
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                let endRegion = MKCoordinateRegion(
-                    center: userLoc.coordinate,
-                    span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
-                )
-                mapView.setRegion(endRegion, animated: true)
+            
+            if !points.isEmpty {
+                // [SCENARIO RESTORED] PROPER LOGIC: List Center + Zoom Constraint
                 
-                OptimizationLogger.shared.logLaunchStep(step: "go current location", data: [
-                    "final_action": "Zoom to User Location (Level 15)",
-                    "success": true
-                ])
+                var minLat = points[0].latitude
+                var maxLat = points[0].latitude
+                var minLon = points[0].longitude
+                var maxLon = points[0].longitude
+                
+                for p in points {
+                    if p.latitude < minLat { minLat = p.latitude }
+                    if p.latitude > maxLat { maxLat = p.latitude }
+                    if p.longitude < minLon { minLon = p.longitude }
+                    if p.longitude > maxLon { maxLon = p.longitude }
+                }
+                
+                let centerLat = (minLat + maxLat) / 2
+                let centerLon = (minLon + maxLon) / 2
+                
+                var latSpan = maxLat - minLat
+                var lonSpan = maxLon - minLon
+                
+                // [Constraint] Max Zoom 9 -> Min Span ~1.5 degree
+                let MIN_SPAN = 1.5
+                if latSpan < MIN_SPAN { latSpan = MIN_SPAN }
+                if lonSpan < MIN_SPAN { lonSpan = MIN_SPAN }
+                
+                // Add Padding
+                latSpan *= 1.1
+                lonSpan *= 1.1
+                
+                let targetRegion = MKCoordinateRegion(
+                    center: CLLocationCoordinate2D(latitude: centerLat, longitude: centerLon),
+                    span: MKCoordinateSpan(latitudeDelta: latSpan, longitudeDelta: lonSpan)
+                )
+
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    mapView.setRegion(targetRegion, animated: true)
+                    OptimizationLogger.shared.logLaunchStep(step: "go list bounds", data: ["span": latSpan])
+                }
+                
+            } else if let userLoc = userLocation {
+                // Fallback: User Location (Zoom 15)
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    let endRegion = MKCoordinateRegion(
+                        center: userLoc.coordinate,
+                        span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                    )
+                    mapView.setRegion(endRegion, animated: true)
+                    OptimizationLogger.shared.logLaunchStep(step: "go current location", data: ["success": true])
+                }
             }
         }
         

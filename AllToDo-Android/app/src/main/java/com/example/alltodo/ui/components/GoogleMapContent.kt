@@ -8,24 +8,9 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
-import com.google.maps.android.clustering.ClusterItem
 import com.google.maps.android.compose.*
-import com.google.maps.android.compose.clustering.Clustering // [FIX] Import Clustering explicitly
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
-
-// Wrapper for Clustering
-data class MapClusterItem(
-    val item: UnifiedItem,
-    val itemPosition: LatLng, // [FIX] Renamed to avoid clash
-    val itemTitle: String,
-    val itemSnippet: String?
-) : ClusterItem {
-    override fun getPosition(): LatLng = itemPosition
-    override fun getTitle(): String = itemTitle
-    override fun getSnippet(): String? = itemSnippet
-    override fun getZIndex(): Float? = 0f
-}
 
 @OptIn(MapsComposeExperimentalApi::class)
 @Composable
@@ -42,7 +27,9 @@ fun GoogleMapContent(
     onRotationChange: (Float) -> Unit,
     isMapReady: Boolean,
     onMapLoaded: () -> Unit,
-    showHistoryMode: Boolean
+    showHistoryMode: Boolean,
+    initialAnimationDone: Boolean,
+    onInitialAnimationDone: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     // 1. UI Settings (Disable Toolbar & Zoom)
@@ -57,64 +44,91 @@ fun GoogleMapContent(
 
     val properties = remember {
         MapProperties(
-            isMyLocationEnabled = false // [FIX] Disable native blue dot, use custom pin
+            isMyLocationEnabled = false // [FIX] Disable native blue dot to avoid overlap with custom marker
         )
     }
 
-    var initialAnimationDone by remember { mutableStateOf(false) }
+
 
     // 2. Launch Animation & History Mode Handler
     // Add currentLocation to keys to handle "No Pins -> Zoom 15" when location arrives
     // [FIX] Add isMapReady to prevent crash on re-entry (trying to animate before map loads)
     // 2. Launch Animation & History Mode Handler
-    LaunchedEffect(clusteredItems, showHistoryMode, currentLocation, isMapReady) {
-        if (!isMapReady) return@LaunchedEffect
+    // 2. Launch Animation & History Mode Handler
+    // 2. iPhone-like Launch Animation (Fit Bounds with Max Zoom 9)
+    // 2. iPhone-like Launch Animation (Fit Bounds with Max Zoom 11)
+    // [FIX] Loop prevention: animate once, never restart.
+    // Depend on Unit so it doesn't restart on data change.
+    LaunchedEffect(Unit) {
+        if (initialAnimationDone) return@LaunchedEffect
 
-        val shouldAnimate = showHistoryMode || !initialAnimationDone
+        // Wait for Map Limit or Data
+        while (true) {
+             delay(500) // Poll
+             if (!isMapReady) continue
+             
+             // [DEBUG] Check for valid data
+             val validPoints = mutableListOf<LatLng>()
+             
+             // 1. Filter valid locations
+             val allUnifiedItems = clusteredItems.flatMap { it.items }
+             val itemPoints = allUnifiedItems.filter { item ->
+                  (item is UnifiedItem.Todo || item is UnifiedItem.History) && item.latitude != 0.0 && item.longitude != 0.0
+             }.map { item ->
+                  LatLng(item.latitude, item.longitude)
+             }
+             validPoints.addAll(itemPoints)
 
-        if (shouldAnimate) {
-            val hasItems = clusteredItems.isNotEmpty()
-            
-            if (hasItems) {
-                val boundsBuilder = LatLngBounds.builder()
-                clusteredItems.forEach {
-                    boundsBuilder.include(LatLng(it.latitude, it.longitude))
-                }
+             if (currentLocation != null && currentLocation.latitude != 0.0) {
+                 validPoints.add(LatLng(currentLocation.latitude, currentLocation.longitude))
+             }
+             
+             // If we have data, start animation sequence
+             if (validPoints.isNotEmpty()) {
+                  val boundsBuilder = LatLngBounds.builder()
+                  validPoints.forEach { boundsBuilder.include(it) }
+                  val bounds = boundsBuilder.build()
+                  val center = bounds.center
 
-                try {
-                    val bounds = boundsBuilder.build()
-                    // Check if bounds valid (not single point with 0 size if strict check needed, but Google Maps handles single point bounds okay usually, or standard builder needs >0 points)
-                     cameraPositionState.animate(CameraUpdateFactory.newLatLngBounds(bounds, 100), 1000)
-                     
-                     if (!initialAnimationDone && !showHistoryMode) {
-                         delay(1000) // [FIX] Changed from 3000 to 1000
-                         currentLocation?.let {
-                            cameraPositionState.animate(
-                                CameraUpdateFactory.newCameraPosition(
-                                    CameraPosition.Builder()
-                                        .target(LatLng(it.latitude, it.longitude))
-                                        .zoom(16f)
-                                        .bearing(cameraPositionState.position.bearing)
-                                        .tilt(cameraPositionState.position.tilt)
-                                        .build()
-                                ),
-                                1000
-                            )
-                         }
-                     }
-                     if (!showHistoryMode) initialAnimationDone = true
-                } catch (e: Exception) {}
-            } else {
-                 currentLocation?.let {
-                    try {
-                        cameraPositionState.animate(
-                            CameraUpdateFactory.newLatLngZoom(LatLng(it.latitude, it.longitude), 15f),
-                            1000
-                        )
-                        if (!showHistoryMode) initialAnimationDone = true
-                    } catch (e: Exception) {}
-                }
-            }
+                  // Zoom Logic: "If Zoom > 11, set to 11" (Approx Span 0.4)
+                  val MIN_SPAN = 0.4 
+                  val ne = bounds.northeast
+                  val sw = bounds.southwest
+                  var latSpan = ne.latitude - sw.latitude
+                  var lngSpan = ne.longitude - sw.longitude
+                  
+                  if (latSpan < MIN_SPAN) latSpan = MIN_SPAN
+                  if (lngSpan < MIN_SPAN) lngSpan = MIN_SPAN
+                  
+                  val expandedBounds = LatLngBounds(
+                      LatLng(center.latitude - latSpan / 2, center.longitude - lngSpan / 2),
+                      LatLng(center.latitude + latSpan / 2, center.longitude + lngSpan / 2)
+                  )
+
+                  try {
+                      cameraPositionState.animate(
+                          CameraUpdateFactory.newLatLngBounds(expandedBounds, 100),
+                          1500
+                      )
+                      
+                      delay(3000)
+                      
+                      if (currentLocation != null) {
+                          cameraPositionState.animate(
+                              CameraUpdateFactory.newLatLngZoom(
+                                  LatLng(currentLocation.latitude, currentLocation.longitude), 
+                                  15f
+                              ),
+                              1000 
+                          )
+                      }
+                  } catch (e: Exception) {
+                      e.printStackTrace()
+                  }
+                  
+                  onInitialAnimationDone()
+                  break // Exit loop, never run again
+             }
         }
     }
 
@@ -161,15 +175,22 @@ fun GoogleMapContent(
             // Determine Icon
             val iconDescriptor = if (isSingle && firstItem != null) {
                 // Formatting Single Item
-                // Formatting Single Item
-                com.google.android.gms.maps.model.BitmapDescriptorFactory.fromResource(firstItem.getPinResId())
+                bitmapDescriptorFromVector(context, firstItem.getPinResId(), 40)
             } else {
                 // Cluster Item
-                // Color based on majority or just Red/Green mixed? 
-                // Spec say: "Todo Green, Unregistered Red"
-                // If cluster has any Todo -> Green?
-                val hasTodo = cluster.items.any { it is UnifiedItem.Todo }
-                createClusterBitmap(context, cluster.count, !hasTodo)
+                // [FIX] Match iOS Logic: Determine Dominant Type & Color (Badge Strategy)
+                var hasHistory = false
+                var hasTodo = false
+                cluster.items.forEach { 
+                    if (it is UnifiedItem.History) hasHistory = true
+                    if (it is UnifiedItem.Todo) hasTodo = true
+                }
+                
+                val (resId, badgeColor) = when {
+                    hasHistory && !hasTodo -> com.example.alltodo.R.drawable.pin_history to android.graphics.Color.RED
+                    else -> com.example.alltodo.R.drawable.pin_todo_ready to android.graphics.Color.parseColor("#00AA00") // Green
+                }
+                createClusterBitmap(context, cluster.count, resId, badgeColor)
             }
 
             Marker(
@@ -204,41 +225,157 @@ fun GoogleMapContent(
                     }
                     true
                 },
-                icon = com.google.android.gms.maps.model.BitmapDescriptorFactory.fromResource(com.example.alltodo.R.drawable.pin_current)
+                icon = bitmapDescriptorFromVector(context, com.example.alltodo.R.drawable.pin_current)
             )
         }
     }
 }
 
-// Helper to create cluster icon with text
-fun createClusterBitmap(context: android.content.Context, count: Int, isRed: Boolean): com.google.android.gms.maps.model.BitmapDescriptor {
-    val size = 100 // px
-    val bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+// Helper to create cluster icon with text (iOS Style: Pin + Badge)
+fun createClusterBitmap(context: android.content.Context, count: Int, @androidx.annotation.DrawableRes resId: Int, badgeColor: Int): com.google.android.gms.maps.model.BitmapDescriptor {
+    val density = context.resources.displayMetrics.density
+    
+    // iOS Size: 40x50 pts (Matched with iOS GoogleMapView.swift)
+    val widthDp = 40
+    val heightDp = 50
+    val wPx = (widthDp * density).toInt()
+    val hPx = (heightDp * density).toInt()
+    
+    // Badge Size
+    val badgeRadiusDp = 10f
+    val badgeRadiusPx = badgeRadiusDp * density
+    
+    // Canvas Size (Need extra space for badge if it hangs out? iOS code: "badge overhang")
+    // Let's add padding.
+    val padding = (badgeRadiusPx / 1.5).toInt() 
+    val bitmapW = wPx + padding
+    val bitmapH = hPx + padding
+    
+    val bitmap = android.graphics.Bitmap.createBitmap(bitmapW, bitmapH, android.graphics.Bitmap.Config.ARGB_8888)
     val canvas = android.graphics.Canvas(bitmap)
+    
+    // 1. Draw Base Pin (Centered and Aspect Correct)
+    val drawable = androidx.core.content.ContextCompat.getDrawable(context, resId)
+    if (drawable != null) {
+        // Calculate aspect ratio
+        val dw = drawable.intrinsicWidth
+        val dh = drawable.intrinsicHeight
+        
+        val targetW: Int
+        val targetH: Int
+        
+        if (dw > 0 && dh > 0) {
+            val aspect = dw.toFloat() / dh.toFloat()
+            val boxAspect = wPx.toFloat() / hPx.toFloat()
+            
+            if (aspect > boxAspect) {
+                // Drawable is wider than box -> width fits, height adjusts
+                targetW = wPx
+                targetH = (wPx / aspect).toInt()
+            } else {
+                // Drawable is taller than box -> height fits, width adjusts
+                targetH = hPx
+                targetW = (hPx * aspect).toInt()
+            }
+        } else {
+            targetW = wPx
+            targetH = hPx
+        }
+        
+        // Center horizontally
+        val left = (wPx - targetW) / 2
+        // Bottom Align or Top Align?
+        // Usually pins are anchored at bottom. 
+        // We have 'padding' at top. So box is from (0, padding) to (wPx, hPx + padding)
+        // Let's align to bottom of that box.
+        val top = padding + (hPx - targetH) / 2 // Center Vertically in the Pin Box? Or Bottom?
+        // Let's try Centering in the 40x50 area.
+        
+        drawable.setBounds(left, top, left + targetW, top + targetH)
+        drawable.draw(canvas)
+    }
+    
+    // 2. Draw Badge (Top Right of Pin)
     val paint = android.graphics.Paint()
-    
-    // Circle
-    paint.color = if (isRed) android.graphics.Color.RED else 0xFF00AA00.toInt()
+    paint.isAntiAlias = true
     paint.style = android.graphics.Paint.Style.FILL
-    canvas.drawCircle(size/2f, size/2f, size/2f, paint)
+    paint.color = badgeColor
     
-    // Border
-    paint.color = android.graphics.Color.WHITE
+    // Center of badge: Top-Right corner of Pin Rect
+    val cx = wPx.toFloat() - (badgeRadiusPx / 2) // Slightly inside
+    val cy = padding.toFloat() // Top aligned
+    
+    canvas.drawCircle(cx, cy, badgeRadiusPx, paint)
+    
+    // Badge Border
     paint.style = android.graphics.Paint.Style.STROKE
-    paint.strokeWidth = 5f
-    canvas.drawCircle(size/2f, size/2f, size/2f - 2, paint)
-    
-    // Text
     paint.color = android.graphics.Color.WHITE
-    paint.style = android.graphics.Paint.Style.FILL
-    paint.textSize = 40f
-    paint.textAlign = android.graphics.Paint.Align.CENTER
-    paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
+    paint.strokeWidth = 2f * density
+    canvas.drawCircle(cx, cy, badgeRadiusPx, paint)
     
-    val text = if (count > 9) "9+" else count.toString()
-    val yPos = (size / 2) - ((paint.descent() + paint.ascent()) / 2)
-    canvas.drawText(text, size/2f, yPos, paint)
+    // 3. Text
+    paint.style = android.graphics.Paint.Style.FILL
+    paint.color = android.graphics.Color.WHITE
+    paint.textSize = 10f * density
+    paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
+    paint.textAlign = android.graphics.Paint.Align.CENTER
+    
+    val text = if (count > 99) "99+" else count.toString()
+    // Center text vertically
+    val bounds = android.graphics.Rect()
+    paint.getTextBounds(text, 0, text.length, bounds)
+    val textY = cy + (bounds.height() / 2f) - (bounds.bottom * 0.1f) // adjustments
+    
+    canvas.drawText(text, cx, textY, paint)
     
     return com.google.android.gms.maps.model.BitmapDescriptorFactory.fromBitmap(bitmap)
+}
+
+// [FIX] Safe Vector Drawable Loader with Scaling
+fun bitmapDescriptorFromVector(
+    context: android.content.Context,
+    @androidx.annotation.DrawableRes vectorResId: Int,
+    targetSizeDp: Int = 40 
+): com.google.android.gms.maps.model.BitmapDescriptor? {
+    return try {
+        val vectorDrawable = androidx.core.content.ContextCompat.getDrawable(context, vectorResId) ?: return null
+        
+        val density = context.resources.displayMetrics.density
+        val sizePx = (targetSizeDp * density).toInt()
+
+        // Maintain aspect ratio if intrinsic dimensions exist
+        val w = vectorDrawable.intrinsicWidth
+        val h = vectorDrawable.intrinsicHeight
+        
+        val finalW: Int
+        val finalH: Int
+        
+        if (w > 0 && h > 0) {
+            val aspect = w.toFloat() / h.toFloat()
+            if (w > h) {
+                finalW = sizePx
+                finalH = (sizePx / aspect).toInt()
+            } else {
+                finalH = sizePx
+                finalW = (sizePx * aspect).toInt()
+            }
+        } else {
+            finalW = sizePx
+            finalH = sizePx
+        }
+
+        vectorDrawable.setBounds(0, 0, finalW, finalH)
+        val bitmap = android.graphics.Bitmap.createBitmap(
+            finalW,
+            finalH,
+            android.graphics.Bitmap.Config.ARGB_8888
+        )
+        val canvas = android.graphics.Canvas(bitmap)
+        vectorDrawable.draw(canvas)
+        com.google.android.gms.maps.model.BitmapDescriptorFactory.fromBitmap(bitmap)
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
 }
 
