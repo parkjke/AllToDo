@@ -6,7 +6,9 @@ enum LogType: String {
     case locationPause = "LOCATION_PAUSE"
     case locationResume = "LOCATION_RESUME"
     case batteryLevel = "BATTERY_LEVEL"
+    case launchStep = "LAUNCH_STEP"
     case error = "ERROR"
+    case network = "NETWORK"
 }
 
 class OptimizationLogger {
@@ -54,7 +56,17 @@ class OptimizationLogger {
             }
         } catch {
             print("OptimizationLogger Error: \(error)")
-        }
+            }
+    }
+    
+    func logLaunchStep(step: String, data: [String: Any]) {
+        var logData = data
+        logData["step"] = step
+        
+        let jsonString = (try? JSONSerialization.data(withJSONObject: logData, options: []))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+            
+        self.log(type: .launchStep, value: jsonString)
     }
     
     func readLogs() -> String? {

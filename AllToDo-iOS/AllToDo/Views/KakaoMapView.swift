@@ -2,57 +2,55 @@ import SwiftUI
 import KakaoMapsSDK
 import CoreLocation
 
+// MARK: - Map Action Enum
 enum MapAction {
     case none
     case zoomIn
     case zoomOut
     case currentLocation
     case rotateNorth
-    case zoomToFit // [NEW]
+    case zoomToFit
+    case launchSequence
 }
 
+// MARK: - KakaoMapView Struct
 struct KakaoMapView: UIViewRepresentable {
     @Binding var action: MapAction
     @Binding var rotation: Double
     @ObservedObject var locationManager: AppLocationManager
     var todoItems: [ToDoItem]
-    var userLogs: [UserLog] // [NEW]
+    var userLogs: [UserLog]
     @Binding var selectedItem: ToDoItem?
-    @Binding var selectedClusterItems: [UnifiedMapItem]? // [NEW]
+    @Binding var selectedClusterItems: [UnifiedMapItem]?
     var onLongTap: ((CLLocationCoordinate2D) -> Void)?
     
     func makeUIView(context: Context) -> KMViewContainer {
         let view = KMViewContainer()
-        view.sizeToFit()
+        view.backgroundColor = UIColor.white.withAlphaComponent(0.01) // Invisible fill for hits
+        view.isUserInteractionEnabled = true
+        
         context.coordinator.createController(view)
         context.coordinator.locationManager = locationManager
         context.coordinator.selectedItemBinding = $selectedItem
-        context.coordinator.selectedClusterBinding = $selectedClusterItems // [NEW]
+        context.coordinator.selectedClusterBinding = $selectedClusterItems
         context.coordinator.onLongTap = onLongTap
+        
         return view
     }
 
     func updateUIView(_ uiView: KMViewContainer, context: Context) {
+        // 1. Sync Bindings
         context.coordinator.selectedItemBinding = $selectedItem
         context.coordinator.selectedClusterBinding = $selectedClusterItems
         context.coordinator.onLongTap = onLongTap
+        
+        // 2. Push Data Updates
         context.coordinator.updatePins(items: todoItems, logs: userLogs)
         
-        if let mapView = context.coordinator.controller?.getView("mapview") as? KakaoMap {
-            context.coordinator.updatePath(mapView: mapView, selectedItems: selectedClusterItems)
-        }
-        
-        // ...
-        
+        // 3. Handle Actions
         if action != .none {
             context.coordinator.handleAction(action)
-            DispatchQueue.main.async {
-                action = .none
-            }
-        }
-        
-        if let location = locationManager.currentLocation, !context.coordinator.hasMovedToUserLocation {
-            context.coordinator.moveToUserLocation(location)
+            DispatchQueue.main.async { action = .none }
         }
     }
 
@@ -60,394 +58,347 @@ struct KakaoMapView: UIViewRepresentable {
         return Coordinator()
     }
 
+    static func dismantleUIView(_ uiView: KMViewContainer, coordinator: Coordinator) {
+        coordinator.controller?.pauseEngine()
+        coordinator.controller?.resetEngine()
+    }
+
+    // MARK: - Coordinator Class
     class Coordinator: NSObject, MapControllerDelegate, KakaoMapEventDelegate {
         var controller: KMController?
-        var firstRender = true
+        weak var viewContainer: KMViewContainer?
         var locationManager: AppLocationManager?
-        var hasMovedToUserLocation = false
-        var rotationTimer: Timer?
+        
+        // Data & Bindings
         var selectedItemBinding: Binding<ToDoItem?>?
-        var selectedClusterBinding: Binding<[UnifiedMapItem]?>? // [NEW]
+        var selectedClusterBinding: Binding<[UnifiedMapItem]?>?
         var onLongTap: ((CLLocationCoordinate2D) -> Void)?
         
-        // Anti-Flickering
-        var lastItemCount: Int = -1
+        var currentItems: [ToDoItem] = []
+        var currentLogs: [UserLog] = []
         
-        // Launch Animation
-        var firstLocationUpdate = true
+        // Lookup Tables
+        var labelIdToItems: [String: UnifiedMapItem] = [:]
+        var labelIdToClusterItems: [String: [UnifiedMapItem]] = [:]
         
-        var labelIdToItems: [String: UnifiedMapItem] = [:] // [FIX] Store UnifiedItem
-
-        // ...
-
-
-
+        // Styles to Register
+        let pinAssets = [
+            "PinCurrent", "PinHistory", "PinTodoReady", "PinTodoDone",
+            "PinTodoCancel", "PinTodoFail", "PinReceiveReady",
+            "PinReceiveDone", "PinReceiveReject"
+        ]
+        
+        override init() {
+            super.init()
+            // Lifecycle Observers
+            NotificationCenter.default.addObserver(self, selector: #selector(appDidBecomeActive), name: UIApplication.didBecomeActiveNotification, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(appWillResignActive), name: UIApplication.willResignActiveNotification, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(appDidEnterBackground), name: UIApplication.didEnterBackgroundNotification, object: nil)
+        }
+        
+        deinit {
+            NotificationCenter.default.removeObserver(self)
+        }
+        
+        // MARK: - Engine Lifecycle
         func createController(_ view: KMViewContainer) {
+            self.viewContainer = view
             controller = KMController(viewContainer: view)
             controller?.delegate = self
             controller?.prepareEngine()
         }
         
-        func handleAction(_ action: MapAction) {
-            guard let controller = controller else { return }
-            guard let mapView = controller.getView("mapview") as? KakaoMap else { return }
-            
-            switch action {
-            case .zoomIn:
-                let pos = mapView.getPosition(CGPoint(x: mapView.viewRect.midX, y: mapView.viewRect.midY))
-                mapView.moveCamera(CameraUpdate.make(target: pos, zoomLevel: mapView.zoomLevel + 1, rotation: mapView.rotationAngle, tilt: mapView.tiltAngle, mapView: mapView))
-            case .zoomOut:
-                 let pos = mapView.getPosition(CGPoint(x: mapView.viewRect.midX, y: mapView.viewRect.midY))
-                 mapView.moveCamera(CameraUpdate.make(target: pos, zoomLevel: mapView.zoomLevel - 1, rotation: mapView.rotationAngle, tilt: mapView.tiltAngle, mapView: mapView))
-            case .currentLocation:
-                moveCameraToCurrentLocation(mapView: mapView)
-            case .rotateNorth:
-                 let pos = mapView.getPosition(CGPoint(x: mapView.viewRect.midX, y: mapView.viewRect.midY))
-                 mapView.moveCamera(CameraUpdate.make(target: pos, zoomLevel: mapView.zoomLevel, rotation: 0.0, tilt: mapView.tiltAngle, mapView: mapView))
-            case .none:
-                break
-            case .zoomToFit:
-                 fitToAllPins(mapView: mapView, userLocation: locationManager?.currentLocation)
-            }
+        @objc func appWillResignActive() {
+            controller?.pauseEngine()
         }
-        
-        func moveCameraToCurrentLocation(mapView: KakaoMap) {
-             if let location = locationManager?.currentLocation {
-                 let pos = MapPoint(longitude: location.coordinate.longitude, latitude: location.coordinate.latitude)
-                 // animateCamera with options
-                 let update = CameraUpdate.make(target: pos, zoomLevel: 15, rotation: 0, tilt: 0, mapView: mapView)
-                 let options = CameraAnimationOptions(autoElevation: true, consecutive: false, durationInMillis: 1000)
-                 mapView.animateCamera(cameraUpdate: update, options: options)
-             } else {
-                 // locationManager?.requestLocationPermission() // [FIX] Assuming handled by AppLocationManager init or separate flow
-             }
+        @objc func appDidEnterBackground() {
+            controller?.pauseEngine()
         }
-        
-        func moveToUserLocation(_ location: CLLocation) {
-            guard let controller = controller else { return }
-            guard let mapView = controller.getView("mapview") as? KakaoMap else { return }
-            
-            updateUserPin(location)
-            
-            // Launch Animation Logic
-            if firstLocationUpdate {
-                firstLocationUpdate = false
-                hasMovedToUserLocation = true
-                
-                // Always try to Fit All first if pins exist
-                if !labelIdToItems.isEmpty {
-                    fitToAllPins(mapView: mapView, userLocation: location)
-                    
-                     // Phase 2: Zoom to User (Delayed)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                         // Animate to user high zoom
-                         let pos = MapPoint(longitude: location.coordinate.longitude, latitude: location.coordinate.latitude)
-                         let update = CameraUpdate.make(target: pos, zoomLevel: 17, rotation: 0, tilt: 0, mapView: mapView)
-                         let options = CameraAnimationOptions(autoElevation: true, consecutive: false, durationInMillis: 1500)
-                         mapView.animateCamera(cameraUpdate: update, options: options)
-                    }
-                } else {
-                    // No pins? Just wide zoom first maybe? Or direct to user?
-                    // User wants "Wide -> Zoom".
-                    // Let's show relatively wide view of User then zoom in?
-                    // or just direct for now if no pins.
-                     let pos = MapPoint(longitude: location.coordinate.longitude, latitude: location.coordinate.latitude)
-                     let update = CameraUpdate.make(target: pos, zoomLevel: 17, rotation: 0, tilt: 0, mapView: mapView)
-                     let options = CameraAnimationOptions(autoElevation: true, consecutive: false, durationInMillis: 1000)
-                     mapView.animateCamera(cameraUpdate: update, options: options)
+        @objc func appDidBecomeActive() {
+            if controller?.isEngineActive == false {
+                controller?.activateEngine()
+                // Auto refresh after resume
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    self.refreshClusters()
                 }
             }
         }
         
-        func fitToAllPins(mapView: KakaoMap, userLocation: CLLocation?) {
-            var minLat = 90.0, maxLat = -90.0, minLon = 180.0, maxLon = -180.0
-            var hasPoint = false
-            
-            // Include User Location
-            if let userLoc = userLocation {
-                minLat = min(minLat, userLoc.coordinate.latitude)
-                maxLat = max(maxLat, userLoc.coordinate.latitude)
-                minLon = min(minLon, userLoc.coordinate.longitude)
-                maxLon = max(maxLon, userLoc.coordinate.longitude)
-                hasPoint = true
-            }
-            
-            // Include Pins
-            for item in labelIdToItems.values {
-                if let loc = item.location {
-                    minLat = min(minLat, loc.latitude)
-                    maxLat = max(maxLat, loc.latitude)
-                    minLon = min(minLon, loc.longitude)
-                    maxLon = max(maxLon, loc.longitude)
-                    hasPoint = true
-                }
-            }
-            
-            guard hasPoint else { return }
-            
-            // Adjust Logic: Find Min/Max Lat/Lon
-            let sw = MapPoint(longitude: minLon, latitude: minLat)
-            let ne = MapPoint(longitude: maxLon, latitude: maxLat)
-            
-            let rect = AreaRect(southWest: sw, northEast: ne)
-            
-            let update = CameraUpdate.make(area: rect)
-            let options = CameraAnimationOptions(autoElevation: true, consecutive: false, durationInMillis: 1000)
-            mapView.animateCamera(cameraUpdate: update, options: options)
-        }
-        
-        func updateUserPin(_ location: CLLocation) {
-            guard let controller = controller else { return }
-            guard let mapView = controller.getView("mapview") as? KakaoMap else { return }
-            let labelManager = mapView.getLabelManager()
-            
-            let layer = labelManager.getLabelLayer(layerID: "userLayer") ?? {
-                let options = LabelLayerOptions(layerID: "userLayer", competitionType: .none, competitionUnit: .poi, orderType: .rank, zOrder: 1000)
-                return labelManager.addLabelLayer(option: options)
-            }()
-            
-            // Check & Register Styles
-            if !hasAddedStyles {
-                registerAllPinStyles(labelManager: labelManager)
-                hasAddedStyles = true
-            }
-            
-            let pos = MapPoint(longitude: location.coordinate.longitude, latitude: location.coordinate.latitude)
-            
-            // User Pin uses "style_PinCurrent"
-            if let layer = layer {
-                if layer.getPoi(poiID: "userLabel") != nil {
-                     layer.removePoi(poiID: "userLabel")
-                }
-                addPoiToLayer(layer, styleID: "style_PinCurrent", poiID: "userLabel", at: pos)
-            }
-        }
-        
-        var hasAddedStyles = false
-        
-        // [FIX] Updated Signature
-        func updatePins(items: [ToDoItem], logs: [UserLog]) {
-            // Anti-Flickering: Skip if count didn't change
-            let totalCount = items.count + logs.count
-            if totalCount == lastItemCount {
-                return
-            }
-            lastItemCount = totalCount
-            
-            guard let controller = controller else { return }
-            guard let mapView = controller.getView("mapview") as? KakaoMap else { return }
-            let labelManager = mapView.getLabelManager()
-            
-            let layer = labelManager.getLabelLayer(layerID: "todoLayer") ?? {
-                 let options = LabelLayerOptions(layerID: "todoLayer", competitionType: .none, competitionUnit: .poi, orderType: .rank, zOrder: 1000)
-                 return labelManager.addLabelLayer(option: options)
-            }()
-            
-            // Clear existing
-            // Safe bet: iterate my local keys.
-            for key in labelIdToItems.keys {
-                layer?.removePoi(poiID: key)
-            }
-            labelIdToItems.removeAll()
-            
-            // Ensure styles added
-            if !hasAddedStyles {
-                registerAllPinStyles(labelManager: labelManager)
-                hasAddedStyles = true
-            }
-            
-            // Add Todos
-            for item in items {
-                guard let loc = item.location else { continue }
-                
-                let labelId = "todo_" + item.id.uuidString
-                let unifiedItem = UnifiedMapItem.todo(item)
-                labelIdToItems[labelId] = unifiedItem
-                
-                let pos = MapPoint(longitude: loc.longitude, latitude: loc.latitude)
-                let styleID = "style_" + unifiedItem.imageName
-                
-                addPoiToLayer(layer, styleID: styleID, poiID: labelId, at: pos, clickable: true)
-            }
-            
-            // Add Logs [NEW]
-            for log in logs {
-                let labelId = "log_" + log.id.uuidString
-                let unifiedItem = UnifiedMapItem.history(log)
-                labelIdToItems[labelId] = unifiedItem
-                
-                let pos = MapPoint(longitude: log.longitude, latitude: log.latitude)
-                let styleID = "style_" + unifiedItem.imageName
-                
-                addPoiToLayer(layer, styleID: styleID, poiID: labelId, at: pos, clickable: true)
-            }
-            
-            // Launch Animation Phase 1: Fit All Pins (Show wide view first)
-            if firstRender && !items.isEmpty {
-                // Determine bounding box of pins + User Location if available
-                let userLoc = locationManager?.currentLocation
-                fitToAllPins(mapView: mapView, userLocation: userLoc)
-                firstRender = false
-                
-                // If we fitted pins, we can consider firstLocationUpdate done for the purpose of "Wide View".
-                // But we still want the "delayed zoom to user".
-                // If we do this here, we might conflict with moveToUserLocation's logic.
-                // Best to let them coordinate via flags.
-                // But ensure 'fitToAllPins' moves the camera!
-            }
-        }
-        
-        func addPoiToLayer(_ layer: LabelLayer?, styleID: String, poiID: String, at pos: MapPoint, clickable: Bool = false) {
-             guard let layer = layer else { return }
-             let options = PoiOptions(styleID: styleID, poiID: poiID)
-             options.rank = 0
-             if clickable { options.clickable = true }
-             
-             if let poi = layer.addPoi(option: options, at: pos) {
-                 poi.show()
-             }
-        }
-        
-        // Drawing Helpers - Now using Assets
-        // Drawing Helpers - Now using PinImageHelper
-        func registerAllPinStyles(labelManager: LabelManager) {
-            // Map imageName -> (Color, SF Symbol)
-            let strategies: [String: (UIColor, String)] = [
-                "PinTodoReady": (UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0), "circle"),
-                "PinTodoDone": (UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0), "checkmark.circle.fill"),
-                "PinTodoCancel": (.gray, "xmark.circle.fill"),
-                "PinTodoFail": (.red, "exclamationmark.circle.fill"),
-                "PinHistory": (.red, "clock.fill"),
-                "PinCurrent": (.red, "person.fill"),
-                "PinReceiveReady": (.blue, "arrow.down.circle"),
-                "PinReceiveDone": (.blue, "checkmark.circle"),
-                "PinReceiveReject": (.blue, "xmark.circle"),
-                
-                // Fallbacks
-                "PinTodo": (UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0), "circle"),
-                "PinReceive": (.blue, "envelope.fill")
-            ]
-            
-            for (name, style) in strategies {
-                let styleID = "style_" + name
-                let image = PinImageHelper.shared.createShieldPin(color: style.0, iconName: style.1)
-                
-                // All Shields anchor at bottom-center (0.5, 1.0)
-                let anchor = CGPoint(x: 0.5, y: 1.0)
-                
-                let iconStyle = PoiIconStyle(symbol: image, anchorPoint: anchor)
-                let perLevel = PerLevelPoiStyle(iconStyle: iconStyle, level: 0)
-                let pinStyle = PoiStyle(styleID: styleID, styles: [perLevel])
-                
-                labelManager.addPoiStyle(pinStyle)
-            }
-        }
-        
-        // Path Visualization
-        func updatePath(mapView: KakaoMap, selectedItems: [UnifiedMapItem]?) {
-            let layerManager = mapView.getShapeManager()
-            let layer = layerManager.getShapeLayer(layerID: "pathLayer") ?? {
-                return layerManager.addShapeLayer(layerID: "pathLayer", zOrder: 900)
-            }()
-            
-            // Clear existing
-            layer?.removeMapPolylineShape(shapeID: "userPath")
-            
-            guard let items = selectedItems, let first = items.first, case .history(let log) = first else { return }
-            
-            if let data = log.pathData, let points = try? JSONDecoder().decode([LocationData].self, from: data) {
-                if points.count < 2 { return }
-                
-                var mapPoints: [MapPoint] = []
-                for p in points {
-                    mapPoints.append(MapPoint(longitude: p.longitude, latitude: p.latitude))
-                }
-                
-                // TODO: Fix KakaoMapsSDK MapPolylineShape creation. Init is private.
-                // Needs investigation into checking correct factory method (layer.addMapPolylineShape(options)?)
-                
-                /* [Disabled for Build]
-                let styleID = "pathStyleRed"
-                let perLevel = PerLevelPolylineStyle(bodyColor: UIColor.red, bodyWidth: 4, strokeColor: UIColor.red, strokeWidth: 0, level: 0)
-                let style = PolylineStyle(styles: [perLevel])
-                let styleSet = PolylineStyleSet(styleSetID: styleID, styles: [style])
-                
-                layerManager.addPolylineStyleSet(styleSet) 
-                
-                let options = MapPolylineShapeOptions(shapeID: "userPath", styleID: styleID, zOrder: 1)
-                
-                // Revert to mapPoints init (Simpler, works for single segment)
-                // let polyline = MapPolylineShape(mapPoints: mapPoints, options: options) // ERROR: No accessible init
-                
-                // layer?.addMapPolylineShape(polyline)
-                */
-                print("DEBUG: Kakao Path Visualization Disabled due to SDK Issue")
-            }
-        }
-
         // MARK: - MapControllerDelegate
-        
         func addViews() {
-            let defaultPosition: MapPoint = MapPoint(longitude: 126.978365, latitude: 37.566691)
-            let mapviewInfo: MapviewInfo = MapviewInfo(viewName: "mapview", viewInfoName: "map", defaultPosition: defaultPosition, defaultLevel: 12)
-            controller?.addView(mapviewInfo)
-        }
-
-        func authenticationSucceeded() {
-            print("KakaoMap: Authentication Succeeded")
-            controller?.activateEngine()
+            // [Standard] Start at User Location immediately
+            let defaultPos: MapPoint
+            if let loc = locationManager?.currentLocation {
+                defaultPos = MapPoint(longitude: loc.coordinate.longitude, latitude: loc.coordinate.latitude)
+            } else {
+                defaultPos = MapPoint(longitude: 126.978365, latitude: 37.566691)
+            }
+            
+            let mapviewInfo = MapviewInfo(viewName: "mapview", viewInfoName: "map", defaultPosition: defaultPos, defaultLevel: 12)
+            
+            if let controller = controller {
+                controller.addView(mapviewInfo)
+            }
         }
         
-        func authenticationFailed(_ errorCode: Int, desc: String) {
-            print("KakaoMap: Authentication Failed (\(errorCode)): \(desc)")
+        func addViewSucceeded(_ viewName: String, viewInfoName: String) {
+            print("KakaoMap: Engine Ready & View Added")
+            controller?.activateEngine()
+            
+            if let mapView = controller?.getView("mapview") as? KakaoMap {
+                mapView.eventDelegate = self // [CRITICAL] Connect Tap Events
+                
+                // Initialize Styles
+                let labelManager = mapView.getLabelManager()
+                registerAllPinStyles(labelManager: labelManager)
+                
+                // Initial Render
+                refreshClusters()
+                
+                // [Animation] 3-Second Zoom (Apple Map Style)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
+                    guard let self = self else { return }
+                    if let loc = self.locationManager?.currentLocation {
+                        let pos = MapPoint(longitude: loc.coordinate.longitude, latitude: loc.coordinate.latitude)
+                        let update = CameraUpdate.make(target: pos, zoomLevel: 15, rotation: 0, tilt: 0, mapView: mapView)
+                        let options = CameraAnimationOptions(autoElevation: true, consecutive: false, durationInMillis: 1500)
+                        mapView.animateCamera(cameraUpdate: update, options: options)
+                    }
+                }
+            }
         }
         
         func containerDidResize(_ size: CGSize) {
             let mapView: KakaoMap? = controller?.getView("mapview") as? KakaoMap
-            mapView?.viewRect = CGRect(origin: CGPoint(x: 0.0, y: 0.0), size: size)
+            mapView?.viewRect = CGRect(origin: .zero, size: size)
         }
         
-        func addViewSucceeded(_ viewName: String, viewInfoName: String) {
-             print("KakaoMap: addViewSucceeded")
-             if let mapView = controller?.getView("mapview") as? KakaoMap {
-                 mapView.eventDelegate = self
-             }
-             
-             rotationTimer?.invalidate()
-             rotationTimer = Timer.scheduledTimer(withTimeInterval: 0.03, repeats: true) { [weak self] _ in
-                 guard let self = self else { return }
-                 if let mapView = self.controller?.getView("mapview") as? KakaoMap {
-                     let angleRadians = mapView.rotationAngle
-                     let angleDegrees = angleRadians * 180.0 / .pi
-                     NotificationCenter.default.post(name: NSNotification.Name("MapRotationChanged"), object: nil, userInfo: ["rotation": angleDegrees])
-                 }
-             }
+        // MARK: - Styles & Data
+        func registerAllPinStyles(labelManager: LabelManager) {
+            for assetName in pinAssets {
+                let styleID = "style_" + assetName
+                if let image = UIImage(named: assetName) {
+                    // Resize to standard size (e.g., width 40)
+                    let targetWidth: CGFloat = 40
+                    let ratio = image.size.height / image.size.width
+                    let targetSize = CGSize(width: targetWidth, height: targetWidth * ratio)
+                    let finalImage = image.resized(to: targetSize) ?? image
+                    
+                    let iconStyle = PoiIconStyle(symbol: finalImage, anchorPoint: CGPoint(x: 0.5, y: 1.0))
+                    let perLevel = PerLevelPoiStyle(iconStyle: iconStyle, level: 0)
+                    let style = PoiStyle(styleID: styleID, styles: [perLevel])
+                    labelManager.addPoiStyle(style)
+                }
+            }
         }
         
-        // MARK: - KakaoMapEventDelegate
-        func terrainDidLongPressed(kakaoMap: KakaoMap, position: MapPoint) {
-             print("KakaoMap: Long Pressed at \(position.wgsCoord.latitude), \(position.wgsCoord.longitude)")
-             let coord = CLLocationCoordinate2D(latitude: position.wgsCoord.latitude, longitude: position.wgsCoord.longitude)
-             DispatchQueue.main.async {
-                 self.onLongTap?(coord)
-             }
+        func updatePins(items: [ToDoItem], logs: [UserLog]) {
+            self.currentItems = items
+            self.currentLogs = logs
+            refreshClusters()
         }
         
+        func refreshClusters() {
+            guard let controller = controller else { return }
+            guard let mapView = controller.getView("mapview") as? KakaoMap else { return }
+            let labelManager = mapView.getLabelManager()
+            
+            // 1. Prepare Data
+            var allUnified: [UnifiedMapItem] = []
+            for item in currentItems { if let _ = item.location { allUnified.append(.todo(item)) } }
+            for log in currentLogs { allUnified.append(.history(log)) }
+            
+            // 2. Wasm Data
+            var rawPoints: [Int32] = []
+            for item in allUnified {
+                if let loc = item.location {
+                    rawPoints.append(Int32(loc.latitude * 1_000_000))
+                    rawPoints.append(Int32(loc.longitude * 1_000_000))
+                }
+            }
+            
+            // 3. Cell Size
+            let zoom = mapView.zoomLevel
+            let resolution = 156543.03392 * cos(37.5 * .pi / 180) / pow(2.0, Double(zoom))
+            let cellSize = 120.0 * resolution
+            
+            // 4. Async Cluster
+            Task {
+                let clusterResults = await WasmManager.shared.cluster(points: rawPoints, cellSize: cellSize)
+                await MainActor.run {
+                    self.renderWasmClusters(clusterResults: clusterResults, originalItems: allUnified, labelManager: labelManager, mapView: mapView)
+                }
+            }
+        }
+        
+        @MainActor
+        func renderWasmClusters(clusterResults: [Int32], originalItems: [UnifiedMapItem], labelManager: LabelManager, mapView: KakaoMap) {
+            // [Clean Slate]
+            if let _ = labelManager.getLabelLayer(layerID: "todoLayer") {
+                labelManager.removeLabelLayer(layerID: "todoLayer")
+            }
+            let layer = labelManager.addLabelLayer(option: LabelLayerOptions(layerID: "todoLayer", competitionType: .none, competitionUnit: .poi, orderType: .rank, zOrder: 10001))
+            
+            labelIdToItems.removeAll()
+            labelIdToClusterItems.removeAll()
+            
+            // Parse Centroids
+            struct Centroid { let lat: Double; let lon: Double; let count: Int }
+            var centroids: [Centroid] = []
+            let strideVal = 3
+            if clusterResults.count % strideVal == 0 {
+                for i in stride(from: 0, to: clusterResults.count, by: strideVal) {
+                    let lat = Double(clusterResults[i]) / 1_000_000.0
+                    let lon = Double(clusterResults[i+1]) / 1_000_000.0
+                    let count = Int(clusterResults[i+2])
+                    centroids.append(Centroid(lat: lat, lon: lon, count: count))
+                }
+            }
+            
+            // Assign Items to Centroids
+            var assignments: [[UnifiedMapItem]] = Array(repeating: [], count: centroids.count)
+            for item in originalItems {
+                guard let loc = item.location else { continue }
+                var minDist = Double.greatestFiniteMagnitude
+                var bestIdx = -1
+                for (idx, c) in centroids.enumerated() {
+                    let dLat = loc.latitude - c.lat
+                    let dLon = loc.longitude - c.lon
+                    let dist = dLat*dLat + dLon*dLon
+                    if dist < minDist { minDist = dist; bestIdx = idx }
+                }
+                if bestIdx >= 0 { assignments[bestIdx].append(item) }
+            }
+            
+            // Render
+            for (idx, items) in assignments.enumerated() {
+                if items.isEmpty { continue }
+                let centroid = centroids[idx]
+                let pos = MapPoint(longitude: centroid.lon, latitude: centroid.lat)
+                
+                if items.count == 1 {
+                    // Single -> Use Asset Style
+                    let item = items[0]
+                    let poiId = "poi_" + item.id.uuidString
+                    labelIdToItems[poiId] = item
+                    let styleID = "style_" + item.imageName
+                    addPoiToLayer(layer, styleID: styleID, poiID: poiId, at: pos, clickable: true)
+                } else {
+                    // Cluster -> Use Asset Base + Count
+                    let clusterID = UUID().uuidString
+                    let poiId = "cluster_" + clusterID
+                    labelIdToClusterItems[poiId] = items
+                    
+                    var todoCount = 0
+                    var historyCount = 0
+                    var hasUser = false
+                    for item in items {
+                        switch item {
+                        case .todo: todoCount += 1
+                        case .history: historyCount += 1
+                        case .userLocation: hasUser = true
+                        default: break
+                        }
+                    }
+                    
+                    let isHistoryOrUser = (historyCount > todoCount) || hasUser
+                    
+                    // [Strategy] Load Base Asset
+                    let baseAssetName = isHistoryOrUser ? "PinHistory" : "PinTodoReady"
+                    let baseImage = UIImage(named: baseAssetName)
+                    
+                    // Generate with Count (No Optionals here now)
+                    let generatedImage = PinImageHelper.shared.createShieldPin(color: .clear, count: items.count, baseImage: baseImage)
+                    if let rasterized = generatedImage.rasterized() {
+                        let iconStyle = PoiIconStyle(symbol: rasterized, anchorPoint: CGPoint(x: 0.5, y: 1.0))
+                        let styleID = "style_cluster_\(poiId)"
+                        let style = PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: iconStyle, level: 0)])
+                        labelManager.addPoiStyle(style)
+                        
+                        addPoiToLayer(layer, styleID: styleID, poiID: poiId, at: pos, clickable: true)
+                    }
+                }
+            }
+            
+            // Render Path (Logic Disabled for stability)
+            if let mapView = controller?.getView("mapview") as? KakaoMap {
+                updatePath(mapView: mapView, selectedItems: selectedClusterBinding?.wrappedValue)
+            }
+        }
+        
+        func addPoiToLayer(_ layer: LabelLayer?, styleID: String, poiID: String, at pos: MapPoint, clickable: Bool) {
+            let options = PoiOptions(styleID: styleID, poiID: poiID)
+            options.rank = 0
+            options.clickable = clickable
+            if let poi = layer?.addPoi(option: options, at: pos) {
+                poi.show()
+            }
+        }
+        
+        // MARK: - Path Drawing
+        func updatePath(mapView: KakaoMap, selectedItems: [UnifiedMapItem]?) {
+            // Placeholder: Path drawing logic is temporarily disabled for safety.
+            // Will implement correct MapPolyline logic after verification.
+        }
+        
+        // MARK: - Actions
+        func handleAction(_ action: MapAction) {
+            guard let mapView = controller?.getView("mapview") as? KakaoMap else { return }
+            switch action {
+            case .zoomIn:
+                mapView.moveCamera(CameraUpdate.make(zoomLevel: mapView.zoomLevel + 1, mapView: mapView))
+            case .zoomOut:
+                mapView.moveCamera(CameraUpdate.make(zoomLevel: mapView.zoomLevel - 1, mapView: mapView))
+            case .currentLocation:
+                if let loc = locationManager?.currentLocation {
+                    let pos = MapPoint(longitude: loc.coordinate.longitude, latitude: loc.coordinate.latitude)
+                    mapView.moveCamera(CameraUpdate.make(target: pos, zoomLevel: 15, mapView: mapView))
+                }
+            case .rotateNorth:
+                mapView.moveCamera(CameraUpdate.make(rotation: 0, tilt: 0, mapView: mapView))
+            case .zoomToFit:
+                break
+            case .launchSequence:
+                if let loc = locationManager?.currentLocation {
+                     let pos = MapPoint(longitude: loc.coordinate.longitude, latitude: loc.coordinate.latitude)
+                     let update = CameraUpdate.make(target: pos, zoomLevel: 15, rotation: 0, tilt: 0, mapView: mapView)
+                     let options = CameraAnimationOptions(autoElevation: true, consecutive: false, durationInMillis: 1500)
+                     mapView.animateCamera(cameraUpdate: update, options: options)
+                }
+            case .none: break
+            }
+        }
+        
+        // MARK: - Interactions
         func poiDidTapped(kakaoMap: KakaoMap, layerID: String, poiID: String, param: Any?) {
-             print("KakaoMap: POI Tapped \(poiID)")
-             if let item = labelIdToItems[poiID] {
-                 DispatchQueue.main.async {
-                     // Normalize selection to Cluster for consistency with ContentView
-                     self.selectedClusterBinding?.wrappedValue = [item]
-                     self.selectedItemBinding?.wrappedValue = nil
-                 }
-             }
+            if let clusterItems = labelIdToClusterItems[poiID] {
+                DispatchQueue.main.async {
+                    self.selectedClusterBinding?.wrappedValue = clusterItems
+                    self.selectedItemBinding?.wrappedValue = nil
+                }
+                return
+            }
+            if let item = labelIdToItems[poiID] {
+                DispatchQueue.main.async {
+                    self.selectedClusterBinding?.wrappedValue = [item]
+                    self.selectedItemBinding?.wrappedValue = nil
+                }
+            }
         }
         
-        deinit {
-             rotationTimer?.invalidate()
-             controller?.pauseEngine()
-             controller?.resetEngine()
+        func terrainDidTapped(kakaoMap: KakaoMap, position: MapPoint) {
+            DispatchQueue.main.async {
+                self.selectedClusterBinding?.wrappedValue = nil
+                self.selectedItemBinding?.wrappedValue = nil
+            }
+        }
+        
+        func cameraDidStopped(kakaoMap: KakaoMap, by: MoveBy) {
+            refreshClusters()
+        }
+        
+        func authenticationFailed(_ errorCode: Int, desc: String) {
+            print("KakaoMap: Auth Failed \(errorCode)")
         }
     }
 }

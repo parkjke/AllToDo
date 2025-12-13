@@ -5,8 +5,8 @@
 ## 1. 기본 정의 (Definitions)
 
 ### 📍 핀 (Pin)
-- **정의**: 위치 정보(Latitude, Longitude)가 존재하는 **"할 일(To-Do)"** 항목.
-- **제외**: 위치가 없는 할 일, 단순 이동 기록(UserLog)은 "저장된 핀"으로 간주하지 않음.
+- **정의**: 위치 정보(Latitude, Longitude)가 존재하며, **"현재 날짜 기준 ±30일 이내"**인 **"할 일(To-Do)"** 항목.
+- **제외**: 위치가 없는 할 일, 날짜 범위를 벗어난 할 일, 단순 이동 기록(UserLog)은 "저장된 핀"으로 간주하지 않음.
 
 ### 🔍 줌 레벨 (Zoom Level) 참고
 - **Level 9**: 광역 시/도 뷰 (Wide).
@@ -21,9 +21,9 @@
 1. **[T=0] 초기 로딩**:
    - **중심**: 현재 사용자 위치 (User Location).
    - **줌**: **15** (상세).
-2. **[T+1s] 애니메이션**:
-   - **동작**: 줌 아웃 (Zoom Out).
-   - **목표**: 현재 사용자 위치 중심, **줌 9** (광역).
+2. **[T+1s or T+3s] 애니메이션 (Delay: 상용 1s / 개발 3s)**:
+   - **동작**: 줌 아웃 (Zoom Out) 또는 줌 인(Zoom In).
+   - **목표**: 현재 사용자 위치 중심, **줌 17** (초상세).
    - **표시**: 현재 위치 핀(User Pin) 활성화.
 
 ### Case B: 저장된 핀이 있는 경우 (With Pins)
@@ -34,10 +34,18 @@
      > **Formula**: `FinalZoom = max(FitZoom, 15)`
      - **핀이 넓게 퍼짐 (`FitZoom` < 15)**: **줌 15**로 강제 설정 (상세 뷰 우선).
      - **핀이 좁게 모임 (`FitZoom` >= 15)**: **`FitZoom`** 그대로 적용 (핀 전체 표시).
-2. **[T+1s] 애니메이션 ("사용자 기준")**:
+2. **[T+1s or T+3s] 애니메이션 ("사용자 기준")**:
    - **동작**: 줌 변경 및 중심 이동.
-   - **목표**: 현재 사용자 위치 중심, **줌 9** (광역).
+   - **목표**: 현재 사용자 위치 중심, **줌 17** (초상세).
    - **표시**: 현재 위치 핀(User Pin) 활성화. 가까운 핀들은 클러스터링됨.
+
+### Background Re-entry Logic (백그라운드 복귀)
+*   **Threshold (기준 시간)**:
+    *   **DEBUG**: 5초
+    *   **RELEASE**: 9분 (540초)
+*   **동작**:
+    *   **Threshold 이내 (짧은 외출)**: 아무 작업 안 함 (기존 화면 유지).
+    *   **Threshold 초과 (긴 외출)**: 위 Launch Animation (T+1s/3s) 재실행.
 
 ---
 
@@ -118,3 +126,61 @@ func performLaunchAnimation(mapView: MKMapView, userLocation: CLLocation?) {
     }
 }
 ```
+
+## 5. Launch Debugging & Logging Standards
+
+Debugging and logging standards for the app launch process. Logs are saved locally and can be uploaded to the server.
+
+### 📋 Required Log Points
+
+The following 6 steps must be logged in sequence during app launch:
+
+#### 1. `set todo list`
+*   **Trigger**: When `todoItems` are loaded from local database.
+*   **Content**:
+    *   `count_24h`: Count of items within ±24 hours.
+    *   `count_future`: Count of items after +24 hours.
+    *   `total`: Total count.
+
+#### 2. `setup map`
+*   **Trigger**: When the specific `MapView` (Apple/Kakao/Naver/Google) is initialized.
+*   **Content**:
+    *   `provider`: Selected Map Provider Name.
+    *   `status_visible`: UI Status Widget visibility (Boolean).
+    *   `history_visible`: UI History View visibility (Boolean).
+    *   `current_loc_btn_visible`: UI Current Location Button visibility (Boolean).
+    *   `zoom_controls_visible`: UI Zoom In/Out Buttons visibility (Boolean).
+    *   `compass_visible`: UI Compass availability (Boolean).
+
+#### 3. `set current location`
+*   **Trigger**: When `AppLocationManager` receives the first valid location.
+*   **Content**:
+    *   `latitude`: Latitude value.
+    *   `longitude`: Longitude value.
+    *   `accuracy`: Horizontal accuracy (meters).
+    *   `timestamp`: Location timestamp.
+
+#### 4. `setup map zoom`
+*   **Trigger**: Before the initial animation starts (Launch Logic).
+*   **Content**:
+    *   `case`: "Case A" (No Pins) or "Case B" (With Pins).
+    *   `fit_zoom`: Calculated zoom level (if pins exist).
+    *   `final_zoom`: Applied initial zoom level (e.g., 15).
+
+#### 5. `all pin view`
+*   **Trigger**: Immediately after `updateAnnotations` adds pins to the map.
+*   **Content**:
+    *   `added_pin_count`: Number of pins added to the map.
+    *   `user_pin_added`: Whether User Location Pin was added (Boolean).
+
+#### 6. `go current location`
+*   **Trigger**: After the initial 1-second animation completes (Zoom to User).
+*   **Content**:
+    *   `final_action`: "Zoom to User Location (Level 9)".
+    *   `success`: True (if no errors occurred).
+
+### 🛠 Implementation
+
+*   **Logger**: `OptimizationLogger.swift`
+*   **Type**: `LAUNCH_STEP` (New Enum Case)
+*   **Format**: JSON

@@ -19,7 +19,7 @@ struct AppleMapView: UIViewRepresentable {
     func makeUIView(context: Context) -> MKMapView {
         let mapView = MKMapView()
         mapView.delegate = context.coordinator
-        mapView.showsUserLocation = false // We will draw our own Red Pin
+        mapView.showsUserLocation = false // [FIX] Hide System Blue Dot to avoid double pins
         mapView.showsCompass = false // [FIX] Hide System Compass
         mapView.isRotateEnabled = true
         mapView.isPitchEnabled = false
@@ -99,6 +99,9 @@ struct AppleMapView: UIViewRepresentable {
                 break
             case .zoomToFit:
                 mapView.showAnnotations(mapView.annotations, animated: true)
+            case .launchSequence:
+                // [NEW] Relaunch Animation
+                self.performLaunchAnimation(mapView: mapView, userLocation: parent.locationManager.currentLocation)
             }
         }
         
@@ -116,21 +119,9 @@ struct AppleMapView: UIViewRepresentable {
             }
         }
         
-        // Custom Button to hold data Independently
+        // Custom Button subclass just to carry data
         class MapPinButton: UIButton {
             var items: [UnifiedMapItem] = []
-            
-            // Keep debug log
-            override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-                print("DEBUG: MapPinButton Touched!")
-                super.touchesBegan(touches, with: event)
-            }
-            
-            // [FIX] Button itself must accept touches in the expanded area
-            override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
-                let largerBounds = self.bounds.insetBy(dx: -20, dy: -20)
-                return largerBounds.contains(point)
-            }
         }
         
         // [NEW] Custom Annotation View to enforce HitTest
@@ -173,11 +164,9 @@ struct AppleMapView: UIViewRepresentable {
                 }
             }
             
-            // Update State
-            DispatchQueue.main.async {
-                self.parent.selectedClusterItems = items
-                self.parent.selectedItem = nil
-            }
+            // Update State Immediately
+            self.parent.selectedClusterItems = items
+            self.parent.selectedItem = nil
         }
 
         func mapViewDidChangeVisibleRegion(_ mapView: MKMapView) {
@@ -186,177 +175,225 @@ struct AppleMapView: UIViewRepresentable {
                  self.parent.rotation = heading
              }
         }
-
-        func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
-             print("DEBUG: Raw didSelect called with annotation: \(String(describing: view.annotation))")
-             // [User Request] Removed forced deselect to allow natural selection flow
-             
-             // 1. Cluster -> Show List
-             if let cluster = view.annotation as? MKClusterAnnotation {
-                 var items: [UnifiedMapItem] = []
-                 for member in cluster.memberAnnotations {
-                     if let unified = member as? UnifiedAnnotation, let item = unified.item {
-                         items.append(item)
-                     }
-                 }
-                 parent.selectedClusterItems = items
-                 // Keep map position stable
-                 return
+        
+        // MARK: - WASM Clustering Integration
+        
+        func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+             let heading = mapView.camera.heading
+             DispatchQueue.main.async {
+                 self.parent.rotation = heading
              }
              
-             // 2. Items
-             if let unified = view.annotation as? UnifiedAnnotation, let item = unified.item {
-                 switch item {
-                 case .todo(let todo):
-                     // Treat single ToDo as cluster item (Callout) to maintain uniform UI (Map, Time, Trash)
-                     print("DEBUG: didSelect ToDo: \(todo.title)")
-                     DispatchQueue.main.async {
-                         self.parent.selectedClusterItems = [.todo(todo)]
-                         self.parent.selectedItem = nil
-                     }
-                 case .history(let log):
-                     // Show Callout (treat as cluster of 1) instead of immediate jump
-                     print("DEBUG: didSelect History: \(log.startTime)")
-                     DispatchQueue.main.async {
-                         self.parent.selectedClusterItems = [.history(log)]
-                         self.parent.selectedItem = nil
-                     }
-                 default:
-                     break
-                 }
-             }
+             // Trigger WASM Clustering
+             refreshWasmClusters(mapView: mapView)
         }
         
-        // ... (Update Annotations / Launch / ViewFor - Unchanged) ...
-
-
-        
-        func mapView(_ mapView: MKMapView, didDeselect view: MKAnnotationView) {
-            // [FIX] Force reset clustering properties to ensure re-clustering works
-            if view.annotation is UnifiedAnnotation {
-                view.displayPriority = .defaultHigh
-                view.clusteringIdentifier = "unified"
-                view.layer.zPosition = 10
+        private func refreshWasmClusters(mapView: MKMapView) {
+            // [FIX] Fallback to Screen Width if Map View is not yet laid out (Width=0)
+            // This prevents "No pins on launch" bug.
+            var widthPixels = mapView.bounds.width
+            if widthPixels <= 0 {
+                widthPixels = UIScreen.main.bounds.width
             }
-        }
-        
-        // MARK: - Annotation Management
-        func updateAnnotations(mapView: MKMapView, items: [ToDoItem], userLocation: CLLocation?) {
-            // 1. Update User Location Pin (Red)
-            if let userLoc = userLocation {
-                if userAnnotation == nil {
-                    userAnnotation = UnifiedAnnotation()
-                    userAnnotation?.item = .userLocation
-                    mapView.addAnnotation(userAnnotation!)
+            // guard widthPixels > 0 else { return } // Removed guard
+            
+            let currentItems = self.parent.todoItems
+            let currentLogs = self.parent.userLogs
+            let userLocation = self.parent.locationManager.currentLocation
+            
+            // 1. Prepare Data
+            var allItems: [UnifiedMapItem] = []
+            var rawPoints: [Int32] = []
+            
+            // ... (rest of logic)
+            
+            for item in currentItems {
+                if let loc = item.location {
+                    allItems.append(.todo(item))
+                    rawPoints.append(Int32(loc.latitude * 1_000_000))
+                    rawPoints.append(Int32(loc.longitude * 1_000_000))
                 }
-                userAnnotation?.coordinate = userLoc.coordinate
+            }
+            for log in currentLogs {
+                allItems.append(.history(log))
+                rawPoints.append(Int32(log.latitude * 1_000_000))
+                rawPoints.append(Int32(log.longitude * 1_000_000))
             }
             
-            // 2. Diffing Guard
-            let currentItemIDs = Set(items.map { $0.id })
-            let currentLogIDs = Set(parent.userLogs.map { $0.id })
-            
-            print("DEBUG: updateAnnotations Check - Items: \(currentItemIDs.count) Logs: \(currentLogIDs.count)")
-            
-            // [MODIFIED] Force update for debugging user report "Pins not showing"
-            // if currentItemIDs == lastItemIDs && currentLogIDs == lastLogIDs {
-            //    return // No changes
-            // }
-            
-            lastItemIDs = currentItemIDs
-            lastLogIDs = currentLogIDs
-            
-            // 3. Native Clustering - Just Add All Annotations
-            // Remove old unified annotations (keep UserLocation)
-            let oldAnnotations = mapView.annotations.filter { 
-                $0 !== userAnnotation && !($0 is MKUserLocation) 
+            // [FIX] Add User Location to Clustering Data
+            if let userLoc = userLocation {
+                allItems.append(.userLocation)
+                rawPoints.append(Int32(userLoc.coordinate.latitude * 1_000_000))
+                rawPoints.append(Int32(userLoc.coordinate.longitude * 1_000_000))
             }
-            mapView.removeAnnotations(oldAnnotations)
+            
+            // 2. Cell Size Calculation
+            let region = mapView.region
+            let cosLat = cos(region.center.latitude * .pi / 180.0)
+            let widthMeters = region.span.longitudeDelta * 111320.0 * cosLat
+            let metersPerPixel = widthMeters / widthPixels
+            let wasmCellSize = metersPerPixel * 70.0 // User requested 70.0 for broader clustering
+            
+            Task {
+                let start = Date()
+                let result = await WasmManager.shared.cluster(points: rawPoints, cellSize: wasmCellSize)
+                let _ = Date().timeIntervalSince(start) * 1000 
+                                
+                await MainActor.run {
+                    self.renderWasmResults(mapView: mapView, clusterResult: result, allItems: allItems, userLocation: userLocation)
+                }
+            }
+        }
+        
+        private func renderWasmResults(mapView: MKMapView, clusterResult: [Int32], allItems: [UnifiedMapItem], userLocation: CLLocation?) {
+            // Parse Results
+            // Result format: [lat, lon, count, lat, lon, count...]
             
             var newAnnotations: [MKAnnotation] = []
             
-            // Add ToDos
-            for item in items {
-                let annotation = UnifiedAnnotation()
-                annotation.item = .todo(item)
-                annotation.coordinate = CLLocationCoordinate2D(latitude: item.location?.latitude ?? 0, longitude: item.location?.longitude ?? 0)
-                // annotation.title = "Item" // Removed title
-                newAnnotations.append(annotation)
+            // 1. (Removed) User Location is now handled within WASM clustering data directly.
+            
+            // 2. Process Clusters
+            // Simple approach: Assign items to nearest Centroid
+            // This is slightly heavy O(N*M) but N(Items)~100, M(Clusters)~10. Fast enough.
+            
+            struct Centroid { let lat: Double; let lon: Double; let count: Int }
+            var centroids: [Centroid] = []
+            
+            if clusterResult.count % 3 == 0 {
+                for i in stride(from: 0, to: clusterResult.count, by: 3) {
+                    let lat = Double(clusterResult[i]) / 1_000_000.0
+                    let lon = Double(clusterResult[i+1]) / 1_000_000.0
+                    let count = Int(clusterResult[i+2])
+                    centroids.append(Centroid(lat: lat, lon: lon, count: count))
+                }
             }
             
-            // Add Logs
-            for log in parent.userLogs {
-                let annotation = UnifiedAnnotation()
-                annotation.item = .history(log)
-                annotation.coordinate = CLLocationCoordinate2D(latitude: log.latitude, longitude: log.longitude)
-                // annotation.title = "History" // Removed title
-                newAnnotations.append(annotation)
+            // Buckets
+            var clusters: [[UnifiedMapItem]] = Array(repeating: [], count: centroids.count)
+            
+            for item in allItems {
+                var itemLat: Double = 0
+                var itemLon: Double = 0
+                
+                switch item {
+                case .todo(let t): if let l = t.location { itemLat = l.latitude; itemLon = l.longitude }
+                case .history(let l): itemLat = l.latitude; itemLon = l.longitude
+                case .userLocation: 
+                     if let userLoc = userLocation { itemLat = userLoc.coordinate.latitude; itemLon = userLoc.coordinate.longitude }
+                default: break
+                }
+                
+                // Find nearest centroid
+                var bestIdx = -1
+                var minDist = Double.greatestFiniteMagnitude
+                
+                for (idx, c) in centroids.enumerated() {
+                    let dLat = itemLat - c.lat
+                    let dLon = itemLon - c.lon
+                    let dist = dLat*dLat + dLon*dLon
+                    if dist < minDist {
+                        minDist = dist
+                        bestIdx = idx
+                    }
+                }
+                
+                if bestIdx >= 0 {
+                    clusters[bestIdx].append(item)
+                }
             }
             
+            // Create Annotations
+            for (idx, items) in clusters.enumerated() {
+                if items.isEmpty { continue }
+                
+                let centroid = centroids[idx]
+                let coordinate = CLLocationCoordinate2D(latitude: centroid.lat, longitude: centroid.lon)
+                
+                if items.count == 1 {
+                    // Single Item
+                    let item = items[0]
+                    let ann = UnifiedAnnotation()
+                    ann.item = item
+                    // Use actual item location instead of centroid for precision
+                     switch item {
+                    case .todo(let t): if let l = t.location { ann.coordinate = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude) }
+                    case .history(let l): ann.coordinate = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)
+                    default: ann.coordinate = coordinate
+                    }
+                    ann.title = "Item"
+                    newAnnotations.append(ann)
+                } else {
+                    // Cluster Item
+                    // We need a way to represent a "WASM Cluster" as a single annotation.
+                    // We can reuse UnifiedAnnotation but with a special flag or list.
+                    // UnifiedAnnotation doesn't have a list.
+                    // Let's use MKPointAnnotation and handle it in viewFor, 
+                    // OR reuse UnifiedAnnotation and inject the whole list into 'item' (if extended)
+                    // Hack: Use the first item as valid 'item', but attach list to View later?
+                    // Better: Create a 'WasmClusterAnnotation' class.
+                    
+                    let clusterAnn = WasmClusterAnnotation()
+                    clusterAnn.coordinate = coordinate
+                    clusterAnn.items = items
+                    clusterAnn.title = "\(items.count)"
+                    newAnnotations.append(clusterAnn)
+                }
+            }
             
+            // Sync Map
+            // remove all EXCEPT UserLocation to correct flashing?
+            // MKMapView handles add/remove gracefully if IDs match? No, annotations are objects.
+            // Full Diff is hard. Let's just remove all non-User and add new.
+            
+            let oldInterval = mapView.annotations.filter { !($0 is MKUserLocation) }
+            mapView.removeAnnotations(oldInterval)
             mapView.addAnnotations(newAnnotations)
         }
         
-        // MARK: - Animation
+        // Helper Class for WASM Clusters
+        class WasmClusterAnnotation: MKPointAnnotation {
+            var items: [UnifiedMapItem] = []
+        }
+        
+        // MARK: - Legacy Update (Disabled)
+        func updateAnnotations(mapView: MKMapView, items: [ToDoItem], userLocation: CLLocation?) {
+            // [FIX] Always refresh clusters when data/location updates, not just on first render.
+            // This ensures User Location participates in clustering dynamically.
+            refreshWasmClusters(mapView: mapView)
+        }
+        
+        // MARK: - Launch Animation
         func performLaunchAnimation(mapView: MKMapView, userLocation: CLLocation?) {
             guard let userLoc = userLocation else { return }
             firstRender = false
             
-            // Filter Valid Pins (Lat/Lng exist)
-            let validItems = parent.todoItems.filter { $0.location != nil }
+            // Initial Cluster Calculation
+            refreshWasmClusters(mapView: mapView)
             
-            if validItems.isEmpty {
-                // Case A: No Pins -> User Loc (Zoom 15 / Span 0.01) -> 1s -> User Loc (Zoom 9 / Span 0.5)
-                let startRegion = MKCoordinateRegion(
+            // [LOG] Start Animation
+            OptimizationLogger.shared.logLaunchStep(step: "setup map zoom", data: [
+                "action": "WASM Launch",
+                "wait": "3.0s"
+            ])
+            
+            // Initial View: Broad
+             let region = MKCoordinateRegion(center: userLoc.coordinate, span: MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5))
+             mapView.setRegion(region, animated: false)
+            
+            // Wait & Zoom
+            let delay = AppConfig.launchAnimationDelay
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                let endRegion = MKCoordinateRegion(
                     center: userLoc.coordinate,
-                    span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                    span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
                 )
-                mapView.setRegion(startRegion, animated: false)
+                mapView.setRegion(endRegion, animated: true)
                 
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                    let endRegion = MKCoordinateRegion(
-                        center: userLoc.coordinate,
-                        span: MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5)
-                    )
-                    mapView.setRegion(endRegion, animated: true)
-                }
-            } else {
-                // Case B: Has Pins -> Fit Bounds -> Check Zoom 15 -> 1s -> User Loc (Zoom 9)
-                // 1. Calculate Bounds
-                var mapRect: MKMapRect = .null
-                for item in validItems {
-                    if let loc = item.location {
-                        let point = MKMapPoint(CLLocationCoordinate2D(latitude: loc.latitude, longitude: loc.longitude))
-                        let rect = MKMapRect(origin: point, size: MKMapSize(width: 1, height: 1))
-                        mapRect = mapRect.isNull ? rect : mapRect.union(rect)
-                    }
-                }
-                
-                // 2. Padding
-                let paddedRect = mapView.mapRectThatFits(mapRect, edgePadding: UIEdgeInsets(top: 50, left: 50, bottom: 50, right: 50))
-                var region = MKCoordinateRegion(paddedRect)
-                
-                // 3. Logic: FinalZoom = max(FitZoom, 15)
-                // In MapKit, Zoom 15 is approx Span 0.01. Zoom 9 is approx Span 0.5.
-                // Wide View = Large Span. Close View = Small Span.
-                // "FitZoom < 15" means "View is WIDER than 15" -> "Span > 0.01".
-                // Spec: "If Wide (> 0.01), Force 15 (0.01)".
-                // If Close (< 0.01), Keep Close.
-                
-                if region.span.latitudeDelta > 0.01 {
-                    region.span = MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-                }
-                
-                // Center can be region.center (centroid of pins)
-                mapView.setRegion(region, animated: false)
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                    let endRegion = MKCoordinateRegion(
-                        center: userLoc.coordinate,
-                        span: MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5)
-                    )
-                    mapView.setRegion(endRegion, animated: true)
-                }
+                OptimizationLogger.shared.logLaunchStep(step: "go current location", data: [
+                    "final_action": "Zoom to User Location (Level 15)",
+                    "success": true
+                ])
             }
         }
         
@@ -364,50 +401,22 @@ struct AppleMapView: UIViewRepresentable {
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
             if annotation is MKUserLocation { return nil }
             
-            let isCluster = annotation is MKClusterAnnotation
-            let identifier = isCluster ? "UnifiedCluster" : "UnifiedPin"
+            // Check for WASM Cluster
+            let isWasmCluster = annotation is WasmClusterAnnotation
+            let identifier = isWasmCluster ? "WasmCluster" : "UnifiedPin"
             
             var view = mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? TouchableAnnotationView
             if view == nil {
                 view = TouchableAnnotationView(annotation: annotation, reuseIdentifier: identifier)
                 view?.canShowCallout = false
-                view?.displayPriority = isCluster ? .required : .defaultHigh
+                view?.displayPriority = isWasmCluster ? .required : .defaultHigh
                 view?.collisionMode = .circle
             }
             
-            // [FIX] Only single items should cluster together
-            if !isCluster {
-                if view?.clusteringIdentifier != "unified" { view?.clusteringIdentifier = "unified" }
-            } else {
-                if view?.clusteringIdentifier != nil { view?.clusteringIdentifier = nil }
-            }
-            
             view?.annotation = annotation
-            view?.layer.zPosition = isCluster ? 100 : 10
+            view?.layer.zPosition = isWasmCluster ? 100 : 10
             
             configurePinView(view: view!, annotation: annotation)
-
-            // Special handling for UserLocation callout (Nearby History)
-            if annotation === userAnnotation {
-                let centerInt = IntCoordinate.from(annotation.coordinate)
-                let nearbyLogs = parent.userLogs.filter {
-                    let locInt = IntCoordinate(lat: Int($0.latitude * 100_000), lng: Int($0.longitude * 100_000))
-                    return centerInt.distance(to: locInt) < 1000
-                }
-                let items = nearbyLogs.map { UnifiedMapItem.history($0) }
-                let historyView = ClusterListCallout(
-                    items: items.sorted(by: { $0.date > $1.date }),
-                    isCluster: true,
-                    onDeleteToDo: { [weak self] item in self?.parent.onDelete?(item) },
-                    onDeleteLog: { [weak self] log in self?.parent.onDeleteLog?(log) },
-                    onSelectLog: { [weak self] log in self?.parent.onSelectLog?(log) }
-                )
-                
-                let countVal = CGFloat(items.count)
-                let height: CGFloat = countVal >= 4 ? 240 : (countVal * 60 + 10)
-                
-                injectSwiftUI(view: view!, swiftUIView: historyView, height: height)
-            }
             
             return view
         }
@@ -416,87 +425,131 @@ struct AppleMapView: UIViewRepresentable {
             // 1. Reset
             view.subviews.forEach { $0.removeFromSuperview() }
             
-            // 2. Setup Container & Placeholder
+            // 2. Setup Dimensions
             let width: CGFloat = 40
-            let height: CGFloat = 50 // Unified Height
+            let height: CGFloat = 50
             let size = CGSize(width: width, height: height)
+            
             view.frame = CGRect(origin: .zero, size: size)
-            view.centerOffset = CGPoint(x: 0, y: -height / 2) // [FIX] Restore Alignment
+            view.centerOffset = CGPoint(x: 0, y: -height / 2)
             view.isUserInteractionEnabled = true
             
-            // [FIX] Assign transparent image to ensure MapKit respects frame/touches
-            view.image = UIGraphicsImageRenderer(size: size).image { _ in
-                UIColor.white.withAlphaComponent(0.05).setFill()
-                UIRectFill(CGRect(origin: .zero, size: size))
-            }
-            
-            // 3. MAIN BUTTON (Container)
-            let btn = MapPinButton(type: .custom)
-            btn.frame = CGRect(origin: .zero, size: size)
-            btn.backgroundColor = .clear
-            btn.tag = 999
-            
-            // 3a. Visuals INSIDE Button
-            // Layer A: Base Image
-            let imageView = UIImageView()
-            imageView.frame = btn.bounds
+            // 3. Visuals - Layer 1: Image
+            let imageView = UIImageView(frame: view.bounds)
             imageView.contentMode = .scaleAspectFit
-            imageView.isUserInteractionEnabled = false 
-            btn.addSubview(imageView)
+            imageView.isUserInteractionEnabled = false
+            view.addSubview(imageView)
             
-            // Layer B: Content
-            let label = UILabel()
+            // 4. Visuals - Layer 2: Label
+            let label = UILabel(frame: CGRect(x: 0, y: 0, width: width, height: height * 0.4))
             label.textAlignment = .center
             label.font = UIFont.systemFont(ofSize: 10, weight: .bold)
             label.textColor = .white
-            label.isUserInteractionEnabled = false
+            view.addSubview(label)
             
-            let contentFrame = (annotation is MKClusterAnnotation) ? btn.bounds : CGRect(x: 0, y: 0, width: width, height: height * 0.4)
-            label.frame = contentFrame
-            btn.addSubview(label)
+            // 5. Interaction - Layer 3: Invisible Button
+            let btn = MapPinButton(type: .custom)
+            btn.frame = view.bounds
+            btn.backgroundColor = .clear
+            btn.setTitle("", for: .normal)
+            btn.addTarget(self, action: #selector(handlePinButtonTap(_:)), for: .touchUpInside)
+            view.addSubview(btn)
             
-            // ... inside configurePinView ...
-
-            // 4. Data Binding
-            if let cluster = annotation as? MKClusterAnnotation {
-                // ... cluster logic ...
-                // Use PinImageHelper for cluster pie or shield?
-                // Let's keep Pie for cluster, or make a Shield Cluster?
-                // Shield Cluster might be nice.
-                // Let's use createShieldPin with count
-                let count = cluster.memberAnnotations.count
-                // Color? Mix? Let's use Blue for cluster or Green? Green is "AllToDo".
-                let color = UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0) 
-                 imageView.image = PinImageHelper.shared.createShieldPin(color: color, count: count)
+            // 6. Data Binding
+            if let wasmCluster = annotation as? WasmClusterAnnotation {
+                // [WASM CLUSTER LOGIC]
+                let items = wasmCluster.items
+                btn.items = items
+                let count = items.count
+                
+                var userLocationFound = false
+                var historyCount = 0
+                var todoReadyCount = 0
+                var todoDoneCount = 0
+                var messageCount = 0
+                
+                for item in items {
+                    switch item {
+                    case .userLocation: userLocationFound = true
+                    case .history: historyCount += 1
+                    case .todo(let t):
+                        if t.isCompleted { todoDoneCount += 1 }
+                        else { todoReadyCount += 1 }
+                    case .serverMessage: messageCount += 1
+                    }
+                }
+                
+                // Determine Base Image Name
+                var baseName = "PinTodoReady" // Default
+                
+                if userLocationFound {
+                    baseName = "PinCurrent"
+                } else {
+                    // Find Max
+                    let counts = [
+                        ("PinHistory", historyCount),
+                        ("PinTodoReady", todoReadyCount),
+                        ("PinTodoDone", todoDoneCount),
+                        ("PinReceiveReady", messageCount)
+                    ]
+                    
+                    if let max = counts.max(by: { $0.1 < $1.1 }), max.1 > 0 {
+                        baseName = max.0
+                    }
+                }
+                
+                let color: UIColor
+                if baseName == "PinHistory" { color = .red }
+                else if baseName == "PinReceiveReady" { color = .blue }
+                else { color = UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0) } // Green for Todos
+                
+                if let img = UIImage(named: baseName) {
+                    // Use base image directly. Badge is added by code below (UIView)
+                    imageView.image = img
+                } else {
+                     // Fallback
+                     imageView.image = PinImageHelper.shared.createShieldPin(color: color, count: count)
+                }
+                
+                // Badge
+                let badgeSize: CGFloat = 20
+                let badgeLabel = UILabel(frame: CGRect(x: width - (badgeSize/2), y: -(badgeSize/4), width: badgeSize, height: badgeSize))
+                badgeLabel.backgroundColor = .red
+                badgeLabel.textColor = .white
+                badgeLabel.textAlignment = .center
+                badgeLabel.font = UIFont.systemFont(ofSize: 12, weight: .bold)
+                badgeLabel.text = count > 9 ? "9+" : "\(count)"
+                badgeLabel.layer.cornerRadius = badgeSize / 2
+                badgeLabel.layer.masksToBounds = true
+                badgeLabel.layer.borderWidth = 1.5
+                badgeLabel.layer.borderColor = UIColor.white.cgColor
+                view.addSubview(badgeLabel)
+                view.bringSubviewToFront(btn)
                 
             } else if let unified = annotation as? UnifiedAnnotation, let item = unified.item {
-                btn.items = [item] // Inject Data
-                
-                switch item {
-                case .todo(let todo):
-                    let color = UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0)
-                    let icon = todo.isCompleted ? "checkmark.circle.fill" : "circle"
-                    imageView.image = PinImageHelper.shared.createShieldPin(color: color, iconName: icon)
-
-                    if let date = todo.dueDate {
-                        let f = DateFormatter(); f.dateFormat = "H:mm"
-                        label.text = f.string(from: date)
-                    }
-                    
-                case .history(let log):
-                    let f = DateFormatter(); f.dateFormat = "H:mm"
-                    label.text = f.string(from: log.startTime)
-                    imageView.image = PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill")
-
-                case .serverMessage:
-                    imageView.image = PinImageHelper.shared.createShieldPin(color: .blue, iconName: "envelope.fill")
-                    
-                case .userLocation:
-                     imageView.image = PinImageHelper.shared.createShieldPin(color: .red, iconName: "person.fill")
-                }
+                btn.items = [item]
+                 switch item {
+                  case .todo(let todo):
+                      var imageName = "PinTodoReady"
+                      if todo.isCompleted { imageName = "PinTodoDone" }
+                      if let img = UIImage(named: imageName) { imageView.image = img }
+                      if let date = todo.dueDate {
+                          let f = DateFormatter(); f.dateFormat = "H:mm"
+                          // [FIX] User requested to clear text for now, but keep structure
+                          label.text = "" // f.string(from: date)
+                      }
+                   case .history(let log):
+                       if let img = UIImage(named: "PinHistory") { imageView.image = img }
+                       else { imageView.image = PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill") }
+                      let f = DateFormatter(); f.dateFormat = "H:mm"
+                      // [FIX] User requested to clear text for now
+                      label.text = "" // f.string(from: log.startTime)
+                   case .serverMessage:
+                       if let img = UIImage(named: "PinReceiveReady") { imageView.image = img }
+                   case .userLocation:
+                        if let customImage = UIImage(named: "PinCurrent") { imageView.image = customImage }
+                   }
             }
-            
-            // ...
         }
         
         // MARK: - Overlays
@@ -511,6 +564,9 @@ struct AppleMapView: UIViewRepresentable {
         }
         
         func updatePath(mapView: MKMapView, selectedItems: [UnifiedMapItem]?) {
+             // [FIX] Disabled Path Drawing as per user request
+             return
+             /*
             // Remove existing polylines
             let oldOverlays = mapView.overlays.filter { $0 is MKPolyline }
             mapView.removeOverlays(oldOverlays)
@@ -522,15 +578,8 @@ struct AppleMapView: UIViewRepresentable {
                 var coords = points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
                 let polyline = MKPolyline(coordinates: &coords, count: coords.count)
                 mapView.addOverlay(polyline)
-                
-                // Add Red markers for Start/End if not already there?
-                // The log itself is a pin at "Midpoint".
-                // User wants "Red pins 2 connected".
-                // Maybe Start(Time) and End(Time) pins?
-                // We should add 2 temporary annotations for Start/End? 
-                // Or just rely on the path.
-                // Let's add Polyline first.
             }
+             */
         }
 
         // ... performLaunchAnimation ... UNCHANGED (omitted for brevity in replacement if possible, but context requires care)
@@ -595,11 +644,18 @@ struct ClusterListCallout: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            if items.count == 1 {
-                // Single Item - No Scroll
-                itemRow(items[0], isSingle: true)
+            if items.count <= 4 {
+                // Small number of items: Render ALL directly to avoid ScrollView height issues
+                VStack(spacing: 0) {
+                    ForEach(items) { item in
+                        itemRow(item, isSingle: items.count == 1)
+                        if item.id != items.last?.id {
+                            Divider()
+                        }
+                    }
+                }
             } else {
-                // Multiple - Scroll
+                // Many items: Use ScrollView
                 ScrollView {
                     VStack(spacing: 0) {
                         ForEach(items) { item in
@@ -608,9 +664,12 @@ struct ClusterListCallout: View {
                         }
                     }
                 }
+                .frame(maxHeight: 250) // Limit height for large lists
             }
         }
-        .background(Color.clear)
+        .background(Color.white) // Ensure background is visible
+        .cornerRadius(12)        // Add styling if missing
+        .shadow(radius: 5)
     }
     
     // Constant widths for alignment

@@ -182,4 +182,24 @@ final class WasmManager {
             return points // Return original on error
         }
     }
+    
+    // [NEW] Expose Clustering
+    func cluster(points: [Int32], cellSize: Double) async -> [Int32] {
+        let start = Date()
+        // print("[WASM_STATUS] ⚡️ Executing WASM 'clusterPoints' with \(points.count/2) points...")
+        
+        do {
+            let result = try await runtime.clusterPoints(points, cellSizeMeters: cellSize)
+            
+            let duration = Date().timeIntervalSince(start) * 1000
+            // print("[WASM_STATUS] ✨ WASM Cluster Success: \(result.count/3) clusters found (\(String(format: "%.1f", duration))ms)")
+            
+            lastErrorMessage = nil
+            return result
+        } catch {
+            print("[WASM_STATUS] ❌ Cluster Execution Failed: \(error)")
+            lastErrorMessage = error.localizedDescription
+            return []
+        }
+    }
 }

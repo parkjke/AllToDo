@@ -56,6 +56,10 @@ pip install -r AllToDo-Backend/requirements.txt
 
 # Run Server (Port 8000)
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# [Option] Run Database with Docker
+# Required if you don't have local PostgreSQL installed
+cd AllToDo-Backend && ./run_db.sh
 ```
 
 #### 2. Android

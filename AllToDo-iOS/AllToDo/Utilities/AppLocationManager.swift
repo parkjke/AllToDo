@@ -30,6 +30,9 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
     // [NEW] Buffer for Batch Processing
     var pendingBuffer: [LocationData] = []
     
+    // [NEW] Logging Flag
+    private var hasLoggedInitialLocation = false
+    
     // [NEW] Process Buffer with WASM
     func processBuffer() async {
         guard !pendingBuffer.isEmpty else { return }
@@ -46,6 +49,13 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         
         // Call WASM
         let compressed = await WasmManager.shared.compress(points: rawPoints)
+        
+        // [LOG] Log RDP Compression
+        let inputCount = rawPoints.count / 2
+        let outputCount = compressed.count / 2
+        if inputCount > 0 {
+            OptimizationLogger.shared.log(type: .network, value: "WASM RDP: \(inputCount) -> \(outputCount) pts")
+        }
         
         // Convert back to LocationData
         var resultBatch: [LocationData] = []
@@ -75,7 +85,7 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         locationManager.activityType = .fitness // Keeps GPS active even for small movements
         
         // [NEW] Allow auto-pause to save battery, but we control it via motion
-        locationManager.pausesLocationUpdatesAutomatically = true 
+        locationManager.pausesLocationUpdatesAutomatically = false 
         
         locationManager.requestWhenInUseAuthorization()
         locationManager.startUpdatingLocation()
@@ -93,17 +103,16 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
                 OptimizationLogger.shared.log(type: .motionChange, value: type)
                 
                 // Logic: High confidence stationary -> Stop Location
+                // [FIX] Only stop if we actually have a location!
                 if activity.stationary && activity.confidence == .high {
-                    self.locationManager.stopUpdatingLocation() // Type-o fixed
-                    // Using paused flag or just stop? Stop is safer for battery, but resume needs trigger.
-                    // Actually, if we stop, how do we resume? 
-                    // CoreMotion continues updates even if GPS stops.
-                    OptimizationLogger.shared.log(type: .locationPause, value: "Stationary High")
-                    // Note: In real world, we might want to keep minimal tracking or significantly lower accuracy
-                    self.locationManager.stopUpdatingLocation()
+                    if self.currentLocation != nil {
+                        self.locationManager.stopUpdatingLocation()
+                        OptimizationLogger.shared.log(type: .locationPause, value: "Stationary High")
+                    } else {
+                        print("DEBUG: Stationary detected but waiting for first location...")
+                    }
                 } else {
                     // Moving or unknown -> Ensure Location Running
-                    // We can check if it's already running by authorized state or flag, but startUpdatingLocation is idempotent usually
                     self.locationManager.startUpdatingLocation()
                     OptimizationLogger.shared.log(type: .locationResume, value: "Moving")
                 }
@@ -130,13 +139,20 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         debugStatus = "Recording..."
     }
     
-    func endSession() async -> (start: Date, end: Date, midLat: Double, midLon: Double, pathData: Data?)? {
+    func endSession() async -> (start: Date, end: Date, midLat: Double, midLon: Double, pathData: Data?, pointCount: Int)? {
         guard isRecording else { return nil }
         isRecording = false
         debugStatus = "Stopping..."
         
         // Process remaining buffer
         await processBuffer()
+        
+        // [FIX] Fallback for Stationary Sessions (Single Point)
+        if processedSessionPoints.isEmpty, let current = currentLocation {
+            print("AppLocationManager: Session empty, using current location as single point.")
+            let point = LocationData(latitude: current.coordinate.latitude, longitude: current.coordinate.longitude, timestamp: Date())
+            processedSessionPoints.append(point)
+        }
         
         guard !processedSessionPoints.isEmpty else { return nil }
         
@@ -150,8 +166,9 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         
         // Serialize path data
         let pathData = try? JSONEncoder().encode(processedSessionPoints)
+        let pointCount = processedSessionPoints.count
         
-        return (start: start, end: end, midLat: latSum / count, midLon: lonSum / count, pathData: pathData)
+        return (start: start, end: end, midLat: latSum / count, midLon: lonSum / count, pathData: pathData, pointCount: pointCount)
     }
     
     func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
@@ -168,6 +185,17 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         // 1. Update Publisher
         DispatchQueue.main.async {
             self.currentLocation = location
+        }
+        
+        // [LOG] Step 3: set current location
+        if !hasLoggedInitialLocation {
+            hasLoggedInitialLocation = true
+            OptimizationLogger.shared.logLaunchStep(step: "set current location", data: [
+                "latitude": location.coordinate.latitude,
+                "longitude": location.coordinate.longitude,
+                "accuracy": location.horizontalAccuracy,
+                "timestamp": ISO8601DateFormatter().string(from: location.timestamp)
+            ])
         }
         
         // 2. Buffer for Path Recording (if active)

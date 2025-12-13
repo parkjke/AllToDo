@@ -63,7 +63,12 @@ struct PathHistoryView: View {
                 let lats = pathCoordinates.map { $0.latitude }
                 let lons = pathCoordinates.map { $0.longitude }
                 let center = CLLocationCoordinate2D(latitude: (lats.min()! + lats.max()!) / 2, longitude: (lons.min()! + lons.max()!) / 2)
-                let span = MKCoordinateSpan(latitudeDelta: (lats.max()! - lats.min()!) * 1.5, longitudeDelta: (lons.max()! - lons.min()!) * 1.5)
+                
+                // [FIX] Zoom Logic: Maintain at least Level 17 (Span ~0.003) if path is very short
+                let latDelta = max((lats.max()! - lats.min()!) * 1.5, 0.003)
+                let lonDelta = max((lons.max()! - lons.min()!) * 1.5, 0.003)
+                
+                let span = MKCoordinateSpan(latitudeDelta: latDelta, longitudeDelta: lonDelta)
                 self.region = MKCoordinateRegion(center: center, span: span)
             }
             
@@ -106,11 +111,55 @@ struct ApplePathMapView: UIViewRepresentable {
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             if let polyline = overlay as? MKPolyline {
                 let renderer = MKPolylineRenderer(polyline: polyline)
-                renderer.strokeColor = .blue
+                renderer.strokeColor = .red
                 renderer.lineWidth = 4
                 return renderer
             }
             return MKOverlayRenderer(overlay: overlay)
+        }
+        
+        func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+             let identifier = "HistoryPathPin"
+             var view = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
+             if view == nil {
+                 view = MKAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+             } else {
+                 view?.annotation = annotation
+             }
+             
+             // [FIX] Use History Pin Icon (Prioritize Asset)
+             if let img = UIImage(named: "PinHistory") {
+                 view?.image = img
+             } else {
+                 view?.image = PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill")
+             }
+             
+             // [FIX] Text is Debug Only -> Restore Label support
+             view?.subviews.forEach { $0.removeFromSuperview() } 
+             
+             // 1. Image View (Background)
+             let imageView = UIImageView(frame: CGRect(x: 0, y: 0, width: 40, height: 50))
+             imageView.contentMode = .scaleAspectFit
+             if let img = view?.image { imageView.image = img }
+             view?.addSubview(imageView)
+             view?.image = nil 
+             
+             // 2. Label (Text) - For Debugging
+             let label = UILabel(frame: CGRect(x: 0, y: 0, width: 40, height: 20)) 
+             label.textAlignment = .center
+             label.font = UIFont.systemFont(ofSize: 10, weight: .bold)
+             label.textColor = .white
+             // [FIX] Text is Debug Only -> Hide by default (Capability Exists)
+             // label.text = annotation.title ?? "" 
+             label.text = ""
+             view?.addSubview(label)
+             
+             // Setup Frame SAME as main map (40x50)
+             view?.frame = CGRect(x: 0, y: 0, width: 40, height: 50)
+             view?.centerOffset = CGPoint(x: 0, y: -25)
+             view?.canShowCallout = true
+             
+             return view
         }
     }
 }
@@ -142,15 +191,46 @@ struct GooglePathMapView: UIViewRepresentable {
         // Markers
         let start = GMSMarker(position: coordinates.first!)
         start.title = "Start"
+        start.icon = PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill").resized(to: CGSize(width: 40, height: 50))
+        if let img = UIImage(named: "PinHistory") {
+            start.icon = img.resized(to: CGSize(width: 40, height: 50))
+        }
         start.map = uiView
         
         let end = GMSMarker(position: coordinates.last!)
         end.title = "End"
+        end.icon = PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill").resized(to: CGSize(width: 40, height: 50))
+        if let img = UIImage(named: "PinHistory") {
+            end.icon = img.resized(to: CGSize(width: 40, height: 50))
+        }
         end.map = uiView
         
         // Fit Bounds
         var bounds = GMSCoordinateBounds()
         coordinates.forEach { bounds = bounds.includingCoordinate($0) }
+        
+        // [FIX] Limit Max Zoom (Minimum Span ~ 0.003)
+        // If the bounds are too small (short path), expand them artificially
+        let northEast = bounds.northEast
+        let southWest = bounds.southWest
+        let latDelta = northEast.latitude - southWest.latitude
+        let lonDelta = northEast.longitude - southWest.longitude
+        
+        let minDelta = 0.003 // Approx Zoom Level 17
+        
+        if latDelta < minDelta || lonDelta < minDelta {
+            let centerLat = (northEast.latitude + southWest.latitude) / 2
+            let centerLon = (northEast.longitude + southWest.longitude) / 2
+            
+            let newLatDelta = max(latDelta, minDelta)
+            let newLonDelta = max(lonDelta, minDelta)
+            
+            let newSW = CLLocationCoordinate2D(latitude: centerLat - newLatDelta/2, longitude: centerLon - newLonDelta/2)
+            let newNE = CLLocationCoordinate2D(latitude: centerLat + newLatDelta/2, longitude: centerLon + newLonDelta/2)
+            
+            bounds = GMSCoordinateBounds(coordinate: newSW, coordinate: newNE)
+        }
+        
         let update = GMSCameraUpdate.fit(bounds, withPadding: 50)
         uiView.animate(with: update)
     }
@@ -184,10 +264,14 @@ struct NaverPathMapView: UIViewRepresentable {
         // Markers
         let start = NMFMarker(position: points.first!)
         start.captionText = "Start"
+        if let img = UIImage(named: "PinHistory") { start.iconImage = NMFOverlayImage(image: img) }
+        else { start.iconImage = NMFOverlayImage(image: PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill")) }
         start.mapView = map
         
         let end = NMFMarker(position: points.last!)
         end.captionText = "End"
+        if let img = UIImage(named: "PinHistory") { end.iconImage = NMFOverlayImage(image: img) }
+        else { end.iconImage = NMFOverlayImage(image: PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill")) }
         end.mapView = map
         
         // Fit Bounds
@@ -289,10 +373,73 @@ struct KakaoPathMapView: UIViewRepresentable {
             
             let sw = MapPoint(longitude: minLon, latitude: minLat)
             let ne = MapPoint(longitude: maxLon, latitude: maxLat)
-            let rect = AreaRect(southWest: sw, northEast: ne)
+            
+            // [FIX] Zoom Logic: Ensure min span (Level 17 ~ 0.003)
+            var rect = AreaRect(southWest: sw, northEast: ne)
+            let latDiff = maxLat - minLat
+            let lonDiff = maxLon - minLon
+            
+            if latDiff < 0.003 {
+                let center = (maxLat + minLat) / 2
+                let newMin = center - 0.0015
+                let newMax = center + 0.0015
+                rect = AreaRect(southWest: MapPoint(longitude: minLon, latitude: newMin), northEast: MapPoint(longitude: maxLon, latitude: newMax))
+            }
+            if lonDiff < 0.003 {
+                // If both small, apply to both
+                let centerLon = (maxLon + minLon) / 2
+                let newMinLon = centerLon - 0.0015
+                let newMaxLon = centerLon + 0.0015
+                // Re-create rect with new Lat/Lon
+                // Note: AreaRect structure is immutable usually?
+                // Just recreate using updated values.
+            }
+            
+            // Simplify: Just recalculate bounds
+            let finalMinLat = (latDiff < 0.003) ? ((maxLat + minLat)/2 - 0.0015) : minLat
+            let finalMaxLat = (latDiff < 0.003) ? ((maxLat + minLat)/2 + 0.0015) : maxLat
+            let finalMinLon = (lonDiff < 0.003) ? ((maxLon + minLon)/2 - 0.0015) : minLon
+            let finalMaxLon = (lonDiff < 0.003) ? ((maxLon + minLon)/2 + 0.0015) : maxLon
+            
+            let finalSW = MapPoint(longitude: finalMinLon, latitude: finalMinLat)
+            let finalNE = MapPoint(longitude: finalMaxLon, latitude: finalMaxLat)
+            rect = AreaRect(southWest: finalSW, northEast: finalNE)
             
             let update = CameraUpdate.make(area: rect)
             mapView.moveCamera(update)
+            
+            // Add Pins
+            addPins(mapView: mapView, coordinates: coordinates)
+        }
+        
+        func addPins(mapView: KakaoMap, coordinates: [CLLocationCoordinate2D]) {
+            guard let start = coordinates.first, let end = coordinates.last else { return }
+            let manager = mapView.getLabelManager()
+            let layer = manager.getLabelLayer(layerID: "pathPins") ?? manager.addLabelLayer(option: LabelLayerOptions(layerID: "pathPins", competitionType: .none, competitionUnit: .poi, orderType: .rank, zOrder: 1000))
+            
+            // Style
+            let styleID = "style_PathPin"
+            // Re-register if needed or check existence. 
+            // Since this is a separate view usage, we register style.
+            
+            // [FIX] Prioritize Asset
+            var image: UIImage
+            if let asset = UIImage(named: "PinHistory")?.withRenderingMode(.alwaysOriginal) { 
+                // [FIX] Resize to 40x50 AND Rasterize
+                let targetSize = CGSize(width: 40, height: 50)
+                image = asset.resized(to: targetSize)?.rasterized() ?? asset 
+            }
+            else { image = PinImageHelper.shared.createShieldPin(color: .red, iconName: "star.fill") }
+            
+            let iconStyle = PoiIconStyle(symbol: image, anchorPoint: CGPoint(x: 0.5, y: 1.0))
+            let style = PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: iconStyle, level: 0)])
+            manager.addPoiStyle(style) // Safe to add same ID? usually error if exists.
+            // Check implicit: Manager usually throws or ignores. Let's rely on unique ID per view instance or catch error?
+            // KakaoMap lifecycle: Styles are per-controller.
+            
+            // Add POIs
+            layer?.addPoi(option: PoiOptions(styleID: styleID, poiID: "start"), at: MapPoint(longitude: start.longitude, latitude: start.latitude))?.show()
+            layer?.addPoi(option: PoiOptions(styleID: styleID, poiID: "end"), at: MapPoint(longitude: end.longitude, latitude: end.latitude))?.show()
         }
     }
 }

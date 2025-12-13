@@ -34,9 +34,9 @@ AllToDo 애플리케이션의 백엔드입니다. FastAPI와 PostgreSQL로 구�
 Docker 없이 앱을 직접 실행하려면 다음 단계를 따르세요.
 
 1.  **데이터베이스 설정**:
-    데이터베이스는 여전히 Docker로 실행하는 것이 편리합니다:
+    데이터베이스는 여전히 Docker로 실행하는 것이 편리합니다 (전용 스크립트 제공):
     ```bash
-    docker-compose up -d db
+    ./run_db.sh
     ```
     또는 로컬 PostgreSQL을 실행하고 `.env` 파일의 접속 정보를 수정하세요.
 

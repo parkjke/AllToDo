@@ -120,6 +120,22 @@ def list_logs():
     files = [f.replace(".log", "") for f in os.listdir(log_dir) if f.endswith(".log")]
     return sorted(files)
 
+@router.get("/logs/{device_id}")
+def get_log_content(device_id: str):
+    """
+    **Get Log File Content**
+    """
+    log_dir = "logs"
+    # Basic path safety
+    safe_id = "".join(c for c in device_id if c.isalnum() or c in "-_")
+    file_path = os.path.join(log_dir, f"{safe_id}.log")
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Log file not found")
+        
+    with open(file_path, "r", encoding="utf-8") as f:
+        return f.read()
+
 @router.post("/logs/batch", response_model=schemas.RemoteLogResponse)
 def receive_remote_log_batch(logs: list[schemas.RemoteLogCreate]):
     """

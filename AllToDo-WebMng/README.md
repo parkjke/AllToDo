@@ -1,73 +1,43 @@
-# React + TypeScript + Vite
+# AllToDo Web Manager (WebMng) 🖥️
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**AllToDo 관리자 및 상담원용 웹 콘솔**입니다.
+직원들이 사용자의 데이터를 조회하거나 상담 업무(B2B/B2C)를 처리할 수 있는 대시보드를 제공합니다.
 
-Currently, two official plugins are available:
+## ✨ 주요 기능
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+*   **📊 대시보드 (Dashboard)**
+    *   앱 사용자 통계, 오늘 가입자 수 등 주요 지표 확인.
+    *   상담 대기열 및 빠른 바로가기 기능.
 
-## React Compiler
+*   **📞 상담 모듈 (Consultation)**
+    *   **사용자 상담**: 전화번호로 고객을 검색하고 지도 기반 위치 정보를 조회하여 안내.
+    *   **B2B 상담**: 법인 고객용 고지서 발송 및 계약 관리.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+*   **👤 관리자 기능 (Admin)**
+    *   직원 계정 승인/정지 및 권한 관리.
 
-## Expanding the ESLint configuration
+## 🛠 기술 스택
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+*   **Framework**: [React](https://react.dev/) + [Vite](https://vitejs.dev/)
+*   **Language**: [TypeScript](https://www.typescriptlang.org/)
+*   **Styling**: Vanilla CSS (Premium Design System)
+*   **Routing**: React Router DOM
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## 🚀 시작하기 (Getting Started)
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### 1. 전제 조건
+*   Node.js 18+
+*   npm 또는 yarn
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### 2. 설치 및 실행
+
+```bash
+# 의존성 설치
+npm install
+
+# 개발 서버 실행
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+### 3. 접속
+브라우저에서 `http://localhost:5173` 으로 접속하세요.

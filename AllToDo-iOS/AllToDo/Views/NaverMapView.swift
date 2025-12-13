@@ -115,6 +115,9 @@ struct NaverMapView: UIViewRepresentable {
                 map.moveCamera(update)
             case .zoomToFit:
                 fitToAllPins(userLocation: parent.locationManager.currentLocation)
+            case .launchSequence:
+                // [NEW] Relaunch
+                performLaunchAnimation(userLocation: parent.locationManager.currentLocation)
             case .none: break
             }
         }

@@ -23,12 +23,48 @@ struct ContentView: View {
 
     
     @State private var selectedItem: ToDoItem?
-    @State private var selectedClusterItems: [UnifiedMapItem]? // [NEW]
-    @State private var selectedLogForPath: UserLog? // [NEW] For Popup
-    @State private var showHistoryMode = false // [NEW] History Toggle
-    @State private var selectedDate = Date() // [NEW] Time Travel Date
+    @State private var selectedClusterItems: [UnifiedMapItem]?
+    @State private var selectedLogForPath: UserLog?
+    @State private var showHistoryMode = false
+    @State private var selectedDate = Date()
     @State private var showCalendar = false
-    @State private var showListView = false // List of All Items // [NEW] Calendar Sheet
+    @State private var showListView = false
+    @State private var lastBackgroundDate: Date? // [NEW] Track background entry time
+    
+    // MARK: - Logging Methods
+    private func logTodoListStats() {
+        let centerDate = Date() // Use current date for "future" calculation
+        let now = Date()
+        let dayBefore = Calendar.current.date(byAdding: .hour, value: -24, to: now)!
+        let dayAfter = Calendar.current.date(byAdding: .hour, value: 24, to: now)!
+        
+        let count24h = todoItems.filter { 
+            guard let d = $0.dueDate else { return false }
+            return d >= dayBefore && d <= dayAfter
+        }.count
+        
+        let countFuture = todoItems.filter {
+            guard let d = $0.dueDate else { return false }
+            return d > dayAfter
+        }.count
+        
+        OptimizationLogger.shared.logLaunchStep(step: "set todo list", data: [
+            "count_24h": count24h,
+            "count_future": countFuture,
+            "total": todoItems.count
+        ])
+    }
+    
+    private func logMapSetup() {
+        OptimizationLogger.shared.logLaunchStep(step: "setup map", data: [
+            "provider": mapProvider.rawValue,
+            "status_visible": true, // Always visible in current layout
+            "history_visible": !showHistoryMode, // Logic check
+            "current_loc_btn_visible": true,
+            "zoom_controls_visible": true,
+            "compass_visible": true
+        ])
+    }
     
     // Settings
     @AppStorage("maxPopupItems") private var maxPopupItems = 5
@@ -37,20 +73,23 @@ struct ContentView: View {
     // Time Filtering Logic
     var filteredTodos: [ToDoItem] {
         let centerDate = showHistoryMode ? selectedDate : Date()
-        let min = Calendar.current.date(byAdding: .hour, value: -24, to: centerDate)!
-        let max = Calendar.current.date(byAdding: .hour, value: 12, to: centerDate)!
-        return todoItems.filter {
+        let min = Calendar.current.date(byAdding: .day, value: -30, to: centerDate)!
+        let max = Calendar.current.date(byAdding: .day, value: 30, to: centerDate)!
+        let count = todoItems.count
+        let filtered = todoItems.filter {
             guard let d = $0.dueDate else { return true }
             return d >= min && d <= max
         }
+        print("DEBUG: ContentView Filter - Total: \(count) Filtered: \(filtered.count) (Min: \(min) Max: \(max))")
+        return filtered
     }
     
     var filteredLogs: [UserLog] {
         let centerDate = showHistoryMode ? selectedDate : Date()
+        // Logic: "24 hours window ending at selectedDate" (Standard)
         let min = Calendar.current.date(byAdding: .hour, value: -24, to: centerDate)!
-        // If history mode, maybe we show logs UP TO that date?
-        // Logic: "24h window ending at selectedDate" (similar to Now).
-        return userLogs.filter { $0.startTime >= min && $0.startTime <= centerDate }
+        let max = Calendar.current.date(byAdding: .hour, value: 24, to: centerDate)!
+        return userLogs.filter { $0.startTime >= min && $0.startTime <= max }
     }
     
     // MapProvider Enum moved to UnifiedMapModels.swift
@@ -293,7 +332,7 @@ struct ContentView: View {
                     .shadow(radius: 10)
                     .transition(.scale.combined(with: .opacity))
                 }
-                .zIndex(200)
+                .zIndex(999)
             }
         }
     }
@@ -338,7 +377,14 @@ struct ContentView: View {
                              Text("할 일")
                                  .font(.headline)
                              Spacer()
-                             Button(action: { selectedItem = nil }) {
+                             Button(action: { 
+                                 // [FIX] Disable manual selection handling to allow Native Callout ("Water Balloon") to appear.
+                                 // We do NOT want to trigger 'selectedClusterItems' (Overlay) or 'selectedItem' (Sheet).
+                                 // The injected 'detailCalloutAccessoryView' will handle the interaction.
+                                 print("DEBUG: didSelect called. Letting native callout handle it.")
+                                 return
+                                 selectedItem = nil 
+                             }) {
                                  Image(systemName: "xmark.circle.fill")
                                      .foregroundColor(.gray)
                                      .font(.title2)
@@ -510,8 +556,33 @@ struct ContentView: View {
             case .active:
                 // Start Recording Session
                 locationManager.startSession()
+                
+                // [FIX] Conditional Relaunch (Logic from Step 966)
+                if let last = lastBackgroundDate {
+                    let diff = Date().timeIntervalSince(last)
+                    let threshold = AppConfig.backgroundReentryThreshold
+                    
+                    // User Request (Step 1046): 
+                    // < 5s (Short): Keep State.
+                    // > 5s (Long): Relaunch Animation.
+                    if diff > threshold {
+                        print("DEBUG: Background time \(diff)s > \(threshold)s. Triggering Launch Sequence.")
+                        mapAction = .launchSequence
+                    } else {
+                        print("DEBUG: Background time \(diff)s <= \(threshold)s. Maintaining State.")
+                    }
+                    lastBackgroundDate = nil // Reset
+                } else {
+                    // First launch handled by onAppear
+                }
+                
             case .background, .inactive:
-                // End Recording Session and Save
+                // Track Time
+                if newPhase == .background {
+                    lastBackgroundDate = Date()
+                }
+                
+                // End Recording Session ...
                 Task {
                     if let session = await locationManager.endSession() {
                         let log = UserLog(
@@ -524,16 +595,19 @@ struct ContentView: View {
                         modelContext.insert(log)
                         try? modelContext.save()
                         
-                        if let data = session.pathData, let jsonString = String(data: data, encoding: .utf8) {
-                            print("ContentView: Session JSON: \(jsonString)")
-                        } else {
-                            print("ContentView: Saved Session Log (No JSON Path Data)")
-                        }
                     }
                 }
             default:
                 break
             }
+        }
+        .onAppear {
+            // [LOG] Step 1 & 2
+            logTodoListStats()
+            logMapSetup()
+        }
+        .onChange(of: todoItems) {
+             logTodoListStats()
         }
     }
     

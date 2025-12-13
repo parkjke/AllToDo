@@ -7,8 +7,8 @@ struct GoogleMapView: UIViewRepresentable {
     @Binding var rotation: Double
     @ObservedObject var locationManager: AppLocationManager
     
-    var todoItems: [ToDoItem] // [FIX] Added
-    var userLogs: [UserLog] // [FIX] Added
+    var todoItems: [ToDoItem]
+    var userLogs: [UserLog]
     
     @Binding var selectedItem: ToDoItem?
     @Binding var selectedClusterItems: [UnifiedMapItem]?
@@ -21,263 +21,378 @@ struct GoogleMapView: UIViewRepresentable {
     var onDeleteLog: ((UserLog) -> Void)?
     var onSelectLog: ((UserLog) -> Void)?
     
-    class Coordinator: NSObject, GMSMapViewDelegate {
-        var parent: GoogleMapView
-        var initialAnimationDone = false
+    func makeUIView(context: Context) -> GMSMapView {
+        let options = GMSMapViewOptions()
+        options.camera = GMSCameraPosition.camera(withLatitude: 37.5665, longitude: 126.9780, zoom: 10)
+        let mapView = GMSMapView(options: options)
+        mapView.delegate = context.coordinator
         
-        init(_ parent: GoogleMapView) {
-            self.parent = parent
-        }
+        // [Parity] Disable System UI to match Apple Map Custom UI
+        mapView.isMyLocationEnabled = false 
+        mapView.settings.myLocationButton = false
+        mapView.settings.compassButton = false
+        mapView.settings.rotateGestures = true
+        mapView.settings.tiltGestures = false 
         
-        // MARK: Actions
-        func handleAction(_ action: MapAction, scaling: Bool = true) {
-        }
+        return mapView
+    }
+    
+    func updateUIView(_ uiView: GMSMapView, context: Context) {
+        context.coordinator.parent = self
         
-        // Map Tap (Clear)
-        func mapView(_ mapView: GMSMapView, didTapAt coordinate: CLLocationCoordinate2D) {
+        // Handle Map Actions
+        if action != .none {
+            context.coordinator.handleAction(action, mapView: uiView)
             DispatchQueue.main.async {
-                self.parent.selectedItem = nil
-                self.parent.selectedClusterItems = nil
+                action = .none
             }
         }
         
-        // Long Press
-        func mapView(_ mapView: GMSMapView, didLongPressAt coordinate: CLLocationCoordinate2D) {
-            let generator = UIImpactFeedbackGenerator(style: .medium)
-            generator.impactOccurred()
-            DispatchQueue.main.async {
-                self.parent.onLongTap?(coordinate)
-            }
-        }
+        // [FIX] Ensure clusters are refreshed when SwiftUI state changes (e.g. items loaded, location updated)
+        // This fixes the "Pins not showing on load" issue because idleAt might not fire immediately or reliably on first load.
+        context.coordinator.refreshWasmClusters(mapView: uiView)
         
-        // Marker Tap
-        func mapView(_ mapView: GMSMapView, didTap marker: GMSMarker) -> Bool {
-            let generator = UIImpactFeedbackGenerator(style: .medium)
-            generator.impactOccurred()
-            
-            if let item = marker.userData as? UnifiedMapItem {
-                DispatchQueue.main.async {
-                    self.parent.selectedClusterItems = [item]
-                    self.parent.selectedItem = nil 
-                }
-                return true
-            } else if let items = marker.userData as? [UnifiedMapItem] {
-                DispatchQueue.main.async {
-                    self.parent.selectedClusterItems = items
-                    self.parent.selectedItem = nil
-                }
-                return true
-            }
-            return false
+        // Launch Animation
+        if context.coordinator.firstRender {
+            context.coordinator.performLaunchAnimation(mapView: uiView, userLocation: locationManager.currentLocation)
         }
-        
-        // Camera Change
-        func mapView(_ mapView: GMSMapView, didChange position: GMSCameraPosition) {
-             DispatchQueue.main.async {
-                 self.parent.rotation = position.bearing
-                 // self.parent.locationManager.updateZoom(Double(position.zoom)) // [FIX] Removed missing method
-             }
-        }
+        // But doing it here might be too frequent. 
+        // Apple Map triggers mostly on RegionChange. 
+        // We can force a refresh if data changed. 
+        // For simplicity/parity, we rely on region change OR explicit refresh calls.
+        // But if user adds an item while map is static, we need update.
+        // Simple fix: Call refreshWasmClusters here if needed, debounced.
+        // For now, let's trigger it.
+        context.coordinator.refreshWasmClusters(mapView: uiView)
     }
     
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
     
-    func makeUIView(context: Context) -> GMSMapView {
-        // Smart Initial Camera Logic
-        var target = CLLocationCoordinate2D(latitude: 37.5665, longitude: 126.9780) // Default Seoul City Hall
+    class Coordinator: NSObject, GMSMapViewDelegate {
+        var parent: GoogleMapView
+        var firstRender = true
+        var isAnimating = false
         
-        if let firstItem = todoItems.first, let loc = firstItem.location {
-            target = CLLocationCoordinate2D(latitude: loc.latitude, longitude: loc.longitude)
-        } else if let userLoc = locationManager.currentLocation {
-            target = userLoc.coordinate
+        init(_ parent: GoogleMapView) {
+            self.parent = parent
         }
         
-        let camera = GMSCameraPosition.camera(withTarget: target, zoom: 15.0)
-        let mapView = GMSMapView.map(withFrame: .zero, camera: camera)
-        mapView.delegate = context.coordinator
-        
-        mapView.isMyLocationEnabled = true
-        mapView.settings.myLocationButton = false
-        mapView.settings.compassButton = false
-        
-        return mapView
-    }
-    
-    func updateUIView(_ uiView: GMSMapView, context: Context) {
-        // 1. Actions
-        if action != .none {
+        // MARK: - Actions
+        func handleAction(_ action: MapAction, mapView: GMSMapView) {
             switch action {
             case .zoomIn:
-                uiView.animate(toZoom: uiView.camera.zoom + 1)
+                let zoom = mapView.camera.zoom + 1
+                mapView.animate(toZoom: zoom)
             case .zoomOut:
-                 uiView.animate(toZoom: uiView.camera.zoom - 1)
+                let zoom = mapView.camera.zoom - 1
+                mapView.animate(toZoom: zoom)
             case .currentLocation:
-                if let loc = locationManager.currentLocation {
-                    let cam = GMSCameraUpdate.setTarget(loc.coordinate, zoom: 16)
-                    uiView.animate(with: cam)
+                if let loc = parent.locationManager.currentLocation {
+                    let update = GMSCameraUpdate.setTarget(loc.coordinate, zoom: 16)
+                    mapView.animate(with: update)
                 } else {
-                    // locationManager.requestPermission() // [FIX] Removed
+                    parent.locationManager.requestPermission()
                 }
             case .rotateNorth:
-                uiView.animate(toBearing: 0)
+                mapView.animate(toBearing: 0)
             case .zoomToFit:
-                 var bounds = GMSCoordinateBounds()
-                 var hasPoints = false
-                 
-                 if let loc = locationManager.currentLocation {
-                     bounds = bounds.includingCoordinate(loc.coordinate)
-                     hasPoints = true
-                 }
-                 
-                 for item in todoItems {
-                     if let loc = item.location {
-                         bounds = bounds.includingCoordinate(CLLocationCoordinate2D(latitude: loc.latitude, longitude: loc.longitude))
-                         hasPoints = true
-                     }
-                 }
-                 
-                 if hasPoints {
-                     let update = GMSCameraUpdate.fit(bounds, withPadding: 50.0)
-                     uiView.animate(with: update)
-                 }
-                
+                // Fit bounds logic
+                var bounds = GMSCoordinateBounds()
+                var count = 0
+                if let loc = parent.locationManager.currentLocation {
+                    bounds = bounds.includingCoordinate(loc.coordinate)
+                    count += 1
+                }
+                for item in parent.todoItems {
+                    if let l = item.location {
+                        bounds = bounds.includingCoordinate(CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude))
+                        count += 1
+                    }
+                }
+                if count > 0 {
+                    mapView.animate(with: GMSCameraUpdate.fit(bounds, withPadding: 50.0))
+                }
+            case .launchSequence:
+                self.performLaunchAnimation(mapView: mapView, userLocation: parent.locationManager.currentLocation)
             case .none: break
             }
-            
+        }
+        
+        // MARK: - Delegate Methods
+        func mapView(_ mapView: GMSMapView, didChange position: GMSCameraPosition) {
+             DispatchQueue.main.async {
+                 self.parent.rotation = position.bearing
+             }
+        }
+        
+        func mapView(_ mapView: GMSMapView, idleAt position: GMSCameraPosition) {
+            // Trigger WASM Clustering on Idle (Region Change End)
+            refreshWasmClusters(mapView: mapView)
+        }
+        
+        func mapView(_ mapView: GMSMapView, didTapAt coordinate: CLLocationCoordinate2D) {
+            // Clear Selection
             DispatchQueue.main.async {
-                action = .none
+                self.parent.selectedClusterItems = nil
             }
         }
         
-        // 2. Pins (Clustered)
-        uiView.clear()
-        
-        // [FIX] Simple Mapping instead of missing clusteredItems (WASM clustering integration can be added later)
-        var clusters: [ClusterItem] = []
-        
-        // Map Todos
-        for item in todoItems {
-            if let loc = item.location {
-                let cluster = ClusterItem(coordinate: CLLocationCoordinate2D(latitude: loc.latitude, longitude: loc.longitude), count: 1, items: [.todo(item)])
-                clusters.append(cluster)
-            }
-        }
-        // Map Logs
-        for log in userLogs {
-            let cluster = ClusterItem(coordinate: CLLocationCoordinate2D(latitude: log.latitude, longitude: log.longitude), count: 1, items: [.history(log)])
-            clusters.append(cluster)
+        func mapView(_ mapView: GMSMapView, didLongPressAt coordinate: CLLocationCoordinate2D) {
+            let generator = UIImpactFeedbackGenerator(style: .medium)
+            generator.impactOccurred()
+            parent.onLongTap?(coordinate)
         }
         
-        // [NEW] Initial Animation Logic
-        if !context.coordinator.initialAnimationDone {
-            if hasItems {
-                if !clusters.isEmpty {
-                    var bounds = GMSCoordinateBounds()
-                    for cluster in clusters {
-                        bounds = bounds.includingCoordinate(cluster.coordinate)
-                    }
-                    
-                    let update = GMSCameraUpdate.fit(bounds, withPadding: 50.0)
-                    uiView.animate(with: update)
-                    
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                        if let loc = locationManager.currentLocation {
-                            let cam = GMSCameraUpdate.setTarget(loc.coordinate, zoom: 16)
-                            uiView.animate(with: cam)
-                        }
-                    }
-                    context.coordinator.initialAnimationDone = true
+        func mapView(_ mapView: GMSMapView, didTap marker: GMSMarker) -> Bool {
+            let generator = UIImpactFeedbackGenerator(style: .medium)
+            generator.impactOccurred()
+            
+            // Handle Marker Tap
+            if let custom = marker as? WasmClusterMarker {
+                DispatchQueue.main.async {
+                    self.parent.selectedClusterItems = custom.items
+                    self.parent.selectedItem = nil
                 }
-            } else {
-                if let loc = locationManager.currentLocation {
-                     let cam = GMSCameraUpdate.setTarget(loc.coordinate, zoom: 15)
-                     uiView.animate(with: cam)
-                     context.coordinator.initialAnimationDone = true
+                return true
+            }
+            
+            return false // Default behavior
+        }
+        
+        // MARK: - WASM Clustering
+        func refreshWasmClusters(mapView: GMSMapView) {
+            // Avoid calc if not ready
+            if firstRender && isAnimating { return } 
+            
+            let region = mapView.projection.visibleRegion()
+            let bounds = GMSCoordinateBounds(region: region)
+            // [FIX] Fallback to Screen Width if Map View is not yet laid out
+            var widthPixels = mapView.frame.width // frame used in GMS
+            if widthPixels <= 0 {
+                widthPixels = UIScreen.main.bounds.width
+            }
+            
+            // guard widthPixels > 0 else { return } // Removed guard
+            
+            let center = mapView.camera.target
+            let zoom = mapView.camera.zoom
+            // Meters per pixel ~ 156543.03392 * cos(lat) / 2^zoom
+            let metersPerPixel = 156543.03392 * cos(center.latitude * .pi / 180.0) / pow(2, Double(zoom))
+            let wasmCellSize = metersPerPixel * 70.0 // User requested 70.0
+            
+            // Prepare Data
+            let currentItems = parent.todoItems
+            let currentLogs = parent.userLogs
+            
+            var allItems: [UnifiedMapItem] = []
+            var rawPoints: [Int32] = []
+            
+            for item in currentItems {
+                if let loc = item.location {
+                    allItems.append(.todo(item))
+                    rawPoints.append(Int32(loc.latitude * 1_000_000))
+                    rawPoints.append(Int32(loc.longitude * 1_000_000))
+                }
+            }
+            for log in currentLogs {
+                allItems.append(.history(log))
+                rawPoints.append(Int32(log.latitude * 1_000_000))
+                rawPoints.append(Int32(log.longitude * 1_000_000))
+            }
+            
+            // [FIX] Add User Location to Clustering Data
+            if let userLoc = parent.locationManager.currentLocation {
+                allItems.append(.userLocation)
+                rawPoints.append(Int32(userLoc.coordinate.latitude * 1_000_000))
+                rawPoints.append(Int32(userLoc.coordinate.longitude * 1_000_000))
+            }
+            
+            Task {
+                let start = Date()
+                let result = await WasmManager.shared.cluster(points: rawPoints, cellSize: wasmCellSize)
+                let _ = Date().timeIntervalSince(start) * 1000
+                
+                await MainActor.run {
+                    self.renderWasmResults(mapView: mapView, clusterResult: result, allItems: allItems)
                 }
             }
         }
         
-        for cluster in clusters {
-             let marker = GMSMarker()
-             marker.position = cluster.coordinate
-             
-             if cluster.count == 1, let item = cluster.items.first {
-                 // Single Logic
-                 switch item {
-                 case .todo(let t):
-                     marker.title = t.title
-                     let iconName = t.isCompleted ? "checkmark.circle.fill" : "circle"
-                     let color = UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0)
-                     marker.icon = PinImageHelper.shared.createShieldPin(color: color, iconName: iconName)
-                     
-                 case .history(let l):
-                     let timeStr = DateFormatter.localizedString(from: l.startTime, dateStyle: .none, timeStyle: .short)
-                     marker.title = timeStr
-                     marker.icon = PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill")
-                     
-                 case .userLocation:
-                      marker.icon = PinImageHelper.shared.createShieldPin(color: .red, iconName: "person.fill")
-                      
-                 default:
-                      marker.icon = PinImageHelper.shared.createShieldPin(color: .blue, iconName: "envelope.fill")
+        @MainActor
+        func renderWasmResults(mapView: GMSMapView, clusterResult: [Int32], allItems: [UnifiedMapItem]) {
+            mapView.isMyLocationEnabled = false // [FIX] Disable native blue dot to prevent double pins
+            mapView.clear() // Google Maps requires clearing to remove old markers efficiently
+            
+            // 1. Re-add User Location
+            // 1. (Removed) User Location handled in clusters
+            
+            // 2. Re-add Path Overlay if exists
+            updatePath(mapView: mapView, selectedItems: parent.selectedClusterItems)
+            
+            // 3. Process Clusters
+             struct Centroid { let lat: Double; let lon: Double; let count: Int }
+             var centroids: [Centroid] = []
+             if clusterResult.count % 3 == 0 {
+                 for i in stride(from: 0, to: clusterResult.count, by: 3) {
+                     let lat = Double(clusterResult[i]) / 1_000_000.0
+                     let lon = Double(clusterResult[i+1]) / 1_000_000.0
+                     let count = Int(clusterResult[i+2])
+                     centroids.append(Centroid(lat: lat, lon: lon, count: count))
                  }
-                 marker.userData = item
-             } else {
-                 // Cluster Logic
-                 // Use Green Shield for cluster
-                 marker.icon = PinImageHelper.shared.createShieldPin(color: UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0), count: cluster.count)
-                 marker.userData = cluster.items
+             }
+            
+            // Buckets matching
+             var clusters: [[UnifiedMapItem]] = Array(repeating: [], count: centroids.count)
+             
+             for item in allItems {
+                 var itemLat: Double = 0
+                 var itemLon: Double = 0
+                 switch item {
+                 case .todo(let t): if let l = t.location { itemLat = l.latitude; itemLon = l.longitude }
+                 case .history(let l): itemLat = l.latitude; itemLon = l.longitude
+                 case .userLocation:
+                     if let userLoc = parent.locationManager.currentLocation { itemLat = userLoc.coordinate.latitude; itemLon = userLoc.coordinate.longitude }
+                 default: break
+                 }
+                 
+                 var bestIdx = -1
+                 var minDist = Double.greatestFiniteMagnitude
+                 for (idx, c) in centroids.enumerated() {
+                     let dLat = itemLat - c.lat
+                     let dLon = itemLon - c.lon
+                     let dist = dLat*dLat + dLon*dLon
+                     if dist < minDist {
+                         minDist = dist
+                         bestIdx = idx
+                     }
+                 }
+                 if bestIdx >= 0 {
+                     clusters[bestIdx].append(item)
+                 }
              }
              
-             marker.map = uiView
+             // Create Markers
+             for (idx, items) in clusters.enumerated() {
+                 if items.isEmpty { continue }
+                 let centroid = centroids[idx]
+                 let marker = WasmClusterMarker()
+                 marker.position = CLLocationCoordinate2D(latitude: centroid.lat, longitude: centroid.lon)
+                 marker.items = items
+                 
+                 // Single Logic
+                 if items.count == 1, let item = items.first {
+                     // Recenter to actual item loc
+                     switch item {
+                     case .todo(let t): if let l = t.location { marker.position = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude) }
+                     case .history(let l): marker.position = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)
+                     default: break
+                     }
+                     
+                     // Icon
+                     switch item {
+                     case .todo(let t):
+                         let name = t.isCompleted ? "PinTodoDone" : "PinTodoReady"
+                         if let img = UIImage(named: name) {
+                             marker.icon = img.resized(to: CGSize(width: 40, height: 50))
+                         }
+                     case .history(_):
+                         if let img = UIImage(named: "PinHistory") {
+                             marker.icon = img.resized(to: CGSize(width: 40, height: 50))
+                         }
+                         else { marker.icon = PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill") }
+                     case .serverMessage:
+                          if let img = UIImage(named: "PinReceiveReady") {
+                              marker.icon = img.resized(to: CGSize(width: 40, height: 50))
+                          }
+                     default:
+                         marker.icon = PinImageHelper.shared.createShieldPin(color: .blue, iconName: "circle.fill")
+                     }
+                 } else {
+                     // Cluster Logic
+                     var userLocationFound = false
+                     var historyCount = 0
+                     var todoReadyCount = 0
+                     var todoDoneCount = 0
+                     var messageCount = 0
+                     
+                     for i in items {
+                         switch i {
+                         case .userLocation: userLocationFound = true
+                         case .history: historyCount += 1
+                         case .todo(let t):
+                             if t.isCompleted { todoDoneCount += 1 }
+                             else { todoReadyCount += 1 }
+                         case .serverMessage: messageCount += 1
+                         }
+                     }
+                     
+                     var baseName = "PinTodoReady"
+                     if userLocationFound {
+                         baseName = "PinCurrent"
+                     } else {
+                         let counts = [
+                             ("PinHistory", historyCount),
+                             ("PinTodoReady", todoReadyCount),
+                             ("PinTodoDone", todoDoneCount),
+                             ("PinReceiveReady", messageCount)
+                         ]
+                         if let max = counts.max(by: { $0.1 < $1.1 }), max.1 > 0 {
+                             baseName = max.0
+                         }
+                     }
+                     
+                     let color: UIColor
+                     if baseName == "PinHistory" { color = .red }
+                     else if baseName == "PinReceiveReady" { color = .blue }
+                     else { color = UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0) }
+                     
+                     
+                     // [FIX] Resize Base Image FIRST to match Apple Map size (40x50)
+                     let baseImage = UIImage(named: baseName)?.resized(to: CGSize(width: 40, height: 50))
+                     
+                     // [FIX] Draw standard badge (20pt) on top of the already-resized pin.
+                     // The final image will be slightly larger due to badge overhang, but the pin part will be 40x50.
+                     marker.icon = PinImageHelper.shared.createShieldPin(color: color, count: items.count, baseImage: baseImage)
+                 }
+                 
+                 marker.map = mapView
+             }
+        }
+
+        // MARK: - Animation
+        func performLaunchAnimation(mapView: GMSMapView, userLocation: CLLocation?) {
+             guard let userLoc = userLocation else { return }
+             firstRender = false
+             isAnimating = true
+            
+             // Action 1: Broad View (No Animation - Jump)
+             let initCam = GMSCameraUpdate.setTarget(userLoc.coordinate, zoom: 10)
+             mapView.moveCamera(initCam)
+            
+             // Wait
+             let delay = AppConfig.launchAnimationDelay
+             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                 // Action 2: Zoom to 15
+                 let midCam = GMSCameraUpdate.setTarget(userLoc.coordinate, zoom: 15)
+                 mapView.animate(with: midCam)
+                 self.isAnimating = false
+                 
+                 // Trigger Cluster
+                 self.refreshWasmClusters(mapView: mapView)
+             }
         }
         
-        // [NEW] Path Visualization
-        if let items = selectedClusterItems, let first = items.first, case .history(let log) = first,
-           let data = log.pathData, let points = try? JSONDecoder().decode([LocationData].self, from: data), points.count > 1 {
-            
-            let path = GMSMutablePath()
-            for p in points {
-                path.add(CLLocationCoordinate2D(latitude: p.latitude, longitude: p.longitude))
-            }
-            
-            let polyline = GMSPolyline(path: path)
-            polyline.strokeColor = .red
-            polyline.strokeWidth = 4
-            polyline.map = uiView
-            print("DEBUG: Google Map Added Polyline with \(points.count) points")
+        // MARK: - Path
+        func updatePath(mapView: GMSMapView, selectedItems: [UnifiedMapItem]?) {
+             // [FIX] Disabled Path Drawing as per user request
+             return
         }
     }
 }
 
-extension GoogleMapView.Coordinator {
-    // [FIX] Updated to use Assets - Helper functions removed
-
-
-    func createClusterImage(count: Int, isRed: Bool) -> UIImage {
-        let size = CGSize(width: 40, height: 40)
-        return UIGraphicsImageRenderer(size: size).image { context in
-             let color = isRed ? UIColor.red : UIColor(red: 0.0, green: 0.67, blue: 0.0, alpha: 1.0) // Green
-             color.setFill()
-             
-             let circle = UIBezierPath(ovalIn: CGRect(x: 2, y: 2, width: 36, height: 36))
-             circle.fill()
-             
-             UIColor.white.setStroke()
-             circle.lineWidth = 2
-             circle.stroke()
-             
-             let text = count > 9 ? "9+" : "\(count)"
-             let attrs: [NSAttributedString.Key: Any] = [
-                 .font: UIFont.boldSystemFont(ofSize: 14),
-                 .foregroundColor: UIColor.white
-             ]
-             let str = NSAttributedString(string: text, attributes: attrs)
-             let textSize = str.size()
-             str.draw(at: CGPoint(x: 20 - textSize.width/2, y: 20 - textSize.height/2))
-        }
-    }
+// Marker Subclass
+class WasmClusterMarker: GMSMarker {
+    var items: [UnifiedMapItem] = []
 }
-
