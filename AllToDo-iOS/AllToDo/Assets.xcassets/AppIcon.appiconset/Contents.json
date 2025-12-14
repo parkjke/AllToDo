@@ -31,19 +31,19 @@
       "size" : "40x40"
     },
     {
-      "filename" : "orange-man-120.png",
+      "filename" : "Logo-AppIcon-120.png",
       "idiom" : "iphone",
       "scale" : "2x",
       "size" : "60x60"
     },
     {
-      "filename" : "orange-man-180.png",
+      "filename" : "Logo-AppIcon-180.png",
       "idiom" : "iphone",
       "scale" : "3x",
       "size" : "60x60"
     },
     {
-      "filename" : "orange-man-1024.png",
+      "filename" : "Logo-AppIcon-1024.png",
       "idiom" : "ios-marketing",
       "scale" : "1x",
       "size" : "1024x1024"

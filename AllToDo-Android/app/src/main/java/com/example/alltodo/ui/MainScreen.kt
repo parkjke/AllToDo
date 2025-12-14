@@ -64,6 +64,7 @@ import com.example.alltodo.ui.components.GooglePathDetailPopup
 import com.example.alltodo.ui.components.NaverPathDetailPopup // [NEW]
 import com.example.alltodo.ui.components.KakaoMapContent
 import com.example.alltodo.ui.components.NaverMapContent // [NEW]
+import kotlinx.coroutines.* // [NEW]
 import com.example.alltodo.ui.components.UserProfileView // [NEW]
 import com.example.alltodo.ui.components.GoogleMapMarkers // [NEW]
 import com.example.alltodo.ui.components.GoogleMapContent // [NEW]
@@ -128,9 +129,12 @@ fun MainScreen(
     // [FIX] Hoist Animation State to prevent reset on Recomposition
     var initialAnimationDone by remember { mutableStateOf(false) }
 
-    // Lifecycle - Session Management
+    // Lifecycle - Session Management & Performance Monitoring
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
+        // Start Performance Monitor
+        com.example.alltodo.utils.PerformanceMonitor.start()
+        
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_START) {
                 // viewModel.startSession() // Already called in init? No, init calls it.
@@ -142,10 +146,22 @@ fun MainScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+            com.example.alltodo.utils.PerformanceMonitor.stop()
+        }
+    }
+    
+    // [DEBUG] Check Recomposition
+    android.util.Log.d("MainScreen", "Recomposed")
+
+    val context = LocalContext.current
+    
+    // [NEW] PIN SYSTEM: Initialize Pin Manager (Load/Create Bitmaps with Parity)
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            com.example.alltodo.ui.PinImageManager.initialize(context)
         }
     }
 
-    val context = LocalContext.current
     var kakaoMap by remember { mutableStateOf<KakaoMap?>(null) }
     var naverMap by remember { mutableStateOf<com.naver.maps.map.NaverMap?>(null) }
     
@@ -282,6 +298,8 @@ fun MainScreen(
                 for (location in result.locations) {
                     currentLocation = location
                     viewModel.saveLocation(location.latitude, location.longitude)
+                    // [NEW] Update current location for Map Pin Clustering
+                    viewModel.updateCurrentLocation(location.latitude, location.longitude)
                 }
             }
         }
@@ -312,7 +330,11 @@ fun MainScreen(
 
     // Camera Init Logic (Kakao Only)
     // Camera Init Logic (Kakao Only)
+    // Camera Init Logic (Kakao Only)
     LaunchedEffect(isKakaoMapReady, todoItems, currentLocation, mapProvider) {
+        // [FIX] Prevent repeated camera resets. Run only ONCE.
+        if (initialAnimationDone) return@LaunchedEffect
+        
         // 맵이 준비되지 않았거나, 공급자가 카카오가 아니면 아무것도 하지 않음
         if (!isKakaoMapReady || mapProvider != MapProvider.Kakao) return@LaunchedEffect
 
@@ -352,14 +374,12 @@ fun MainScreen(
                 }
             }
         }
+        
+        // Mark animation as done so it doesn't run again on updates
+        initialAnimationDone = true
     }
 
-    // [FIX] Hoisted Google Camera State
-    val googleCameraState = com.google.maps.android.compose.rememberCameraPositionState {
-         position = com.google.android.gms.maps.model.CameraPosition.fromLatLngZoom(
-             com.google.android.gms.maps.model.LatLng(37.5665, 126.9780), 12f
-         )
-    }
+
     
     // [NEW] Unified Filtering Logic for All Maps
     // [NEW] Use Clustered Items from ViewModel
@@ -373,130 +393,98 @@ fun MainScreen(
     }
     
     // [FIX] Zoom Tracking for Google Map
-    LaunchedEffect(googleCameraState.position.zoom) {
-         viewModel.updateZoom(googleCameraState.position.zoom)
+    LaunchedEffect(googleCameraPositionState.position.zoom) {
+         viewModel.updateZoom(googleCameraPositionState.position.zoom)
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-    // [FIX] Persistent Map Views to prevent crashes on provider switch
-    Box(modifier = Modifier.fillMaxSize()) {
-        val googleAlpha = if (mapProvider == MapProvider.Google) 1f else 0f
-        val googleZ = if (mapProvider == MapProvider.Google) 2f else 0f
+        // [FIX] Performance Optimization: Only render the ACTIVE map provider
+        // Rendering multiple heavy map views (even with alpha=0) causes main thread contention.
         
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .zIndex(googleZ)
-                .background(if(mapProvider == MapProvider.Google) Color.Transparent else Color.Black) // Debug/Fallback
-        ) {
-             // Google Map is robust, can be conditional, but let's keep it for consistency or conditional if heavy
-             // [FIX] Wait for Location to prevent "Africa" (0,0) display
-             if (currentLocation != null) {
-                 androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize().alpha(googleAlpha)) {
+        when (mapProvider) {
+            MapProvider.Google -> {
+                if (currentLocation != null) {
                      GoogleMapContent(
                             modifier = Modifier.fillMaxSize(),
                             clusteredItems = clusteredItems,
                             currentLocation = currentLocation,
-                            cameraPositionState = googleCameraPositionState, // [FIX] Pass state
+                            cameraPositionState = googleCameraPositionState, 
                             onMapClick = { latLng ->
-                                if (mapProvider == MapProvider.Google) {
-                                    showDetailPopup = null
-                                    selectedCluster = null
-                                }
+                                showDetailPopup = null
+                                selectedCluster = null
                             },
                             onMapLongClick = { latLng ->
-                                if (mapProvider == MapProvider.Google) {
-                                    newTodoLocation = latLng
-                                    showAddTodoDialog = true
-                                }
+                                newTodoLocation = latLng
+                                showAddTodoDialog = true
                             },
-                            onItemClick = { item -> if (mapProvider == MapProvider.Google) showDetailPopup = item },
+                            onItemClick = { item -> showDetailPopup = item },
                             onItemClickWithCoords = { item, x, y ->
-                                if (mapProvider == MapProvider.Google) {
-                                    selectedClusterPosition = Offset(x, y)
-                                    selectedCluster = PinCluster(
-                                        item.latitude, item.longitude, 
-                                        listOf(item), 
-                                        if(item is UnifiedItem.Todo) "todo" else "history"
-                                    )
-                                }
+                                selectedClusterPosition = Offset(x, y)
+                                selectedCluster = PinCluster(
+                                    item.latitude, item.longitude, 
+                                    listOf(item), 
+                                    if(item is UnifiedItem.Todo) "todo" else "history"
+                                )
                             },
                             onClusterClickWithCoords = { items, x, y ->
-                                if (mapProvider == MapProvider.Google) {
-                                    selectedClusterPosition = Offset(x, y)
-                                    val hasTodo = items.any { it is UnifiedItem.Todo }
-                                    val hasHistory = items.any { it is UnifiedItem.History }
-                                    val type = if(hasTodo && hasHistory) "mixed" else if(hasTodo) "todo" else "history"
-                                    val first = items.firstOrNull() ?: items.first()
-                                    selectedCluster = PinCluster(first.latitude, first.longitude, items, type)
-                                }
+                                selectedClusterPosition = Offset(x, y)
+                                val hasTodo = items.any { it is UnifiedItem.Todo }
+                                val hasHistory = items.any { it is UnifiedItem.History }
+                                val type = if(hasTodo && hasHistory) "mixed" else if(hasTodo) "todo" else "history"
+                                val first = items.firstOrNull() ?: items.first()
+                                selectedCluster = PinCluster(first.latitude, first.longitude, items, type)
                             },
-                            onRotationChange = { rot -> if (mapProvider == MapProvider.Google) compassRotation = rot },
+                            onRotationChange = { rot -> 
+                                android.util.Log.d("CompassDebug", "Google Rot: $rot")
+                                compassRotation = rot 
+                            },
                             isMapReady = isGoogleMapReady,
                             onMapLoaded = { isGoogleMapReady = true },
                             showHistoryMode = showHistoryMode,
                             initialAnimationDone = initialAnimationDone,
                             onInitialAnimationDone = { initialAnimationDone = true }
                      )
-                 }
-             } else if (mapProvider == MapProvider.Google) {
-                 // [FIX] Loading Indicator while waiting for location
-                 androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                     CircularProgressIndicator(color = Color.Gray)
-                 }
-             }
-        }
-
-        val kakaoAlpha = if (mapProvider == MapProvider.Kakao) 1f else 0f
-        val kakaoZ = if (mapProvider == MapProvider.Kakao) 2f else 0f
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .zIndex(kakaoZ)
-        ) {
-            // Kakao Map MUST be kept alive to avoid native crashes
-            androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize().alpha(kakaoAlpha)) {
-                com.example.alltodo.ui.components.KakaoMapContent(
-                    modifier = Modifier.fillMaxSize(),
-                    isSdkInitialized = isSdkInitialized,
-                    items = displayItems,
-                    currentLocation = currentLocation,
-                    selectedCluster = selectedCluster,
-                    onMapReady = { map ->
-                        kakaoMap = map
-                        isKakaoMapReady = true
-                    },
-                    onClusterClick = { cluster ->
-                        if (mapProvider == MapProvider.Kakao) {
-                            if (selectedCluster?.latitude == cluster.latitude && selectedCluster?.longitude == cluster.longitude) {
-                                selectedCluster = null
-                            } else {
-                                selectedCluster = cluster
-                            }
-                        }
-                    },
-                    onMapClick = { latLng ->
-                        if (mapProvider == MapProvider.Kakao) {
-                            newTodoLocation = latLng
-                            showAddTodoDialog = true
-                        }
-                    },
-                    onCameraRotate = { rot -> if (mapProvider == MapProvider.Kakao) compassRotation = rot },
-                    onCameraMoveStart = { if (mapProvider == MapProvider.Kakao) selectedCluster = null }
-                )
+                } else {
+                     // Loading
+                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                         CircularProgressIndicator(color = Color.Gray)
+                     }
+                }
             }
-        }
-
-        val naverAlpha = if (mapProvider == MapProvider.Naver) 1f else 0f
-        val naverZ = if (mapProvider == MapProvider.Naver) 2f else 0f
-        
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .zIndex(naverZ)
-        ) {
-             androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize().alpha(naverAlpha)) {
+            
+            MapProvider.Kakao -> {
+                // Kakao Map
+                 com.example.alltodo.ui.components.KakaoMapContent(
+                     modifier = Modifier.fillMaxSize(),
+                     isSdkInitialized = isSdkInitialized,
+                     items = displayItems,
+                     currentLocation = currentLocation,
+                     selectedCluster = selectedCluster,
+                     onMapReady = { map ->
+                         kakaoMap = map
+                         isKakaoMapReady = true
+                     },
+                     onClusterClick = { cluster ->
+                         if (selectedCluster?.latitude == cluster.latitude && selectedCluster?.longitude == cluster.longitude) {
+                             selectedCluster = null
+                         } else {
+                             selectedCluster = cluster
+                         }
+                     },
+                     onMapClick = { latLng ->
+                         newTodoLocation = latLng
+                         showAddTodoDialog = true
+                     },
+                     onCameraRotate = { rot -> 
+                         android.util.Log.d("CompassDebug", "Kakao Rot: $rot")
+                         compassRotation = rot 
+                     },
+                     onCameraMoveStart = { selectedCluster = null }
+                 )
+            }
+            
+            MapProvider.Naver -> {
+                // Naver Map
                 NaverMapContent(
                     modifier = Modifier.fillMaxSize(),
                     items = displayItems,
@@ -505,11 +493,22 @@ fun MainScreen(
                         naverMap = map
                         isNaverMapReady = true
                     },
-                    onItemClick = { item -> if (mapProvider == MapProvider.Naver) showDetailPopup = item }
+                    onItemClick = { item, x, y -> 
+                        selectedClusterPosition = Offset(x, y)
+                        selectedCluster = PinCluster(
+                            item.latitude, item.longitude,
+                            listOf(item),
+                            if (item is UnifiedItem.Todo) "todo" else "history"
+                        )
+                    },
+                    onRotationChange = { rot -> 
+                        android.util.Log.d("CompassDebug", "Naver Rot: $rot")
+                        compassRotation = rot 
+                    }
                 )
-             }
+            }
         }
-    }
+
 
 
         if (showAddTodoDialog) {
@@ -610,7 +609,7 @@ fun MainScreen(
                      .clickable { showMyInfo = false }
              ) {
                  UserProfileView(
-                     modifier = Modifier.align(Alignment.CenterStart).padding(start = 20.dp), // Left aligned,
+                     modifier = Modifier.align(Alignment.CenterStart),
                      onDismiss = { showMyInfo = false },
                      maxPopupItems = maxPopupItems,
                      onMaxItemsChange = { viewModel.updateMaxPopupItems(it) },
@@ -630,7 +629,8 @@ fun MainScreen(
                     if (pt != null) {
                         selectedClusterPosition = Offset(pt.x.toFloat(), pt.y.toFloat())
                     }
-                    delay(16)
+                    // [FIX] Increase delay to 100ms to reduce Main Thread load (was 16ms)
+                    delay(100)
                 }
             }
         }
@@ -884,7 +884,7 @@ fun MainScreen(
                         val update = com.naver.maps.map.CameraUpdate.zoomBy(1.0)
                         naverMap?.moveCamera(update)
                     }
-                    MapProvider.Google -> googleCameraState.move(com.google.android.gms.maps.CameraUpdateFactory.zoomIn())
+                    MapProvider.Google -> googleCameraPositionState.move(com.google.android.gms.maps.CameraUpdateFactory.zoomIn())
                     else -> {}
                 }
             },
@@ -895,7 +895,7 @@ fun MainScreen(
                         val update = com.naver.maps.map.CameraUpdate.zoomBy(-1.0)
                         naverMap?.moveCamera(update)
                     }
-                    MapProvider.Google -> googleCameraState.move(com.google.android.gms.maps.CameraUpdateFactory.zoomOut())
+                    MapProvider.Google -> googleCameraPositionState.move(com.google.android.gms.maps.CameraUpdateFactory.zoomOut())
                     else -> {}
                 }
             }
@@ -954,7 +954,8 @@ fun MainScreen(
             )
         }
     }
-    }
+}
+
 
 
 

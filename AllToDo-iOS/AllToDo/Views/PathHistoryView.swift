@@ -35,12 +35,14 @@ struct PathHistoryView: View {
             .ignoresSafeArea()
             
             // Close Button
+            // Close Button [Styled]
             Button(action: onClose) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 30))
-                    .foregroundColor(.black.opacity(0.6))
-                    .background(Circle().fill(Color.white))
-                    .shadow(radius: 2)
+                Image(systemName: "xmark")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(Color(red: 0.2, green: 0.2, blue: 0.2))
+                    .frame(width: 48, height: 48)
+                    .background(Color(red: 0.2, green: 0.8, blue: 0.2).opacity(0.7))
+                    .cornerRadius(12)
                     .padding()
             }
         }
@@ -189,19 +191,22 @@ struct GooglePathMapView: UIViewRepresentable {
         polyline.map = uiView
         
         // Markers
+        // Markers
         let start = GMSMarker(position: coordinates.first!)
         start.title = "Start"
-        start.icon = PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill").resized(to: CGSize(width: 40, height: 50))
         if let img = UIImage(named: "PinHistory") {
             start.icon = img.resized(to: CGSize(width: 40, height: 50))
+        } else {
+             start.icon = PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill").resized(to: CGSize(width: 40, height: 50))
         }
         start.map = uiView
         
         let end = GMSMarker(position: coordinates.last!)
         end.title = "End"
-        end.icon = PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill").resized(to: CGSize(width: 40, height: 50))
         if let img = UIImage(named: "PinHistory") {
             end.icon = img.resized(to: CGSize(width: 40, height: 50))
+        } else {
+            end.icon = PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill").resized(to: CGSize(width: 40, height: 50))
         }
         end.map = uiView
         
@@ -262,12 +267,12 @@ struct NaverPathMapView: UIViewRepresentable {
         }
         
         // Markers
+        // Markers
         let start = NMFMarker(position: points.first!)
         start.captionText = "Start"
         if let img = UIImage(named: "PinHistory")?.resized(to: CGSize(width: 40, height: 50)) {
             start.iconImage = NMFOverlayImage(image: img)
         } else {
-            // Fallback: Create Shield -> Resize -> (Force Unwrap safe as createShield returns image usually, but handle if nil)
             let shield = PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill")
             if let resized = shield.resized(to: CGSize(width: 40, height: 50)) {
                 start.iconImage = NMFOverlayImage(image: resized)

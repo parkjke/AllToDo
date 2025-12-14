@@ -67,7 +67,14 @@ fun createRedDotBitmap(): Bitmap {
     return bitmap
 }
 
+// Cache for Diamond Pins
+private val diamondBitmapCache = android.util.LruCache<String, Bitmap>(50)
+
 fun generateDiamondPin(color: Int, count: Int): Bitmap? {
+    val key = "$color-$count"
+    val cached = diamondBitmapCache.get(key)
+    if (cached != null) return cached
+
     val width = 100
     val height = 120
     val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
@@ -107,5 +114,91 @@ fun generateDiamondPin(color: Int, count: Int): Bitmap? {
         canvas.drawCircle(width / 2f, height * 0.4f, width / 8f, paint)
     }
 
+    diamondBitmapCache.put(key, bitmap)
+    return bitmap
+}
+
+// [FIX] Bitmap Cache to prevent UI Freeze
+private val bitmapCache = android.util.LruCache<String, Bitmap>(100) // Cache last 100 icons
+
+fun getCachedClusterBitmap(context: android.content.Context, count: Int, baseResId: Int, badgeColor: Int): com.google.android.gms.maps.model.BitmapDescriptor {
+    val key = "$count-$baseResId-$badgeColor"
+    val cached = bitmapCache.get(key)
+    
+    val bitmap = if (cached != null) {
+        cached
+    } else {
+        // Create new
+        val newBitmap = createClusterBitmapInternal(context, count, baseResId, badgeColor)
+        bitmapCache.put(key, newBitmap)
+        newBitmap
+    }
+    
+    return com.google.android.gms.maps.model.BitmapDescriptorFactory.fromBitmap(bitmap)
+}
+
+// Previously named createClusterBitmap
+private fun createClusterBitmapInternal(context: android.content.Context, count: Int, baseResId: Int, badgeColor: Int): Bitmap {
+    // [FIX] Density-aware sizing to match PinImageManager (40dp x 50dp) + Padding for Badge Overhang
+    val density = context.resources.displayMetrics.density
+    val pinW = (40 * density).toInt()
+    val pinH = (50 * density).toInt()
+    val padding = (10 * density).toInt() // Extra space for overhang
+    
+    val sizeW = pinW + padding
+    val sizeH = pinH + padding
+    
+    val bitmap = Bitmap.createBitmap(sizeW, sizeH, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    
+    // 1. Draw Base Icon (Shifted down/left to make room for top/right badge)
+    val cachedBase = PinImageManager.getPinBitmap(baseResId)
+    if (cachedBase != null) {
+        val srcRect = android.graphics.Rect(0, 0, cachedBase.width, cachedBase.height)
+        val dstRect = android.graphics.Rect(0, padding, pinW, pinH + padding)
+        canvas.drawBitmap(cachedBase, srcRect, dstRect, null)
+    } else {
+        // Fallback: Create from Drawable
+        val drawable = androidx.core.content.ContextCompat.getDrawable(context, baseResId)
+        drawable?.setBounds(0, padding, pinW, pinH + padding)
+        drawable?.draw(canvas)
+    }
+    
+    // 2. Draw Badge (Overhanging Top-Right)
+    if (count > 0) {
+        val paint = Paint().apply {
+            isAntiAlias = true
+            color = badgeColor
+            style = Paint.Style.FILL
+        }
+        
+        val badgeSize = 20f * density
+        // Center on the top-right corner of the PIN image
+        // Pin ends at x=pinW, y=padding.
+        val cx = pinW.toFloat()
+        val cy = padding.toFloat()
+        
+        // White Border
+        paint.color = android.graphics.Color.WHITE
+        canvas.drawCircle(cx, cy, badgeSize/2 + 2 * density, paint) // Border 2dp
+        
+        // Color Bg
+        paint.color = badgeColor
+        canvas.drawCircle(cx, cy, badgeSize/2, paint)
+        
+        // Text
+        paint.color = android.graphics.Color.WHITE
+        paint.textSize = 12f * density // 12sp equivalent
+        paint.textAlign = Paint.Align.CENTER
+        paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
+        
+        val text = if (count > 9) "9+" else count.toString()
+        val bounds = android.graphics.Rect() // [FIX] Fully qualified name
+        paint.getTextBounds(text, 0, text.length, bounds)
+        val yOff = bounds.height().toFloat() / 2f // [FIX] Cast to Float
+        
+        canvas.drawText(text, cx, cy + yOff, paint)
+    }
+    
     return bitmap
 }

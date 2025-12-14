@@ -42,12 +42,15 @@ fun UserProfileView(
     currentMapProvider: MapProvider,
     onMapProviderChange: (MapProvider) -> Unit
 ) {
+    var showPinViewer by remember { mutableStateOf(false) }
+
+
+
     Card(
         modifier = modifier
-            .width(300.dp)
-            .padding(16.dp)
-            .heightIn(max = 600.dp), // Limit height to ensure it fits reasonably in screen usually
-        shape = RoundedCornerShape(16.dp),
+            .fillMaxHeight()
+            .fillMaxWidth(0.85f), // Leave 15% for right controls
+        shape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
@@ -57,63 +60,55 @@ fun UserProfileView(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            
+            // Triple Tap Logic State
+            var tapCount by remember { mutableStateOf(0) }
+            LaunchedEffect(tapCount) {
+                if (tapCount > 0) {
+                    kotlinx.coroutines.delay(400)
+                    if (tapCount >= 3) uploadLogs(context)
+                    tapCount = 0
+                }
+            }
+
             // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Divider(modifier = Modifier.padding(vertical = 16.dp)) 
-
-                val context = androidx.compose.ui.platform.LocalContext.current
-                val scope = rememberCoroutineScope()
-                
+                // Title
                 Text(
                     text = "My Info",
-                    fontSize = 20.sp,
+                    fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     color = AllToDoGreen,
-                    modifier = Modifier.pointerInput(Unit) {
-                        detectTapGestures(
-                            onTap = { },
-                            onDoubleTap = { },
-                            onLongPress = { }
+                    modifier = Modifier.clickable { tapCount++ } // Triple tap logic
+                )
+
+                // Controls (Pin Viewer & Close)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // [NEW] Pin Viewer Button
+                    IconButton(onClick = { showPinViewer = true }) {
+                        Icon(
+                            painter = androidx.compose.ui.res.painterResource(com.example.alltodo.R.drawable.pin_todo_ready),
+                            contentDescription = "Pin Gallery",
+                            tint = Color.Unspecified, // Show original green color
+                            modifier = Modifier.size(32.dp) // Make it slightly larger
                         )
                     }
-                    // Let's use a simpler Clickable with counter for Triple Tap
-                    .clickable { 
-                         // Check triple tap logic manually?
-                    }
-                )
-                // Let's implement custom triple tap detector
-                var tapCount by remember { mutableStateOf(0) }
-                LaunchedEffect(tapCount) {
-                    if (tapCount > 0) {
-                        kotlinx.coroutines.delay(400) // Reset window
-                        if (tapCount >= 3) {
-                             uploadLogs(context)
-                        }
-                        tapCount = 0
-                    }
-                }
+                    
+                    Spacer(modifier = Modifier.width(8.dp))
 
-                Text(
-                    text = "My Info",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = AllToDoGreen,
-                    modifier = Modifier.clickable(
-                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                        indication = null // No ripple
-                    ) {
-                        tapCount++
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", modifier = Modifier.size(32.dp))
                     }
-                )
-                IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "Close")
                 }
             }
-
+            
+            Divider(modifier = Modifier.padding(vertical = 16.dp))
+            
             Spacer(modifier = Modifier.height(16.dp))
 
             // Profile Icon
@@ -214,6 +209,11 @@ fun UserProfileView(
                 }
             }
         }
+
+    if (showPinViewer) {
+        // [FIX] Use the full package name if PinGalleryScreen is in .ui package
+        com.example.alltodo.ui.PinGalleryScreen(onDismiss = { showPinViewer = false })
+    }
     }
 }
 

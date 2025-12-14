@@ -3,6 +3,7 @@ package com.example.alltodo.ui.components
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import com.example.alltodo.ui.UnifiedItem
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
@@ -59,85 +60,84 @@ fun GoogleMapContent(
     // 2. iPhone-like Launch Animation (Fit Bounds with Max Zoom 11)
     // [FIX] Loop prevention: animate once, never restart.
     // Depend on Unit so it doesn't restart on data change.
-    LaunchedEffect(Unit) {
-        if (initialAnimationDone) return@LaunchedEffect
-
-        // Wait for Map Limit or Data
-        while (true) {
-             delay(500) // Poll
-             if (!isMapReady) continue
+    // [FIX] Reactive Launch Animation (No Polling Loop)
+    // [FIX] Reactive Launch Animation (Run Once)
+    // Removed 'clusteredItems' from keys to prevent restart on update
+    LaunchedEffect(isMapReady) {
+        if (initialAnimationDone || !isMapReady) return@LaunchedEffect
+        
+        // Wait for valid data (snapshotFlow)
+        // We wait for either clusteredItems to be populated OR a timeout?
+        // Let's wait for clusteredItems to have content OR current location
+        
+        var validPoints: List<LatLng> = emptyList()
+        
+        // Wait until we have data or location
+        // Use a simple loop with timeout or snapshotFlow
+        val start = System.currentTimeMillis()
+        while (System.currentTimeMillis() - start < 5000) { // Max 5 sec wait
+             val items = clusteredItems // Capture current state
+             val loc = currentLocation
              
-             // [DEBUG] Check for valid data
-             val validPoints = mutableListOf<LatLng>()
+             val points = mutableListOf<LatLng>()
+             val itemPoints = items.flatMap { it.items }
+                .filter { (it is UnifiedItem.Todo || it is UnifiedItem.History) }
+                .map { item -> LatLng(item.latitude, item.longitude) }
+             points.addAll(itemPoints)
              
-             // 1. Filter valid locations
-             val allUnifiedItems = clusteredItems.flatMap { it.items }
-             val itemPoints = allUnifiedItems.filter { item ->
-                  (item is UnifiedItem.Todo || item is UnifiedItem.History) && item.latitude != 0.0 && item.longitude != 0.0
-             }.map { item ->
-                  LatLng(item.latitude, item.longitude)
-             }
-             validPoints.addAll(itemPoints)
-
-             if (currentLocation != null && currentLocation.latitude != 0.0) {
-                 validPoints.add(LatLng(currentLocation.latitude, currentLocation.longitude))
+             if (loc != null && loc.latitude != 0.0) {
+                 points.add(LatLng(loc.latitude, loc.longitude))
              }
              
-             // If we have data, start animation sequence
-             if (validPoints.isNotEmpty()) {
-                  val boundsBuilder = LatLngBounds.builder()
-                  validPoints.forEach { boundsBuilder.include(it) }
-                  val bounds = boundsBuilder.build()
-                  val center = bounds.center
-
-                  // Zoom Logic: "If Zoom > 11, set to 11" (Approx Span 0.4)
-                  val MIN_SPAN = 0.4 
-                  val ne = bounds.northeast
-                  val sw = bounds.southwest
-                  var latSpan = ne.latitude - sw.latitude
-                  var lngSpan = ne.longitude - sw.longitude
-                  
-                  if (latSpan < MIN_SPAN) latSpan = MIN_SPAN
-                  if (lngSpan < MIN_SPAN) lngSpan = MIN_SPAN
-                  
-                  val expandedBounds = LatLngBounds(
-                      LatLng(center.latitude - latSpan / 2, center.longitude - lngSpan / 2),
-                      LatLng(center.latitude + latSpan / 2, center.longitude + lngSpan / 2)
-                  )
-
-                  try {
-                      cameraPositionState.animate(
-                          CameraUpdateFactory.newLatLngBounds(expandedBounds, 100),
-                          1500
-                      )
-                      
-                      delay(3000)
-                      
-                      if (currentLocation != null) {
-                          cameraPositionState.animate(
-                              CameraUpdateFactory.newLatLngZoom(
-                                  LatLng(currentLocation.latitude, currentLocation.longitude), 
-                                  15f
-                              ),
-                              1000 
-                          )
-                      }
-                  } catch (e: Exception) {
-                      e.printStackTrace()
-                  }
-                  
-                  onInitialAnimationDone()
-                  break // Exit loop, never run again
+             if (points.isNotEmpty()) {
+                 validPoints = points
+                 break
              }
+             delay(500) // Poll every 500ms
         }
-    }
+        
+        if (validPoints.isNotEmpty()) {
+             // Run Animation Sequence
+             val boundsBuilder = LatLngBounds.builder()
+             validPoints.forEach { boundsBuilder.include(it) }
+             val bounds = boundsBuilder.build()
+             val center = bounds.center
 
-    // ... Rotation Sync ...
-    LaunchedEffect(cameraPositionState) {
-        snapshotFlow { cameraPositionState.position.bearing }
-            .collectLatest { bearing ->
-                onRotationChange(bearing)
-            }
+             val MIN_SPAN = 0.4 
+             val ne = bounds.northeast
+             val sw = bounds.southwest
+             var latSpan = ne.latitude - sw.latitude
+             var lngSpan = ne.longitude - sw.longitude
+             
+             if (latSpan < MIN_SPAN) latSpan = MIN_SPAN
+             if (lngSpan < MIN_SPAN) lngSpan = MIN_SPAN
+             
+             val expandedBounds = LatLngBounds(
+                 LatLng(center.latitude - latSpan / 2, center.longitude - lngSpan / 2),
+                 LatLng(center.latitude + latSpan / 2, center.longitude + lngSpan / 2)
+             )
+
+             try {
+                 cameraPositionState.animate(
+                     CameraUpdateFactory.newLatLngBounds(expandedBounds, 100),
+                     1500
+                 )
+                 delay(2000)
+                 if (currentLocation != null) {
+                      cameraPositionState.animate(
+                          CameraUpdateFactory.newLatLngZoom(
+                              LatLng(currentLocation.latitude, currentLocation.longitude), 
+                              15f
+                          ),
+                          1000 
+                      )
+                 }
+                 onInitialAnimationDone()
+             } catch (e: Exception) { e.printStackTrace() }
+        } else {
+             // Fallback if no data found in 5 sec
+             onInitialAnimationDone()
+        }
     }
 
     // [FIX] Projection State
@@ -159,11 +159,14 @@ fun GoogleMapContent(
         MapEffect(Unit) { map ->
             map.setOnCameraMoveListener {
                 mapProjection = map.projection
+                onRotationChange(map.cameraPosition.bearing)
             }
             map.setOnCameraIdleListener {
                 mapProjection = map.projection
+                onRotationChange(map.cameraPosition.bearing)
             }
             mapProjection = map.projection
+            onRotationChange(map.cameraPosition.bearing) // Initial set
         }
         
         // [FIX] Render Clustered Items
@@ -178,23 +181,37 @@ fun GoogleMapContent(
                 bitmapDescriptorFromVector(context, firstItem.getPinResId(), 40)
             } else {
                 // Cluster Item
-                // [FIX] Match iOS Logic: Determine Dominant Type & Color (Badge Strategy)
+                // [FIX] Priority Logic: UserLocation > History > Server(Blue) > User(Green)
+                var hasUserLocation = false
                 var hasHistory = false
-                var hasTodo = false
+                var hasServerTodo = false // Blue
+                var hasUserTodo = false   // Green
+                
                 cluster.items.forEach { 
-                    if (it is UnifiedItem.History) hasHistory = true
-                    if (it is UnifiedItem.Todo) hasTodo = true
+                    when(it) {
+                        is UnifiedItem.CurrentLocation -> hasUserLocation = true
+                        is UnifiedItem.History -> hasHistory = true
+                        is UnifiedItem.Todo -> {
+                            if (it.item.source != "local") hasServerTodo = true
+                            else hasUserTodo = true
+                        }
+                    }
                 }
                 
                 val (resId, badgeColor) = when {
-                    hasHistory && !hasTodo -> com.example.alltodo.R.drawable.pin_history to android.graphics.Color.RED
+                    hasUserLocation -> com.example.alltodo.R.drawable.pin_current to android.graphics.Color.RED
+                    hasHistory -> com.example.alltodo.R.drawable.pin_history to android.graphics.Color.RED
+                    hasServerTodo -> com.example.alltodo.R.drawable.pin_receive_ready to android.graphics.Color.BLUE // Needs accurate Blue
                     else -> com.example.alltodo.R.drawable.pin_todo_ready to android.graphics.Color.parseColor("#00AA00") // Green
                 }
-                createClusterBitmap(context, cluster.count, resId, badgeColor)
+                // [FIX] Use Cached Implementation from MapCommon.kt
+                com.example.alltodo.ui.getCachedClusterBitmap(context, cluster.count, resId, badgeColor)
             }
 
             Marker(
                 state = MarkerState(position = position),
+                // [FIX] Adjust anchor for cluster (offset due to badge overhang)
+                anchor = if (isSingle && firstItem != null) Offset(0.5f, 1.0f) else Offset(0.4f, 1.0f),
                 icon = iconDescriptor,
                 onClick = {
                     val point = mapProjection?.toScreenLocation(position)
@@ -209,127 +226,11 @@ fun GoogleMapContent(
                 }
             )
         }
-
-        // [FIX] Standalone Current Location Marker
-        currentLocation?.let {
-            val latLng = LatLng(it.latitude, it.longitude)
-            Marker(
-                state = MarkerState(position = latLng),
-                title = "Current Location",
-                snippet = "You are here",
-                onClick = { marker ->
-                    val item = UnifiedItem.CurrentLocation(it.latitude, it.longitude)
-                    val point = mapProjection?.toScreenLocation(latLng)
-                    if (point != null) {
-                        onItemClickWithCoords(item, point.x.toFloat(), point.y.toFloat())
-                    }
-                    true
-                },
-                icon = bitmapDescriptorFromVector(context, com.example.alltodo.R.drawable.pin_current)
-            )
-        }
+        
+        // [REMOVED] Standalone Current Location Marker (Now handled in clusters)
     }
 }
 
-// Helper to create cluster icon with text (iOS Style: Pin + Badge)
-fun createClusterBitmap(context: android.content.Context, count: Int, @androidx.annotation.DrawableRes resId: Int, badgeColor: Int): com.google.android.gms.maps.model.BitmapDescriptor {
-    val density = context.resources.displayMetrics.density
-    
-    // iOS Size: 40x50 pts (Matched with iOS GoogleMapView.swift)
-    val widthDp = 40
-    val heightDp = 50
-    val wPx = (widthDp * density).toInt()
-    val hPx = (heightDp * density).toInt()
-    
-    // Badge Size
-    val badgeRadiusDp = 10f
-    val badgeRadiusPx = badgeRadiusDp * density
-    
-    // Canvas Size (Need extra space for badge if it hangs out? iOS code: "badge overhang")
-    // Let's add padding.
-    val padding = (badgeRadiusPx / 1.5).toInt() 
-    val bitmapW = wPx + padding
-    val bitmapH = hPx + padding
-    
-    val bitmap = android.graphics.Bitmap.createBitmap(bitmapW, bitmapH, android.graphics.Bitmap.Config.ARGB_8888)
-    val canvas = android.graphics.Canvas(bitmap)
-    
-    // 1. Draw Base Pin (Centered and Aspect Correct)
-    val drawable = androidx.core.content.ContextCompat.getDrawable(context, resId)
-    if (drawable != null) {
-        // Calculate aspect ratio
-        val dw = drawable.intrinsicWidth
-        val dh = drawable.intrinsicHeight
-        
-        val targetW: Int
-        val targetH: Int
-        
-        if (dw > 0 && dh > 0) {
-            val aspect = dw.toFloat() / dh.toFloat()
-            val boxAspect = wPx.toFloat() / hPx.toFloat()
-            
-            if (aspect > boxAspect) {
-                // Drawable is wider than box -> width fits, height adjusts
-                targetW = wPx
-                targetH = (wPx / aspect).toInt()
-            } else {
-                // Drawable is taller than box -> height fits, width adjusts
-                targetH = hPx
-                targetW = (hPx * aspect).toInt()
-            }
-        } else {
-            targetW = wPx
-            targetH = hPx
-        }
-        
-        // Center horizontally
-        val left = (wPx - targetW) / 2
-        // Bottom Align or Top Align?
-        // Usually pins are anchored at bottom. 
-        // We have 'padding' at top. So box is from (0, padding) to (wPx, hPx + padding)
-        // Let's align to bottom of that box.
-        val top = padding + (hPx - targetH) / 2 // Center Vertically in the Pin Box? Or Bottom?
-        // Let's try Centering in the 40x50 area.
-        
-        drawable.setBounds(left, top, left + targetW, top + targetH)
-        drawable.draw(canvas)
-    }
-    
-    // 2. Draw Badge (Top Right of Pin)
-    val paint = android.graphics.Paint()
-    paint.isAntiAlias = true
-    paint.style = android.graphics.Paint.Style.FILL
-    paint.color = badgeColor
-    
-    // Center of badge: Top-Right corner of Pin Rect
-    val cx = wPx.toFloat() - (badgeRadiusPx / 2) // Slightly inside
-    val cy = padding.toFloat() // Top aligned
-    
-    canvas.drawCircle(cx, cy, badgeRadiusPx, paint)
-    
-    // Badge Border
-    paint.style = android.graphics.Paint.Style.STROKE
-    paint.color = android.graphics.Color.WHITE
-    paint.strokeWidth = 2f * density
-    canvas.drawCircle(cx, cy, badgeRadiusPx, paint)
-    
-    // 3. Text
-    paint.style = android.graphics.Paint.Style.FILL
-    paint.color = android.graphics.Color.WHITE
-    paint.textSize = 10f * density
-    paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
-    paint.textAlign = android.graphics.Paint.Align.CENTER
-    
-    val text = if (count > 99) "99+" else count.toString()
-    // Center text vertically
-    val bounds = android.graphics.Rect()
-    paint.getTextBounds(text, 0, text.length, bounds)
-    val textY = cy + (bounds.height() / 2f) - (bounds.bottom * 0.1f) // adjustments
-    
-    canvas.drawText(text, cx, textY, paint)
-    
-    return com.google.android.gms.maps.model.BitmapDescriptorFactory.fromBitmap(bitmap)
-}
 
 // [FIX] Safe Vector Drawable Loader with Scaling
 fun bitmapDescriptorFromVector(
@@ -338,6 +239,12 @@ fun bitmapDescriptorFromVector(
     targetSizeDp: Int = 40 
 ): com.google.android.gms.maps.model.BitmapDescriptor? {
     return try {
+        // [Optimization] Use Pre-loaded Bitmap from PinImageManager
+        val cached = com.example.alltodo.ui.PinImageManager.getPinBitmap(vectorResId)
+        if (cached != null) {
+            return com.google.android.gms.maps.model.BitmapDescriptorFactory.fromBitmap(cached)
+        }
+        
         val vectorDrawable = androidx.core.content.ContextCompat.getDrawable(context, vectorResId) ?: return null
         
         val density = context.resources.displayMetrics.density

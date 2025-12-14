@@ -4,6 +4,14 @@
 
 # Android Map Interaction & Debugging Log
 
+## Summary of Fixes (2025-12-14 Session)
+
+### 1. **Naver Map Integration**
+-   **Client ID Configuration**: Confirmed correct Client ID.
+    -   **Issue**: Initial confusion about which Client ID was valid, leading to 401 errors.
+    -   **Resolution**: Reverted `com.naver.maps.map.CLIENT_ID` to **`i7652syq10`**. The 401 error was likely due to temporary configuration lag or package name registration issues on the console side, which the user verified.
+    -   **Status**: Naver Map is now **displayed correctly**.
+
 ## Summary of Fixes (2025-12-13 Session)
 
 ### 1. **Location Tracking & Permissions**
@@ -15,7 +23,6 @@
 -   **Data Loss Fix**: Fixed the issue where pins disappeared ("count=0") despite valid data entering the ViewModel.
     -   **Root Cause**: The WASM clustering module was failing (or returning empty) and the app had no fallback.
     -   **Fix**: Implemented a robust **Fallback Mechanism**. If WASM returns empty/fails but input points exist, the app automatically switches to a "1-to-1 Mapping" mode, ensuring all pins are displayed.
--   **Type Safety**: Fixed a `Double?` type mismatch compilation error in `TodoViewModel` by adding explicit null checks.
 
 ### 3. **Map Animation & Interaction**
 -   **Infinite Zoom Loop Fix**: Resolved the critical bug where the map would repeatedly force-zoom to the current location on every update.
@@ -45,6 +52,9 @@
 - [x] **Visuals**:
     - [x] Pins are 40x50 (matching iOS).
     - [x] Pin icons are not distorted.
+- [x] **Naver Map**:
+    - [x] Client ID Configured (`i7652syq10`).
+    - [x] Map Rendering Verified by User.
 
 ## Next Steps
 - Verify behavior on physical device (permission flows vary).

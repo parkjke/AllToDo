@@ -9,10 +9,10 @@ interface WasmRuntime {
     
     // [NEW] Direct support for trajectory compression (Interface for WASM calls)
     // In a real WASM runtime, this might serialize data to WASM memory and call a function.
-    fun compressTrajectory(points: List<Int>, minDist: Int, angleThresh: Int): List<Int>
+    suspend fun compressTrajectory(points: List<Int>, minDist: Int, angleThresh: Int): List<Int>
 
     // [NEW] Clustering Support
-    fun clusterPoints(points: List<Int>, cellSizeMeters: Int): List<Int>
+    suspend fun clusterPoints(points: List<Int>, cellSizeMeters: Int): List<Int>
 }
 
 class DummyWasmRuntime : WasmRuntime {
@@ -26,7 +26,7 @@ class DummyWasmRuntime : WasmRuntime {
     }
     
     // Simulating WASM Logic in "Dummy" Runtime so app works without Native File
-    override fun compressTrajectory(points: List<Int>, minDist: Int, angleThresh: Int): List<Int> {
+    override suspend fun compressTrajectory(points: List<Int>, minDist: Int, angleThresh: Int): List<Int> {
         // Mock Implementation: Just return points for now, or simple filter to prove "WASM" called
         // Since user deleted native code, we must provide SOME logic if we want app to behave similar.
         // For simulation, let's just return every 2nd point to show "compression" happened via "WASM".
@@ -34,7 +34,7 @@ class DummyWasmRuntime : WasmRuntime {
         return points.filterIndexed { index, _ -> index % 2 == 0 } 
     }
 
-    override fun clusterPoints(points: List<Int>, cellSizeMeters: Int): List<Int> {
+    override suspend fun clusterPoints(points: List<Int>, cellSizeMeters: Int): List<Int> {
         println("WASM (Dummy) clusterPoints called with ${points.size} points")
         // Mock: Return points as individual clusters with count 1
         // Format: lat, lon, count

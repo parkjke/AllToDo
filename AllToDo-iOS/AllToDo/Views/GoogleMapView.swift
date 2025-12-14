@@ -324,6 +324,9 @@ struct GoogleMapView: UIViewRepresentable {
                      default: break
                      }
                      
+                     // [FIX] Explicit Anchor for Single Items (Default)
+                     marker.groundAnchor = CGPoint(x: 0.5, y: 1.0)
+                     
                      // Icon
                      switch item {
                      case .todo(let t):
@@ -345,6 +348,11 @@ struct GoogleMapView: UIViewRepresentable {
                      }
                  } else {
                      // Cluster Logic
+                     
+                     // [FIX] Adjust Anchor for Cluster (Right Badge Overhang)
+                     // Visual Center is at x=20 of total width 50 -> 0.4
+                     marker.groundAnchor = CGPoint(x: 0.4, y: 1.0)
+                     
                      var userLocationFound = false
                      var historyCount = 0
                      var todoReadyCount = 0

@@ -4,6 +4,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
@@ -50,28 +54,50 @@ fun GooglePathDetailPopup(
                         width = 10f
                     )
                     
-                    // Draw Start/End Markers
+                    // [FIX] Use History Pin for BOTH Start and End Markers
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    val historyBitmap = com.example.alltodo.ui.PinImageManager.getPinBitmap(com.example.alltodo.R.drawable.pin_history)
+                    val historyIcon = if (historyBitmap != null) {
+                         com.google.android.gms.maps.model.BitmapDescriptorFactory.fromBitmap(historyBitmap)
+                    } else {
+                         com.google.android.gms.maps.model.BitmapDescriptorFactory.defaultMarker(com.google.android.gms.maps.model.BitmapDescriptorFactory.HUE_RED)
+                    }
+
+                    // Start Marker
                     Marker(
                         state = MarkerState(position = pathPoints.first()),
                         title = "Start",
+                        icon = historyIcon,
+                        anchor = androidx.compose.ui.geometry.Offset(0.5f, 1.0f)
                     )
+
+                    // End Marker
                     Marker(
                         state = MarkerState(position = pathPoints.last()),
                         title = "End",
+                        icon = historyIcon,
+                        anchor = androidx.compose.ui.geometry.Offset(0.5f, 1.0f) 
                     )
-                    
-                    // Draw small dots for intermediate points? 
-                    // To match Kakao impl (red dots for all points), but that might be too heavy for Google Map Markers if many points.
-                    // For now, let's stick to Line + Endpoints which is cleaner for Google Maps.
                 }
             }
 
-            // Close Button
-            IconButton(
-                onClick = onDismiss,
-                modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
+            // Close Button [Styled to match RightSideControls]
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(com.example.alltodo.ui.theme.AllToDoGreen.copy(alpha = 0.7f))
+                    .clickable { onDismiss() },
+                contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Black)
+                Icon(
+                    imageVector = Icons.Default.Close, 
+                    contentDescription = "Close", 
+                    tint = Color(0xFF333333),
+                    modifier = Modifier.size(24.dp)
+                )
             }
         }
     }

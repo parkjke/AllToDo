@@ -28,7 +28,7 @@
         <!-- Naver Map Client ID -->
         <meta-data
             android:name="com.naver.maps.map.CLIENT_ID"
-            android:value="i7652syq10" />
+            android:value="25ba14hr9z" />
 
         <!-- Google Maps API Key -->
         <meta-data

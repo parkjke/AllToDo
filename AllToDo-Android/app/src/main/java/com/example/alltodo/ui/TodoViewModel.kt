@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Job // [FIX] Added
+import kotlinx.coroutines.delay // [FIX] Added
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable // [FIX] Import
 import javax.inject.Inject
@@ -87,17 +89,34 @@ class TodoViewModel @Inject constructor(
         updateFilteredItems()
     }
     
+    private val _currentLocation = MutableStateFlow<UnifiedItem.CurrentLocation?>(null)
+    private var filterJob: Job? = null
+
+    fun updateCurrentLocation(lat: Double, lon: Double) {
+        if (lat == 0.0 && lon == 0.0) return
+        val newLoc = UnifiedItem.CurrentLocation(lat, lon)
+        // Only update if changed significantly or first time (Optimization can be added here)
+        _currentLocation.value = newLoc
+        // Trigger filtering/clustering immediately but protected by debounce in updateFilteredItems
+        updateFilteredItems()
+    }
+
     private fun updateFilteredItems() {
-        viewModelScope.launch(Dispatchers.Default) {
+        // [FIX] Debounce logic to prevent UI freeze on high-frequency location updates (0.9s)
+        filterJob?.cancel()
+        filterJob = viewModelScope.launch(Dispatchers.Default) {
+             delay(500) // Wait 500ms for settlement
+             
              val todos = _todoItems.value
              val logs = _userLogs.value
              val isHistory = _showHistoryMode.value
+             val currentLoc = _currentLocation.value
+
              
              val now = System.currentTimeMillis()
              val oneDay = 24 * 60 * 60 * 1000L
              // If History Mode: Show items from Yesterday
              // If Normal Mode: Show items from Today
-             // (Logic copied from MainScreen)
              val targetTime = if (isHistory) now - oneDay else now
              val minTime = targetTime - oneDay
              val maxTime = targetTime + oneDay
@@ -115,8 +134,14 @@ class TodoViewModel @Inject constructor(
                  todos.map { com.example.alltodo.ui.UnifiedItem.Todo(it) }
              }
              
-             val combined = filteredLogItems + filteredTodoItems
-             android.util.Log.d("TodoViewModel", "updateFilteredItems: Combined Result=${combined.size} (Logs=${filteredLogItems.size}, Todos=${filteredTodoItems.size})")
+             var combined = filteredLogItems + filteredTodoItems
+             
+             // [FIX] Add Current Location to display items
+             if (currentLoc != null) {
+                 combined = combined + currentLoc
+             }
+             
+             android.util.Log.d("TodoViewModel", "updateFilteredItems: Combined Result=${combined.size} (Logs=${filteredLogItems.size}, Todos=${filteredTodoItems.size}, Loc=${currentLoc != null})")
 
              withContext(Dispatchers.Main) {
                  _displayItems.value = combined
@@ -140,7 +165,7 @@ class TodoViewModel @Inject constructor(
                  val (lat, lng) = when(item) {
                      is com.example.alltodo.ui.UnifiedItem.Todo -> item.item.latitude to item.item.longitude
                      is com.example.alltodo.ui.UnifiedItem.History -> item.log.latitude to item.log.longitude
-                     else -> null to null
+                     is com.example.alltodo.ui.UnifiedItem.CurrentLocation -> item.lat to item.lon
                  }
                  // [DEBUG] Check individual item coordinates
                  // if (lat == 0.0 || lng == 0.0) android.util.Log.v("TodoViewModel", "Item skipped: Zero Coordinates")
@@ -162,23 +187,17 @@ class TodoViewModel @Inject constructor(
              }
 
              // 2. Calculate Cell Size based on Zoom
-             // Resolution (m/px) ~= 156543 * cos(lat) / 2^zoom
-             // Let's assume lat=37, cos(37) ~= 0.798
-             // Res ~= 125000 / 2^zoom
-             // Cell Size (100px) ~= 12,500,000 / 2^zoom
              val resolution = 12_500_000.0 / Math.pow(2.0, zoom.toDouble())
              val cellSizeMeters = resolution.toInt().coerceAtLeast(10) // Min 10m
 
              // 3. Call WASM
              // Returns [lat, lng, count, lat, lng, count...]
-             // [FIX] WebView methods must be called on Main Thread
-             var clustersFlat = withContext(Dispatchers.Main) {
-                 try {
-                    wasmManager.cluster(flatPoints, cellSizeMeters)
-                 } catch (e: Exception) {
-                    android.util.Log.e("TodoViewModel", "WASM Cluster Failed", e)
-                    emptyList<Int>()
-                 }
+             // [FIX] Now suspend function, non-blocking UI
+             var clustersFlat = try {
+                 wasmManager.cluster(flatPoints, cellSizeMeters)
+             } catch (e: Exception) {
+                 android.util.Log.e("TodoViewModel", "WASM Cluster Failed", e)
+                 emptyList<Int>()
              }
              
              android.util.Log.d("TodoViewModel", "recalculateClusters: WASM Output Count=${clustersFlat.size}")
@@ -192,7 +211,7 @@ class TodoViewModel @Inject constructor(
                      val (lat, lng) = when(item) {
                          is com.example.alltodo.ui.UnifiedItem.Todo -> item.item.latitude to item.item.longitude
                          is com.example.alltodo.ui.UnifiedItem.History -> item.log.latitude to item.log.longitude
-                         else -> null to null
+                         is com.example.alltodo.ui.UnifiedItem.CurrentLocation -> item.lat to item.lon
                      }
                      if (lat != null && lng != null && lng != 0.0) { // Should match validation logic
                          val list = ArrayList<UnifiedItem>()
@@ -231,7 +250,7 @@ class TodoViewModel @Inject constructor(
                      val (lat, lng) = when(item) {
                          is com.example.alltodo.ui.UnifiedItem.Todo -> item.item.latitude to item.item.longitude
                          is com.example.alltodo.ui.UnifiedItem.History -> item.log.latitude to item.log.longitude
-                         else -> null to null
+                         is com.example.alltodo.ui.UnifiedItem.CurrentLocation -> item.lat to item.lon
                      }
                      if (lat != null && lng != null) {
                          // Find nearest cluster

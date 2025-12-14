@@ -165,86 +165,53 @@ class WebViewWasmRuntime(private val context: Context) : WasmRuntime {
         return 0
     }
 
-    // Blocking Call for Simplicity (Ideally should be suspend function)
-    override fun compressTrajectory(points: List<Int>, minDist: Int, angleThresh: Int): List<Int> {
-        if (!isReady) return points // Return original if not ready
+    // Non-blocking Suspend Call using Coroutines
+    override suspend fun compressTrajectory(points: List<Int>, minDist: Int, angleThresh: Int): List<Int> = kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
+        if (!isReady) {
+            continuation.resumeWith(Result.success(points))
+            return@suspendCancellableCoroutine
+        }
 
-        var resultList: List<Int> = points
-        val latch = CountDownLatch(1)
-        
-        val pointsJson = points.toString() // [1,2,3] format works in JS JSON.parse? Yes
+        val pointsJson = points.toString()
         val js = "JSON.stringify(compress('$pointsJson', $minDist, $angleThresh))"
         
         handler.post {
             webView?.evaluateJavascript(js) { result ->
-                // result is JSON string of array, e.g. "[1,2,3]"
-                // If null or "null", failed.
                 if (result != null && result != "null") {
                    try {
-                       // Remove quotes if present from evaluateJavascript return
-                       // It returns "\"str\"" for string, but for array it returns "[...]"
-                       // evaluateJavascript returns the result as a JSON string.
-                       // Since we used JSON.stringify in JS, the result in JS is a string like "[1,2]"
-                       // evaluateJavascript wraps this in quotes: "\"[1,2]\""
-                       
-                       // 1. Unquote if wrapped in quotes
                        var cleanResult = result
                        if (cleanResult.startsWith("\"") && cleanResult.endsWith("\"")) {
                            cleanResult = cleanResult.substring(1, cleanResult.length - 1)
                        }
-                       
-                       // 2. Unescape quotes (JSON string content is escaped)
                        cleanResult = cleanResult.replace("\\\"", "\"")
                        
                        val gson = com.google.gson.Gson()
                        val parsed = gson.fromJson(cleanResult, Array<Int>::class.java)
                        if (parsed != null) {
-                           resultList = parsed.toList()
+                           continuation.resumeWith(Result.success(parsed.toList()))
+                           return@evaluateJavascript
                        }
                    } catch (e: Exception) {
                        android.util.Log.e("WebViewWasm", "Parse Error: $result", e)
                    }
                 }
-                latch.countDown()
+                // Fallback / Error
+                continuation.resumeWith(Result.success(points))
+            } ?: run {
+                 // WebView is null?
+                 continuation.resumeWith(Result.success(points))
             }
         }
-        
-        try {
-            latch.await(2000, java.util.concurrent.TimeUnit.MILLISECONDS)
-        } catch (e: InterruptedException) {
-            e.printStackTrace()
-        }
-        
-        return resultList
     }
 
 
-    override fun clusterPoints(points: List<Int>, cellSizeMeters: Int): List<Int> {
-        if (!isReady) return emptyList()
+    override suspend fun clusterPoints(points: List<Int>, cellSizeMeters: Int): List<Int> = kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
+        if (!isReady) {
+             continuation.resumeWith(Result.success(emptyList()))
+             return@suspendCancellableCoroutine
+        }
 
-        var resultList: List<Int> = emptyList()
-        val latch = CountDownLatch(1)
-        
         val pointsJson = points.toString()
-        // Call JS wrapper `cluster_points`
-        // Note: JS side expects `cluster_points(points_flat, cell_size_m)`
-        // Glue code signature: `cluster_points(points_flat, cell_size_m)`
-        // We need a JS bridge function similar to `compress` called `cluster`
-        
-        // Let's inject a new JS bridge function dynamically or rely on one if we added it?
-        // Wait, we need to check if we added `cluster` function to HTML in init block.
-        // Looking at previous valid file read, we only added `compress` function.
-        // We need to modify `init` block to add `cluster` function too. 
-        // BUT, since we can't edit `init` block easily without replacing huge chunk,
-        // we can try to call `wasm_bindgen.cluster_points` directly via helper or 
-        // assume we will update `init` block in next step. 
-        
-        // Let's assume we update `init` block to include `cluster` function wrapper.
-        // Or we can define it one-off here? No, context is lost.
-        
-        // Actually, let's use `WasmManager` or `WebViewWasmRuntime`'s init to update the HTML template.
-        // For now, I will assume the function name `cluster` exists in JS (I will add it in next step).
-        
         val js = "JSON.stringify(cluster('$pointsJson', $cellSizeMeters))"
         
         handler.post {
@@ -260,22 +227,18 @@ class WebViewWasmRuntime(private val context: Context) : WasmRuntime {
                        val gson = com.google.gson.Gson()
                        val parsed = gson.fromJson(cleanResult, Array<Int>::class.java)
                        if (parsed != null) {
-                           resultList = parsed.toList()
+                           continuation.resumeWith(Result.success(parsed.toList()))
+                           return@evaluateJavascript
                        }
                    } catch (e: Exception) {
                        android.util.Log.e("WebViewWasm", "Cluster Parse Error: $result", e)
                    }
                 }
-                latch.countDown()
+                // Fallback / Error
+                continuation.resumeWith(Result.success(emptyList()))
+            } ?: run {
+                 continuation.resumeWith(Result.success(emptyList()))
             }
         }
-        
-        try {
-            latch.await(2000, java.util.concurrent.TimeUnit.MILLISECONDS)
-        } catch (e: InterruptedException) {
-            e.printStackTrace()
-        }
-        
-        return resultList
     }
 }

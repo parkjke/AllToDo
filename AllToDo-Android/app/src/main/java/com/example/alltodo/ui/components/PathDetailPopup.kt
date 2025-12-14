@@ -4,6 +4,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
@@ -49,29 +53,33 @@ fun PathDetailPopup(
                              override fun onMapError(e: Exception?) {}
                          }, object : KakaoMapReadyCallback() {
                              override fun onMapReady(map: KakaoMap) {
-                                 // Draw Path Line
-                                 val manager = map.routeLineManager
-                                 val layer = manager?.getLayer("pathLayer") ?: manager?.addLayer("pathLayer", 1000)
-                                 val style = RouteLineStyles.from(RouteLineStyle.from(20f, android.graphics.Color.RED))
-                                 val segment = RouteLineSegment.from(pathPoints, style)
-                                 layer?.addRouteLine(RouteLineOptions.from(segment))
-                                 
-                                 // Draw Red Pins for Start/End/All?
-                                 val labelManager = map.labelManager
-                                 val labelLayer = labelManager?.getLayer("pathLabels") ?: labelManager?.addLayer(LabelLayerOptions.from("pathLabels"))
-                                 
-                                 // Simple Red Dot Bitmap
-                                 val dotBitmap = createRedDotBitmap()
-                                 val labelStyle = labelManager?.addLabelStyles(LabelStyles.from(LabelStyle.from(dotBitmap)))
-                                 
-                                 if (labelStyle != null) {
-                                     pathPoints.forEach { pt ->
-                                         labelLayer?.addLabel(LabelOptions.from(pt).setStyles(labelStyle))
+                                 if (pathPoints.isNotEmpty()) {
+                                     // Draw Path Line
+                                     val manager = map.routeLineManager
+                                     val layer = manager?.getLayer("pathLayer") ?: manager?.addLayer("pathLayer", 1000)
+                                     val style = RouteLineStyles.from(RouteLineStyle.from(20f, android.graphics.Color.RED))
+                                     val segment = RouteLineSegment.from(pathPoints, style)
+                                     layer?.addRouteLine(RouteLineOptions.from(segment))
+                                     
+                                     // Labels
+                                     val labelManager = map.labelManager
+                                     val labelLayer = labelManager?.getLayer("pathLabels") ?: labelManager?.addLayer(LabelLayerOptions.from("pathLabels"))
+                                     
+                                     // End: History Pin (Used for both Start & End)
+                                     val historyBitmap = com.example.alltodo.ui.PinImageManager.getPinBitmap(com.example.alltodo.R.drawable.pin_history)
+                                     if (historyBitmap != null) {
+                                         val historyStyle = labelManager?.addLabelStyles(LabelStyles.from(LabelStyle.from(historyBitmap).setAnchorPoint(0.5f, 1.0f)))
+                                         if (historyStyle != null) {
+                                             // Start Marker
+                                             labelLayer?.addLabel(LabelOptions.from(pathPoints.first()).setStyles(historyStyle))
+                                             // End Marker
+                                             labelLayer?.addLabel(LabelOptions.from(pathPoints.last()).setStyles(historyStyle))
+                                         }
                                      }
-                                 }
 
-                                 // Fit Camera
-                                 map.moveCamera(CameraUpdateFactory.fitMapPoints(pathPoints.toTypedArray(), 100))
+                                     // Fit Camera
+                                     map.moveCamera(CameraUpdateFactory.fitMapPoints(pathPoints.toTypedArray(), 100))
+                                 }
                              }
                          })
                      }
@@ -79,12 +87,23 @@ fun PathDetailPopup(
                  modifier = Modifier.fillMaxSize()
              )
              
-             // Close Button
-             IconButton(
-                 onClick = onDismiss,
-                 modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
+             // Close Button [Styled]
+             Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(com.example.alltodo.ui.theme.AllToDoGreen.copy(alpha = 0.7f))
+                    .clickable { onDismiss() },
+                contentAlignment = Alignment.Center
              ) {
-                 Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Black)
+                Icon(
+                    imageVector = Icons.Default.Close, 
+                    contentDescription = "Close", 
+                    tint = Color(0xFF333333),
+                    modifier = Modifier.size(24.dp)
+                )
              }
         }
     }

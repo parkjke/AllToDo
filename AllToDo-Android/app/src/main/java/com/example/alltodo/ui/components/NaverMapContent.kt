@@ -24,7 +24,8 @@ fun NaverMapContent(
     items: List<UnifiedItem>,
     currentLocation: android.location.Location?,
     onMapReady: (NaverMap) -> Unit = {},
-    onItemClick: (UnifiedItem) -> Unit
+    onItemClick: (UnifiedItem, Float, Float) -> Unit,
+    onRotationChange: (Float) -> Unit = {} // [FIX] Added
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -71,6 +72,12 @@ fun NaverMapContent(
                     naverMap = map
                     map.uiSettings.isLocationButtonEnabled = false
                     map.uiSettings.isZoomControlEnabled = false
+                    
+                    // [FIX] Camera Listener for Compass
+                    map.addOnCameraChangeListener { reason, animated ->
+                        onRotationChange(map.cameraPosition.bearing.toFloat())
+                    }
+                    
                     onMapReady(map)
                 }
             }
@@ -101,8 +108,14 @@ fun NaverMapContent(
             marker.map = map
             
             // Color/Icon Logic
-            // Color/Icon Logic
-            marker.icon = OverlayImage.fromResource(item.getPinResId())
+            val resId = item.getPinResId()
+            val cachedBitmap = com.example.alltodo.ui.PinImageManager.getPinBitmap(resId)
+            
+            marker.icon = if (cachedBitmap != null) {
+                OverlayImage.fromBitmap(cachedBitmap)
+            } else {
+                OverlayImage.fromResource(resId)
+            }
             
             if (item is UnifiedItem.Todo) {
                 marker.captionText = item.item.text
@@ -111,7 +124,9 @@ fun NaverMapContent(
             }
             
             marker.setOnClickListener {
-                onItemClick(item)
+                val projection = map.projection
+                val screenPt = projection.toScreenLocation(marker.position)
+                onItemClick(item, screenPt.x.toFloat(), screenPt.y.toFloat()) // [FIX] Pass Screen Coords
                 true
             }
             currentMarkers.add(marker)

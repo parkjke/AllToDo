@@ -5,6 +5,7 @@ import com.google.gson.Gson
 import com.example.alltodo.services.RemoteLogger
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import kotlinx.coroutines.*
 
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -58,14 +59,15 @@ class WasmManager @Inject constructor(
         }
 
         // 2. Check for Updates in Background
-        Thread {
+        CoroutineScope(Dispatchers.IO).launch {
             checkForUpdate()
             onReady(true) // Notify valid state (either stored or fallback is ready)
-        }.start()
+        }
     }
     
     // [NEW] Exposed method to replace Native Code
-    fun compress(points: List<Int>): List<Int> {
+    // [NEW] Exposed method to replace Native Code
+    suspend fun compress(points: List<Int>): List<Int> {
         val start = System.currentTimeMillis()
         android.util.Log.d(TAG, "⚡️ Executing WASM 'compressTrajectory' with ${points.size/2} points...")
         
@@ -74,14 +76,16 @@ class WasmManager @Inject constructor(
         val duration = System.currentTimeMillis() - start
         val msg = "WASM Success: ${points.size/2} -> ${result.size/2} pts (${duration}ms)"
         android.util.Log.d(TAG, "✨ $msg")
-        // RemoteLogger.info(msg) // Disabled to avoid spam. Handled by ViewModel.
+        // RemoteLogger.info(msg)
         lastErrorMessage = null
-        onStatusUpdate?.invoke("Comp: ${points.size/2}->${result.size/2} (${duration}ms)")
+        withContext(Dispatchers.Main) {
+            onStatusUpdate?.invoke("Comp: ${points.size/2}->${result.size/2} (${duration}ms)")
+        }
         return result
     }
 
     // [NEW] Clustering Support
-    fun cluster(points: List<Int>, cellSizeMeters: Int): List<Int> {
+    suspend fun cluster(points: List<Int>, cellSizeMeters: Int): List<Int> {
         val start = System.currentTimeMillis()
         // android.util.Log.d(TAG, "⚡️ Executing WASM 'clusterPoints' with ${points.size/2} points...")
         
@@ -94,7 +98,7 @@ class WasmManager @Inject constructor(
         return result
     }
 
-    private fun checkForUpdate() {
+    private suspend fun checkForUpdate() {
         try {
             android.util.Log.d(TAG, "🔍 Checking for updates at: $versionUrl")
             // A. Check Server Version
@@ -125,7 +129,7 @@ class WasmManager @Inject constructor(
         }
     }
 
-    private fun fetchAndLoadAdvanced(): Boolean {
+    private suspend fun fetchAndLoadAdvanced(): Boolean {
         return try {
             android.util.Log.d(TAG, "🔍 (1/3) Start Connection Check to $advancedUrl...")
             val request = Request.Builder().url(advancedUrl).build()
@@ -158,7 +162,7 @@ class WasmManager @Inject constructor(
         }
     }
 
-    private fun verifyWasm() {
+    private suspend fun verifyWasm() {
         android.util.Log.d(TAG, "🧪 Starting WASM Self-Test (RDP + Clustering)...")
         try {
             // 1. RDP Test Case

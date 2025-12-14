@@ -267,26 +267,41 @@ fun KakaoMapContent(
         }
     }
     
-    private fun getBitmapFromDrawable(context: android.content.Context, @androidx.annotation.DrawableRes drawableId: Int, width: Int?, height: Int?): android.graphics.Bitmap? {
-        try {
-            val drawable = androidx.core.content.ContextCompat.getDrawable(context, drawableId) ?: return null
-            
-            val targetW = width ?: drawable.intrinsicWidth
-            val targetH = height ?: drawable.intrinsicHeight
-            
-            if (targetW <= 0 || targetH <= 0) return null // Safety check
+// Global Cache for KakaoMap Bitmaps
+private val kakaoBitmapCache = android.util.LruCache<String, android.graphics.Bitmap>(50)
 
-            if (drawable is android.graphics.drawable.BitmapDrawable) {
-                return android.graphics.Bitmap.createScaledBitmap(drawable.bitmap, targetW, targetH, true)
-            }
-            
-            val bitmap = android.graphics.Bitmap.createBitmap(targetW, targetH, android.graphics.Bitmap.Config.ARGB_8888)
-            val canvas = android.graphics.Canvas(bitmap)
-            drawable.setBounds(0, 0, canvas.width, canvas.height)
-            drawable.draw(canvas)
-            return bitmap
-        } catch (e: Exception) {
-            Log.e("AllToDo", "Failed to create bitmap from drawable: ${e.message}")
-            return null
+private fun getBitmapFromDrawable(context: android.content.Context, @androidx.annotation.DrawableRes drawableId: Int, width: Int?, height: Int?): android.graphics.Bitmap? {
+    // [Optimization] Check PinImageManager
+    val globalCached = com.example.alltodo.ui.PinImageManager.getPinBitmap(drawableId)
+    if (globalCached != null) return globalCached
+
+    val key = "$drawableId-$width-$height"
+    val cached = kakaoBitmapCache.get(key)
+    if (cached != null) return cached
+
+    try {
+        val drawable = androidx.core.content.ContextCompat.getDrawable(context, drawableId) ?: return null
+        
+        val targetW = width ?: drawable.intrinsicWidth
+        val targetH = height ?: drawable.intrinsicHeight
+        
+        if (targetW <= 0 || targetH <= 0) return null // Safety check
+
+        if (drawable is android.graphics.drawable.BitmapDrawable) {
+            val result = android.graphics.Bitmap.createScaledBitmap(drawable.bitmap, targetW, targetH, true)
+            kakaoBitmapCache.put(key, result)
+            return result
         }
+        
+        val bitmap = android.graphics.Bitmap.createBitmap(targetW, targetH, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        drawable.setBounds(0, 0, canvas.width, canvas.height)
+        drawable.draw(canvas)
+        
+        kakaoBitmapCache.put(key, bitmap)
+        return bitmap
+    } catch (e: Exception) {
+        Log.e("AllToDo", "Failed to create bitmap from drawable: ${e.message}")
+        return null
     }
+}

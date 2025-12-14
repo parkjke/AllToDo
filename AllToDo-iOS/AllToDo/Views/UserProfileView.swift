@@ -10,6 +10,7 @@ struct UserProfileView: View {
     @AppStorage("maxPopupItems") private var maxPopupItems = 5
     @AppStorage("popupFontSize") private var popupFontSize = 1
     @AppStorage("selectedMapProvider") private var mapProvider: MapProvider = .apple
+    @State private var showPinGallery = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -73,17 +74,27 @@ struct UserProfileView: View {
                     .pickerStyle(.automatic)
                 }
                 
+                Section(header: Text("Developer")) {
+                    Button("Open Pin Gallery") {
+                        showPinGallery = true
+                    }
+                }
+                
                 if !message.isEmpty {
                     Section {
                         Text(message)
                             .foregroundColor(.secondary)
                             .font(.caption)
                     }
+
                 }
             }
         }
         .onAppear(perform: loadUserInfo)
         .onDisappear(perform: saveUserInfo)
+        .sheet(isPresented: $showPinGallery) {
+            PinGalleryView()
+        }
     }
     
     private func loadUserInfo() {

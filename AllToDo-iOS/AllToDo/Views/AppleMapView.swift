@@ -410,8 +410,14 @@ struct AppleMapView: UIViewRepresentable {
             
             // 1. Gather Points from Filtered Data
             var points: [CLLocationCoordinate2D] = []
-            for item in parent.todoItems { if let l = item.location { points.append(l.coordinate) } }
-            for log in parent.userLogs { points.append(log.coordinate) }
+            for item in parent.todoItems { 
+                if let l = item.location { 
+                    points.append(CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)) 
+                } 
+            }
+            for log in parent.userLogs { 
+                points.append(CLLocationCoordinate2D(latitude: log.latitude, longitude: log.longitude)) 
+            }
             
             let delay = AppConfig.launchAnimationDelay
             
