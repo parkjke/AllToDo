@@ -65,10 +65,6 @@ struct RightSideControls: View {
                 if abs(r) > 1.0 && abs(r) < 359.0 {
                     Button(action: onCompassClick) {
                         ZStack {
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.allToDoGreen.opacity(0.7))
-                                .frame(width: 48, height: 48)
-                            
                             // Custom Compass Needle (Red/White with Outline)
                             ZStack {
                                 // Top Half (Red)
@@ -102,6 +98,8 @@ struct RightSideControls: View {
                             .frame(width: 12, height: 36)
                             .rotationEffect(.degrees(-compassRotation)) // Counter-rotate to point North
                         }
+                        .frame(width: 48, height: 48)
+                        .liquidGlass()
                     }
                 }
             }
@@ -117,18 +115,14 @@ struct ControlIcon: View {
     
     var body: some View {
         Button(action: onClick) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.allToDoGreen.opacity(0.7))
-                    .frame(width: 48, height: 48)
-                
-                Image(systemName: iconName)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 24, height: 24)
-                    .foregroundColor(Color(white: 0.2))
-                    .rotationEffect(.degrees(rotation))
-            }
+            Image(systemName: iconName)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 24, height: 24)
+                .foregroundColor(Color(white: 0.2))
+                .rotationEffect(.degrees(rotation))
+                .frame(width: 48, height: 48)
+                .liquidGlass()
         }
     }
 }

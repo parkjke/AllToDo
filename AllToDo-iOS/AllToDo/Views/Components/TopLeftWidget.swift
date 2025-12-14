@@ -29,8 +29,7 @@ struct TopLeftWidget: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(Color.allToDoGreen.opacity(0.7))
-            .cornerRadius(16)
+            .liquidGlass()
         }
     }
 }

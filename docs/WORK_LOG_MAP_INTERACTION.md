@@ -59,3 +59,39 @@
 ## Next Steps
 - Verify behavior on physical device (permission flows vary).
 - Monitor for any other WASM instability.
+
+## Summary of Fixes (2025-12-14 Session - Evening)
+
+### 1. **Pin Gallery (Design Verification Tool)**
+-   **Objective**: Ensure 100% visual consistency between iOS and Android map pins.
+-   **Implementation**:
+    -   **iOS**: Added `PinGalleryView.swift` with Korean guide.
+    -   **Android**: Created `PinGalleryScreen.kt` using Compose `Dialog` to ensure it overlays all UI (e.g., Profile Card).
+-   **Features**:
+    -   **Base Assets**: Verify raw image clarity (40x50dp).
+    -   **Overhang Test**: Verify badge (red circle) protrudes correctly from the top-right of the pin.
+    -   **Anchor Point**: Verify the pin tip correctly aligns with the map coordinate (visualized with a Red Dot).
+    -   **Results**: Confirmed consistency across platforms.
+
+### 2. **Android Map Callout Unification**
+-   **Issue**: Naver Map displayed a native `AlertDialog` on pin click, while Google/Kakao used a custom Bubble Callout.
+-   **Fix**:
+    -   Updated `NaverMapContent.kt` to calculate and pass Screen Coordinates (`x`, `y`) on marker click.
+    -   Refactored `MainScreen` to use the unified `Box` overlay (Callout Bubble) for Naver Map events.
+-   **Result**: All 3 maps (Google, Naver, Kakao) now provide the **same UX** (Bubble Callout).
+
+### 3. **Android Pin Rendering Logic**
+-   **Feature**: Implemented `PinImageManager.createShieldPin` for Android.
+-   **Details**: Replicated iOS logic to generate a 50x60dp bitmap containing the 40x50dp pin and the overhanging badge, ensuring clustered pins look identical on both OSs.
+
+### 4. **Z-Index & Layout Fixes**
+-   **Issue**: Pin Gallery and Map Callouts appeared behind the "My Info" Card.
+-   **Fix**:
+    -   Adjusted `zIndex` and invocation order in `UserProfileView` and `MainScreen`.
+
+### 5. **UI Polish: Liquid Glass**
+- **Objective**: Apply modern "Liquid Glass" styling to map controls as requested.
+- **Implementation**:
+    - Updated `RightSideControls.swift` and `TopLeftWidget.swift` to use the `.liquidGlass()` modifier.
+    - Replaced manual semi-transparent backgrounds with `Material.ultraThin` + Glass Border/Shadow.
+    - Ensures a unified, premium feel across all map providers (Apple, Google, Kakao, Naver).
