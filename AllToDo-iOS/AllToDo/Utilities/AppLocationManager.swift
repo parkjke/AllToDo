@@ -32,6 +32,10 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
     
     // [NEW] Logging Flag
     private var hasLoggedInitialLocation = false
+
+    // [NEW] Smart Tracking State
+    var currentSpan: Double = 0.005 // Default Zoom ~17
+    private var lastIntLocation: SmartLocationManager.IntLocation?
     
     // [NEW] Process Buffer with WASM
     func processBuffer() async {
@@ -182,9 +186,13 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
         
-        // 1. Update Publisher
-        DispatchQueue.main.async {
-            self.currentLocation = location
+        // 1. Update Publisher (Smart Throttled)
+        // [NEW] Smart Tracking Check
+        if SmartLocationManager.shared.shouldUpdate(lastLoc: lastIntLocation, newLoc: location, currentSpan: currentSpan) {
+            lastIntLocation = SmartLocationManager.shared.toIntLocation(location)
+            DispatchQueue.main.async {
+                self.currentLocation = location
+            }
         }
         
         // [LOG] Step 3: set current location

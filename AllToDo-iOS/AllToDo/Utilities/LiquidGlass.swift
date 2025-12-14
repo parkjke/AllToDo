@@ -3,22 +3,37 @@ import SwiftUI
 struct LiquidGlass: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .background(.ultraThinMaterial)
+            .background(
+                ZStack {
+                    // 1. Stronger Blur Material for better visibility against noisy maps
+                    Rectangle().fill(.regularMaterial)
+                    
+                    // 2. White Tint for "Milky/Frosted Glass" look
+                    Rectangle().fill(Color.white.opacity(0.2))
+                    
+                    // 3. Surface Shine (Top-Left to Bottom-Right)
+                    LinearGradient(
+                        colors: [.white.opacity(0.4), .clear],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                }
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: 20)
-                    .stroke(
+                    .strokeBorder(
                         LinearGradient(
                             colors: [
-                                .white.opacity(0.6),
-                                .white.opacity(0.1)
+                                .white.opacity(0.9), // Bright Highlight
+                                .white.opacity(0.2)  // Fades out
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
-                        lineWidth: 1
+                        lineWidth: 1.5 // Thicker Edge
                     )
             )
-            .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
+            .shadow(color: .black.opacity(0.25), radius: 8, x: 0, y: 4) // Deeper Shadow
             .clipShape(RoundedRectangle(cornerRadius: 20))
     }
 }

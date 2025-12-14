@@ -109,6 +109,8 @@ import com.google.android.gms.location.Priority
 import android.os.Looper
 import kotlinx.coroutines.awaitCancellation
 import com.google.maps.android.compose.rememberCameraPositionState // [FIX] Import
+import androidx.compose.foundation.gestures.detectDragGestures // [FIX] Import
+import com.example.alltodo.utils.SmartLocationManager // [NEW] Smart Tracking Logic
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -128,6 +130,8 @@ fun MainScreen(
 
     // [FIX] Hoist Animation State to prevent reset on Recomposition
     var initialAnimationDone by remember { mutableStateOf(false) }
+    var lastStopTime by remember { mutableStateOf(0L) } // [NEW] Track background duration
+    val lastIntLocation = remember { mutableStateOf<SmartLocationManager.IntLocation?>(null) } // [NEW] Smart Tracking State
 
     // Lifecycle - Session Management & Performance Monitoring
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
@@ -137,9 +141,12 @@ fun MainScreen(
         
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_START) {
-                // viewModel.startSession() // Already called in init? No, init calls it.
-                // But onResume logic might be needed.
+                // [FIX] Reset animation if backgrounded for > 5 sec (Commercial: 1 min)
+                if (lastStopTime > 0 && System.currentTimeMillis() - lastStopTime > 5000) {
+                    initialAnimationDone = false
+                }
             } else if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
+                lastStopTime = System.currentTimeMillis()
                 viewModel.endSession()
             }
         }
@@ -298,8 +305,22 @@ fun MainScreen(
                 for (location in result.locations) {
                     currentLocation = location
                     viewModel.saveLocation(location.latitude, location.longitude)
-                    // [NEW] Update current location for Map Pin Clustering
-                    viewModel.updateCurrentLocation(location.latitude, location.longitude)
+                    
+                    // [NEW] Smart Tracking: Calculate Zoom Level
+                    val currentZoom: Float = try {
+                        when (mapProvider) {
+                            MapProvider.Google -> googleCameraPositionState.position.zoom
+                            MapProvider.Naver -> naverMap?.cameraPosition?.zoom?.toFloat() ?: 15f
+                            MapProvider.Kakao -> kakaoMap?.zoomLevel?.toFloat() ?: 15f
+                        }
+                    } catch (e: Exception) { 15f }
+
+                    // [NEW] Smart Tracking: Only update if threshold met
+                    if (SmartLocationManager.shouldUpdate(lastIntLocation.value, location, currentZoom)) {
+                        lastIntLocation.value = SmartLocationManager.toIntLocation(location)
+                        // [NEW] Update current location for Map Pin Clustering
+                        viewModel.updateCurrentLocation(location.latitude, location.longitude)
+                    }
                 }
             }
         }
@@ -392,9 +413,22 @@ fun MainScreen(
         android.util.Log.d("MainScreenData", "[DataUpdate] Location=${if(currentLocation!=null) "READY" else "WAITING"}, Items=$count")
     }
     
-    // [FIX] Zoom Tracking for Google Map
     LaunchedEffect(googleCameraPositionState.position.zoom) {
          viewModel.updateZoom(googleCameraPositionState.position.zoom)
+    }
+
+    // [NEW] Unified Far Item State
+    var farItemCount by remember { mutableIntStateOf(0) }
+    var farItemMessage by remember { mutableStateOf<String?>(null) }
+    
+    LaunchedEffect(farItemCount) {
+        if (farItemCount > 0) {
+            farItemMessage = "${farItemCount}개의 할 일이 멀리 있습니다."
+            delay(5000)
+            farItemMessage = null
+        } else {
+            farItemMessage = null
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -438,12 +472,12 @@ fun MainScreen(
                                 android.util.Log.d("CompassDebug", "Google Rot: $rot")
                                 compassRotation = rot 
                             },
-                            isMapReady = isGoogleMapReady,
-                            onMapLoaded = { isGoogleMapReady = true },
-                            showHistoryMode = showHistoryMode,
-                            initialAnimationDone = initialAnimationDone,
-                            onInitialAnimationDone = { initialAnimationDone = true }
-                     )
+                             onMapLoaded = { isGoogleMapReady = true },
+                             showHistoryMode = showHistoryMode,
+                             initialAnimationDone = initialAnimationDone,
+                             onInitialAnimationDone = { initialAnimationDone = true },
+                             onFarItemsDetected = { count -> farItemCount = count }
+                      )
                 } else {
                      // Loading
                      Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -454,46 +488,54 @@ fun MainScreen(
             
             MapProvider.Kakao -> {
                 // Kakao Map
-                 com.example.alltodo.ui.components.KakaoMapContent(
-                     modifier = Modifier.fillMaxSize(),
-                     isSdkInitialized = isSdkInitialized,
-                     items = displayItems,
-                     currentLocation = currentLocation,
-                     selectedCluster = selectedCluster,
-                     onMapReady = { map ->
-                         kakaoMap = map
-                         isKakaoMapReady = true
-                     },
-                     onClusterClick = { cluster ->
-                         if (selectedCluster?.latitude == cluster.latitude && selectedCluster?.longitude == cluster.longitude) {
-                             selectedCluster = null
-                         } else {
-                             selectedCluster = cluster
-                         }
-                     },
-                     onMapClick = { latLng ->
-                         newTodoLocation = latLng
-                         showAddTodoDialog = true
-                     },
-                     onCameraRotate = { rot -> 
-                         android.util.Log.d("CompassDebug", "Kakao Rot: $rot")
-                         compassRotation = rot 
-                     },
-                     onCameraMoveStart = { selectedCluster = null }
-                 )
+                 // Kakao Map
+                  com.example.alltodo.ui.components.KakaoMapContent(
+                      modifier = Modifier.fillMaxSize(),
+                      isSdkInitialized = isSdkInitialized,
+                      clusteredItems = clusteredItems, // [FIX] Use Clustered Items
+                      currentLocation = currentLocation,
+                      onMapReady = { map ->
+                          kakaoMap = map
+                          isKakaoMapReady = true
+                      },
+                      onClusterClickWithCoords = { items, x, y ->
+                            selectedClusterPosition = Offset(x, y)
+                            val hasTodo = items.any { it is UnifiedItem.Todo }
+                            val hasHistory = items.any { it is UnifiedItem.History }
+                            val type = if(hasTodo && hasHistory) "mixed" else if(hasTodo) "todo" else "history"
+                            val first = items.firstOrNull() ?: items.first()
+                            selectedCluster = PinCluster(first.latitude, first.longitude, items, type)
+                      },
+                      onItemClickWithCoords = { item, x, y ->
+                            selectedClusterPosition = Offset(x, y)
+                            selectedCluster = PinCluster(
+                                item.latitude, item.longitude, 
+                                listOf(item), 
+                                if(item is UnifiedItem.Todo) "todo" else "history"
+                            )
+                      },
+                      onCameraRotate = { rot -> 
+                          android.util.Log.d("CompassDebug", "Kakao Rot: $rot")
+                          compassRotation = rot 
+                      },
+                      initialAnimationDone = initialAnimationDone,
+                      onInitialAnimationDone = { initialAnimationDone = true },
+                      onFarItemsDetected = { count -> farItemCount = count }
+                  )
             }
             
             MapProvider.Naver -> {
                 // Naver Map
+                // Naver Map
                 NaverMapContent(
                     modifier = Modifier.fillMaxSize(),
-                    items = displayItems,
+                    clusteredItems = clusteredItems, // [FIX] Use Clustered Items
                     currentLocation = currentLocation,
                     onMapReady = { map ->
                         naverMap = map
                         isNaverMapReady = true
                     },
-                    onItemClick = { item, x, y -> 
+                    onItemClickWithCoords = { item, x, y -> 
                         selectedClusterPosition = Offset(x, y)
                         selectedCluster = PinCluster(
                             item.latitude, item.longitude,
@@ -501,10 +543,41 @@ fun MainScreen(
                             if (item is UnifiedItem.Todo) "todo" else "history"
                         )
                     },
+                    onClusterClickWithCoords = { items, x, y ->
+                        selectedClusterPosition = Offset(x, y)
+                        val hasTodo = items.any { it is UnifiedItem.Todo }
+                        val hasHistory = items.any { it is UnifiedItem.History }
+                        val type = if(hasTodo && hasHistory) "mixed" else if(hasTodo) "todo" else "history"
+                        val first = items.firstOrNull() ?: items.first()
+                        selectedCluster = PinCluster(first.latitude, first.longitude, items, type)
+                    },
                     onRotationChange = { rot -> 
                         android.util.Log.d("CompassDebug", "Naver Rot: $rot")
                         compassRotation = rot 
-                    }
+                    },
+                    initialAnimationDone = initialAnimationDone,
+                    onInitialAnimationDone = { initialAnimationDone = true },
+                    onFarItemsDetected = { count -> farItemCount = count }
+                )
+            }
+        }
+        
+        // [NEW] Far Item Message Overlay (Shared for All Maps)
+        androidx.compose.animation.AnimatedVisibility(
+            visible = farItemMessage != null,
+            enter = androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.fadeOut(),
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 80.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(20.dp))
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = farItemMessage ?: "",
+                    color = Color.White,
+                    style = androidx.compose.material3.MaterialTheme.typography.bodyMedium
                 )
             }
         }
@@ -683,6 +756,16 @@ fun MainScreen(
                         ) { 
                             selectedCluster = null 
                         }
+                        // [FIX] Shield Logic: Consume Drag Gestures for Google Map to prevent map movement underneath
+                        .then(
+                            if (mapProvider == MapProvider.Google) {
+                                Modifier.pointerInput(Unit) {
+                                    detectDragGestures { _, _ -> /* Consume Drag */ }
+                                }
+                            } else {
+                                Modifier
+                            }
+                        )
                 )
 
                 // Callout Bubble
@@ -829,23 +912,40 @@ fun MainScreen(
                     MapProvider.Google -> {
                          scope.launch {
                              try {
+                                 val currentPos = googleCameraPositionState.position
                                  googleCameraPositionState.animate(
                                      com.google.android.gms.maps.CameraUpdateFactory.newCameraPosition(
-                                         com.google.android.gms.maps.model.CameraPosition.Builder(googleCameraPositionState.position)
-                                             .bearing(0f)
+                                         com.google.android.gms.maps.model.CameraPosition.Builder(currentPos)
+                                             .target(currentPos.target) // [FIX] Keep current location
+                                             .zoom(currentPos.zoom)     // [FIX] Keep current zoom
+                                             .bearing(0f)               // Only reset bearing
                                              .build()
                                      ),
                                      500 // duration ms
                                  )
-                                 compassRotation = 0f // Update after animation or immediately? UI hides on 0.
+                                 compassRotation = 0f 
                              } catch (e: Exception) {}
                          }
                     }
                     MapProvider.Naver -> {
-                         val target = naverMap?.cameraPosition?.target ?: com.naver.maps.geometry.LatLng(37.5665, 126.9780)
-                         val currentZoom = naverMap?.cameraPosition?.zoom ?: 15.0
-                         val cameraPosition = com.naver.maps.map.CameraPosition(target, currentZoom, 0.0, 0.0)
-                         val update = com.naver.maps.map.CameraUpdate.toCameraPosition(cameraPosition)
+                         val currentPos = naverMap?.cameraPosition ?: return@RightSideControls
+                         val cameraPosition = com.naver.maps.map.CameraPosition(
+                             currentPos.target, // [FIX] Keep current location
+                             currentPos.zoom,   // [FIX] Keep current zoom
+                             0.0,               // Tilt (Keep or reset? usually reset or keep) -> Let's keep 0.0 tilt if previously 0, or currentPos.tilt? 
+                             // Usually compass resets rotation (bearing). 
+                             0.0                // Bearing -> 0 (North)
+                         )
+                         // Wait, CameraPosition constructor args: target, zoom, tilt, bearing.
+                         // Let's use Builder if available or constructor with current tilt.
+                         val newPos = com.naver.maps.map.CameraPosition(
+                             currentPos.target,
+                             currentPos.zoom,
+                             currentPos.tilt,
+                             0.0
+                         )
+                         
+                         val update = com.naver.maps.map.CameraUpdate.toCameraPosition(newPos)
                              .animate(com.naver.maps.map.CameraAnimation.Easing)
                          naverMap?.moveCamera(update)
                          compassRotation = 0f
@@ -868,7 +968,7 @@ fun MainScreen(
                                  }
                                  MapProvider.Google -> {
                                      scope.launch {
-                                         googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(com.google.android.gms.maps.model.LatLng(lat, lon), 15f))
+                                         googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(com.google.android.gms.maps.model.LatLng(lat, lon), 18f))
                                      }
                                  }
                                  else -> {}

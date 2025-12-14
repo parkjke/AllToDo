@@ -138,7 +138,7 @@ fun getCachedClusterBitmap(context: android.content.Context, count: Int, baseRes
 }
 
 // Previously named createClusterBitmap
-private fun createClusterBitmapInternal(context: android.content.Context, count: Int, baseResId: Int, badgeColor: Int): Bitmap {
+fun createClusterBitmapInternal(context: android.content.Context, count: Int, baseResId: Int, badgeColor: Int): Bitmap {
     // [FIX] Density-aware sizing to match PinImageManager (40dp x 50dp) + Padding for Badge Overhang
     val density = context.resources.displayMetrics.density
     val pinW = (40 * density).toInt()
@@ -178,16 +178,16 @@ private fun createClusterBitmapInternal(context: android.content.Context, count:
         val cx = pinW.toFloat()
         val cy = padding.toFloat()
         
-        // White Border
-        paint.color = android.graphics.Color.WHITE
+        // White Border -> [FIX] Colored Border (to match requested style)
+        paint.color = badgeColor
         canvas.drawCircle(cx, cy, badgeSize/2 + 2 * density, paint) // Border 2dp
         
-        // Color Bg
-        paint.color = badgeColor
+        // Color Bg -> [FIX] White Background
+        paint.color = android.graphics.Color.WHITE
         canvas.drawCircle(cx, cy, badgeSize/2, paint)
         
-        // Text
-        paint.color = android.graphics.Color.WHITE
+        // Text -> [FIX] Colored Text
+        paint.color = badgeColor
         paint.textSize = 12f * density // 12sp equivalent
         paint.textAlign = Paint.Align.CENTER
         paint.typeface = android.graphics.Typeface.DEFAULT_BOLD

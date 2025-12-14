@@ -15,6 +15,7 @@ struct AppleMapView: UIViewRepresentable {
     var onDelete: ((ToDoItem) -> Void)?
     var onDeleteLog: ((UserLog) -> Void)?
     var onSelectLog: ((UserLog) -> Void)?
+    var onFarItemsDetected: ((Int) -> Void)? // [NEW] Callback for hidden items
     
     func makeUIView(context: Context) -> MKMapView {
         let mapView = MKMapView()
@@ -205,6 +206,8 @@ struct AppleMapView: UIViewRepresentable {
              let heading = mapView.camera.heading
              DispatchQueue.main.async {
                  self.parent.rotation = heading
+                 // [NEW] Sync Span with LocationManager for Smart Tracking
+                 self.parent.locationManager.currentSpan = mapView.region.span.latitudeDelta
              }
         }
         
@@ -239,17 +242,36 @@ struct AppleMapView: UIViewRepresentable {
             
             // ... (rest of logic)
             
+            var farItemsCount = 0 // [NEW] Track hidden items
+            
             for item in currentItems {
                 if let loc = item.location {
+                    // [NEW] 500km Filter
+                    if let userLoc = userLocation, SmartLocationManager.shared.isFar(userLoc, CLLocation(latitude: loc.latitude, longitude: loc.longitude)) {
+                        farItemsCount += 1
+                        continue
+                    }
                     allItems.append(.todo(item))
                     rawPoints.append(Int32(loc.latitude * 1_000_000))
                     rawPoints.append(Int32(loc.longitude * 1_000_000))
                 }
             }
             for log in currentLogs {
+               // [NEW] 500km Filter
+               if let userLoc = userLocation, SmartLocationManager.shared.isFar(userLoc, CLLocation(latitude: log.latitude, longitude: log.longitude)) {
+                   farItemsCount += 1
+                   continue
+               }
                 allItems.append(.history(log))
                 rawPoints.append(Int32(log.latitude * 1_000_000))
                 rawPoints.append(Int32(log.longitude * 1_000_000))
+            }
+            
+            // Trigger Callback
+            if farItemsCount > 0 {
+                DispatchQueue.main.async {
+                    self.parent.onFarItemsDetected?(farItemsCount)
+                }
             }
             
             // [FIX] Add User Location to Clustering Data
@@ -399,31 +421,32 @@ struct AppleMapView: UIViewRepresentable {
         func performLaunchAnimation(mapView: MKMapView, userLocation: CLLocation?) {
             firstRender = false
             
-            // Initial Cluster Calculation
+            // Initial Cluster Calculation & Far Item Detection
             refreshWasmClusters(mapView: mapView)
             
             // [LOG] Start Animation
-            OptimizationLogger.shared.logLaunchStep(step: "setup map zoom", data: [
-                "action": "WASM Launch (Restored)",
-                "wait": "3.0s"
+            OptimizationLogger.shared.logLaunchStep(step: "launch sequence", data: [
+                "action": "Fit Bounds -> Wait 3s -> Zoom Current",
+                "status": "Started"
             ])
             
-            // 1. Gather Points from Filtered Data
+            // 1. Gather Points (Applying 500km Filter)
             var points: [CLLocationCoordinate2D] = []
+            let userLoc = userLocation
+            
             for item in parent.todoItems { 
                 if let l = item.location { 
+                    if let u = userLoc, SmartLocationManager.shared.isFar(u, CLLocation(latitude: l.latitude, longitude: l.longitude)) { continue }
                     points.append(CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)) 
                 } 
             }
             for log in parent.userLogs { 
+                if let u = userLoc, SmartLocationManager.shared.isFar(u, CLLocation(latitude: log.latitude, longitude: log.longitude)) { continue }
                 points.append(CLLocationCoordinate2D(latitude: log.latitude, longitude: log.longitude)) 
             }
             
-            let delay = AppConfig.launchAnimationDelay
-            
+            // 2. Step 1: Fit Map to Local Points (Immediately)
             if !points.isEmpty {
-                // [SCENARIO RESTORED] PROPER LOGIC: List Center + Zoom Constraint
-                
                 var minLat = points[0].latitude
                 var maxLat = points[0].latitude
                 var minLon = points[0].longitude
@@ -436,41 +459,53 @@ struct AppleMapView: UIViewRepresentable {
                     if p.longitude > maxLon { maxLon = p.longitude }
                 }
                 
+                // Add User Location to bounds to ensure we don't jump too far later
+                if let u = userLoc {
+                    if u.coordinate.latitude < minLat { minLat = u.coordinate.latitude }
+                    if u.coordinate.latitude > maxLat { maxLat = u.coordinate.latitude }
+                    if u.coordinate.longitude < minLon { minLon = u.coordinate.longitude }
+                    if u.coordinate.longitude > maxLon { maxLon = u.coordinate.longitude }
+                }
+                
                 let centerLat = (minLat + maxLat) / 2
                 let centerLon = (minLon + maxLon) / 2
                 
-                var latSpan = maxLat - minLat
-                var lonSpan = maxLon - minLon
+                var latSpan = (maxLat - minLat) * 1.3 // Padding
+                var lonSpan = (maxLon - minLon) * 1.3
                 
-                // [Constraint] Max Zoom 9 -> Min Span ~1.5 degree
-                let MIN_SPAN = 1.5
+                // Min Span check (Zoom ~15)
+                let MIN_SPAN = 0.01 // ~1km
                 if latSpan < MIN_SPAN { latSpan = MIN_SPAN }
                 if lonSpan < MIN_SPAN { lonSpan = MIN_SPAN }
                 
-                // Add Padding
-                latSpan *= 1.1
-                lonSpan *= 1.1
+                // Bound check for "Pacific Ocean" (Max Zoom Out)
+                if latSpan > 50 { latSpan = 50 } 
                 
-                let targetRegion = MKCoordinateRegion(
+                let fitRegion = MKCoordinateRegion(
                     center: CLLocationCoordinate2D(latitude: centerLat, longitude: centerLon),
                     span: MKCoordinateSpan(latitudeDelta: latSpan, longitudeDelta: lonSpan)
                 )
-
-                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                    mapView.setRegion(targetRegion, animated: true)
-                    OptimizationLogger.shared.logLaunchStep(step: "go list bounds", data: ["span": latSpan])
+                
+                // EXECUTE STEP 1
+                mapView.setRegion(fitRegion, animated: true)
+                
+                // 3. Step 2: Wait 3s -> Zoom to Current Location
+                if let u = userLoc {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                        let zoom18Span = 0.0025 // Approx Zoom 18
+                        let finalRegion = MKCoordinateRegion(
+                            center: u.coordinate,
+                            span: MKCoordinateSpan(latitudeDelta: zoom18Span, longitudeDelta: zoom18Span)
+                        )
+                        mapView.setRegion(finalRegion, animated: true)
+                        OptimizationLogger.shared.logLaunchStep(step: "launch sequence", data: ["success": true])
+                    }
                 }
                 
-            } else if let userLoc = userLocation {
-                // Fallback: User Location (Zoom 15)
-                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                    let endRegion = MKCoordinateRegion(
-                        center: userLoc.coordinate,
-                        span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
-                    )
-                    mapView.setRegion(endRegion, animated: true)
-                    OptimizationLogger.shared.logLaunchStep(step: "go current location", data: ["success": true])
-                }
+            } else if let u = userLoc {
+                // No points, just go to user immediately
+                let region = MKCoordinateRegion(center: u.coordinate, span: MKCoordinateSpan(latitudeDelta: 0.0025, longitudeDelta: 0.0025))
+                mapView.setRegion(region, animated: true)
             }
         }
         

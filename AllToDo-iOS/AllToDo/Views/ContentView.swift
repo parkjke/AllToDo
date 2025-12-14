@@ -31,6 +31,10 @@ struct ContentView: View {
     @State private var showListView = false
     @State private var lastBackgroundDate: Date? // [NEW] Track background entry time
     
+    // [NEW] Far Item Message State
+    @State private var farItemMessage: String?
+    @State private var farMessageTask: Task<Void, Never>?
+    
     // MARK: - Logging Methods
     private func logTodoListStats() {
         let centerDate = Date() // Use current date for "future" calculation
@@ -113,7 +117,18 @@ struct ContentView: View {
                     onUserLocationTap: {},
                     onDelete: deleteItem,
                     onDeleteLog: deleteLog,
-                    onSelectLog: { selectedLogForPath = $0 }
+                    onSelectLog: { selectedLogForPath = $0 },
+                    onFarItemsDetected: { count in
+                        let text = "\(count)개의 할 일이 멀리 있습니다."
+                        if farItemMessage != text {
+                            farItemMessage = text
+                            farMessageTask?.cancel()
+                            farMessageTask = Task {
+                                try? await Task.sleep(nanoseconds: 5 * 1_000_000_000)
+                                farItemMessage = nil
+                            }
+                        }
+                    }
                 )
             case .kakao:
                 KakaoMapView(
@@ -483,6 +498,26 @@ struct ContentView: View {
         }
     }
 
+    var farItemOverlay: some View {
+        Group {
+            if let msg = farItemMessage {
+                VStack {
+                    Text(msg)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color.black.opacity(0.7))
+                        .cornerRadius(20)
+                        .padding(.top, 80) // Match Android 80dp
+                    Spacer()
+                }
+                .transition(.opacity)
+                .zIndex(600)
+                .allowsHitTesting(false)
+            }
+        }
+    }
+
     var body: some View {
         ZStack {
             mapLayer
@@ -492,6 +527,7 @@ struct ContentView: View {
             sideMenuLayer
             todoDetailOverlay
             allItemsOverlay
+            farItemOverlay // [NEW]
         }
         .sheet(item: $selectedLogForPath) { log in
             PathHistoryView(log: log) {

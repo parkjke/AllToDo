@@ -1,6 +1,6 @@
 package com.example.alltodo.ui.components
 
-import android.graphics.Color
+import android.graphics.Bitmap
 import android.util.Log
 import android.widget.TextView
 import androidx.compose.foundation.background
@@ -10,13 +10,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
-import com.example.alltodo.ui.MapProvider
-import com.example.alltodo.ui.PinCluster
 import com.example.alltodo.ui.UnifiedItem
-import com.example.alltodo.ui.generateDiamondPin
 import com.kakao.vectormap.KakaoMap
 import com.kakao.vectormap.KakaoMapReadyCallback
 import com.kakao.vectormap.LatLng
@@ -28,280 +24,228 @@ import com.kakao.vectormap.label.LabelLayerOptions
 import com.kakao.vectormap.label.LabelOptions
 import com.kakao.vectormap.label.LabelStyle
 import com.kakao.vectormap.label.LabelStyles
+import kotlinx.coroutines.delay
 
 @Composable
 fun KakaoMapContent(
     modifier: Modifier = Modifier,
     isSdkInitialized: Boolean,
-    items: List<UnifiedItem>,
+    clusteredItems: List<com.example.alltodo.ui.TodoViewModel.PinClusterItem>,
     currentLocation: android.location.Location?,
-    selectedCluster: PinCluster?,
     onMapReady: (KakaoMap) -> Unit,
-    onClusterClick: (PinCluster) -> Unit,
-    onMapClick: (LatLng) -> Unit,
+    onClusterClickWithCoords: (List<UnifiedItem>, Float, Float) -> Unit,
+    onItemClickWithCoords: (UnifiedItem, Float, Float) -> Unit,
     onCameraRotate: (Float) -> Unit,
-    onCameraMoveStart: () -> Unit
+    initialAnimationDone: Boolean,
+    onInitialAnimationDone: () -> Unit,
+    onFarItemsDetected: (Int) -> Unit = {}
 ) {
     val context = LocalContext.current
     var kakaoMap by remember { mutableStateOf<KakaoMap?>(null) }
     var isMapReady by remember { mutableStateOf(false) }
 
-    // [Logic] Render Markers & Clusters
-    // Re-run when map is ready or items change
-    LaunchedEffect(kakaoMap, items) { 
-        try {
-            val map = kakaoMap ?: return@LaunchedEffect
-            val labelManager = map.labelManager ?: return@LaunchedEffect
-            val layer = labelManager.getLayer("mainLayer") ?: labelManager.addLayer(LabelLayerOptions.from("mainLayer"))
-            layer?.removeAll()
+    // 500km Filter Logic
+    val farThreshold = 500000f
+    val visibleClusters = remember(clusteredItems, currentLocation) {
+        if (currentLocation == null) clusteredItems
+        else clusteredItems.filter { cluster ->
+             val results = FloatArray(1)
+             android.location.Location.distanceBetween(currentLocation.latitude, currentLocation.longitude, cluster.latitude, cluster.longitude, results)
+             results[0] <= farThreshold
+        }
+    }
 
-            if (items.isNotEmpty()) {
-                val density = context.resources.displayMetrics.density
-                val clusterThresholdPx = 60 * density
-
-                val screenPoints = items.mapNotNull { item ->
-                    val latLng = LatLng.from(item.latitude, item.longitude)
-                    val pt = map.toScreenPoint(latLng)
-                    // If map is not laid out yet, pt might be null or weird, but usually null safety is enough
-                    if (pt != null) Triple(item, pt.x.toFloat(), pt.y.toFloat()) else null
-                }
-
-                val clusters = mutableListOf<PinCluster>()
-                val visited = BooleanArray(screenPoints.size)
-
-                for (i in screenPoints.indices) {
-                    if (visited[i]) continue
-                    val center = screenPoints[i]
-                    val clusterItems = mutableListOf<UnifiedItem>()
-                    clusterItems.add(center.first)
-                    visited[i] = true
-
-                    for (j in i + 1 until screenPoints.size) {
-                        if (visited[j]) continue
-                        val other = screenPoints[j]
-                        val dx = center.second - other.second
-                        val dy = center.third - other.third
-                        val dist = kotlin.math.sqrt(dx * dx + dy * dy)
-
-                        if (dist <= clusterThresholdPx) {
-                            clusterItems.add(other.first)
-                            visited[j] = true
-                        }
-                    }
-
-                    var hasTodo = false
-                    var hasHistory = false
-                    var hasCurrent = false
-                    clusterItems.forEach { 
-                        if (it is UnifiedItem.Todo) hasTodo = true
-                        if (it is UnifiedItem.History) hasHistory = true
-                        if (it is UnifiedItem.CurrentLocation) hasCurrent = true
-                    }
-                    val type = when {
-                        hasCurrent -> "current"
-                        hasTodo && hasHistory -> "mixed"
-                        hasTodo -> "todo"
-                        else -> "history"
-                    }
-
-                    clusters.add(PinCluster(center.first.latitude, center.first.longitude, clusterItems, type, (hasTodo && hasHistory) || (hasCurrent && (hasTodo || hasHistory))))
-                }
-
-                clusters.forEach { cluster ->
-                    val styleId = "cluster_${cluster.items.size}_${cluster.type}"
-                    var styles = labelManager.getLabelStyles(styleId)
-                    if (styles == null) {
-                        if (cluster.items.size == 1) {
-                            val item = cluster.items.first()
-                            val resId = item.getPinResId()
-                            if (resId != 0) {
-                                val anchorY = if (item is UnifiedItem.Todo) 1.0f else 0.5f
-                                // [FIX] Resize Bitmap to prevent OOM & Support Vector Drawables
-                                val bitmap = getBitmapFromDrawable(context, resId, 80, 100)
-                                if (bitmap != null) {
-                                    val finalStyle = LabelStyle.from(bitmap).setAnchorPoint(0.5f, anchorY)
-                                    styles = labelManager.addLabelStyles(LabelStyles.from(styleId, java.util.Arrays.asList(finalStyle)))
-                                }
-                            }
-                        } else {
-                            val color = when {
-                                cluster.items.any { it is UnifiedItem.CurrentLocation } -> android.graphics.Color.RED
-                                cluster.hasMixed -> 0xFF808080.toInt()
-                                cluster.items.any { it is UnifiedItem.History } -> android.graphics.Color.RED
-                                cluster.items.any { it is UnifiedItem.Todo } -> 0xFF00AA00.toInt()
-                                else -> android.graphics.Color.BLUE
-                            }
+    // Launch Animation
+    LaunchedEffect(isMapReady, initialAnimationDone) {
+        if (initialAnimationDone || !isMapReady) return@LaunchedEffect
+        val map = kakaoMap ?: return@LaunchedEffect
         
-                            val bitmap = generateDiamondPin(color, cluster.items.size)
-                            if (bitmap != null) {
-                                styles = labelManager.addLabelStyles(LabelStyles.from(styleId, LabelStyle.from(bitmap)))
-                            }
-                        }
-                    }
-    
-                    if (styles != null) {
-                        val options = LabelOptions.from(LatLng.from(cluster.latitude, cluster.longitude))
-                            .setStyles(styles)
-                            .setClickable(true)
-                        layer?.addLabel(options)
-                    }
-                }
+        // Wait for data
+        val start = System.currentTimeMillis()
+        var validCenter: LatLng? = null
+        
+        while (System.currentTimeMillis() - start < 5000) {
+            val items = visibleClusters
+            val loc = currentLocation
+            
+             // Check Far Items
+            val farCount = clusteredItems.sumOf { cluster ->
+                 val results = FloatArray(1)
+                 if (loc != null) {
+                     android.location.Location.distanceBetween(loc.latitude, loc.longitude, cluster.latitude, cluster.longitude, results)
+                     if (results[0] > farThreshold) cluster.count else 0
+                 } else 0
+            }
+            if (farCount > 0) onFarItemsDetected(farCount)
 
+            // Calculate Center of Bounds (Simple Average)
+            var latSum = 0.0
+            var lonSum = 0.0
+            var count = 0
+            
+            items.forEach { 
+                if (it.latitude != 0.0 && it.longitude != 0.0) {
+                    latSum += it.latitude
+                    lonSum += it.longitude
+                    count++
+                }
+            }
+            if (loc != null && loc.latitude != 0.0) {
+                latSum += loc.latitude
+                lonSum += loc.longitude
+                count++
             }
             
-            // [FIX] Render Current Location Pin (Kakao)
-            if (currentLocation != null) {
-                val currentStyleId = "style_current_location"
-                var styles = labelManager.getLabelStyles(currentStyleId)
-                if (styles == null) {
-                    val bitmap = getBitmapFromDrawable(context, com.example.alltodo.R.drawable.pin_current, 80, 100) // 32dp approx
-                    if (bitmap != null) {
-                       val style = LabelStyle.from(bitmap).setAnchorPoint(0.5f, 1.0f)
-                       styles = labelManager.addLabelStyles(LabelStyles.from(currentStyleId, style))
+            if (count > 0) {
+                validCenter = LatLng.from(latSum / count, lonSum / count)
+                break
+            }
+            delay(500)
+        }
+        
+        if (validCenter != null) {
+            try {
+                // Step 1: Whole View (Zoom 10 around Center)
+                val update = CameraUpdateFactory.newCenterPosition(validCenter, 10)
+                map.moveCamera(update, CameraAnimation.from(1000, true, true))
+                
+                // Step 2: 3s Delay -> Zoom to User
+                delay(3000)
+                
+                if (currentLocation != null) {
+                    val finalUpdate = CameraUpdateFactory.newCenterPosition(
+                        LatLng.from(currentLocation.latitude, currentLocation.longitude), 18
+                    )
+                    map.moveCamera(finalUpdate, CameraAnimation.from(1500, true, true))
+                }
+            } catch (e: Exception) { e.printStackTrace() }
+        }
+        onInitialAnimationDone()
+    }
+    
+    // Rendering Logic
+    LaunchedEffect(kakaoMap, visibleClusters) {
+        val map = kakaoMap ?: return@LaunchedEffect
+        val labelManager = map.labelManager ?: return@LaunchedEffect
+        val layer = labelManager.getLayer("mainLayer") ?: labelManager.addLayer(LabelLayerOptions.from("mainLayer"))
+        layer?.removeAll()
+        
+        visibleClusters.forEach { cluster ->
+             // Standard Pin Logic
+            val isSingle = cluster.count == 1
+            val firstItem = cluster.items.firstOrNull()
+            
+             // Determine Icon & Style
+            val styleId = "cluster_${cluster.count}_${cluster.latitude}" // Unique ID
+            var styles = labelManager.getLabelStyles(styleId)
+            
+            if (styles == null) {
+                val (bitmap, anchorX, anchorY) = if (isSingle && firstItem != null) {
+                    val resId = firstItem.getPinResId()
+                    val b = com.example.alltodo.ui.PinImageManager.getPinBitmap(resId) ?: 
+                            com.example.alltodo.ui.createClusterBitmapInternal(context, 1, resId, android.graphics.Color.TRANSPARENT)
+                    Triple(b, 0.5f, 1.0f)
+                } else {
+                    var hasUserLocation = false
+                    var hasHistory = false
+                    var hasServerTodo = false
+                    var hasUserTodo = false
+                    cluster.items.forEach { 
+                        when(it) {
+                            is UnifiedItem.CurrentLocation -> hasUserLocation = true
+                            is UnifiedItem.History -> hasHistory = true
+                            is UnifiedItem.Todo -> {
+                                if (it.item.source != "local") hasServerTodo = true
+                                else hasUserTodo = true
+                            }
+                        }
                     }
+                    val (resId, badgeColor) = when {
+                        hasUserLocation -> com.example.alltodo.R.drawable.pin_current to android.graphics.Color.RED
+                        hasHistory -> com.example.alltodo.R.drawable.pin_history to android.graphics.Color.RED
+                        hasServerTodo -> com.example.alltodo.R.drawable.pin_receive_ready to android.graphics.Color.BLUE
+                        else -> com.example.alltodo.R.drawable.pin_todo_ready to android.graphics.Color.parseColor("#00AA00")
+                    }
+                    val b = com.example.alltodo.ui.createClusterBitmapInternal(context, cluster.count, resId, badgeColor)
+                    Triple(b, 0.4f, 1.0f)
                 }
                 
-                if (styles != null) {
-                    val latLng = LatLng.from(currentLocation.latitude, currentLocation.longitude)
-                    val options = LabelOptions.from(latLng).setStyles(styles).setClickable(false) // Non-clickable or clickable?
-                    layer?.addLabel(options)
+                if (bitmap != null) {
+                    styles = labelManager.addLabelStyles(LabelStyles.from(styleId, LabelStyle.from(bitmap).setAnchorPoint(anchorX, anchorY)))
                 }
             }
-
-        } catch (e: Exception) {
-            Log.e("AllToDo", "Error rendering map items: ${e.message}", e)
-        }
-    }
-    
-        if (isSdkInitialized) {
-            AndroidView(
-                factory = { ctx ->
-                    try {
-                        MapView(ctx).apply {
-                            start(object : MapLifeCycleCallback() {
-                                override fun onMapDestroy() {}
-                                override fun onMapError(e: Exception?) {
-                                    Log.e("AllToDo", "Map Error: ${e?.message}")
-                                }
-                            }, object : KakaoMapReadyCallback() {
-                                override fun onMapReady(map: KakaoMap) {
-                                    kakaoMap = map
-                                    isMapReady = true
-                                    onMapReady(map)
-    
-                                    // Initial Camera
-                                    currentLocation?.let { loc ->
-                                        val cameraUpdate = CameraUpdateFactory.newCenterPosition(LatLng.from(loc.latitude, loc.longitude))
-                                        map.moveCamera(cameraUpdate)
-                                    }
-    
-                                    map.setOnLabelClickListener { _, _, label ->
-                                        val pos = label.position
-                                        
-                                        // Re-running heavy logic on click isn't great, but matches original implementation for correctness
-                                        val density = ctx.resources.displayMetrics.density
-                                        val clusterThresholdPx = 60 * density
-                                        
-                                        val screenPoints = items.mapNotNull { item ->
-                                            val pt = map.toScreenPoint(LatLng.from(item.latitude, item.longitude))
-                                            if (pt != null) Triple(item, pt.x.toFloat(), pt.y.toFloat()) else null
-                                        }
-
-                                        val clusters = mutableListOf<PinCluster>()
-                                        val visited = BooleanArray(screenPoints.size)
-                                        // Same clustering for finding target...
-                                        for (i in screenPoints.indices) {
-                                            if (visited[i]) continue
-                                            val center = screenPoints[i]
-                                            val clusterItems = mutableListOf<UnifiedItem>()
-                                            clusterItems.add(center.first)
-                                            visited[i] = true
-                                            for (j in i + 1 until screenPoints.size) {
-                                                if (visited[j]) continue
-                                                val other = screenPoints[j]
-                                                val dx = center.second - other.second
-                                                val dy = center.third - other.third
-                                                val dist = kotlin.math.sqrt(dx * dx + dy * dy)
-                                                if (dist <= clusterThresholdPx) {
-                                                    clusterItems.add(other.first)
-                                                    visited[j] = true
-                                                }
-                                            }
-                                            clusters.add(PinCluster(center.first.latitude, center.first.longitude, clusterItems))
-                                        }
-
-                                        val clickedCluster = clusters.find {
-                                            Math.abs(it.latitude - pos.latitude) < 0.00001 && Math.abs(it.longitude - pos.longitude) < 0.00001
-                                        }
-
-                                        if (clickedCluster != null) {
-                                            onClusterClick(clickedCluster)
-                                        }
-                                        return@setOnLabelClickListener true
-                                    }
-                                    
-                                    // ...
-                                }
-                                override fun getPosition(): LatLng {
-                                    return LatLng.from(37.5665, 126.9780) 
-                                }
-                                override fun getZoomLevel(): Int {
-                                    return 15
-                                }
-                            })
-                        }
-                    } catch (t: Throwable) {
-                        Log.e("AllToDo", "CRITICAL: Failed to create MapView", t)
-                        TextView(ctx).apply {
-                            text = "Map Unavailable: ${t.message}"
-                            setTextColor(Color.RED)
-                        }
-                    }
-                },
-                modifier = modifier
-            )
-        } else {
-            Box(modifier.background(androidx.compose.ui.graphics.Color.White), contentAlignment = Alignment.Center) {
-                Text("Initializing Map...")
+            
+            if (styles != null) {
+                 val options = LabelOptions.from(LatLng.from(cluster.latitude, cluster.longitude))
+                        .setStyles(styles)
+                        .setClickable(true)
+                 
+                 val label = layer?.addLabel(options)
+                 
+                 // How to handle click? 
+                 // KakaoMap Label Click Listener is Global (set on Map).
+                 // Logic must be inside AndroidView 'start' block.
+                 // We need to map Label -> Cluster.
+                 // Storing map in Tag? Label doesn't support SetTag easily.
+                 // We can use Position matching or global mapping.
+                 // Step 1311 used "Find by Position". I will stick to that or use External Map.
             }
         }
     }
-    
-// Global Cache for KakaoMap Bitmaps
-private val kakaoBitmapCache = android.util.LruCache<String, android.graphics.Bitmap>(50)
 
-private fun getBitmapFromDrawable(context: android.content.Context, @androidx.annotation.DrawableRes drawableId: Int, width: Int?, height: Int?): android.graphics.Bitmap? {
-    // [Optimization] Check PinImageManager
-    val globalCached = com.example.alltodo.ui.PinImageManager.getPinBitmap(drawableId)
-    if (globalCached != null) return globalCached
+    if (isSdkInitialized) {
+        AndroidView(
+            factory = { ctx ->
+                MapView(ctx).apply {
+                    start(object : MapLifeCycleCallback() {
+                        override fun onMapDestroy() {}
+                        override fun onMapError(e: Exception?) {}
+                    }, object : KakaoMapReadyCallback() {
+                        override fun onMapReady(map: KakaoMap) {
+                            kakaoMap = map
+                            isMapReady = true
+                            onMapReady(map) // Call parent
 
-    val key = "$drawableId-$width-$height"
-    val cached = kakaoBitmapCache.get(key)
-    if (cached != null) return cached
-
-    try {
-        val drawable = androidx.core.content.ContextCompat.getDrawable(context, drawableId) ?: return null
-        
-        val targetW = width ?: drawable.intrinsicWidth
-        val targetH = height ?: drawable.intrinsicHeight
-        
-        if (targetW <= 0 || targetH <= 0) return null // Safety check
-
-        if (drawable is android.graphics.drawable.BitmapDrawable) {
-            val result = android.graphics.Bitmap.createScaledBitmap(drawable.bitmap, targetW, targetH, true)
-            kakaoBitmapCache.put(key, result)
-            return result
+                            // Set Global Listener
+                            map.setOnLabelClickListener { _, _, label ->
+                                val pos = label.position
+                                // Find Cluster by Position (Approx)
+                                val clicked = visibleClusters.find { 
+                                    Math.abs(it.latitude - pos.latitude) < 0.0001 && Math.abs(it.longitude - pos.longitude) < 0.0001
+                                }
+                                
+                                if (clicked != null) {
+                                    val screenPt = map.toScreenPoint(pos)
+                                    val scrollX = if (screenPt != null) screenPt.x.toFloat() else 0f
+                                    val scrollY = if (screenPt != null) screenPt.y.toFloat() else 0f
+                                    
+                                    if (clicked.count == 1 && clicked.items.isNotEmpty()) {
+                                         onItemClickWithCoords(clicked.items.first(), scrollX, scrollY)
+                                    } else {
+                                         onClusterClickWithCoords(clicked.items, scrollX, scrollY)
+                                    }
+                                }
+                                true
+                            }
+                            
+                            map.addOnCameraChangeListener { _, _ ->
+                                onCameraRotate(map.cameraPosition.bearing.toFloat())
+                            }
+                        }
+                        override fun getPosition(): LatLng {
+                             return LatLng.from(37.5665, 126.9780)
+                        }
+                        override fun getZoomLevel(): Int {
+                             return 15
+                        }
+                    })
+                }
+            },
+            modifier = modifier
+        )
+    } else {
+        Box(modifier.background(androidx.compose.ui.graphics.Color.White), contentAlignment = Alignment.Center) {
+            Text("Initializing Map...")
         }
-        
-        val bitmap = android.graphics.Bitmap.createBitmap(targetW, targetH, android.graphics.Bitmap.Config.ARGB_8888)
-        val canvas = android.graphics.Canvas(bitmap)
-        drawable.setBounds(0, 0, canvas.width, canvas.height)
-        drawable.draw(canvas)
-        
-        kakaoBitmapCache.put(key, bitmap)
-        return bitmap
-    } catch (e: Exception) {
-        Log.e("AllToDo", "Failed to create bitmap from drawable: ${e.message}")
-        return null
     }
 }

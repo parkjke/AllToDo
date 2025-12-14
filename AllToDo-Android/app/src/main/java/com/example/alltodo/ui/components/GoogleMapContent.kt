@@ -12,6 +12,17 @@ import com.google.android.gms.maps.model.LatLngBounds
 import com.google.maps.android.compose.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 
 @OptIn(MapsComposeExperimentalApi::class)
 @Composable
@@ -30,7 +41,10 @@ fun GoogleMapContent(
     onMapLoaded: () -> Unit,
     showHistoryMode: Boolean,
     initialAnimationDone: Boolean,
-    onInitialAnimationDone: () -> Unit
+    showHistoryMode: Boolean,
+    initialAnimationDone: Boolean,
+    onInitialAnimationDone: () -> Unit,
+    onFarItemsDetected: (Int) -> Unit = {} // [NEW] Callback for Far Items
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     // 1. UI Settings (Disable Toolbar & Zoom)
@@ -49,39 +63,48 @@ fun GoogleMapContent(
         )
     }
 
+    // [FIX] Far Item Logic (500km Filter)
+    val farThreshold = 500000f // 500km in meters
+    val visibleClusters = remember(clusteredItems, currentLocation) {
+        if (currentLocation == null) clusteredItems
+        else clusteredItems.filter { cluster ->
+             val results = FloatArray(1)
+             android.location.Location.distanceBetween(currentLocation.latitude, currentLocation.longitude, cluster.latitude, cluster.longitude, results)
+             results[0] <= farThreshold // Only show if <= 500km
+        }
+    }
+    
+    // [FIX] Removed internal farItemMessage handling. Handled by MainScreen via callback.
 
-
-    // 2. Launch Animation & History Mode Handler
-    // Add currentLocation to keys to handle "No Pins -> Zoom 15" when location arrives
-    // [FIX] Add isMapReady to prevent crash on re-entry (trying to animate before map loads)
-    // 2. Launch Animation & History Mode Handler
-    // 2. Launch Animation & History Mode Handler
-    // 2. iPhone-like Launch Animation (Fit Bounds with Max Zoom 9)
-    // 2. iPhone-like Launch Animation (Fit Bounds with Max Zoom 11)
-    // [FIX] Loop prevention: animate once, never restart.
-    // Depend on Unit so it doesn't restart on data change.
-    // [FIX] Reactive Launch Animation (No Polling Loop)
-    // [FIX] Reactive Launch Animation (Run Once)
-    // Removed 'clusteredItems' from keys to prevent restart on update
-    LaunchedEffect(isMapReady) {
+    // [FIX] Reactive Launch Animation: Trigger on mapReady AND reset of animation flag
+    LaunchedEffect(isMapReady, initialAnimationDone) {
         if (initialAnimationDone || !isMapReady) return@LaunchedEffect
         
         // Wait for valid data (snapshotFlow)
-        // We wait for either clusteredItems to be populated OR a timeout?
-        // Let's wait for clusteredItems to have content OR current location
-        
         var validPoints: List<LatLng> = emptyList()
         
         // Wait until we have data or location
-        // Use a simple loop with timeout or snapshotFlow
         val start = System.currentTimeMillis()
         while (System.currentTimeMillis() - start < 5000) { // Max 5 sec wait
-             val items = clusteredItems // Capture current state
+             val items = visibleClusters // [FIX] Use filtered clusters for bounds
              val loc = currentLocation
+             
+             // [NEW] Calculate invisible far items count for notification
+             val farCount = clusteredItems.sumOf { cluster ->
+                 val results = FloatArray(1)
+                 if (loc != null) {
+                     android.location.Location.distanceBetween(loc.latitude, loc.longitude, cluster.latitude, cluster.longitude, results)
+                     if (results[0] > farThreshold) cluster.count else 0
+                 } else 0
+             }
+             if (farCount > 0) {
+                 onFarItemsDetected(farCount)
+             }
              
              val points = mutableListOf<LatLng>()
              val itemPoints = items.flatMap { it.items }
                 .filter { (it is UnifiedItem.Todo || it is UnifiedItem.History) }
+                .filter { it.latitude != 0.0 && it.longitude != 0.0 } 
                 .map { item -> LatLng(item.latitude, item.longitude) }
              points.addAll(itemPoints)
              
@@ -93,7 +116,7 @@ fun GoogleMapContent(
                  validPoints = points
                  break
              }
-             delay(500) // Poll every 500ms
+             delay(500) 
         }
         
         if (validPoints.isNotEmpty()) {
@@ -101,41 +124,38 @@ fun GoogleMapContent(
              val boundsBuilder = LatLngBounds.builder()
              validPoints.forEach { boundsBuilder.include(it) }
              val bounds = boundsBuilder.build()
-             val center = bounds.center
-
-             val MIN_SPAN = 0.4 
-             val ne = bounds.northeast
-             val sw = bounds.southwest
-             var latSpan = ne.latitude - sw.latitude
-             var lngSpan = ne.longitude - sw.longitude
-             
-             if (latSpan < MIN_SPAN) latSpan = MIN_SPAN
-             if (lngSpan < MIN_SPAN) lngSpan = MIN_SPAN
-             
-             val expandedBounds = LatLngBounds(
-                 LatLng(center.latitude - latSpan / 2, center.longitude - lngSpan / 2),
-                 LatLng(center.latitude + latSpan / 2, center.longitude + lngSpan / 2)
-             )
 
              try {
-                 cameraPositionState.animate(
-                     CameraUpdateFactory.newLatLngBounds(expandedBounds, 100),
-                     1500
-                 )
-                 delay(2000)
-                 if (currentLocation != null) {
-                      cameraPositionState.animate(
-                          CameraUpdateFactory.newLatLngZoom(
-                              LatLng(currentLocation.latitude, currentLocation.longitude), 
-                              15f
-                          ),
-                          1000 
-                      )
-                 }
+                     // Step 1: Fit Bounds
+                     cameraPositionState.animate(
+                         CameraUpdateFactory.newLatLngBounds(bounds, 100),
+                         1000
+                     )
+
+                     // Step 2: Enforce Min Zoom 15 (Don't zoom out too far)
+                     if (cameraPositionState.position.zoom < 15f) {
+                         cameraPositionState.animate(
+                             CameraUpdateFactory.zoomTo(15f),
+                             500
+                         )
+                     }
+
+                     // Step 3: Wait 3 seconds
+                     delay(3000)
+                     
+                     // Step 4: Zoom to Current Location
+                     if (currentLocation != null) {
+                          cameraPositionState.animate(
+                              CameraUpdateFactory.newLatLngZoom(
+                                  LatLng(currentLocation.latitude, currentLocation.longitude), 
+                                  18f
+                              ),
+                              1500 
+                          )
+                     }
                  onInitialAnimationDone()
              } catch (e: Exception) { e.printStackTrace() }
         } else {
-             // Fallback if no data found in 5 sec
              onInitialAnimationDone()
         }
     }
@@ -143,8 +163,9 @@ fun GoogleMapContent(
     // [FIX] Projection State
     var mapProjection by remember { mutableStateOf<com.google.android.gms.maps.Projection?>(null) }
 
+    Box(modifier = modifier) {
     GoogleMap(
-        modifier = modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         cameraPositionState = cameraPositionState,
         properties = properties,
         uiSettings = uiSettings,
@@ -156,21 +177,38 @@ fun GoogleMapContent(
         },
         onMapLoaded = onMapLoaded
     ) {
-        MapEffect(Unit) { map ->
-            map.setOnCameraMoveListener {
-                mapProjection = map.projection
-                onRotationChange(map.cameraPosition.bearing)
-            }
-            map.setOnCameraIdleListener {
-                mapProjection = map.projection
-                onRotationChange(map.cameraPosition.bearing)
-            }
-            mapProjection = map.projection
-            onRotationChange(map.cameraPosition.bearing) // Initial set
+        // [FIX] Use SideEffect/LaunchedEffect to track projection/rotation without breaking internal listeners
+        LaunchedEffect(cameraPositionState.isMoving, cameraPositionState.position) {
+             // Update projection and rotation whenever camera moves
+             // We need access to the GoogleMap object?
+             // Accessing map inside LaunchedEffect is tricky if it's not state.
+             // But we have `onMapLoaded`? No.
+             // Wait, without `MapEffect`, we don't have the `GoogleMap` instance easily unless we capture it?
         }
         
-        // [FIX] Render Clustered Items
-        clusteredItems.forEach { cluster ->
+        // Wait, standard way is using `MapEffect` to capture map instance, but NOT setting listeners.
+        // We can set projection in OnMapLoaded or use a snapshotFlow on the map object if exposed?
+        // Actually, we can use `cameraPositionState.projection`? No, it doesn't expose projection.
+        
+        // Alternative: Use `MapEffect` to capture `map` instance into a state variable.
+        var googleMapInstance by remember { mutableStateOf<com.google.android.gms.maps.GoogleMap?>(null) }
+        
+        MapEffect(Unit) { map ->
+            googleMapInstance = map
+        }
+        
+        // Now observe state changes and update projection from instance
+        LaunchedEffect(cameraPositionState.isMoving) {
+            val map = googleMapInstance ?: return@LaunchedEffect
+            snapshotFlow { cameraPositionState.position }
+                .collectLatest { 
+                    mapProjection = map.projection
+                    onRotationChange(it.bearing)
+                }
+        }
+        
+        // [FIX] Render Clustered Items (Filtered)
+        visibleClusters.forEach { cluster ->
             val position = LatLng(cluster.latitude, cluster.longitude)
             val isSingle = cluster.count == 1
             val firstItem = cluster.items.firstOrNull()
@@ -229,6 +267,9 @@ fun GoogleMapContent(
         
         // [REMOVED] Standalone Current Location Marker (Now handled in clusters)
     }
+
+    // [FIX] Removed Internal Overlay
+    } // Close Box
 }
 
 

@@ -89,9 +89,7 @@
 -   **Fix**:
     -   Adjusted `zIndex` and invocation order in `UserProfileView` and `MainScreen`.
 
-### 5. **UI Polish: Liquid Glass**
-- **Objective**: Apply modern "Liquid Glass" styling to map controls as requested.
-- **Implementation**:
-    - Updated `RightSideControls.swift` and `TopLeftWidget.swift` to use the `.liquidGlass()` modifier.
-    - Replaced manual semi-transparent backgrounds with `Material.ultraThin` + Glass Border/Shadow.
-    - Ensures a unified, premium feel across all map providers (Apple, Google, Kakao, Naver).
+### 5. **UI Polish: Liquid Glass (REVERTED)**
+- **Attempted**: Applied "Liquid Glass" styling to map controls.
+- **Outcome**: Reverted to original "Semi-transparent Green" style per user request ("시인성이 떨어지고 글래스 느낌이 좀 안나네").
+- **Current State**: Controls use `Color.allToDoGreen.opacity(0.7)` background.
