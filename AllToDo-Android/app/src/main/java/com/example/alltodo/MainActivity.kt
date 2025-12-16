@@ -1,7 +1,7 @@
 package com.example.alltodo
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -14,27 +14,16 @@ import com.example.alltodo.ui.theme.AllToDoTheme
 import com.example.alltodo.ui.MainScreen
 import dagger.hilt.android.AndroidEntryPoint
 
+import androidx.activity.ComponentActivity
+
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         // [FIX] Explicitly initialize Naver Map SDK to resolve auth issues
-        // [FIX] Explicitly initialize Naver Map SDK to resolve auth issues
-        try {
-            val sdk = com.naver.maps.map.NaverMapSdk.getInstance(this)
-            sdk.client = com.naver.maps.map.NaverMapSdk.NaverCloudPlatformClient("i7652syq10")
-            
-            // [DEBUG] Log Package Name to verify match with Console
-            android.util.Log.e("AllToDo", "Current Application ID (Package Name): " + applicationContext.packageName)
-            
-            sdk.onAuthFailedListener = com.naver.maps.map.NaverMapSdk.OnAuthFailedListener { ex ->
-                 android.util.Log.e("AllToDo", "Naver Map Auth Failed: " + ex.message)
-                 android.widget.Toast.makeText(this, "Naver Auth Failed: " + ex.message, android.widget.Toast.LENGTH_LONG).show()
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        // [NOTE] Naver Map SDK is initialized automatically via AndroidManifest.xml meta-data.
+        // Manual initialization removed to prevent conflicts.
 
         setContent {
             AllToDoTheme {

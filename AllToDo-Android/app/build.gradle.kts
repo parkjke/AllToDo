@@ -11,7 +11,7 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "kr.co.daam.AllToDo"
+        applicationId = "kr.co.daam.AllToDo.An"
         minSdk = 26
         targetSdk = 34
         versionCode = 1

@@ -41,8 +41,7 @@ fun GoogleMapContent(
     onMapLoaded: () -> Unit,
     showHistoryMode: Boolean,
     initialAnimationDone: Boolean,
-    showHistoryMode: Boolean,
-    initialAnimationDone: Boolean,
+
     onInitialAnimationDone: () -> Unit,
     onFarItemsDetected: (Int) -> Unit = {} // [NEW] Callback for Far Items
 ) {
@@ -132,8 +131,8 @@ fun GoogleMapContent(
                          1000
                      )
 
-                     // Step 2: Enforce Min Zoom 15 (Don't zoom out too far)
-                     if (cameraPositionState.position.zoom < 15f) {
+                     // Step 2: Enforce Max Zoom 15 (Don't zoom in closer than 15)
+                     if (cameraPositionState.position.zoom > 15f) {
                          cameraPositionState.animate(
                              CameraUpdateFactory.zoomTo(15f),
                              500

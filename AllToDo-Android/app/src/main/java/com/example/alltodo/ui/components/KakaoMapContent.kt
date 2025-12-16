@@ -201,6 +201,7 @@ fun KakaoMapContent(
                         override fun onMapDestroy() {}
                         override fun onMapError(e: Exception?) {}
                     }, object : KakaoMapReadyCallback() {
+                        // onMapReady, getPosition, getZoomLevel이 모두 이 블록 안에 있어야 합니다.
                         override fun onMapReady(map: KakaoMap) {
                             kakaoMap = map
                             isMapReady = true
@@ -227,14 +228,12 @@ fun KakaoMapContent(
                                 }
                                 true
                             }
-                            
-                            map.addOnCameraChangeListener { _, _ ->
-                                onCameraRotate(map.cameraPosition.bearing.toFloat())
-                            }
                         }
+
                         override fun getPosition(): LatLng {
                              return LatLng.from(37.5665, 126.9780)
                         }
+
                         override fun getZoomLevel(): Int {
                              return 15
                         }

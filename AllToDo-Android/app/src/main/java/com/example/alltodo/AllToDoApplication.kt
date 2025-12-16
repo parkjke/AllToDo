@@ -9,17 +9,34 @@ import com.kakao.vectormap.KakaoMapSdk
 class AllToDoApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-        // [DEBUG] Moved SDK Init to MainScreen to prevent startup crash
-        // try {
-        //     val appInfo = packageManager.getApplicationInfo(packageName, android.content.pm.PackageManager.GET_META_DATA)
-        //     val appKey = appInfo.metaData.getString("com.kakao.vectormap.APP_KEY")
-        //     if (appKey != null) {
-        //         KakaoMapSdk.init(this, appKey)
-        //     }
-        // } catch (e: Exception) {
-        //     android.util.Log.e("AllToDo", "Failed to initialize KakaoMap SDK", e)
-        // }
         
+        // [FIX] Initialize Naver Map SDK globally
+        try {
+            com.naver.maps.map.NaverMapSdk.getInstance(this).client = 
+                com.naver.maps.map.NaverMapSdk.NaverCloudPlatformClient("i7652syq10")
+        } catch (e: Exception) {
+            android.util.Log.e("AllToDo", "Naver SDK Init Failed", e)
+        }
+        
+        // [DEBUG] Log SHA-1 for Console Registration Verification
+        try {
+            val packageName = packageName
+            val pInfo = packageManager.getPackageInfo(packageName, android.content.pm.PackageManager.GET_SIGNATURES)
+            for (signature in pInfo.signatures) {
+                val md = java.security.MessageDigest.getInstance("SHA-1")
+                md.update(signature.toByteArray())
+                val hexString = StringBuilder()
+                for (b in md.digest()) {
+                    hexString.append(String.format("%02X:", b))
+                }
+                if (hexString.isNotEmpty()) hexString.setLength(hexString.length - 1)
+                android.util.Log.e("AUTH_CHECK", "📦 Package: $packageName")
+                android.util.Log.e("AUTH_CHECK", "🔑 SHA-1: $hexString")
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
         // [NEW] Global Crash Handler
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             val trace = android.util.Log.getStackTraceString(throwable)
@@ -32,9 +49,7 @@ class AllToDoApplication : Application() {
             } catch (e: Exception) {
                 // Ignore file write error during crash
             }
-            
-            // Re-throw or kill process to let system handle it (but we logged it first)
-            kotlin.system.exitProcess(1)
+            // kotlin.system.exitProcess(1) // DISABLED to prevent restart loop and allow system crash dialog
         }
     }
 }

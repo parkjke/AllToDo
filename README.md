@@ -42,6 +42,7 @@ This repository is a **Monorepo** containing source code for Android, iOS, and t
 | **`/AllToDo-Android`** | Android Client App | Kotlin, Jetpack Compose, Kakao Map SDK |
 | **`/AllToDo-iOS`** | iOS Client App | Swift, SwiftUI, Naver Map SDK |
 | **`/AllToDo-Backend`** | Server & API | Python, FastAPI, PostgreSQL |
+| **`/AllToDo-Landing`** | Web Landing Page | Vanilla JS, Vite |
 
 ### 🚀 Getting Started
 
@@ -72,6 +73,19 @@ Open `/AllToDo-iOS` in Xcode.
 *   **Requirements:** iOS 16.0+, Xcode 15+
 *   **Note:** Naver Map Client ID required.
 
+#### 4. Web Landing Page
+Open `/AllToDo-Landing` in your terminal.
+```bash
+cd AllToDo-Landing
+
+# Install Dependencies (First time only)
+npm install
+
+# Run Dev Server
+npm run dev
+# Open http://localhost:5173
+```
+
 ---
 
 ## 🇰🇷 Korean
@@ -98,6 +112,7 @@ Open `/AllToDo-iOS` in Xcode.
 | **`/AllToDo-Android`** | 안드로이드 앱 | Kotlin, Jetpack Compose, Kakao Map SDK |
 | **`/AllToDo-iOS`** | iOS 앱 | Swift, SwiftUI, Naver Map SDK |
 | **`/AllToDo-Backend`** | 백엔드 서버 | Python, FastAPI, PostgreSQL |
+| **`/AllToDo-Landing`** | 웹 랜딩 페이지 | Vanilla JS, Vite |
 
 ---
 

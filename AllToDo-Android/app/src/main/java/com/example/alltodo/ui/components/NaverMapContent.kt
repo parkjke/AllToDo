@@ -34,7 +34,13 @@ fun NaverMapContent(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val mapView = remember { MapView(context) }
+    // [FIX] Wrap MapView context with AppCompat theme to prevent LogoView crash
+    val mapView = remember {
+        val appCompatContext = android.view.ContextThemeWrapper(context, androidx.appcompat.R.style.Theme_AppCompat_Light)
+        // [FIX] Use TextureView to avoid SurfaceView black screen issues in Compose
+        val options = com.naver.maps.map.NaverMapOptions().useTextureView(true)
+        MapView(appCompatContext, options)
+    }
     
     // Lifecycle
     DisposableEffect(lifecycleOwner) {

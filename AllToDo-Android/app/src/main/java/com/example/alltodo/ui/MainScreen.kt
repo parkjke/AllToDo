@@ -260,9 +260,8 @@ fun MainScreen(
     // Map Provider State with Persistence
     val prefs = remember { context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE) }
     var mapProvider by remember {
-        val saved = prefs.getString("map_provider", "Google") // [DEBUG] Default to Google to test new logic
-        val initial = MapProvider.values().find { it.name == saved } ?: MapProvider.Google
-        mutableStateOf(initial)
+        // [DEBUG] Force Google Map to bypass Naver Auth Crash
+        mutableStateOf(MapProvider.Google)
     }
     LaunchedEffect(mapProvider) {
         isKakaoMapReady = false
@@ -472,6 +471,7 @@ fun MainScreen(
                                 android.util.Log.d("CompassDebug", "Google Rot: $rot")
                                 compassRotation = rot 
                             },
+                            isMapReady = isGoogleMapReady,
                              onMapLoaded = { isGoogleMapReady = true },
                              showHistoryMode = showHistoryMode,
                              initialAnimationDone = initialAnimationDone,
