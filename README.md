@@ -74,10 +74,8 @@ Open `/AllToDo-iOS` in Xcode.
 *   **Note:** Naver Map Client ID required.
 
 #### 4. Web Landing Page
-Open `/AllToDo-Landing` in your terminal.
+Open the root directory `/AllToDo` in your terminal.
 ```bash
-cd AllToDo-Landing
-
 # Install Dependencies (First time only)
 npm install
 
