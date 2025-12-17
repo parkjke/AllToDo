@@ -27,11 +27,26 @@ struct AppleMapView: UIViewRepresentable {
         
         // [FIX] Initial Region Calculation (User Location > Pins Centroid > Gwanghwamun)
         var initialCenter = CLLocationCoordinate2D(latitude: 37.5759, longitude: 126.9768) // Default Gwanghwamun
-        
+        var fitRegion = MKCoordinateRegion(center: initialCenter, span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)) // Default span
+
         if let userLoc = locationManager.currentLocation {
-            initialCenter = userLoc.coordinate
+            // Calculate dynamic bounds including User Location
+            var minLat = userLoc.coordinate.latitude
+            var maxLat = userLoc.coordinate.latitude
+            var minLon = userLoc.coordinate.longitude
+            var maxLon = userLoc.coordinate.longitude
+            var hasPoints = true // User location is always a point
+            
+            for item in todoItems { if let l = item.location { minLat = min(minLat, l.latitude); maxLat = max(maxLat, l.latitude); minLon = min(minLon, l.longitude); maxLon = max(maxLon, l.longitude) } }
+            for log in userLogs { minLat = min(minLat, log.latitude); maxLat = max(maxLat, log.latitude); minLon = min(minLon, log.longitude); maxLon = max(maxLon, log.longitude) }
+            
+            if hasPoints {
+                let center = CLLocationCoordinate2D(latitude: (minLat + maxLat) / 2, longitude: (minLon + maxLon) / 2)
+                let span = MKCoordinateSpan(latitudeDelta: (maxLat - minLat) * 1.5 + 0.01, longitudeDelta: (maxLon - minLon) * 1.5 + 0.01)
+                fitRegion = MKCoordinateRegion(center: center, span: span)
+            }
         } else {
-            // Calculate Centroid of Pins
+            // Calculate Centroid of Pins if no user location
             var latSum: Double = 0
             var lonSum: Double = 0
             var count: Double = 0
@@ -51,12 +66,12 @@ struct AppleMapView: UIViewRepresentable {
             
             if count > 0 {
                 initialCenter = CLLocationCoordinate2D(latitude: latSum / count, longitude: lonSum / count)
+                fitRegion = MKCoordinateRegion(center: initialCenter, span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05))
             }
         }
         
-        // [FIX] Initial State: Always Zoom 15 centered on User/Default
-        let region = MKCoordinateRegion(center: initialCenter, span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)) // Span 0.01 is approx Zoom 15
-        mapView.setRegion(region, animated: false)
+        // [FIX] Initial State: Always Zoom 15 centered on User/Default or fit to items
+        mapView.setRegion(fitRegion, animated: false)
         
         // Long Press Gesture
         let longPress = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleLongPress(_:)))

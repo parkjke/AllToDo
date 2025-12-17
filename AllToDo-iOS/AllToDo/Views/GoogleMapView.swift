@@ -543,10 +543,9 @@ struct GoogleMapView: UIViewRepresentable {
             refreshWasmClusters(mapView: mapView)
             
              // 3. Fit Bounds (Dynamic)
-             let bounds = GMSCoordinateBounds()
-             bounds.includingCoordinate(userLoc.coordinate)
-             for item in parent.todoItems { if let l = item.location { bounds.includingCoordinate(CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)) } }
-             for log in parent.userLogs { bounds.includingCoordinate(CLLocationCoordinate2D(latitude: log.latitude, longitude: log.longitude)) }
+             var bounds = GMSCoordinateBounds(coordinate: userLoc.coordinate, coordinate: userLoc.coordinate)
+             for item in parent.todoItems { if let l = item.location { bounds = bounds.includingCoordinate(CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)) } }
+             for log in parent.userLogs { bounds = bounds.includingCoordinate(CLLocationCoordinate2D(latitude: log.latitude, longitude: log.longitude)) }
             
              // Apply Fit with Padding
              let update = GMSCameraUpdate.fit(bounds, withPadding: 50.0)
