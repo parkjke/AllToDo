@@ -46,17 +46,32 @@ class SmartLocationManager {
     func isFar(_ loc1: CLLocation, _ loc2: CLLocation) -> Bool {
         let p1 = toIntLocation(loc1)
         let p2 = toIntLocation(loc2)
+        return isFar(lat1: p1.lat, lon1: p1.lon, lat2: p2.lat, lon2: p2.lon)
+    }
+    
+    /// Checks if distance > 500km using pure integer coordinates (no double conversion for inputs).
+    /// - Parameters:
+    ///   - lat1: Latitude * 100,000
+    ///   - lon1: Longitude * 100,000
+    ///   - lat2: Latitude * 100,000
+    ///   - lon2: Longitude * 100,000
+    func isFar(lat1: Int, lon1: Int, lat2: Int, lon2: Int) -> Bool {
+        let dy = Int64(lat1 - lat2)
         
-        let dy = Int64(p1.lat - p2.lat)
-        
-        let avgLatRad = (loc1.coordinate.latitude + loc2.coordinate.latitude) / 2.0 * .pi / 180.0
-        let dx = Int64(Double(p1.lon - p2.lon) * cos(avgLatRad))
+        // Longitude distance depends on latitude (cos(avgLat)).
+        // We still need Double for Cosine calculation unless we use a lookup table,
+        // but inputs are Ints.
+        // Approx Avg Lat in Rad
+        let avgLatRad = Double(lat1 + lat2) / 2.0 / Double(PRECISION) * .pi / 180.0
+        let dx = Int64(Double(lon1 - lon2) * cos(avgLatRad))
         
         let distSq = dx*dx + dy*dy
-        // 500km ~= 500,000m. 
-        // In units (x100,000): 450,000 units (approx, adjusting for deg->m variance)
+        
+        // 500km Limit (Squared)
         // 1 deg lat ~= 111km. 500km ~= 4.5 deg.
         // 4.5 deg * 100,000 = 450,000 units.
+        // Actually 500km / 111km * 100,000 ~= 450,450.
+        // Using 450,000 is safe conservative.
         let limit: Int64 = 450000 
         return distSq > (limit * limit)
     }

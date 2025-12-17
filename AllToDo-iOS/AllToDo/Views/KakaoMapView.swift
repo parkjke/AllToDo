@@ -248,23 +248,30 @@ struct KakaoMapView: UIViewRepresentable {
             var rawPoints: [Int32] = []
             
             var farItemsCount = 0
+            
+            // Pre-calc user int
+            var uInt: (lat: Int, lon: Int)? = nil
+            if let u = locationManager?.currentLocation {
+                uInt = SmartLocationManager.shared.toIntLocation(u)
+            }
+            
             OptimizationLogger.shared.log(type: .launchStep, value: ">>> Pins Loaded: \(currentItems.count) Items, \(currentLogs.count) Logs")
             
             for item in currentItems {
                 if let loc = item.location {
-                     // 500km Filter Restored
-                     if let u = locationManager?.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: loc.latitude, longitude: loc.longitude)) {
+                     // 500km Filter Restored (Integer)
+                     if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: loc.latInt, lon2: loc.lonInt) {
                          farItemsCount += 1
                          continue
                      }
                     allItems.append(.todo(item))
-                    rawPoints.append(Int32(loc.latitude * 1_000_000))
+                    rawPoints.append(Int32(loc.latitude * 1_000_000)) // Use computed property for display
                     rawPoints.append(Int32(loc.longitude * 1_000_000))
                 }
             }
             for log in currentLogs {
-                // 500km Filter Restored
-                if let u = locationManager?.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: log.latitude, longitude: log.longitude)) {
+                // 500km Filter Restored (Integer)
+                if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.latInt, lon2: log.lonInt) {
                     farItemsCount += 1
                     continue
                 }

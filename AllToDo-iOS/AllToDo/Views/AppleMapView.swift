@@ -261,14 +261,20 @@ struct AppleMapView: UIViewRepresentable {
             
             if useFastPath {
                  OptimizationLogger.shared.log(type: .launchStep, value: ">>> Fast Path: Rendering \(totalCount) items raw (No WASM)")
-                 // Prepare Raw Items
+                // Pre-calc user int location
+                var uInt: (lat: Int, lon: Int)? = nil
+                if let u = parent.locationManager.currentLocation {
+                    uInt = SmartLocationManager.shared.toIntLocation(u)
+                }
+                
+                // Fast Path Loop
                  var allItems: [UnifiedMapItem] = []
                  var farCount = 0
                  
                  for item in parent.todoItems {
                      if let loc = item.location {
-                         // 500km Filter
-                         if let u = parent.locationManager.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: loc.latitude, longitude: loc.longitude)) {
+                         // 500km Filter (Integer)
+                         if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: loc.latInt, lon2: loc.lonInt) {
                              farCount += 1
                              continue
                          }
@@ -276,8 +282,8 @@ struct AppleMapView: UIViewRepresentable {
                      }
                  }
                  for log in parent.userLogs {
-                     // 500km Filter
-                      if let u = parent.locationManager.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: log.latitude, longitude: log.longitude)) {
+                     // 500km Filter (Integer)
+                      if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.latInt, lon2: log.lonInt) {
                           farCount += 1
                           continue
                       }
@@ -314,10 +320,16 @@ struct AppleMapView: UIViewRepresentable {
             
             var farItemsCount = 0 // [NEW] Track hidden items
             
+            // Pre-calc user int location
+            var uInt: (lat: Int, lon: Int)? = nil
+            if let u = userLocation {
+                uInt = SmartLocationManager.shared.toIntLocation(u)
+            }
+            
             for item in currentItems {
                 if let loc = item.location {
-                    // 500km Filter Restored
-                    if let userLoc = userLocation, SmartLocationManager.shared.isFar(userLoc, CLLocation(latitude: loc.latitude, longitude: loc.longitude)) {
+                    // 500km Filter Restored (Integer)
+                    if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: loc.latInt, lon2: loc.lonInt) {
                         farItemsCount += 1
                         continue
                     }
@@ -327,8 +339,8 @@ struct AppleMapView: UIViewRepresentable {
                 }
             }
             for log in currentLogs {
-                  // 500km Filter Restored
-                  if let userLoc = userLocation, SmartLocationManager.shared.isFar(userLoc, CLLocation(latitude: log.latitude, longitude: log.longitude)) {
+                  // 500km Filter Restored (Integer)
+                  if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.latInt, lon2: log.lonInt) {
                       farItemsCount += 1
                       continue
                   }

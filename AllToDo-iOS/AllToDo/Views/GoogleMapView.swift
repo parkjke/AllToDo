@@ -245,14 +245,21 @@ struct GoogleMapView: UIViewRepresentable {
             
             if useFastPath {
                  OptimizationLogger.shared.log(type: .launchStep, value: ">>> Fast Path (Google): Rendering raw")
+                
+                // Pre-calc user int location
+                var uInt: (lat: Int, lon: Int)? = nil
+                if let u = parent.locationManager.currentLocation {
+                    uInt = SmartLocationManager.shared.toIntLocation(u)
+                }
+                
                  // Prepare Raw
                  var allItems: [UnifiedMapItem] = []
                  var farCount = 0
                  
                  for item in parent.todoItems {
                      if let loc = item.location {
-                         // 500km
-                         if let u = parent.locationManager.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: loc.latitude, longitude: loc.longitude)) {
+                         // 500km (Integer)
+                         if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: loc.latInt, lon2: loc.lonInt) {
                              farCount += 1
                              continue
                          }
@@ -260,8 +267,8 @@ struct GoogleMapView: UIViewRepresentable {
                      }
                  }
                  for log in parent.userLogs {
-                     // 500km
-                      if let u = parent.locationManager.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: log.latitude, longitude: log.longitude)) {
+                     // 500km (Integer)
+                      if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.latInt, lon2: log.lonInt) {
                           farCount += 1
                           continue
                       }
@@ -296,13 +303,18 @@ struct GoogleMapView: UIViewRepresentable {
             var farItemsCount = 0
             
             let userLocation = parent.locationManager.currentLocation // Define userLocation here
+            // Pre-calc user int
+            var uInt: (lat: Int, lon: Int)? = nil
+            if let u = userLocation {
+                uInt = SmartLocationManager.shared.toIntLocation(u)
+            }
             
             OptimizationLogger.shared.log(type: .launchStep, value: ">>> Pins Loaded: \(currentItems.count) Items, \(currentLogs.count) Logs")
             
             for item in currentItems {
                 if let loc = item.location {
-                     // 500km Filter Restored
-                     if let u = userLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: loc.latitude, longitude: loc.longitude)) {
+                     // 500km Filter Restored (Integer)
+                     if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: loc.latInt, lon2: loc.lonInt) {
                          farItemsCount += 1
                          continue
                      }
@@ -312,8 +324,8 @@ struct GoogleMapView: UIViewRepresentable {
                 }
             }
             for log in currentLogs {
-                  // 500km Filter Restored
-                  if let u = userLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: log.latitude, longitude: log.longitude)) {
+                  // 500km Filter Restored (Integer)
+                  if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.latInt, lon2: log.lonInt) {
                       farItemsCount += 1
                       continue
                   }
