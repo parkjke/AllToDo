@@ -463,10 +463,12 @@ struct GoogleMapView: UIViewRepresentable {
              firstRender = false
              isAnimating = true
             
-                  // Action 2: Zoom to 15 (User Request) - IMMEDIATE
-                  // Previously jumped to Zoom 10 then waited. Now we just ensure we are at 15.
+                  // Action 2: Zoom to 15 (User Request)
                   let midCam = GMSCameraUpdate.setTarget(userLoc.coordinate, zoom: 15)
-                  mapView.animate(with: midCam) // Smooth adjustment if needed, but practically immediate
+                  CATransaction.begin()
+                  CATransaction.setValue(0.5, forKey: kCATransactionAnimationDuration)
+                  mapView.animate(with: midCam)
+                  CATransaction.commit()
                   self.isAnimating = false
                   
                   OptimizationLogger.shared.log(type: .launchStep, value: ">>> Current Location: \(userLoc.coordinate)")

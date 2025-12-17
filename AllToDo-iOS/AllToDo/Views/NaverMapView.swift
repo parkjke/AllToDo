@@ -388,14 +388,21 @@ struct NaverMapView: UIViewRepresentable {
             // Refresh
             refreshWasmClusters()
             
-            // Immediate View at Zoom 15
-            // Previously jumped to Zoom 5, waited 3s, then Zoom 18.
-            // Now we immediately set to Zoom 15.
-            let end = NMFCameraUpdate(scrollTo: NMGLatLng(lat: loc.coordinate.latitude, lng: loc.coordinate.longitude), zoomTo: 15)
-            end.animation = .none // Instant
-            map.moveCamera(end)
+            // Start High
+            let start = NMFCameraUpdate(scrollTo: NMGLatLng(lat: loc.coordinate.latitude, lng: loc.coordinate.longitude), zoomTo: 5)
+            start.animation = .none
+            map.moveCamera(start)
             
-            OptimizationLogger.shared.log(type: .launchStep, value: ">>> Current Location: \(loc.coordinate)")
+            // Animate In
+            DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.launchAnimationDelay) {
+                // Action 2: Zoom to 15 (User Request), Duration 0.5s
+                let end = NMFCameraUpdate(scrollTo: NMGLatLng(lat: loc.coordinate.latitude, lng: loc.coordinate.longitude), zoomTo: 15)
+                end.animation = .fly
+                end.animationDuration = 0.5
+                map.moveCamera(end)
+                
+                OptimizationLogger.shared.log(type: .launchStep, value: ">>> Current Location: \(loc.coordinate)")
+            }
         }
         
         // MARK: - Delegate Methods
