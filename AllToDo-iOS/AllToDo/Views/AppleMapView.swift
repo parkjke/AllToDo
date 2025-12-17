@@ -253,6 +253,27 @@ struct AppleMapView: UIViewRepresentable {
             }
             // guard widthPixels > 0 else { return } // Removed guard
             
+            // [OPTIMIZATION] Fast Path: Bypass WASM if forced OR item count is small (< 50) AND not animating to user yet
+            // This prevents initial delay and shows raw pins immediately during "Fit Bounds" phase.
+            let totalCount = parent.todoItems.count + parent.userLogs.count
+            let isLaunchPhase = parent.action == .launchSequence || firstRender // Identify launch
+            let useFastPath = isLaunchPhase && totalCount < 50
+            
+            if useFastPath {
+                 OptimizationLogger.shared.log(type: .launchStep, value: ">>> Fast Path: Rendering \(totalCount) items raw (No WASM)")
+                 // Prepare Raw Items
+                 var allItems: [UnifiedMapItem] = []
+                 for item in parent.todoItems { if item.location != nil { allItems.append(.todo(item)) } }
+                 for log in parent.userLogs { allItems.append(.history(log)) }
+                 if let u = parent.locationManager.currentLocation { allItems.append(.userLocation) }
+                 
+                 // Render Raw Immediately
+                 DispatchQueue.main.async {
+                     self.renderRawItems(mapView: mapView, allItems: allItems)
+                 }
+                 return
+            }
+
             let currentItems = self.parent.todoItems
             let currentLogs = self.parent.userLogs
             let userLocation = self.parent.locationManager.currentLocation
@@ -436,6 +457,27 @@ struct AppleMapView: UIViewRepresentable {
             var items: [UnifiedMapItem] = []
         }
         
+        // [NEW] Raw Renderer for Fast Path
+        private func renderRawItems(mapView: MKMapView, allItems: [UnifiedMapItem]) {
+            var newAnnotations: [MKAnnotation] = []
+            
+            for item in allItems {
+                let ann = UnifiedAnnotation()
+                ann.item = item
+                switch item {
+                case .todo(let t): if let l = t.location { ann.coordinate = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude) }
+                case .history(let l): ann.coordinate = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)
+                case .userLocation: if let l = parent.locationManager.currentLocation { ann.coordinate = l.coordinate }
+                default: break
+                }
+                newAnnotations.append(ann)
+            }
+            
+            let oldInterval = mapView.annotations.filter { !($0 is MKUserLocation) }
+            mapView.removeAnnotations(oldInterval)
+            mapView.addAnnotations(newAnnotations)
+        }
+        
         // MARK: - Legacy Update (Disabled)
         func updateAnnotations(mapView: MKMapView, items: [ToDoItem], userLocation: CLLocation?) {
             // [FIX] Always refresh clusters when data/location updates, not just on first render.
@@ -512,6 +554,15 @@ struct AppleMapView: UIViewRepresentable {
                           UIView.animate(withDuration: 1.0) {
                               mapView.region = finalRegion
                           }
+                          
+                          // [OPTIMIZATION] Enable WASM Clustering NOW
+                          // By setting firstRender = false and explicit call, standard logic will pick it up.
+                          // But we need to force it to bypass 'useFastPath' check.
+                          // Actually, isLaunchPhase check in refreshWasmClusters relies on action/firstRender.
+                          // We are done with launch phase effectively.
+                          self.firstRender = false 
+                          self.refreshWasmClusters(mapView: mapView) 
+                          
                           OptimizationLogger.shared.logLaunchStep(step: "launch sequence", data: ["success": true, "final_loc": "\(freshLoc.coordinate)"])
                       }
                   }

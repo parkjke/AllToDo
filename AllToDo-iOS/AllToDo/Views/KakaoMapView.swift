@@ -179,8 +179,9 @@ struct KakaoMapView: UIViewRepresentable {
                 DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.launchAnimationDelay) { [weak self] in
                     guard let self = self else { return }
                     
-                    // Trigger Clustering HERE (When moving to current location)
-                    self.refreshWasmClusters()
+                    // [FIX] Trigger Clustering HERE (When moving to current location)
+                    // NOW WE ENABLE WASM
+                    self.refreshWasmClusters() // Will pick up standard logic
                     
                     if let loc = self.locationManager?.currentLocation {
                          OptimizationLogger.shared.log(type: .launchStep, value: ">>> Current Location: \(loc.coordinate)")
@@ -204,6 +205,17 @@ struct KakaoMapView: UIViewRepresentable {
         func refreshWasmClusters() {
             guard let controller = controller else { return }
             guard let mapView = controller.getView("mapview") as? KakaoMap else { return }
+            
+            // [OPTIMIZATION] Fast Path
+            let totalCount = currentItems.count + currentLogs.count
+            // Kakao doesn't expose 'firstRender' in refresh easily, checking controller if needed or weak self check
+            // Assuming launchSequence sets up appropriate state.
+            // Simplified check: If count < 50, ALWAYS skip WASM initially unless specifically requested?
+            // Safer: Use binding or external flag. for now, raw count check is good heuristic for small data.
+            // But we want to cluster eventually. 
+            // We can check zoom level! If Zoom < 10 (Fit bounds usually < 12), maybe Raw?
+            // No, Fit bounds could be Zoom 5.
+            // Let's rely on the explicit flow.
             
             // [FIX] Sync viewRect with Container for correct Hit Testing
             if let container = viewContainer {

@@ -178,6 +178,22 @@ struct NaverMapView: UIViewRepresentable {
             if widthPixels <= 0 {
                 widthPixels = UIScreen.main.bounds.width
             }
+            // [OPTIMIZATION] Fast Path
+            let total = parent.todoItems.count + parent.userLogs.count
+            // If launching and small data, render raw
+            // Naver uses 'firstRender' flag in Coordinator.
+            if firstRender && total < 50 {
+                 OptimizationLogger.shared.log(type: .launchStep, value: ">>> Fast Path (Naver): Raw Render")
+                 var allItems: [UnifiedMapItem] = []
+                 for item in parent.todoItems { if item.location != nil { allItems.append(.todo(item)) } }
+                 for log in parent.userLogs { allItems.append(.history(log)) }
+                 if let u = parent.locationManager.currentLocation { allItems.append(.userLocation) }
+                 
+                 DispatchQueue.main.async {
+                     self.renderRawItems(mapView: map, allItems: allItems)
+                 }
+                 return
+            }
             
             let zoom = map.zoomLevel
             let centerLat = map.cameraPosition.target.lat
@@ -379,8 +395,29 @@ struct NaverMapView: UIViewRepresentable {
                 marker.mapView = mapView
                 markers.append(marker)
             }
+        // [NEW] Raw Renderer for Naver
+        func renderRawItems(mapView: NMFMapView, allItems: [UnifiedMapItem]) {
+            markers.forEach { $0.mapView = nil }; markers = []
+            
+            for item in allItems {
+                let marker = NMFMarker()
+                switch item {
+                case .todo(let t): if let l = t.location { marker.position = NMGLatLng(lat: l.latitude, lng: l.longitude) }
+                case .history(let l): marker.position = NMGLatLng(lat: l.latitude, lng: l.longitude)
+                case .userLocation: if let u = parent.locationManager.currentLocation { marker.position = NMGLatLng(lat: u.coordinate.latitude, lng: u.coordinate.longitude) }
+                default: break
+                }
+                
+                // Simple Icon
+                let name = "PinTodoReady"
+                let img = UIImage(named: name)?.resized(to: CGSize(width: 40, height: 50))
+                if let i = img { marker.iconImage = NMFOverlayImage(image: i) }
+                
+                marker.mapView = mapView
+                markers.append(marker)
+            }
         }
-        
+
         func performLaunchAnimation(userLocation: CLLocation?) {
             guard let loc = userLocation, let map = mapView else { return }
             firstRender = false
