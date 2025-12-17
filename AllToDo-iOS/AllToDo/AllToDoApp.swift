@@ -71,19 +71,7 @@ struct AllToDoApp: App {
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
-            print(">>> ModelContainer Creation Failed: \(error). Attempting to reset database...")
-            // [FIX] Schema Mismatch Fallback: Delete old store and retry
-            // Note: This wipes data, but prevents crash loops during development schema changes.
-            let url = URL.applicationSupportDirectory.appending(path: "default.store")
-            try? FileManager.default.removeItem(at: url)
-            try? FileManager.default.removeItem(at: url.appendingPathExtension("shm"))
-            try? FileManager.default.removeItem(at: url.appendingPathExtension("wal"))
-            
-            do {
-                 return try ModelContainer(for: schema, configurations: [modelConfiguration])
-            } catch {
-                 fatalError("Could not create ModelContainer even after reset: \(error)")
-            }
+            fatalError("Could not create ModelContainer: \(error)")
         }
     }()
 }
