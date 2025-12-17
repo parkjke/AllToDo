@@ -175,20 +175,20 @@ struct KakaoMapView: UIViewRepresentable {
                 // Initial Cluster (Removed to avoid WASM Error at launch)
                 // refreshWasmClusters() 
                 
-                // Launch Animation (Wait 3s -> Zoom User)
-                DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.launchAnimationDelay) { [weak self] in
+                // Launch Animation (Wait 4s -> Zoom User)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) { [weak self] in
                     guard let self = self else { return }
                     
-                    // [FIX] Trigger Clustering HERE (When moving to current location)
+                    // Trigger Clustering HERE (When moving to current location)
                     // NOW WE ENABLE WASM
                     self.refreshWasmClusters() // Will pick up standard logic
                     
                     if let loc = self.locationManager?.currentLocation {
                          OptimizationLogger.shared.log(type: .launchStep, value: ">>> Current Location: \(loc.coordinate)")
                          let pos = MapPoint(longitude: loc.coordinate.longitude, latitude: loc.coordinate.latitude)
-                         // Action 2: Zoom to 15 (User Request), Duration 500ms
+                         // Action 2: Zoom to 15 (User Request), Duration 1000ms
                          let update = CameraUpdate.make(target: pos, zoomLevel: 15, rotation: 0, tilt: 0, mapView: mapView)
-                         let options = CameraAnimationOptions(autoElevation: true, consecutive: false, durationInMillis: 500)
+                         let options = CameraAnimationOptions(autoElevation: true, consecutive: false, durationInMillis: 1000)
                          mapView.animateCamera(cameraUpdate: update, options: options)
                     }
                 }

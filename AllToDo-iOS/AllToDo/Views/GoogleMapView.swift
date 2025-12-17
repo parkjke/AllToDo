@@ -504,10 +504,25 @@ struct GoogleMapView: UIViewRepresentable {
              firstRender = false
              isAnimating = true
             
+            // 2. Refresh & Fast Path
+            refreshWasmClusters(mapView: mapView)
+            
+             // 3. Fit Bounds (Dynamic)
+             let bounds = GMSCoordinateBounds()
+             bounds.includingCoordinate(userLoc.coordinate)
+             for item in parent.todoItems { if let l = item.location { bounds.includingCoordinate(CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)) } }
+             for log in parent.userLogs { bounds.includingCoordinate(CLLocationCoordinate2D(latitude: log.latitude, longitude: log.longitude)) }
+            
+             // Apply Fit with Padding
+             let update = GMSCameraUpdate.fit(bounds, withPadding: 50.0)
+             mapView.animate(with: update)
+
+             // Wait 4s -> Zoom to 15
+              DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
                   // Action 2: Zoom to 15 (User Request)
                   let midCam = GMSCameraUpdate.setTarget(userLoc.coordinate, zoom: 15)
                   CATransaction.begin()
-                  CATransaction.setValue(0.5, forKey: kCATransactionAnimationDuration)
+                  CATransaction.setValue(1.0, forKey: kCATransactionAnimationDuration) // Slower 1.0s
                   mapView.animate(with: midCam)
                   CATransaction.commit()
                   self.isAnimating = false
@@ -517,6 +532,7 @@ struct GoogleMapView: UIViewRepresentable {
                   // Trigger Cluster (WASM ON)
                   self.firstRender = false
                   self.refreshWasmClusters(mapView: mapView)
+              }
         }
         
         // MARK: - Path

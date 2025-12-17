@@ -543,8 +543,8 @@ struct AppleMapView: UIViewRepresentable {
                   mapView.setRegion(fitRegion, animated: true)
                   OptimizationLogger.shared.logLaunchStep(step: "launch sequence", data: ["status": "fitted_bounds", "wait": 3])
 
-                  // Step 2: Wait 3s -> Zoom Current
-                  DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                  // Step 2: Wait 4s (Increased) -> Zoom Current
+                  DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
                       // Fetch latest user location from parent to ensure freshness
                       if let freshLoc = self.parent.locationManager.currentLocation {
                           let zoom15Span = 0.01

@@ -425,24 +425,31 @@ struct NaverMapView: UIViewRepresentable {
             guard let loc = userLocation, let map = mapView else { return }
             firstRender = false
             
-            // Refresh
-            refreshWasmClusters() // Will trigger full cluster after animation or immediately if needed, but here we just moved camera
+            // 1. Refresh & Fast Path (Pins appear immediately)
+            refreshWasmClusters()
             
-            // Start High (Zoom 5 is fine for "Fit Bounds" equivalent if we wanted, but we want 15 per fast path request? 
-            // Wait, previous request was: 1. Init Zoom 15 (Immediate). 2. Fit Bounds (Zoom Out). 3. Wait 3s -> Zoom 15 (Current)
-            // The Fast Path logic handles the visual pins. The Camera logic should follow the sequence.
+            // 2. Fit Bounds (Dynamic)
+            // Instead of Zoom 5 (Korea), calculate actual bounds of pins
+            var bounds = NMGLatLngBounds(southWest: NMGLatLng(lat: loc.coordinate.latitude, lng: loc.coordinate.longitude),
+                                         northEast: NMGLatLng(lat: loc.coordinate.latitude, lng: loc.coordinate.longitude))
             
-            // Step 1: Fit Bounds / Zoom Out (Using Zoom 5 as placeholder for fit bounds of Korea/World)
-            let start = NMFCameraUpdate(scrollTo: NMGLatLng(lat: loc.coordinate.latitude, lng: loc.coordinate.longitude), zoomTo: 5)
-            start.animation = .none
-            map.moveCamera(start)
+            // Expand to include visible items
+            for item in parent.todoItems { if let l = item.location { bounds = bounds.expand(to: NMGLatLng(lat: l.latitude, lng: l.longitude)) } }
+            for log in parent.userLogs { bounds = bounds.expand(to: NMGLatLng(lat: log.latitude, lng: log.longitude)) }
             
-            // Animate In after delay
-            DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.launchAnimationDelay) {
-                // Action 2: Zoom to 15 (User Request), Duration 0.5s
+            // Apply Fit Bounds with Padding
+            let cameraUpdate = NMFCameraUpdate(fit: bounds, paddingInsets: UIEdgeInsets(top: 100, left: 50, bottom: 100, right: 50))
+            cameraUpdate.animation = .easeOut
+            cameraUpdate.animationDuration = 1.0 // Move smoothly to fit bounds
+            map.moveCamera(cameraUpdate)
+            
+            // 3. Wait Longer (4.0s) -> Zoom In
+            // Delay increased to ensure user sees the pins for "at least 3 seconds" after animation finishes
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+                // Action 2: Zoom to 15 (User Request), Duration 1.0s for smoother feel
                 let end = NMFCameraUpdate(scrollTo: NMGLatLng(lat: loc.coordinate.latitude, lng: loc.coordinate.longitude), zoomTo: 15)
                 end.animation = .fly
-                end.animationDuration = 0.5
+                end.animationDuration = 1.0
                 map.moveCamera(end)
                 
                 OptimizationLogger.shared.log(type: .launchStep, value: ">>> Current Location: \(loc.coordinate)")
