@@ -62,20 +62,27 @@ final class UserLog {
     var id: UUID
     var startTime: Date
     var endTime: Date
-    var latitude: Double // Stored as Double for stability
-    var longitude: Double // Stored as Double for stability
+    var latInt: Int // Stored as Integer for 20% space saving
+    var lonInt: Int // Stored as Integer
     var pathData: Data? // JSON encoded [LocationData]
     
-    // Computed Ints for Performance Logic
-    var latInt: Int { Int(latitude * 100_000.0) }
-    var lonInt: Int { Int(longitude * 100_000.0) }
+    // Computed Properties for compatibility
+    var latitude: Double {
+        get { Double(latInt) / 100_000.0 }
+        set { latInt = Int(newValue * 100_000.0) }
+    }
+    
+    var longitude: Double {
+        get { Double(lonInt) / 100_000.0 }
+        set { lonInt = Int(newValue * 100_000.0) }
+    }
     
     init(startTime: Date, endTime: Date, latitude: Double, longitude: Double, pathData: Data? = nil) {
         self.id = UUID()
         self.startTime = startTime
         self.endTime = endTime
-        self.latitude = latitude
-        self.longitude = longitude
+        self.latInt = Int(latitude * 100_000.0)
+        self.lonInt = Int(longitude * 100_000.0)
         self.pathData = pathData
     }
 }
@@ -83,19 +90,26 @@ final class UserLog {
 // Helper struct for Location (SwiftData doesn't support CLLocation directly easily yet without ValueTransformer, keeping it simple)
 // Helper struct for Location
 struct LocationData: Codable {
-    var latitude: Double // Stored as Double
-    var longitude: Double // Stored as Double
+    var latInt: Int // Stored as Integer
+    var lonInt: Int // Stored as Integer
     var name: String?
     var timestamp: Date?
     
-    // Computed Ints for Performance Logic
-    var latInt: Int { Int(latitude * 100_000.0) }
-    var lonInt: Int { Int(longitude * 100_000.0) }
+    // Computed properties wrapping integer storage
+    var latitude: Double {
+        get { Double(latInt) / 100_000.0 }
+        set { latInt = Int(newValue * 100_000.0) }
+    }
+    
+    var longitude: Double {
+        get { Double(lonInt) / 100_000.0 }
+        set { lonInt = Int(newValue * 100_000.0) }
+    }
     
     // Default Init
     init(latitude: Double, longitude: Double, name: String? = nil, timestamp: Date? = nil) {
-        self.latitude = latitude
-        self.longitude = longitude
+        self.latInt = Int(latitude * 100_000.0)
+        self.lonInt = Int(longitude * 100_000.0)
         self.name = name
         self.timestamp = timestamp
     }
@@ -103,46 +117,46 @@ struct LocationData: Codable {
     // Custom CodingKeys include both sets
     enum CodingKeys: String, CodingKey {
         case latitude, longitude, name, timestamp
-        case latInt, lonInt // For legacy integer support
+        case latInt, lonInt // New keys
     }
     
     // Custom Decoding for Migration
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         
-        // 1. Try reading standard Double format
-        if let dLat = try? container.decode(Double.self, forKey: .latitude),
-           let dLon = try? container.decode(Double.self, forKey: .longitude) {
-            self.latitude = dLat
-            self.longitude = dLon
-        } 
-        // 2. Fallback: Try reading temporary Integer format (100k scale)
-        else if let iLat = try? container.decode(Int.self, forKey: .latInt),
-                let iLon = try? container.decode(Int.self, forKey: .lonInt) {
-            self.latitude = Double(iLat) / 100_000.0
-            self.longitude = Double(iLon) / 100_000.0
+        // 1. Try reading New Integer format
+        if let iLat = try? container.decode(Int.self, forKey: .latInt),
+           let iLon = try? container.decode(Int.self, forKey: .lonInt) {
+            self.latInt = iLat
+            self.lonInt = iLon
+        }
+        // 2. Fallback: Try reading Legacy Double format
+        else if let dLat = try? container.decode(Double.self, forKey: .latitude),
+                let dLon = try? container.decode(Double.self, forKey: .longitude) {
+            self.latInt = Int(dLat * 100_000.0)
+            self.lonInt = Int(dLon * 100_000.0)
         } else {
             // Default 0.0 (Gwanghwamun fallback) if all fails
-            self.latitude = 37.5759
-            self.longitude = 126.9768
+            self.latInt = 3757590
+            self.lonInt = 12697680
         }
         
         self.name = try container.decodeIfPresent(String.self, forKey: .name)
         self.timestamp = try container.decodeIfPresent(Date.self, forKey: .timestamp)
     }
     
-    // Encode only Doubles
+    // Encode only Ints (Efficient Storage)
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(latitude, forKey: .latitude)
-        try container.encode(longitude, forKey: .longitude)
+        try container.encode(latInt, forKey: .latInt)
+        try container.encode(lonInt, forKey: .lonInt)
         try container.encode(name, forKey: .name)
         try container.encode(timestamp, forKey: .timestamp)
     }
     
     // [NEW] Integer-Coordinate Integration
     var intCoordinate: IntCoordinate {
-        return IntCoordinate.from(latitude: latitude, longitude: longitude)
+        return IntCoordinate(lat: latInt, lng: lonInt)
     }
 }
 
