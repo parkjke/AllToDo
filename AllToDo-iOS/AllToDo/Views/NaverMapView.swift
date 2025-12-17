@@ -471,8 +471,8 @@ struct NaverMapView: UIViewRepresentable {
                                          northEast: NMGLatLng(lat: loc.coordinate.latitude, lng: loc.coordinate.longitude))
             
             // Expand to include visible items
-            for item in parent.todoItems { if let l = item.location { bounds = bounds.expand(to: NMGLatLng(lat: l.latitude, lng: l.longitude)) } }
-            for log in parent.userLogs { bounds = bounds.expand(to: NMGLatLng(lat: log.latitude, lng: log.longitude)) }
+            for item in parent.todoItems { if let l = item.location { bounds = bounds.expand(toPoint: NMGLatLng(lat: l.latitude, lng: l.longitude)) } }
+            for log in parent.userLogs { bounds = bounds.expand(toPoint: NMGLatLng(lat: log.latitude, lng: log.longitude)) }
             
             // Apply Fit Bounds with Padding
             let cameraUpdate = NMFCameraUpdate(fit: bounds, paddingInsets: UIEdgeInsets(top: 100, left: 50, bottom: 100, right: 50))
