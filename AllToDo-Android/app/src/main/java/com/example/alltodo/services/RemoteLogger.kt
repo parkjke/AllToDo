@@ -1,7 +1,6 @@
 package com.example.alltodo.services
 
 import android.os.Build
-import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -46,7 +45,6 @@ object RemoteLogger {
             try {
                 client.newCall(request).execute().close()
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to send log: ${e.message}")
             }
         }
     }

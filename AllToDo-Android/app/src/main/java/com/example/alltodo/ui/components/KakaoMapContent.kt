@@ -1,7 +1,6 @@
 package com.example.alltodo.ui.components
 
 import android.graphics.Bitmap
-import android.util.Log
 import android.widget.TextView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -40,88 +39,219 @@ fun KakaoMapContent(
     onInitialAnimationDone: () -> Unit,
     onFarItemsDetected: (Int) -> Unit = {}
 ) {
+    // [FIX] Capture callback to avoid name shadowing in KakaoMapReadyCallback
+    val activeOnMapReady = onMapReady
+    
+    // [FIX] Capture latest location for Animation Coroutine
+    val currentLocState = rememberUpdatedState(currentLocation)
+    
     val context = LocalContext.current
     var kakaoMap by remember { mutableStateOf<KakaoMap?>(null) }
     var isMapReady by remember { mutableStateOf(false) }
+    
+    // [FIX] Local Guard: Ensure animation runs at least once for THIS composition
+    var hasLocalAnimationRun by remember { mutableStateOf(false) }
 
     // 500km Filter Logic
+    var isDistanceFilterEnabled by remember { mutableStateOf(true) } // [FIX] Dynamic Filter State
     val farThreshold = 500000f
-    val visibleClusters = remember(clusteredItems, currentLocation) {
-        if (currentLocation == null) clusteredItems
-        else clusteredItems.filter { cluster ->
-             val results = FloatArray(1)
-             android.location.Location.distanceBetween(currentLocation.latitude, currentLocation.longitude, cluster.latitude, cluster.longitude, results)
-             results[0] <= farThreshold
+    
+    val visibleClusters = remember(clusteredItems, currentLocation, isDistanceFilterEnabled) {
+        val baseLat = currentLocation?.latitude ?: 37.5759
+        val baseLon = currentLocation?.longitude ?: 126.9768
+        
+        if (isDistanceFilterEnabled) {
+            clusteredItems.filter { cluster ->
+                 val results = FloatArray(1)
+                 android.location.Location.distanceBetween(baseLat, baseLon, cluster.latitude, cluster.longitude, results)
+                 results[0] <= farThreshold
+            }
+        } else {
+            clusteredItems // Show ALL when filter disabled
         }
     }
+    
+    // [FIX] Capture latest clusters for LaunchedEffect (Since list is immutable)
+    val latestVisibleClusters = rememberUpdatedState(visibleClusters)
 
-    // Launch Animation
-    LaunchedEffect(isMapReady, initialAnimationDone) {
-        if (initialAnimationDone || !isMapReady) return@LaunchedEffect
+    // Trigger Launch Animation when map is ready and not done yet
+    if (isMapReady) {
+         // Log removed
+    }
+
+    // [FIX] Changed Key to isMapReady to prevent cancellation when initialAnimationDone changes mid-flight
+    LaunchedEffect(isMapReady) {
+        // [FIX] Run if Global is False OR Local hasn't run yet (Force one run per load)
+        // Check local flag again to prevent duplicate run
+        if (hasLocalAnimationRun) return@LaunchedEffect
+        
+        // Wait until map is truly ready
+        if (!isMapReady) return@LaunchedEffect
+        
+        // If global is already done AND local hasn't run, we still run it once (Local Guard)
+        // logic: shouldRun = !initialAnimationDone || !hasLocalAnimationRun
+        // implicit: we are here because isMapReady is true
+        
         val map = kakaoMap ?: return@LaunchedEffect
         
-        // Wait for data
-        val start = System.currentTimeMillis()
-        var validCenter: LatLng? = null
+        // Now we commit to running
+        hasLocalAnimationRun = true
         
-        while (System.currentTimeMillis() - start < 5000) {
-            val items = visibleClusters
-            val loc = currentLocation
-            
-             // Check Far Items
-            val farCount = clusteredItems.sumOf { cluster ->
-                 val results = FloatArray(1)
-                 if (loc != null) {
-                     android.location.Location.distanceBetween(loc.latitude, loc.longitude, cluster.latitude, cluster.longitude, results)
-                     if (results[0] > farThreshold) cluster.count else 0
-                 } else 0
-            }
-            if (farCount > 0) onFarItemsDetected(farCount)
+        // [FIX] Anti-Dalian: Move to known location immediately just in case data takes time
+        val knownLoc = currentLocState.value
+        
+        if (knownLoc != null && knownLoc.latitude != 0.0) {
+             try {
+                 map.moveCamera(CameraUpdateFactory.newCenterPosition(
+                     com.kakao.vectormap.LatLng.from(knownLoc.latitude, knownLoc.longitude), 14
+                 ))
+             } catch(e: Exception) {}
+        } else {
+             // [FIX] If location is null, move to Default (Gwanghwamun) to avoid Dalian
+             try {
+                 map.moveCamera(CameraUpdateFactory.newCenterPosition(
+                     com.kakao.vectormap.LatLng.from(37.5759, 126.9768), 15
+                 ))
+             } catch(e: Exception) {}
+        }
+        
+        // [MapStep 1] Map Initialized
+        // [MapStep 1] Map Initialized
+        android.util.Log.e("MapStep", "1. Map Initialized")
+        System.out.println(">>> MapStep 1. Map Initialized")
 
-            // Calculate Center of Bounds (Simple Average)
-            var latSum = 0.0
-            var lonSum = 0.0
-            var count = 0
-            
-            items.forEach { 
-                if (it.latitude != 0.0 && it.longitude != 0.0) {
-                    latSum += it.latitude
-                    lonSum += it.longitude
-                    count++
-                }
-            }
-            if (loc != null && loc.latitude != 0.0) {
-                latSum += loc.latitude
-                lonSum += loc.longitude
-                count++
-            }
-            
-            if (count > 0) {
-                validCenter = LatLng.from(latSum / count, lonSum / count)
-                break
-            }
-            delay(500)
+        // Data Polling (Max 3s)
+        val start = System.currentTimeMillis()
+        var hasValidData = false
+        
+        while (System.currentTimeMillis() - start < 3000) {
+            val items = latestVisibleClusters.value
+             if (items.isNotEmpty()) {
+                 hasValidData = true
+                 // [MapStep 2] All Pins Loaded
+                  // [MapStep 2] All Pins Loaded
+                  android.util.Log.e("MapStep", "2. Data Loaded (Count=${items.size})")
+                  System.out.println(">>> MapStep 2. Data Loaded (Count=${items.size})")
+                 break
+             }
+             delay(200)
         }
         
-        if (validCenter != null) {
-            try {
-                // Step 1: Whole View (Zoom 10 around Center)
-                val update = CameraUpdateFactory.newCenterPosition(validCenter, 10)
-                map.moveCamera(update, CameraAnimation.from(1000, true, true))
-                
-                // Step 2: 3s Delay -> Zoom to User
-                delay(3000)
-                
-                if (currentLocation != null) {
-                    val finalUpdate = CameraUpdateFactory.newCenterPosition(
-                        LatLng.from(currentLocation.latitude, currentLocation.longitude), 18
-                    )
-                    map.moveCamera(finalUpdate, CameraAnimation.from(1500, true, true))
+        // Re-read latest items
+        val visibleClusters = latestVisibleClusters.value
+        
+        if (!hasValidData) android.util.Log.e("MapStep", "2. Data Load Timeout (Empty)")
+        
+        try {
+            // Step 1: Center + Zoom 14 (Instead of FitBounds)
+            // Calculate Min/Max
+            var minLat = 90.0; var maxLat = -90.0
+            var minLon = 180.0; var maxLon = -180.0
+            var validPoints = 0
+            
+            // Add visible items
+            visibleClusters.forEach {
+                if (it.latitude != 0.0 && it.longitude != 0.0) {
+                    if (it.latitude < minLat) minLat = it.latitude
+                    if (it.latitude > maxLat) maxLat = it.latitude
+                    if (it.longitude < minLon) minLon = it.longitude
+                    if (it.longitude > maxLon) maxLon = it.longitude
+                    validPoints++
                 }
-            } catch (e: Exception) { e.printStackTrace() }
+            }
+            // Add User Location
+            val loc = currentLocState.value
+            if (loc != null && loc.latitude != 0.0) {
+                if (loc.latitude < minLat) minLat = loc.latitude
+                if (loc.latitude > maxLat) maxLat = loc.latitude
+                if (loc.longitude < minLon) minLon = loc.longitude
+                if (loc.longitude > maxLon) maxLon = loc.longitude
+                validPoints++
+            }
+                    
+            // [MapStep 3] Calculation Done (Filter 500km + Add Current Loc)
+            // [MapStep 3] Calculation Done (Filter 500km + Add Current Loc)
+            android.util.Log.e("MapStep", "3. Filtered & Calculated (ValidPoints=$validPoints)")
+            System.out.println(">>> MapStep 3. Filtered & Calculated (ValidPoints=$validPoints)")
+
+            if (validPoints > 0) {
+                 // [MapStep 4] Change Zoom to Show All
+                 // [MapStep 4] Change Zoom to Show All
+                 android.util.Log.e("MapStep", "4. FitBounds (Show All)")
+                 System.out.println(">>> MapStep 4. FitBounds (Show All)")
+                // [FIX] Restore FitBounds with Min Span (0.05)
+                val safeBounds = com.example.alltodo.utils.SmartLocationManager.ensureMinSpan(
+                    com.google.android.gms.maps.model.LatLngBounds(
+                        com.google.android.gms.maps.model.LatLng(minLat, minLon),
+                        com.google.android.gms.maps.model.LatLng(maxLat, maxLon)
+                    ),
+                    0.05
+                )
+                
+                // [FIX] Try fitMapPoints first, fallback to Center+Zoom14 if it fails
+                try {
+                    val sw = LatLng.from(safeBounds.southwest.latitude, safeBounds.southwest.longitude)
+                    val ne = LatLng.from(safeBounds.northeast.latitude, safeBounds.northeast.longitude)
+                    
+                    // Use larger padding (100 -> 150)
+                    val update = CameraUpdateFactory.fitMapPoints(arrayOf(sw, ne), 150)
+                    map.moveCamera(update, CameraAnimation.from(1000, true, true))
+                } catch (e: Exception) {
+                    val centerLat = safeBounds.center.latitude
+                    val centerLon = safeBounds.center.longitude
+                
+                    val update = CameraUpdateFactory.newCenterPosition(
+                        com.kakao.vectormap.LatLng.from(centerLat, centerLon), 
+                        14
+                    )
+                    map.moveCamera(update, CameraAnimation.from(1000, true, true))
+                }
+                
+                delay(3000)
+            } else {
+                delay(500)
+            }
+
+            // Step 2: Move to User Location (Zoom 18)
+            // Poll for location (Max 10s)
+            var attempts = 0
+            while (attempts < 20) {
+                // Check captured state or helper
+                val latestLoc = currentLocState.value
+                if (latestLoc != null && latestLoc.latitude != 0.0) {
+                     break
+                }
+                delay(500)
+                attempts++
+            }
+            
+            val latestLoc = currentLocState.value
+            if (latestLoc != null && latestLoc.latitude != 0.0) {
+                val lat = latestLoc.latitude
+                val lon = latestLoc.longitude
+                
+                val finalUpdate = CameraUpdateFactory.newCenterPosition(
+                    com.kakao.vectormap.LatLng.from(lat, lon), 18
+                )
+                  // [MapStep 5] Move to Current Location
+                  android.util.Log.e("MapStep", "5. Move to Current Location")
+                  System.out.println(">>> MapStep 5. Move to Current Location")
+                  
+                  // [FIX] Disable Filter to show ALL pins (including Beijing) now
+                  isDistanceFilterEnabled = false
+                  
+                  val anim = CameraAnimation.from(500, true, true)
+                  map.moveCamera(finalUpdate, anim) 
+            } else {
+                 android.util.Log.e("MapStep", "5. Current Location Unknown (Skip)")
+                 System.out.println(">>> MapStep 5. Current Location Unknown (Skip)")
+            }
+            onInitialAnimationDone()
+            // hasLocalAnimationRun = true // Already set at start
+        } catch (e: Exception) { e.printStackTrace() }
+
         }
-        onInitialAnimationDone()
-    }
+    
     
     // Rendering Logic
     LaunchedEffect(kakaoMap, visibleClusters) {
@@ -143,7 +273,7 @@ fun KakaoMapContent(
                 val (bitmap, anchorX, anchorY) = if (isSingle && firstItem != null) {
                     val resId = firstItem.getPinResId()
                     val b = com.example.alltodo.ui.PinImageManager.getPinBitmap(resId) ?: 
-                            com.example.alltodo.ui.createClusterBitmapInternal(context, 1, resId, android.graphics.Color.TRANSPARENT)
+                            com.example.alltodo.ui.createKakaoPinBitmap(context, 1, resId, android.graphics.Color.TRANSPARENT)
                     Triple(b, 0.5f, 1.0f)
                 } else {
                     var hasUserLocation = false
@@ -166,7 +296,7 @@ fun KakaoMapContent(
                         hasServerTodo -> com.example.alltodo.R.drawable.pin_receive_ready to android.graphics.Color.BLUE
                         else -> com.example.alltodo.R.drawable.pin_todo_ready to android.graphics.Color.parseColor("#00AA00")
                     }
-                    val b = com.example.alltodo.ui.createClusterBitmapInternal(context, cluster.count, resId, badgeColor)
+                    val b = com.example.alltodo.ui.createKakaoPinBitmap(context, cluster.count, resId, badgeColor) // Scale handled internally
                     Triple(b, 0.4f, 1.0f)
                 }
                 
@@ -193,6 +323,15 @@ fun KakaoMapContent(
         }
     }
 
+    // [MapStep Event] Monitor OS Location Updates
+    LaunchedEffect(currentLocation) {
+        if (currentLocation != null) {
+            val msg = ">>> [MapStep Event] OS Location Received: ${currentLocation.latitude}, ${currentLocation.longitude}"
+            android.util.Log.e("MapStep", msg)
+            System.out.println(msg)
+        }
+    }
+    
     if (isSdkInitialized) {
         AndroidView(
             factory = { ctx ->
@@ -202,13 +341,13 @@ fun KakaoMapContent(
                         override fun onMapError(e: Exception?) {}
                     }, object : KakaoMapReadyCallback() {
                         // onMapReady, getPosition, getZoomLevel이 모두 이 블록 안에 있어야 합니다.
-                        override fun onMapReady(map: KakaoMap) {
-                            kakaoMap = map
+                        override fun onMapReady(kMap: KakaoMap) {
+                            kakaoMap = kMap
                             isMapReady = true
-                            onMapReady(map) // Call parent
+                            activeOnMapReady(kMap) // Call captured parent callback with Map instance
 
                             // Set Global Listener
-                            map.setOnLabelClickListener { _, _, label ->
+                            kMap.setOnLabelClickListener { _, _, label ->
                                 val pos = label.position
                                 // Find Cluster by Position (Approx)
                                 val clicked = visibleClusters.find { 
@@ -216,7 +355,7 @@ fun KakaoMapContent(
                                 }
                                 
                                 if (clicked != null) {
-                                    val screenPt = map.toScreenPoint(pos)
+                                    val screenPt = kMap.toScreenPoint(pos)
                                     val scrollX = if (screenPt != null) screenPt.x.toFloat() else 0f
                                     val scrollY = if (screenPt != null) screenPt.y.toFloat() else 0f
                                     
@@ -235,7 +374,7 @@ fun KakaoMapContent(
                         }
 
                         override fun getZoomLevel(): Int {
-                             return 15
+                             return 18
                         }
                     })
                 }

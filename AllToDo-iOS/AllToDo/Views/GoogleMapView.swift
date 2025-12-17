@@ -81,13 +81,17 @@ struct GoogleMapView: UIViewRepresentable {
         
         // [FIX] Ensure clusters are refreshed when SwiftUI state changes, BUT avoid redundant calls at init
         // Only refresh if not in first render sequence (Launch Animation handles the first refresh)
-        if !context.coordinator.firstRender {
-             context.coordinator.refreshWasmClusters(mapView: uiView)
+        // 2. Refresh WASM Clusters (if needed) - Logic inside
+        context.coordinator.refreshWasmClusters(mapView: uiView)
+        
+        // [NEW] Check Tethering
+        if let u = locationManager.currentLocation {
+            context.coordinator.checkTethering(mapView: uiView, userLocation: u)
         }
         
-        // Launch Animation
-        if context.coordinator.firstRender {
-            context.coordinator.performLaunchAnimation(mapView: uiView, userLocation: locationManager.currentLocation)
+        // 3. Launch Animation
+        if context.coordinator.firstRender, let u = locationManager.currentLocation {
+            context.coordinator.performLaunchAnimation(mapView: uiView, userLocation: u)
         }
     }
     
@@ -102,6 +106,18 @@ struct GoogleMapView: UIViewRepresentable {
         
         init(_ parent: GoogleMapView) {
             self.parent = parent
+        }
+        
+        // [NEW] Check Tethering
+        func checkTethering(mapView: GMSMapView, userLocation: CLLocation) {
+            // Logic: If deltaLon > spanLon/4 -> Recenter
+            let target = mapView.camera.target
+            let mapCenter = SmartLocationManager.shared.toIntLocation(CLLocation(latitude: target.latitude, longitude: target.longitude))
+            let userInt = SmartLocationManager.shared.toIntLocation(userLocation)
+            
+            if SmartLocationManager.shared.needsCentering(user: userInt, center: mapCenter, spanLon: currentSpanLon) {
+                mapView.animate(toLocation: userLocation.coordinate)
+            }
         }
         
         // MARK: - Actions
@@ -170,10 +186,22 @@ struct GoogleMapView: UIViewRepresentable {
             }
         }
         
+        // [NEW] Tethering State
+        var currentSpanLon: Int = 0
+
         // MARK: - Delegate Methods
         func mapView(_ mapView: GMSMapView, didChange position: GMSCameraPosition) {
              DispatchQueue.main.async {
                  self.parent.rotation = position.bearing
+                 
+                 // [NEW] Update Span
+                 let region = mapView.projection.visibleRegion()
+                 // Calculate longitude delta (approx width)
+                 // Using FarRight - FarLeft might be inaccurate if tilted, generally GMS uses bounds.
+                 // Let's use bounding box of visible region.
+                 let bounds = GMSCoordinateBounds(region: region)
+                 let span = bounds.northEast.longitude - bounds.southWest.longitude
+                 self.currentSpanLon = Int(abs(span) * 100_000.0)
              }
         }
         
@@ -528,11 +556,12 @@ struct GoogleMapView: UIViewRepresentable {
         // MARK: - Animation
         func performLaunchAnimation(mapView: GMSMapView, userLocation: CLLocation?) {
              guard let userLoc = userLocation else { return }
-             firstRender = false
+             // [FIX] Keep firstRender = true during animation
+             // firstRender = false
              isAnimating = true
             
-            // 2. Refresh & Fast Path
-            refreshWasmClusters(mapView: mapView)
+            // [FIX] Skip WASM refresh, allow Fast Path to persist
+            // refreshWasmClusters(mapView: mapView)
             
              // 3. Fit Bounds (Dynamic)
              // 3. Fit Bounds (Dynamically Filtered)
@@ -552,7 +581,19 @@ struct GoogleMapView: UIViewRepresentable {
              }
             
              // Apply Fit with Padding
-             let update = GMSCameraUpdate.fit(bounds, withPadding: 50.0)
+             // [FIX] Ensure min span 0.05 (~Zoom 13) for visible animation
+             var ne = bounds.northEast; var sw = bounds.southWest
+             let latSpan = max(ne.latitude - sw.latitude, 0.05)
+             let lonSpan = max(ne.longitude - sw.longitude, 0.05)
+             let centerLat = (ne.latitude + sw.latitude) / 2
+             let centerLon = (ne.longitude + sw.longitude) / 2
+             
+             let newBounds = GMSCoordinateBounds(
+                coordinate: CLLocationCoordinate2D(latitude: centerLat + latSpan/2, longitude: centerLon + lonSpan/2),
+                coordinate: CLLocationCoordinate2D(latitude: centerLat - latSpan/2, longitude: centerLon - lonSpan/2)
+             )
+             
+             let update = GMSCameraUpdate.fit(newBounds, withPadding: 50.0)
              mapView.animate(with: update)
 
                 // Launch Animation (Wait 3s -> Zoom User)

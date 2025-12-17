@@ -122,7 +122,6 @@ class TodoViewModel @Inject constructor(
              val maxTime = targetTime + oneDay
 
              // [DEBUG] Log Raw Counts
-             android.util.Log.d("TodoViewModel", "updateFilteredItems: RawTodos=${todos.size}, RawLogs=${logs.size}, Mode=${if(isHistory) "History" else "Normal"}")
 
              val filteredLogItems = logs.filter { it.startTime in minTime..maxTime }.map { com.example.alltodo.ui.UnifiedItem.History(it) }
              
@@ -141,7 +140,6 @@ class TodoViewModel @Inject constructor(
                  combined = combined + currentLoc
              }
              
-             android.util.Log.d("TodoViewModel", "updateFilteredItems: Combined Result=${combined.size} (Logs=${filteredLogItems.size}, Todos=${filteredTodoItems.size}, Loc=${currentLoc != null})")
 
              withContext(Dispatchers.Main) {
                  _displayItems.value = combined
@@ -168,7 +166,6 @@ class TodoViewModel @Inject constructor(
                      is com.example.alltodo.ui.UnifiedItem.CurrentLocation -> item.lat to item.lon
                  }
                  // [DEBUG] Check individual item coordinates
-                 // if (lat == 0.0 || lng == 0.0) android.util.Log.v("TodoViewModel", "Item skipped: Zero Coordinates")
 
                  if (lat != null && lng != null && lat != 0.0) {
                      listOf((lat * 100_000).toInt(), (lng * 100_000).toInt())
@@ -178,10 +175,8 @@ class TodoViewModel @Inject constructor(
              }
              
              // [DEBUG] Log valid points count to identify if items are lost here
-             android.util.Log.d("TodoViewModel", "recalculateClusters: InputItems=${items.size}, ValidGeoPoints=${flatPoints.size / 2}")
 
              if (flatPoints.isEmpty()) {
-                 android.util.Log.d("TodoViewModel", "recalculateClusters: No valid points found (all 0.0?), clearing clusters.")
                  _clusteredItems.value = emptyList()
                  return@launch
              }
@@ -196,15 +191,12 @@ class TodoViewModel @Inject constructor(
              var clustersFlat = try {
                  wasmManager.cluster(flatPoints, cellSizeMeters)
              } catch (e: Exception) {
-                 android.util.Log.e("TodoViewModel", "WASM Cluster Failed", e)
                  emptyList<Int>()
              }
              
-             android.util.Log.d("TodoViewModel", "recalculateClusters: WASM Output Count=${clustersFlat.size}")
              
              // [FIX] Fallback for WASM Failure (or Self-Test Failure) or Empty Result despite valid inputs
              if (clustersFlat.isEmpty() && flatPoints.isNotEmpty()) {
-                 android.util.Log.w("TodoViewModel", "WASM returned empty. Using Fallback (1-to-1 mapping).")
                  // Fallback: Create 1 item per valid point
                  val fallbackClusters = mutableListOf<PinClusterItem>()
                  items.forEach { item ->
@@ -525,7 +517,6 @@ class TodoViewModel @Inject constructor(
     fun saveLocation(latitude: Double, longitude: Double) {
         // [FIX] Validate Coordinates: Ignore (0,0) to prevent corrupting history/path data
         if (latitude == 0.0 && longitude == 0.0) {
-             android.util.Log.w("TodoViewModel", "saveLocation: Skipped invalid coordinates (0.0, 0.0)")
              return
         }
 

@@ -73,4 +73,36 @@ class SmartLocationManager {
         let limit: Int64 = 450000 
         return distSq > (limit * limit)
     }
+    
+    /// Checks if the map needs to be re-centered based on user position.
+    /// Logic: If user moves beyond 1/4 of the screen width (hdistance) from the center, return true.
+    /// All inputs are Integer-based (1/100,000 degree).
+    /// - Parameters:
+    ///   - user: User's current location (IntLocation)
+    ///   - center: Map's current center location (IntLocation)
+    ///   - spanLon: Map's current longitude span (e.g. 0.05 * 100,000 = 5000)
+    /// - Returns: True if map should recenter.
+    func needsCentering(user: IntLocation, center: IntLocation, spanLon: Int) -> Bool {
+        // Calculate distance from center (Longitude only for width check, or both?)
+        // User Requirement: "hdistance (screen width) / 4"
+        
+        // 1. Calculate X-axis distance (Longitude)
+        // Adjust for date line if necessary (skipped for now, assuming local usage)
+        let deltaLon = abs(user.lon - center.lon)
+        
+        // 2. Threshold is 1/4 of the width
+        let threshold = spanLon / 4
+        
+        // 3. Check (Also check Latitude for Y-axis tethering? User specified 'hdistance', likely horizontal)
+        // Let's check both to be safe, assuming spanLat is roughly similar or passing separate spanLat.
+        // For now, implementing strict adherence to user request "hdistance" (horizontal).
+        if deltaLon > threshold {
+            return true
+        }
+        
+        // Optional: Y-axis check (Vertical) - assuming aspect ratio 2:1 roughly, vertical span is half?
+        // Let's stick to user explicit instruction first.
+        
+        return false
+    }
 }

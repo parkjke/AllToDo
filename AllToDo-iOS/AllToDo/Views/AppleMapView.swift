@@ -60,28 +60,11 @@ struct AppleMapView: UIViewRepresentable {
                 fitRegion = MKCoordinateRegion(center: center, span: span)
             }
         } else {
-            // Calculate Centroid of Pins if no user location
-            var latSum: Double = 0
-            var lonSum: Double = 0
-            var count: Double = 0
-            
-            for item in todoItems {
-                if let loc = item.location {
-                    latSum += loc.latitude
-                    lonSum += loc.longitude
-                    count += 1
-                }
-            }
-            for log in userLogs {
-                latSum += log.latitude
-                lonSum += log.longitude
-                count += 1
-            }
-            
-            if count > 0 {
-                initialCenter = CLLocationCoordinate2D(latitude: latSum / count, longitude: lonSum / count)
-                fitRegion = MKCoordinateRegion(center: initialCenter, span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05))
-            }
+            // [FIX] If no user location, DEFAULT TO GWANGHWAMUN.
+            // Do NOT try to fit all pins because we don't know which ones are "far" without a reference point.
+            // Fitting all pins causes the "Beijing Zoom" issue.
+            initialCenter = CLLocationCoordinate2D(latitude: 37.5759, longitude: 126.9768)
+            fitRegion = MKCoordinateRegion(center: initialCenter, span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05))
         }
         
         // [FIX] Initial State: Always Zoom 15 centered on User/Default or fit to items
@@ -109,14 +92,21 @@ struct AppleMapView: UIViewRepresentable {
         }
         
         // Update Annotations
+        // Update Annotations
         context.coordinator.updateAnnotations(mapView: uiView, items: todoItems, userLocation: locationManager.currentLocation)
+        
+        // [NEW] Check Tethering on Location Update
+        if let u = locationManager.currentLocation {
+            context.coordinator.checkTethering(mapView: uiView, userLocation: u)
+        }
         
         // Update Path Visualization
         context.coordinator.updatePath(mapView: uiView, selectedItems: selectedClusterItems)
         
         // Launch Animation
-        if context.coordinator.firstRender {
-            context.coordinator.performLaunchAnimation(mapView: uiView, userLocation: locationManager.currentLocation)
+        // [FIX] Only launch when User Location is READY.
+        if context.coordinator.firstRender, let u = locationManager.currentLocation {
+            context.coordinator.performLaunchAnimation(mapView: uiView, userLocation: u)
         }
     }
     
@@ -133,6 +123,30 @@ struct AppleMapView: UIViewRepresentable {
         
         init(_ parent: AppleMapView) {
             self.parent = parent
+        }
+        
+        // [NEW] Tethering State
+        var currentSpanLon: Int = 0
+        var isLaunchAnimating = false
+
+        
+        // Match removed logic block
+
+        
+        // [NEW] Check Tethering
+        func checkTethering(mapView: MKMapView, userLocation: CLLocation) {
+            if isLaunchAnimating { return } // Prevent interference during launch
+            
+            // Logic: If deltaLon > spanLon/4 -> Recenter
+            // Use SmartLocationManager helper
+            let mapCenter = SmartLocationManager.shared.toIntLocation(CLLocation(latitude: mapView.centerCoordinate.latitude, longitude: mapView.centerCoordinate.longitude))
+            let userInt = SmartLocationManager.shared.toIntLocation(userLocation)
+            
+            if SmartLocationManager.shared.needsCentering(user: userInt, center: mapCenter, spanLon: currentSpanLon) {
+                // Determine animation speed based on distance? Just standard animated.
+                mapView.setCenter(userLocation.coordinate, animated: true)
+                // OptimizationLogger.shared.log(type: .locationResume, value: "Tethering Activated")
+            }
         }
         
         // MARK: - Actions
@@ -257,6 +271,8 @@ struct AppleMapView: UIViewRepresentable {
              DispatchQueue.main.async {
                  self.parent.rotation = heading
                  // [NEW] Sync Span with LocationManager for Smart Tracking
+                 // Also Update Local Coordinator State for Tethering
+                 self.currentSpanLon = Int(mapView.region.span.longitudeDelta * 100_000.0)
                  self.parent.locationManager.currentSpan = mapView.region.span.latitudeDelta
              }
         }
@@ -544,8 +560,9 @@ struct AppleMapView: UIViewRepresentable {
         // MARK: - Launch Animation
         func performLaunchAnimation(mapView: MKMapView, userLocation: CLLocation?) {
             firstRender = false
+            isLaunchAnimating = true // Start Guard
             
-            // Initial Cluster Calculation & Far Item Detection
+            // Initial Cluster Calculation called immediately
             refreshWasmClusters(mapView: mapView)
             
             // [LOG] Start Animation
@@ -555,17 +572,28 @@ struct AppleMapView: UIViewRepresentable {
             ])
             
             // 1. Gather Points (Applying 500km Filter)
+            // 1. Gather Points (Applying 500km Filter)
             var points: [CLLocationCoordinate2D] = []
             let userLoc = userLocation
             
+            // Pre-calc User Int
+            var uLat = 0
+            var uLon = 0
+            if let u = userLoc {
+                let ui = SmartLocationManager.shared.toIntLocation(u)
+                uLat = ui.lat; uLon = ui.lon
+            }
+            
             for item in parent.todoItems { 
                 if let l = item.location { 
-                     // if let u = userLoc, SmartLocationManager.shared.isFar(u, CLLocation(latitude: l.latitude, longitude: l.longitude)) { continue } // Filter Removed
+                     // Filter Check (Int Ops)
+                     if userLoc != nil && SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: l.latInt, lon2: l.lonInt) { continue }
                      points.append(CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)) 
                  } 
             }
             for log in parent.userLogs { 
-                 // if let u = userLoc, SmartLocationManager.shared.isFar(u, CLLocation(latitude: log.latitude, longitude: log.longitude)) { continue } // Filter Removed
+                 // Filter Check (Int Ops)
+                 if userLoc != nil && SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: log.latInt, lon2: log.lonInt) { continue }
                  points.append(CLLocationCoordinate2D(latitude: log.latitude, longitude: log.longitude)) 
              }
             
@@ -590,8 +618,9 @@ struct AppleMapView: UIViewRepresentable {
 
                   let centerLat = (minLat + maxLat) / 2
                   let centerLon = (minLon + maxLon) / 2
-                  let latSpan = max((maxLat - minLat) * 1.4, 0.01) // 1.4x Padding
-                  let lonSpan = max((maxLon - minLon) * 1.4, 0.01)
+                  // [FIX] Increase min span to 0.05 (Zoom ~13) to ensure visible Zoom-In animation to 15 later
+                  let latSpan = max((maxLat - minLat) * 1.4, 0.05) 
+                  let lonSpan = max((maxLon - minLon) * 1.4, 0.05)
                   
                   let fitRegion = MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: centerLat, longitude: centerLon), span: MKCoordinateSpan(latitudeDelta: latSpan, longitudeDelta: lonSpan))
                   
@@ -606,17 +635,17 @@ struct AppleMapView: UIViewRepresentable {
                           let zoom15Span = 0.01
                           let finalRegion = MKCoordinateRegion(center: freshLoc.coordinate, span: MKCoordinateSpan(latitudeDelta: zoom15Span, longitudeDelta: zoom15Span))
                           
-                          // Use UIView animation for slower/smoother transition
-                          UIView.animate(withDuration: 1.0) {
-                              mapView.region = finalRegion
+                          // [FIX] Use setRegion with delay to unlock guard
+                          mapView.setRegion(finalRegion, animated: true)
+                          
+                          // Unlock Guard after animation approx time (1.0s)
+                          DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                              self.isLaunchAnimating = false
+                              self.firstRender = false 
                           }
                           
+                          
                           // [OPTIMIZATION] Enable WASM Clustering NOW
-                          // By setting firstRender = false and explicit call, standard logic will pick it up.
-                          // But we need to force it to bypass 'useFastPath' check.
-                          // Actually, isLaunchPhase check in refreshWasmClusters relies on action/firstRender.
-                          // We are done with launch phase effectively.
-                          self.firstRender = false 
                           self.refreshWasmClusters(mapView: mapView) 
                           
                           OptimizationLogger.shared.logLaunchStep(step: "launch sequence", data: ["success": true, "final_loc": "\(freshLoc.coordinate)"])
@@ -746,15 +775,16 @@ struct AppleMapView: UIViewRepresentable {
                 // Badge
                 let badgeSize: CGFloat = 20
                 let badgeLabel = UILabel(frame: CGRect(x: width - (badgeSize/2), y: -(badgeSize/4), width: badgeSize, height: badgeSize))
-                badgeLabel.backgroundColor = .red
-                badgeLabel.textColor = .white
+                // Badge Style (Reverted)
+                badgeLabel.backgroundColor = .white
+                badgeLabel.textColor = .red
                 badgeLabel.textAlignment = .center
                 badgeLabel.font = UIFont.systemFont(ofSize: 12, weight: .bold)
                 badgeLabel.text = count > 9 ? "9+" : "\(count)"
                 badgeLabel.layer.cornerRadius = badgeSize / 2
                 badgeLabel.layer.masksToBounds = true
                 badgeLabel.layer.borderWidth = 1.5
-                badgeLabel.layer.borderColor = UIColor.white.cgColor
+                badgeLabel.layer.borderColor = UIColor.red.cgColor
                 view.addSubview(badgeLabel)
                 view.bringSubviewToFront(btn)
                 

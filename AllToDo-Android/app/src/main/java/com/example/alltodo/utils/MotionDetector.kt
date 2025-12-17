@@ -5,7 +5,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.util.Log
 import com.example.alltodo.utils.OptimizationLogger
 import com.example.alltodo.utils.LogType
 import com.google.android.gms.location.ActivityRecognition
@@ -73,11 +72,9 @@ class MotionDetector(private val context: Context, private val listener: MotionL
 
         client.requestActivityTransitionUpdates(request, pendingIntent)
             .addOnSuccessListener {
-                Log.d(TAG, "API Success: Activity Recognition Started")
                 isTracking = true
             }
             .addOnFailureListener { e ->
-                Log.e(TAG, "API Failed: Activity Recognition", e)
                  CoroutineScope(Dispatchers.IO).launch {
                     OptimizationLogger.log(context, LogType.ERROR, "MotionDetector Start Failed: ${e.message}")
                 }
@@ -95,11 +92,9 @@ class MotionDetector(private val context: Context, private val listener: MotionL
         val client = ActivityRecognition.getClient(context)
         client.removeActivityTransitionUpdates(pendingIntent)
             .addOnSuccessListener {
-                Log.d(TAG, "API Success: Activity Recognition Stopped")
                 isTracking = false
             }
             .addOnFailureListener { e ->
-                 Log.e(TAG, "API Failed: Stop Activity Recognition", e)
             }
     }
 }

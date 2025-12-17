@@ -10,13 +10,7 @@ class AllToDoApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         
-        // [FIX] Initialize Naver Map SDK globally
-        try {
-            com.naver.maps.map.NaverMapSdk.getInstance(this).client = 
-                com.naver.maps.map.NaverMapSdk.NaverCloudPlatformClient("i7652syq10")
-        } catch (e: Exception) {
-            android.util.Log.e("AllToDo", "Naver SDK Init Failed", e)
-        }
+
         
         // [DEBUG] Log SHA-1 for Console Registration Verification
         try {
@@ -30,8 +24,6 @@ class AllToDoApplication : Application() {
                     hexString.append(String.format("%02X:", b))
                 }
                 if (hexString.isNotEmpty()) hexString.setLength(hexString.length - 1)
-                android.util.Log.e("AUTH_CHECK", "📦 Package: $packageName")
-                android.util.Log.e("AUTH_CHECK", "🔑 SHA-1: $hexString")
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -39,13 +31,11 @@ class AllToDoApplication : Application() {
 
         // [NEW] Global Crash Handler
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            val trace = android.util.Log.getStackTraceString(throwable)
-            android.util.Log.e("CRASH_REPORT", "🔥 FATAL CRASH on thread ${thread.name}: $trace")
             
             // Try to write to file
             try {
                 val file = java.io.File(filesDir, "crash_log.txt")
-                file.appendText("\n[${java.util.Date()}] FATAL: $trace")
+                file.appendText("\n[${java.util.Date()}] FATAL: ${throwable.stackTraceToString()}")
             } catch (e: Exception) {
                 // Ignore file write error during crash
             }

@@ -36,6 +36,22 @@
 -   **Pin Distortion Fix**: Fixed the rendering logic in `createClusterBitmap` where pin images were being stretched/distorted.
     -   **Fix**: Implemented aspect-ratio respecting scaling. The pin image is now centered and fitted within the 40x50 box without distortion.
 
+### Step 1: 전체 뷰 (Whole View) - [즉시 실행]
+- 앱이 켜지자마자 내 주변(500km 이내)의 모든 핀/경로가 한 화면에 들어오도록 줌을 맞춥니다.
+- **핵심 기술 (Dynamic Filter)**:
+  - **초기 필터링 (Status: ON)**: 초기 Bounds 계산 시 **500km 밖의 핀(예: 베이징, 미국)은 제외**합니다. 이를 통해 지도가 대륙 단위로 줌아웃되는 것을 방지하고 대한민국/현재위치 주변에 집중합니다.
+  - **최대 줌 제한**: 핀이 하나밖에 없거나 너무 가까이 몰려 있어 구글/네이버 지도가 자동으로 20레벨까지 확대하려 할 때, **최소 15레벨**까지만 확대되도록(너무 가까워지는 것을 방지) 제한합니다. (if zoom > 15 then zoom = 15)
+
+### Step 2: 감상 대기 (Wait) - [3초]
+- 사용자가 전체적인 할 일 분포를 눈으로 확인할 수 있도록 **3초간 화면을 유지**합니다.
+- 이때 500km 밖에 핀이 있다면, 상단에 **"N개의 할 일이 멀리 있습니다"** 라는 알림창(Toast)이 뜬 후 사라집니다.
+
+### Step 3: 현재 위치 집중 (Zoom to Current) - [자동 이동]
+- 3초 후, 카메라가 부드럽게 **현재 사용자 위치(Current Location)**로 이동하며 확대됩니다. (줌 레벨 18.0)
+- **필터 해제 (Status: OFF)**: 이동이 시작되는 순간 500km 필터를 **해제**합니다.
+- **효과**: 카메라는 내 위치로 줌인되지만, 지도상에는 이제 **전 세계의 모든 핀(베이징 포함)**이 렌더링됩니다. 사용자가 추후 지도를 축소하면 먼 곳의 핀도 볼 수 있게 됩니다.
+- **목표 줌 레벨**: **18.0** (건물 식별 가능 수준).
+
 ## Verification Checklist
 - [x] **Location**: 
     - [x] Permissions granted -> Immediate tracking start.
@@ -93,3 +109,35 @@
 - **Attempted**: Applied "Liquid Glass" styling to map controls.
 - **Outcome**: Reverted to original "Semi-transparent Green" style per user request ("시인성이 떨어지고 글래스 느낌이 좀 안나네").
 - **Current State**: Controls use `Color.allToDoGreen.opacity(0.7)` background.
+
+## Summary of Fixes (2025-12-18 Session - Critical)
+
+### 1. **Recursion Error & Stability (SELF-CORRECTION)**
+-   **Critical Mistake**: While fixing the "Dalian/West Sea" default view issue, I inadvertently broke the **Google Map Marker Click** (popups stopped working) and **Marker Rendering** (flickering reappeared due to removal of caching).
+-   **Lesson Learned**: Modifying shared or similar logic across map providers (Kakao/Google) requires extreme caution. **Must verify existing features (Click, Render) after every logic change.**
+-   **Resolution**:
+    -   Restored `getCachedClusterBitmap` usage in `GoogleMapContent.kt` to fix flickering.
+    -   Restored `toScreenLocation` calculation in `onClick` to fix popups ("Water Balloons").
+
+### 2. **"Dalian" / Default View Fix**
+-   **Issue**: Map initialized at (0,0) or West Sea because `currentLocation` was null and distant pins (Beijing) skewed the center.
+-   **Fix**:
+    -   **Persistence**: Save `currentLocation` (Lat/Lon) and `MapProvider` to `SharedPreferences`.
+    -   **Default**: If no saved location, start at **Gwanghwamun (37.5759, 126.9768)** instead of (0,0).
+    -   **Smart Tracking**: Persist integer coordinates (`latE7`, `lonE7`) to maintain state across restarts.
+
+### 3. **Dynamic 500km Filter (The "Show All" Logic)**
+-   **Requirement**: "Don't show distant pins (Beijing) initially (so map doesn't zoom out too much), but show them once we move to current location."
+-   **Implementation**:
+    -   **State**: `isDistanceFilterEnabled` (Default: `true`).
+    -   **Step 1~4**: Calculate bounds using **only pins within 500km**. (Prevents zooming out to Asia level).
+    -   **Step 5 (Move to Current)**: Set `isDistanceFilterEnabled = false`. This triggers a re-render showing **ALL pins** (including Beijing) while the camera zooms into the user.
+
+### 4. **Diagnostic Logs (MapStep)**
+-   **Implemented**: Standardized 5-step log sequence (`[MapStep 1..5]`) across maps to trace:
+    1.  Map Initialized
+    2.  Data Loaded (with Polling/Timeout)
+    3.  Filtered & Calculated
+    4.  FitBounds
+    5.  Move to Current Location (Log + OS Location Event)
+-   **Result**: Confirmed perfect timing: Map Loads -> Data Ready -> FitBounds -> 3s Wait -> User Location Arrives -> Move.

@@ -67,4 +67,34 @@ object SmartLocationManager {
         val limit = 450000L // ~500km in units
         return distSq > (limit * limit)
     }
+
+    /**
+     * Checks if user has moved beyond 1/4 of the screen width from the map center.
+     * @param user User's location (Int)
+     * @param center Map center location (Int)
+     * @param spanLon Map's longitude span (width) in Int units (deg * 100,000)
+     */
+    fun needsCentering(user: IntLocation, center: IntLocation, spanLon: Int): Boolean {
+        val deltaLon = abs(user.lon - center.lon)
+        val threshold = spanLon / 4
+        return deltaLon > threshold
+    }
+
+    // [NEW] Ensure Min Span for Bounds (Prevent Max Zoom on Single Point)
+    fun ensureMinSpan(bounds: com.google.android.gms.maps.model.LatLngBounds, minSpan: Double): com.google.android.gms.maps.model.LatLngBounds {
+        val center = bounds.center
+        val ne = bounds.northeast
+        val sw = bounds.southwest
+        
+        var dLat = ne.latitude - sw.latitude
+        var dLon = ne.longitude - sw.longitude
+        
+        if (dLat < minSpan) dLat = minSpan
+        if (dLon < minSpan) dLon = minSpan
+        
+        val newNe = com.google.android.gms.maps.model.LatLng(center.latitude + dLat / 2, center.longitude + dLon / 2)
+        val newSw = com.google.android.gms.maps.model.LatLng(center.latitude - dLat / 2, center.longitude - dLon / 2)
+        
+        return com.google.android.gms.maps.model.LatLngBounds(newSw, newNe)
+    }
 }

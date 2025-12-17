@@ -77,8 +77,8 @@ dependencies {
     // Kakao Map SDK
     implementation("com.kakao.maps.open:android:2.13.0")
     
-    // Naver Map SDK
-    implementation("com.naver.maps:map-sdk:3.19.0")
+
+
     
     // Room
     val roomVersion = "2.6.1"

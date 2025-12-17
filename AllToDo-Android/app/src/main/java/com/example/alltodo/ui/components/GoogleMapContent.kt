@@ -62,15 +62,23 @@ fun GoogleMapContent(
         )
     }
 
-    // [FIX] Far Item Logic (500km Filter)
-    val farThreshold = 500000f // 500km in meters
-    val visibleClusters = remember(clusteredItems, currentLocation) {
-        if (currentLocation == null) clusteredItems
-        else clusteredItems.filter { cluster ->
-             val results = FloatArray(1)
-             android.location.Location.distanceBetween(currentLocation.latitude, currentLocation.longitude, cluster.latitude, cluster.longitude, results)
-             results[0] <= farThreshold // Only show if <= 500km
-        }
+    // [FIX] Dynamic Filter State
+    var isDistanceFilterEnabled by remember { mutableStateOf(true) }
+    
+    // [FIX] Filter Items
+    val filteredItems = remember(clusteredItems, currentLocation, isDistanceFilterEnabled) {
+         val items = clusteredItems
+         val loc = currentLocation ?: android.location.Location("default").apply { latitude=37.5759; longitude=126.9768 }
+         
+         if (isDistanceFilterEnabled) {
+             items.filter { item ->
+                 val results = FloatArray(1)
+                 android.location.Location.distanceBetween(loc.latitude, loc.longitude, item.latitude, item.longitude, results)
+                 results[0] <= 500000f
+             }
+         } else {
+             items // Show All
+         }
     }
     
     // [FIX] Removed internal farItemMessage handling. Handled by MainScreen via callback.
@@ -82,40 +90,47 @@ fun GoogleMapContent(
         // Wait for valid data (snapshotFlow)
         var validPoints: List<LatLng> = emptyList()
         
-        // Wait until we have data or location
         val start = System.currentTimeMillis()
+        
         while (System.currentTimeMillis() - start < 5000) { // Max 5 sec wait
-             val items = visibleClusters // [FIX] Use filtered clusters for bounds
-             val loc = currentLocation
-             
-             // [NEW] Calculate invisible far items count for notification
-             val farCount = clusteredItems.sumOf { cluster ->
-                 val results = FloatArray(1)
-                 if (loc != null) {
-                     android.location.Location.distanceBetween(loc.latitude, loc.longitude, cluster.latitude, cluster.longitude, results)
-                     if (results[0] > farThreshold) cluster.count else 0
-                 } else 0
-             }
-             if (farCount > 0) {
-                 onFarItemsDetected(farCount)
-             }
-             
-             val points = mutableListOf<LatLng>()
-             val itemPoints = items.flatMap { it.items }
-                .filter { (it is UnifiedItem.Todo || it is UnifiedItem.History) }
-                .filter { it.latitude != 0.0 && it.longitude != 0.0 } 
-                .map { item -> LatLng(item.latitude, item.longitude) }
-             points.addAll(itemPoints)
-             
-             if (loc != null && loc.latitude != 0.0) {
-                 points.add(LatLng(loc.latitude, loc.longitude))
-             }
-             
-             if (points.isNotEmpty()) {
-                 validPoints = points
+             // [Optimization] Just check if we have data and location
+             // Heavy calculation should be done ONCE after loop
+             if (clusteredItems.isNotEmpty() && currentLocation != null) {
                  break
              }
              delay(500) 
+        }
+        
+        // Calculate ONCE
+        val items = clusteredItems
+        val loc = currentLocation
+
+        if (loc != null) {
+             val farCount = items.sumOf { cluster ->
+                   val results = FloatArray(1)
+                   android.location.Location.distanceBetween(loc.latitude, loc.longitude, cluster.latitude, cluster.longitude, results)
+                   if (results[0] > 500000f) cluster.count else 0
+             }
+             if (farCount > 0) onFarItemsDetected(farCount)
+             
+             // [FIX] Filter items by distance (500km)
+             val points = mutableListOf<LatLng>()
+             val validItems = items.flatMap { it.items }
+                 .filter { (it is UnifiedItem.Todo || it is UnifiedItem.History) }
+                 .filter { it.latitude != 0.0 && it.longitude != 0.0 }
+                 .filter { item ->
+                     val baseLat = loc?.latitude ?: 37.5759
+                     val baseLon = loc?.longitude ?: 126.9768
+                     
+                     val results = FloatArray(1)
+                     android.location.Location.distanceBetween(baseLat, baseLon, item.latitude, item.longitude, results)
+                     results[0] <= 500000f
+                 }
+                 .map { item -> LatLng(item.latitude, item.longitude) }
+                 
+             points.addAll(validItems)
+             points.add(LatLng(loc.latitude, loc.longitude))
+             validPoints = points
         }
         
         if (validPoints.isNotEmpty()) {
@@ -126,8 +141,10 @@ fun GoogleMapContent(
 
              try {
                      // Step 1: Fit Bounds
+                     // Step 1: Fit Bounds with Min Span 0.05
+                     val safeBounds = com.example.alltodo.utils.SmartLocationManager.ensureMinSpan(bounds, 0.05)
                      cameraPositionState.animate(
-                         CameraUpdateFactory.newLatLngBounds(bounds, 100),
+                         CameraUpdateFactory.newLatLngBounds(safeBounds, 100),
                          1000
                      )
 
@@ -139,12 +156,17 @@ fun GoogleMapContent(
                          )
                      }
 
-                     // Step 3: Wait 3 seconds
-                     delay(3000)
+                     // Step 3: Wait 2.5 seconds (Feels like 3s due to animation overlap)
+                     delay(2500)
                      
-                     // Step 4: Zoom to Current Location
-                     if (currentLocation != null) {
-                          cameraPositionState.animate(
+                     // [MapStep 5] Move to Current Location
+        if (loc != null) {
+            android.util.Log.e("MapStep", "5. Move to Current Location")
+            
+            // [FIX] Disable Filter
+            isDistanceFilterEnabled = false
+            
+            cameraPositionState.animate(
                               CameraUpdateFactory.newLatLngZoom(
                                   LatLng(currentLocation.latitude, currentLocation.longitude), 
                                   18f
@@ -197,17 +219,52 @@ fun GoogleMapContent(
         }
         
         // Now observe state changes and update projection from instance
+        // [NEW] Tethering State
+        var currentSpanLon by remember { mutableStateOf(0) }
+        
         LaunchedEffect(cameraPositionState.isMoving) {
             val map = googleMapInstance ?: return@LaunchedEffect
             snapshotFlow { cameraPositionState.position }
                 .collectLatest { 
                     mapProjection = map.projection
                     onRotationChange(it.bearing)
+                    
+                    // [NEW] Update Span (hDistance)
+                    val visibleRegion = map.projection.visibleRegion
+                    val bounds = calculateVisibleBounds(visibleRegion)
+                    val span = bounds.northeast.longitude - bounds.southwest.longitude
+                    currentSpanLon = (Math.abs(span) * 100000).toInt()
                 }
         }
         
+        // [NEW] Check Tethering on Location Update
+        LaunchedEffect(currentLocation, initialAnimationDone) {
+             if (!initialAnimationDone) return@LaunchedEffect
+             val loc = currentLocation ?: return@LaunchedEffect
+             val map = googleMapInstance ?: return@LaunchedEffect
+             
+             // Current Camera Check
+             val target = cameraPositionState.position.target
+             
+             // Convert to Int
+             val userInt = com.example.alltodo.utils.SmartLocationManager.toIntLocation(loc)
+             val mapCenter = com.example.alltodo.utils.SmartLocationManager.toIntLocation(
+                 android.location.Location("center").apply { 
+                     latitude = target.latitude
+                     longitude = target.longitude 
+                 }
+             )
+             
+             if (com.example.alltodo.utils.SmartLocationManager.needsCentering(userInt, mapCenter, currentSpanLon)) {
+                 cameraPositionState.animate(
+                     CameraUpdateFactory.newLatLng(LatLng(loc.latitude, loc.longitude)),
+                     500
+                 )
+             }
+        }
+        
         // [FIX] Render Clustered Items (Filtered)
-        visibleClusters.forEach { cluster ->
+        filteredItems.forEach { cluster ->
             val position = LatLng(cluster.latitude, cluster.longitude)
             val isSingle = cluster.count == 1
             val firstItem = cluster.items.firstOrNull()
@@ -224,12 +281,12 @@ fun GoogleMapContent(
                 var hasServerTodo = false // Blue
                 var hasUserTodo = false   // Green
                 
-                cluster.items.forEach { 
-                    when(it) {
+                cluster.items.forEach { item ->
+                    when(item) {
                         is UnifiedItem.CurrentLocation -> hasUserLocation = true
                         is UnifiedItem.History -> hasHistory = true
                         is UnifiedItem.Todo -> {
-                            if (it.item.source != "local") hasServerTodo = true
+                            if (item.item.source != "local") hasServerTodo = true
                             else hasUserTodo = true
                         }
                     }
@@ -238,18 +295,19 @@ fun GoogleMapContent(
                 val (resId, badgeColor) = when {
                     hasUserLocation -> com.example.alltodo.R.drawable.pin_current to android.graphics.Color.RED
                     hasHistory -> com.example.alltodo.R.drawable.pin_history to android.graphics.Color.RED
-                    hasServerTodo -> com.example.alltodo.R.drawable.pin_receive_ready to android.graphics.Color.BLUE // Needs accurate Blue
-                    else -> com.example.alltodo.R.drawable.pin_todo_ready to android.graphics.Color.parseColor("#00AA00") // Green
+                    hasServerTodo -> com.example.alltodo.R.drawable.pin_receive_ready to android.graphics.Color.BLUE 
+                    else -> com.example.alltodo.R.drawable.pin_todo_ready to android.graphics.Color.parseColor("#00AA00") 
                 }
-                // [FIX] Use Cached Implementation from MapCommon.kt
+                // [FIX] Use Cached Cluster Bitmap to prevent flickering & show Badge
                 com.example.alltodo.ui.getCachedClusterBitmap(context, cluster.count, resId, badgeColor)
             }
-
+            
+            // [FIX] Add Marker
             Marker(
                 state = MarkerState(position = position),
+                icon = iconDescriptor,
                 // [FIX] Adjust anchor for cluster (offset due to badge overhang)
                 anchor = if (isSingle && firstItem != null) Offset(0.5f, 1.0f) else Offset(0.4f, 1.0f),
-                icon = iconDescriptor,
                 onClick = {
                     val point = mapProjection?.toScreenLocation(position)
                     if (point != null) {
@@ -263,12 +321,23 @@ fun GoogleMapContent(
                 }
             )
         }
+
         
         // [REMOVED] Standalone Current Location Marker (Now handled in clusters)
     }
 
     // [FIX] Removed Internal Overlay
     } // Close Box
+}
+
+// [NEW] Helper for Bounds
+fun calculateVisibleBounds(region: com.google.android.gms.maps.model.VisibleRegion): LatLngBounds {
+    val builder = LatLngBounds.builder()
+    builder.include(region.nearLeft)
+    builder.include(region.nearRight)
+    builder.include(region.farLeft)
+    builder.include(region.farRight)
+    return builder.build()
 }
 
 

@@ -1,7 +1,6 @@
 package com.example.alltodo.utils
 
 import android.os.Debug
-import android.util.Log
 import kotlinx.coroutines.*
 
 object PerformanceMonitor {
@@ -34,6 +33,5 @@ object PerformanceMonitor {
         
         val threadCount = Thread.activeCount()
         
-        Log.d(TAG, "MEM: Java ${usedMemInMB}MB / ${maxMemInMB}MB | Native: ${nativeHeapAllocated}MB | Threads: $threadCount")
     }
 }

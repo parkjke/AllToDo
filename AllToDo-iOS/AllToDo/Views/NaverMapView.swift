@@ -89,11 +89,17 @@ struct NaverMapView: UIViewRepresentable {
         // 2. Trigger Clustering (Only if not in first render sequence)
         if !context.coordinator.firstRender {
             context.coordinator.refreshWasmClusters()
+            
+            
+            // [NEW] Check Tethering
+            if let u = locationManager.currentLocation {
+                context.coordinator.checkTethering(mapView: uiView.mapView, userLocation: u)
+            }
         }
         
         // 3. Launch Animation
-        if context.coordinator.firstRender {
-             context.coordinator.performLaunchAnimation(userLocation: locationManager.currentLocation)
+        if context.coordinator.firstRender, let u = locationManager.currentLocation {
+            context.coordinator.performLaunchAnimation(userLocation: u)
         }
     }
     
@@ -112,6 +118,19 @@ struct NaverMapView: UIViewRepresentable {
         
         init(_ parent: NaverMapView) {
             self.parent = parent
+        }
+        
+        // [NEW] Check Tethering
+        func checkTethering(mapView: NMFMapView, userLocation: CLLocation) {
+            let target = mapView.cameraPosition.target
+            let mapCenter = SmartLocationManager.shared.toIntLocation(CLLocation(latitude: target.lat, longitude: target.lng))
+            let userInt = SmartLocationManager.shared.toIntLocation(userLocation)
+            
+            if SmartLocationManager.shared.needsCentering(user: userInt, center: mapCenter, spanLon: currentSpanLon) {
+                let update = NMFCameraUpdate(scrollTo: NMGLatLng(lat: userLocation.coordinate.latitude, lng: userLocation.coordinate.longitude))
+                update.animation = .linear
+                mapView.moveCamera(update)
+            }
         }
         
         // MARK: - Actions
@@ -452,10 +471,11 @@ struct NaverMapView: UIViewRepresentable {
 
         func performLaunchAnimation(userLocation: CLLocation?) {
             guard let loc = userLocation, let map = mapView else { return }
-            firstRender = false
+            // [FIX] Keep firstRender = true during animation
+            // firstRender = false
             
-            // 1. Refresh & Fast Path (Pins appear immediately)
-            refreshWasmClusters()
+            // [FIX] Skip redundant refresh, rely on Fast Path
+            // refreshWasmClusters()
             
             // 2. Fit Bounds (Dynamic)
             // Instead of Zoom 5 (Korea), calculate actual bounds of pins
@@ -493,7 +513,13 @@ struct NaverMapView: UIViewRepresentable {
                 end.animationDuration = 1.0
                 map.moveCamera(end)
                 
+                map.moveCamera(end)
+                
                 OptimizationLogger.shared.log(type: .launchStep, value: ">>> Current Location: \(loc.coordinate)")
+                
+                // [FIX] Enable WASM Clustering
+                self.firstRender = false
+                self.refreshWasmClusters()
             }
         }
         
@@ -514,13 +540,23 @@ struct NaverMapView: UIViewRepresentable {
             }
         }
         
+        // [NEW] Tethering State
+        var currentSpanLon: Int = 0
+
         func mapView(_ mapView: NMFMapView, cameraDidChangeByReason reason: Int, animated: Bool) {
              let heading = mapView.cameraPosition.heading
              DispatchQueue.main.async {
                  self.parent.rotation = heading
+                 
+                 // [NEW] Update Span
+                 let bounds = mapView.contentBounds
+                 // contentBounds returns NMGLatLngBounds
+                 let span = bounds.northEastLng - bounds.southWestLng
+                 self.currentSpanLon = Int(abs(span) * 100_000.0)
+                 
+                 // Trigger Re-clustering on movement (Inside Dispatch)
+                 self.refreshWasmClusters()
              }
-             // Trigger Re-clustering on movement
-             refreshWasmClusters()
         }
     }
 }

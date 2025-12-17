@@ -25,7 +25,6 @@ class WebViewWasmRuntime(private val context: Context) : WasmRuntime {
                      override fun onPageFinished(view: WebView?, url: String?) {
                          super.onPageFinished(view, url)
                          isPageLoaded = true
-                         android.util.Log.d("WebViewWasm", "WebView Loaded")
                      }
                 }
                 
@@ -33,7 +32,6 @@ class WebViewWasmRuntime(private val context: Context) : WasmRuntime {
                 var glueCode = try {
                     context.assets.open("wasm_glue.js").bufferedReader().use { it.readText() }
                 } catch (e: Exception) {
-                    android.util.Log.e("WebViewWasm", "Failed to load glue", e)
                     ""
                 }
                 
@@ -125,7 +123,6 @@ class WebViewWasmRuntime(private val context: Context) : WasmRuntime {
                 webView = wv
             } catch (e: Exception) {
                 // If WebView creation fails (e.g. headless emulator or system issue), do not crash.
-                android.util.Log.e("WebViewWasm", "CRITICAL: WebView creation failed!", e)
                 webView = null
             }
         }
@@ -141,11 +138,9 @@ class WebViewWasmRuntime(private val context: Context) : WasmRuntime {
             override fun run() {
                 if (isPageLoaded && webView != null) {
                     webView?.evaluateJavascript(js) { result ->
-                        android.util.Log.d("WebViewWasm", "Init Result: $result")
                         if (result != null && !result.startsWith("\"ERROR") && !result.startsWith("\"LOAD_ERROR")) {
                              isReady = true
                         } else {
-                             android.util.Log.e("WebViewWasm", "Init Failed: $result")
                         }
                     }
                 } else {
@@ -153,7 +148,6 @@ class WebViewWasmRuntime(private val context: Context) : WasmRuntime {
                     if (attempts < 20) {
                         handler.postDelayed(this, 100) // Retry every 100ms
                     } else {
-                        android.util.Log.e("WebViewWasm", "Timeout waiting for WebView")
                     }
                 }
             }
@@ -192,7 +186,6 @@ class WebViewWasmRuntime(private val context: Context) : WasmRuntime {
                            return@evaluateJavascript
                        }
                    } catch (e: Exception) {
-                       android.util.Log.e("WebViewWasm", "Parse Error: $result", e)
                    }
                 }
                 // Fallback / Error
@@ -231,7 +224,6 @@ class WebViewWasmRuntime(private val context: Context) : WasmRuntime {
                            return@evaluateJavascript
                        }
                    } catch (e: Exception) {
-                       android.util.Log.e("WebViewWasm", "Cluster Parse Error: $result", e)
                    }
                 }
                 // Fallback / Error

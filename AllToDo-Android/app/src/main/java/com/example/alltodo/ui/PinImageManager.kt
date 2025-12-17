@@ -6,7 +6,6 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Rect // [NEW]
 import android.graphics.RectF // [NEW]
-import android.util.Log
 import androidx.core.content.ContextCompat
 import com.example.alltodo.R
 import java.io.File
@@ -20,8 +19,11 @@ object PinImageManager {
     private const val TARGET_WIDTH_DP = 40 // Standard Pin Width
     private const val TARGET_HEIGHT_DP = 50 // Standard Pin Height
 
+    private const val KAKAO_SCALE = 0.85f
+    
     // Cache in memory
     private val bitmapCache = mutableMapOf<Int, Bitmap>()
+    private val bitmapCacheKakao = mutableMapOf<Int, Bitmap>() // Separate cache for Kakao
 
     // Mapping: Drawable Res ID -> Basename (No extension)
     private val managedPins = mapOf(
@@ -42,35 +44,49 @@ object PinImageManager {
         val density = context.resources.displayMetrics.density
         // Suffix ensures specific bitmap for this screen density
         val densitySuffix = "_d$density.png" 
+        val densitySuffixKakao = "_kakao_d$density.png"
 
         managedPins.forEach { (resId, basename) ->
+            // 1. Standard Pin (Google/Default)
             val filename = "$basename$densitySuffix"
             val file = File(pinsDir, filename)
             var bitmap: Bitmap? = null
 
-            // 1. Check File & Parity
             if (file.exists()) {
                 bitmap = loadBitmapWithParity(file)
             }
-
-            // 2. If invalid or missing, Create from SVG
             if (bitmap == null) {
-                Log.d(TAG, "Creating pin bitmap from SVG ($density x): $filename")
                 bitmap = createBitmapFromVector(context, resId)
                 if (bitmap != null) {
                     saveBitmapWithParity(file, bitmap)
                 }
             }
-
-            // 3. Load into Memory
             if (bitmap != null) {
                 bitmapCache[resId] = bitmap
             } else {
-                Log.e(TAG, "Failed to initialize pin: $filename")
+            }
+            
+            // 2. Kakao Pin (Scaled 0.85)
+            val filenameKakao = "$basename$densitySuffixKakao"
+            val fileKakao = File(pinsDir, filenameKakao)
+            var bitmapKakao: Bitmap? = null
+            
+            if (fileKakao.exists()) {
+                bitmapKakao = loadBitmapWithParity(fileKakao)
+            }
+            if (bitmapKakao == null) {
+                // Use KAKAO_SCALE applied to density
+                bitmapKakao = createBitmapFromVector(context, resId, density * KAKAO_SCALE)
+                if (bitmapKakao != null) {
+                    saveBitmapWithParity(fileKakao, bitmapKakao)
+                }
+            }
+            if (bitmapKakao != null) {
+                bitmapCacheKakao[resId] = bitmapKakao
+            } else {
             }
         }
         
-        Log.d(TAG, "PinImageManager Initialized for density $density. Cached ${bitmapCache.size} pins.")
     }
 
     fun clearCacheAndRebuild(context: Context) {
@@ -79,12 +95,15 @@ object PinImageManager {
         if (pinsDir.exists()) {
             pinsDir.listFiles()?.forEach { it.delete() }
         }
-        Log.d(TAG, "Cache cleared. Rebuilding...")
         initialize(context)
     }
 
     fun getPinBitmap(resId: Int): Bitmap? {
         return bitmapCache[resId]
+    }
+    
+    fun getKakaoPinBitmap(resId: Int): Bitmap? {
+        return bitmapCacheKakao[resId]
     }
 
     private fun loadBitmapWithParity(file: File): Bitmap? {
@@ -97,7 +116,6 @@ object PinImageManager {
 
                 val signature = String(headerBytes, StandardCharsets.UTF_8)
                 if (signature != HEADER_SIGNATURE) {
-                    Log.w(TAG, "Parity Mismatch for ${file.name}: $signature != $HEADER_SIGNATURE")
                     return null
                 }
 
@@ -105,7 +123,6 @@ object PinImageManager {
                 return BitmapFactory.decodeStream(fis)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error loading pin file: ${file.name}", e)
             return null
         }
     }
@@ -120,7 +137,6 @@ object PinImageManager {
                 bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error saving pin file: ${file.name}", e)
         }
     }
 

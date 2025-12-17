@@ -21,9 +21,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // [FIX] Explicitly initialize Naver Map SDK to resolve auth issues
-        // [NOTE] Naver Map SDK is initialized automatically via AndroidManifest.xml meta-data.
-        // Manual initialization removed to prevent conflicts.
+
 
         setContent {
             AllToDoTheme {

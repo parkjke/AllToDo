@@ -2,7 +2,6 @@ package com.example.alltodo.utils
 
 import android.content.Context
 import android.os.Environment
-import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -52,10 +51,8 @@ object OptimizationLogger {
                     fos.write((json.toString() + "\n").toByteArray())
                 }
                 
-                Log.d(TAG, "Logged: $json")
 
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to log", e)
             }
         }
     }
