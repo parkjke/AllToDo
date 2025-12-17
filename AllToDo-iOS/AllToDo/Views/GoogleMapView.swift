@@ -463,26 +463,16 @@ struct GoogleMapView: UIViewRepresentable {
              firstRender = false
              isAnimating = true
             
-             // Action 1: Broad View (No Animation - Jump)
-             let initCam = GMSCameraUpdate.setTarget(userLoc.coordinate, zoom: 10)
-             mapView.moveCamera(initCam)
-            
-             // Wait
-             let delay = AppConfig.launchAnimationDelay
-              DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                  // Action 2: Zoom to 15 (User Request)
+                  // Action 2: Zoom to 15 (User Request) - IMMEDIATE
+                  // Previously jumped to Zoom 10 then waited. Now we just ensure we are at 15.
                   let midCam = GMSCameraUpdate.setTarget(userLoc.coordinate, zoom: 15)
-                  CATransaction.begin()
-                  CATransaction.setValue(0.5, forKey: kCATransactionAnimationDuration)
-                  mapView.animate(with: midCam)
-                  CATransaction.commit()
+                  mapView.animate(with: midCam) // Smooth adjustment if needed, but practically immediate
                   self.isAnimating = false
                   
                   OptimizationLogger.shared.log(type: .launchStep, value: ">>> Current Location: \(userLoc.coordinate)")
                   
                   // Trigger Cluster
                   self.refreshWasmClusters(mapView: mapView)
-              }
         }
         
         // MARK: - Path

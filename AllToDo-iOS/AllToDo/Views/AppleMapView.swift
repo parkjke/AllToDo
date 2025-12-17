@@ -470,71 +470,35 @@ struct AppleMapView: UIViewRepresentable {
                  points.append(CLLocationCoordinate2D(latitude: log.latitude, longitude: log.longitude)) 
              }
             
-            // 2. Step 1: Fit Map to Local Points (Immediately)
-            if !points.isEmpty {
-                var minLat = points[0].latitude
-                var maxLat = points[0].latitude
-                var minLon = points[0].longitude
-                var maxLon = points[0].longitude
-                
-                for p in points {
+            // 2. Immediate Display (Zoom 15) if User Location is available
+            if let u = userLoc {
+                let zoom15Span = 0.01 // Approx Zoom 15
+                let finalRegion = MKCoordinateRegion(
+                    center: u.coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: zoom15Span, longitudeDelta: zoom15Span)
+                )
+                mapView.setRegion(finalRegion, animated: true) // Smooth correction if needed
+                OptimizationLogger.shared.logLaunchStep(step: "launch sequence", data: ["success": true, "mode": "immediate_zoom_15"])
+            } else if !points.isEmpty {
+                 // Fallback: Fit to Points if NO User Location (e.g. browsing mode)
+                 // ... Calculate fit region ...
+                 // (Simplified for brevity, or keep existing Fit logic if user has NO location?)
+                 // Keeping existing fit logic as fallback
+                 
+                 var minLat = points[0].latitude; var maxLat = points[0].latitude
+                 var minLon = points[0].longitude; var maxLon = points[0].longitude
+                 for p in points {
                     if p.latitude < minLat { minLat = p.latitude }
                     if p.latitude > maxLat { maxLat = p.latitude }
                     if p.longitude < minLon { minLon = p.longitude }
                     if p.longitude > maxLon { maxLon = p.longitude }
-                }
-                
-                // Add User Location to bounds to ensure we don't jump too far later
-                if let u = userLoc {
-                    if u.coordinate.latitude < minLat { minLat = u.coordinate.latitude }
-                    if u.coordinate.latitude > maxLat { maxLat = u.coordinate.latitude }
-                    if u.coordinate.longitude < minLon { minLon = u.coordinate.longitude }
-                    if u.coordinate.longitude > maxLon { maxLon = u.coordinate.longitude }
-                }
-                
-                let centerLat = (minLat + maxLat) / 2
-                let centerLon = (minLon + maxLon) / 2
-                
-                var latSpan = (maxLat - minLat) * 1.3 // Padding
-                var lonSpan = (maxLon - minLon) * 1.3
-                
-                // Min Span check (Zoom ~15)
-                let MIN_SPAN = 0.01 // ~1km
-                if latSpan < MIN_SPAN { latSpan = MIN_SPAN }
-                if lonSpan < MIN_SPAN { lonSpan = MIN_SPAN }
-                
-                // Bound check for "Pacific Ocean" (Max Zoom Out)
-                if latSpan > 50 { latSpan = 50 } 
-                
-                let fitRegion = MKCoordinateRegion(
-                    center: CLLocationCoordinate2D(latitude: centerLat, longitude: centerLon),
-                    span: MKCoordinateSpan(latitudeDelta: latSpan, longitudeDelta: lonSpan)
-                )
-                
-                // EXECUTE STEP 1
-                mapView.setRegion(fitRegion, animated: true)
-                
-                // 3. Step 2: Wait 3s -> Zoom to Current Location
-                if let u = userLoc {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                        let zoom15Span = 0.01 // Approx Zoom 15
-                        let finalRegion = MKCoordinateRegion(
-                            center: u.coordinate,
-                            span: MKCoordinateSpan(latitudeDelta: zoom15Span, longitudeDelta: zoom15Span)
-                        )
-                        // Animate slowly (Apple Map defaults for region change are fixed, we use view uiview animation wrapper if needed, but MKMapView.animate is fixed)
-                        // Apple Maps 'animated: true' is usually ~0.3s. To be slower, we need UIView.animate.
-                        UIView.animate(withDuration: 0.5) {
-                            mapView.region = finalRegion
-                        }
-                        OptimizationLogger.shared.logLaunchStep(step: "launch sequence", data: ["success": true])
-                    }
-                }
-                
-            } else if let u = userLoc {
-                // No points, just go to user immediately
-                let region = MKCoordinateRegion(center: u.coordinate, span: MKCoordinateSpan(latitudeDelta: 0.0025, longitudeDelta: 0.0025))
-                mapView.setRegion(region, animated: true)
+                 }
+                  let centerLat = (minLat + maxLat) / 2
+                  let centerLon = (minLon + maxLon) / 2
+                  let latSpan = max((maxLat - minLat) * 1.3, 0.01)
+                  let lonSpan = max((maxLon - minLon) * 1.3, 0.01)
+                  let fitRegion = MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: centerLat, longitude: centerLon), span: MKCoordinateSpan(latitudeDelta: latSpan, longitudeDelta: lonSpan))
+                  mapView.setRegion(fitRegion, animated: true)
             }
         }
         
