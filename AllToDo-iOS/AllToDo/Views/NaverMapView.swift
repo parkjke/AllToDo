@@ -31,8 +31,8 @@ struct NaverMapView: UIViewRepresentable {
         view.mapView.touchDelegate = context.coordinator
         view.mapView.addCameraDelegate(delegate: context.coordinator)
         
-        // [FIX] Initial Camera Calculation (User Location > Pins Centroid > Seoul)
-        var initialTarget = NMGLatLng(lat: 37.5665, lng: 126.9780) // Default Seoul
+        // [FIX] Initial Camera Calculation (User Location > Pins Centroid > Gwanghwamun)
+        var initialTarget = NMGLatLng(lat: 37.5759, lng: 126.9768) // Default Gwanghwamun
         
         if let userLoc = locationManager.currentLocation {
             initialTarget = NMGLatLng(lat: userLoc.coordinate.latitude, lng: userLoc.coordinate.longitude)
@@ -199,20 +199,22 @@ struct NaverMapView: UIViewRepresentable {
             
             for item in currentItems {
                 if let loc = item.location {
-                     if let u = parent.locationManager.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: loc.latitude, longitude: loc.longitude)) {
+                     // 500km Filter removed
+                     /*if let u = parent.locationManager.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: loc.latitude, longitude: loc.longitude)) {
                          farItemsCount += 1
                          continue
-                     }
+                     }*/
                     allItems.append(.todo(item))
                     rawPoints.append(Int32(loc.latitude * 1_000_000))
                     rawPoints.append(Int32(loc.longitude * 1_000_000))
                 }
             }
             for log in currentLogs {
-                 if let u = parent.locationManager.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: log.latitude, longitude: log.longitude)) {
-                     farItemsCount += 1
-                     continue
-                 }
+                  // 500km Filter removed
+                  /*if let u = parent.locationManager.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: log.latitude, longitude: log.longitude)) {
+                      farItemsCount += 1
+                      continue
+                  }*/
                 allItems.append(.history(log))
                 rawPoints.append(Int32(log.latitude * 1_000_000))
                 rawPoints.append(Int32(log.longitude * 1_000_000))
@@ -393,9 +395,10 @@ struct NaverMapView: UIViewRepresentable {
             
             // Animate In
             DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.launchAnimationDelay) {
-                let end = NMFCameraUpdate(scrollTo: NMGLatLng(lat: loc.coordinate.latitude, lng: loc.coordinate.longitude), zoomTo: 18)
+                // Action 2: Zoom to 15 (User Request), Duration 0.5s
+                let end = NMFCameraUpdate(scrollTo: NMGLatLng(lat: loc.coordinate.latitude, lng: loc.coordinate.longitude), zoomTo: 15)
                 end.animation = .fly
-                end.animationDuration = 2.0
+                end.animationDuration = 0.5
                 map.moveCamera(end)
                 
                 OptimizationLogger.shared.log(type: .launchStep, value: ">>> Current Location: \(loc.coordinate)")

@@ -27,7 +27,8 @@ struct GoogleMapView: UIViewRepresentable {
         options.frame = .zero
         
         // [FIX] Initial Camera Calculation (User Location > Pins Centroid > Seoul)
-        var initialTarget = CLLocationCoordinate2D(latitude: 37.5665, longitude: 126.9780) // Default Seoul
+        // [FIX] Initial Camera Calculation (User Location > Pins Centroid > Gwanghwamun)
+        var initialTarget = CLLocationCoordinate2D(latitude: 37.5759, longitude: 126.9768) // Default Gwanghwamun
         
         if let userLoc = locationManager.currentLocation {
             initialTarget = userLoc.coordinate
@@ -257,10 +258,11 @@ struct GoogleMapView: UIViewRepresentable {
             for item in currentItems {
                 if let loc = item.location {
                      // 500km Filter
-                     if let u = parent.locationManager.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: loc.latitude, longitude: loc.longitude)) {
+                     // 500km Filter removed as per user request to see foreign pins
+                     /*if let u = parent.locationManager.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: loc.latitude, longitude: loc.longitude)) {
                          farItemsCount += 1
                          continue
-                     }
+                     }*/
                     allItems.append(.todo(item))
                     rawPoints.append(Int32(loc.latitude * 1_000_000))
                     rawPoints.append(Int32(loc.longitude * 1_000_000))
@@ -268,10 +270,11 @@ struct GoogleMapView: UIViewRepresentable {
             }
             for log in currentLogs {
                  // 500km Filter
-                 if let u = parent.locationManager.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: log.latitude, longitude: log.longitude)) {
+                 // 500km Filter removed
+                 /*if let u = parent.locationManager.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: log.latitude, longitude: log.longitude)) {
                      farItemsCount += 1
                      continue
-                 }
+                 }*/
                 allItems.append(.history(log))
                 rawPoints.append(Int32(log.latitude * 1_000_000))
                 rawPoints.append(Int32(log.longitude * 1_000_000))
@@ -467,9 +470,12 @@ struct GoogleMapView: UIViewRepresentable {
              // Wait
              let delay = AppConfig.launchAnimationDelay
               DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                  // Action 2: Zoom to 18 (User Request 9)
-                  let midCam = GMSCameraUpdate.setTarget(userLoc.coordinate, zoom: 18)
+                  // Action 2: Zoom to 15 (User Request)
+                  let midCam = GMSCameraUpdate.setTarget(userLoc.coordinate, zoom: 15)
+                  CATransaction.begin()
+                  CATransaction.setValue(0.5, forKey: kCATransactionAnimationDuration)
                   mapView.animate(with: midCam)
+                  CATransaction.commit()
                   self.isAnimating = false
                   
                   OptimizationLogger.shared.log(type: .launchStep, value: ">>> Current Location: \(userLoc.coordinate)")

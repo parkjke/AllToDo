@@ -34,6 +34,7 @@ struct ContentView: View {
     // [NEW] Far Item Message State
     @State private var farItemMessage: String?
     @State private var farMessageTask: Task<Void, Never>?
+    @State private var hasShownFarItemToast = false
     
     // MARK: - Logging Methods
     private func logTodoListStats() {
@@ -119,14 +120,15 @@ struct ContentView: View {
                     onDeleteLog: deleteLog,
                     onSelectLog: { selectedLogForPath = $0 },
                     onFarItemsDetected: { count in
+                        guard !hasShownFarItemToast, count > 0 else { return }
+                        hasShownFarItemToast = true
+                        
                         let text = "\(count)개의 할 일이 멀리 있습니다."
-                        if farItemMessage != text {
-                            farItemMessage = text
-                            farMessageTask?.cancel()
-                            farMessageTask = Task {
-                                try? await Task.sleep(nanoseconds: 5 * 1_000_000_000)
-                                farItemMessage = nil
-                            }
+                        farItemMessage = text
+                        farMessageTask?.cancel()
+                        farMessageTask = Task {
+                            try? await Task.sleep(nanoseconds: 3 * 1_000_000_000)
+                            farItemMessage = nil
                         }
                     }
                 )
@@ -141,14 +143,15 @@ struct ContentView: View {
                     selectedClusterItems: $selectedClusterItems, // [Fixed] Added missing arg
                     onLongTap: handleLongTap,
                     onFarItemsDetected: { count in
+                        guard !hasShownFarItemToast, count > 0 else { return }
+                        hasShownFarItemToast = true
+                        
                         let text = "\(count)개의 할 일이 멀리 있습니다."
-                        if farItemMessage != text {
-                            farItemMessage = text
-                            farMessageTask?.cancel()
-                            farMessageTask = Task {
-                                try? await Task.sleep(nanoseconds: 5 * 1_000_000_000)
-                                farItemMessage = nil
-                            }
+                        farItemMessage = text
+                        farMessageTask?.cancel()
+                        farMessageTask = Task {
+                            try? await Task.sleep(nanoseconds: 3 * 1_000_000_000)
+                            farItemMessage = nil
                         }
                     }
                 )
@@ -167,14 +170,15 @@ struct ContentView: View {
                     onDeleteLog: deleteLog,
                     onSelectLog: { selectedLogForPath = $0 },
                     onFarItemsDetected: { count in
+                        guard !hasShownFarItemToast, count > 0 else { return }
+                        hasShownFarItemToast = true
+                        
                         let text = "\(count)개의 할 일이 멀리 있습니다."
-                        if farItemMessage != text {
-                            farItemMessage = text
-                            farMessageTask?.cancel()
-                            farMessageTask = Task {
-                                try? await Task.sleep(nanoseconds: 5 * 1_000_000_000)
-                                farItemMessage = nil
-                            }
+                        farItemMessage = text
+                        farMessageTask?.cancel()
+                        farMessageTask = Task {
+                            try? await Task.sleep(nanoseconds: 3 * 1_000_000_000)
+                            farItemMessage = nil
                         }
                     }
                 )
@@ -194,14 +198,15 @@ struct ContentView: View {
                     onDeleteLog: deleteLog,
                     onSelectLog: { selectedLogForPath = $0 },
                     onFarItemsDetected: { count in
+                        guard !hasShownFarItemToast, count > 0 else { return }
+                        hasShownFarItemToast = true
+                        
                         let text = "\(count)개의 할 일이 멀리 있습니다."
-                        if farItemMessage != text {
-                            farItemMessage = text
-                            farMessageTask?.cancel()
-                            farMessageTask = Task {
-                                try? await Task.sleep(nanoseconds: 5 * 1_000_000_000)
-                                farItemMessage = nil
-                            }
+                        farItemMessage = text
+                        farMessageTask?.cancel()
+                        farMessageTask = Task {
+                            try? await Task.sleep(nanoseconds: 3 * 1_000_000_000)
+                            farItemMessage = nil
                         }
                     }
                 )

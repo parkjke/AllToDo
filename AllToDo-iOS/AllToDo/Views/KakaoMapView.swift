@@ -131,8 +131,8 @@ struct KakaoMapView: UIViewRepresentable {
         
         // MARK: - MapControllerDelegate
         func addViews() {
-            // [FIX] Initial Position (User Location > Pins Centroid > Seoul)
-            var defaultPos = MapPoint(longitude: 126.978365, latitude: 37.566691) // Default Seoul
+            // [FIX] Initial Position (User Location > Pins Centroid > Gwanghwamun)
+            var defaultPos = MapPoint(longitude: 126.9768, latitude: 37.5759) // Default Gwanghwamun
             
             if let loc = locationManager?.currentLocation {
                 defaultPos = MapPoint(longitude: loc.coordinate.longitude, latitude: loc.coordinate.latitude)
@@ -185,8 +185,9 @@ struct KakaoMapView: UIViewRepresentable {
                     if let loc = self.locationManager?.currentLocation {
                          OptimizationLogger.shared.log(type: .launchStep, value: ">>> Current Location: \(loc.coordinate)")
                          let pos = MapPoint(longitude: loc.coordinate.longitude, latitude: loc.coordinate.latitude)
-                         let update = CameraUpdate.make(target: pos, zoomLevel: 18, rotation: 0, tilt: 0, mapView: mapView)
-                         let options = CameraAnimationOptions(autoElevation: true, consecutive: false, durationInMillis: 1500)
+                         // Action 2: Zoom to 15 (User Request), Duration 500ms
+                         let update = CameraUpdate.make(target: pos, zoomLevel: 15, rotation: 0, tilt: 0, mapView: mapView)
+                         let options = CameraAnimationOptions(autoElevation: true, consecutive: false, durationInMillis: 500)
                          mapView.animateCamera(cameraUpdate: update, options: options)
                     }
                 }
@@ -239,20 +240,18 @@ struct KakaoMapView: UIViewRepresentable {
             
             for item in currentItems {
                 if let loc = item.location {
-                     if let u = locationManager?.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: loc.latitude, longitude: loc.longitude)) {
+                     // 500km Filter removed
+                     /*if let u = locationManager?.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: loc.latitude, longitude: loc.longitude)) {
                          farItemsCount += 1
                          continue
-                     }
+                     }*/
                     allItems.append(.todo(item))
                     rawPoints.append(Int32(loc.latitude * 1_000_000))
                     rawPoints.append(Int32(loc.longitude * 1_000_000))
                 }
             }
             for log in currentLogs {
-                 if let u = locationManager?.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: log.latitude, longitude: log.longitude)) {
-                     farItemsCount += 1
-                     continue
-                 }
+                // 500km Filter removed
                 allItems.append(.history(log))
                 rawPoints.append(Int32(log.latitude * 1_000_000))
                 rawPoints.append(Int32(log.longitude * 1_000_000))
@@ -439,7 +438,7 @@ struct KakaoMapView: UIViewRepresentable {
                 if let loc = locationManager?.currentLocation {
                      let pos = MapPoint(longitude: loc.coordinate.longitude, latitude: loc.coordinate.latitude)
                      let update = CameraUpdate.make(target: pos, zoomLevel: 15, rotation: 0, tilt: 0, mapView: mapView)
-                     let options = CameraAnimationOptions(autoElevation: true, consecutive: false, durationInMillis: 1500)
+                     let options = CameraAnimationOptions(autoElevation: true, consecutive: false, durationInMillis: 500)
                      mapView.animateCamera(cameraUpdate: update, options: options)
                 }
             case .none: break

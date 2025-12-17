@@ -25,8 +25,8 @@ struct AppleMapView: UIViewRepresentable {
         mapView.isRotateEnabled = true
         mapView.isPitchEnabled = false
         
-        // [FIX] Initial Region Calculation (User Location > Pins Centroid > Seoul)
-        var initialCenter = CLLocationCoordinate2D(latitude: 37.5665, longitude: 126.9780) // Default Seoul
+        // [FIX] Initial Region Calculation (User Location > Pins Centroid > Gwanghwamun)
+        var initialCenter = CLLocationCoordinate2D(latitude: 37.5759, longitude: 126.9768) // Default Gwanghwamun
         
         if let userLoc = locationManager.currentLocation {
             initialCenter = userLoc.coordinate
@@ -271,22 +271,22 @@ struct AppleMapView: UIViewRepresentable {
             
             for item in currentItems {
                 if let loc = item.location {
-                    // [NEW] 500km Filter
-                    if let userLoc = userLocation, SmartLocationManager.shared.isFar(userLoc, CLLocation(latitude: loc.latitude, longitude: loc.longitude)) {
+                    // [NEW] 500km Filter removed
+                    /*if let userLoc = userLocation, SmartLocationManager.shared.isFar(userLoc, CLLocation(latitude: loc.latitude, longitude: loc.longitude)) {
                         farItemsCount += 1
                         continue
-                    }
+                    }*/
                     allItems.append(.todo(item))
                     rawPoints.append(Int32(loc.latitude * 1_000_000))
                     rawPoints.append(Int32(loc.longitude * 1_000_000))
                 }
             }
             for log in currentLogs {
-               // [NEW] 500km Filter
-               if let userLoc = userLocation, SmartLocationManager.shared.isFar(userLoc, CLLocation(latitude: log.latitude, longitude: log.longitude)) {
+               // [NEW] 500km Filter removed
+               /*if let userLoc = userLocation, SmartLocationManager.shared.isFar(userLoc, CLLocation(latitude: log.latitude, longitude: log.longitude)) {
                    farItemsCount += 1
                    continue
-               }
+               }*/
                 allItems.append(.history(log))
                 rawPoints.append(Int32(log.latitude * 1_000_000))
                 rawPoints.append(Int32(log.longitude * 1_000_000))
@@ -461,14 +461,14 @@ struct AppleMapView: UIViewRepresentable {
             
             for item in parent.todoItems { 
                 if let l = item.location { 
-                    if let u = userLoc, SmartLocationManager.shared.isFar(u, CLLocation(latitude: l.latitude, longitude: l.longitude)) { continue }
-                    points.append(CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)) 
-                } 
+                     // if let u = userLoc, SmartLocationManager.shared.isFar(u, CLLocation(latitude: l.latitude, longitude: l.longitude)) { continue } // Filter Removed
+                     points.append(CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)) 
+                 } 
             }
             for log in parent.userLogs { 
-                if let u = userLoc, SmartLocationManager.shared.isFar(u, CLLocation(latitude: log.latitude, longitude: log.longitude)) { continue }
-                points.append(CLLocationCoordinate2D(latitude: log.latitude, longitude: log.longitude)) 
-            }
+                 // if let u = userLoc, SmartLocationManager.shared.isFar(u, CLLocation(latitude: log.latitude, longitude: log.longitude)) { continue } // Filter Removed
+                 points.append(CLLocationCoordinate2D(latitude: log.latitude, longitude: log.longitude)) 
+             }
             
             // 2. Step 1: Fit Map to Local Points (Immediately)
             if !points.isEmpty {
@@ -517,12 +517,16 @@ struct AppleMapView: UIViewRepresentable {
                 // 3. Step 2: Wait 3s -> Zoom to Current Location
                 if let u = userLoc {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                        let zoom18Span = 0.0025 // Approx Zoom 18
+                        let zoom15Span = 0.01 // Approx Zoom 15
                         let finalRegion = MKCoordinateRegion(
                             center: u.coordinate,
-                            span: MKCoordinateSpan(latitudeDelta: zoom18Span, longitudeDelta: zoom18Span)
+                            span: MKCoordinateSpan(latitudeDelta: zoom15Span, longitudeDelta: zoom15Span)
                         )
-                        mapView.setRegion(finalRegion, animated: true)
+                        // Animate slowly (Apple Map defaults for region change are fixed, we use view uiview animation wrapper if needed, but MKMapView.animate is fixed)
+                        // Apple Maps 'animated: true' is usually ~0.3s. To be slower, we need UIView.animate.
+                        UIView.animate(withDuration: 0.5) {
+                            mapView.region = finalRegion
+                        }
                         OptimizationLogger.shared.logLaunchStep(step: "launch sequence", data: ["success": true])
                     }
                 }

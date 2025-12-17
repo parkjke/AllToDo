@@ -19,7 +19,10 @@ class OptimizationLogger {
         return documentsDirectory.appendingPathComponent(fileName)
     }
 
-    private init() {}
+    private init() {
+        // [1] Log App Start
+        self.log(type: .launchStep, value: ">>> App Started")
+    }
 
     func log(type: LogType, value: String) {
         guard let url = fileURL else { return }
@@ -36,26 +39,37 @@ class OptimizationLogger {
             "battery": "\(batteryLevel)%"
         ]
 
-        do {
-            let data = try JSONSerialization.data(withJSONObject: logEntry, options: [])
-            if let jsonString = String(data: data, encoding: .utf8) {
-                let line = jsonString + "\n"
-                
-                if FileManager.default.fileExists(atPath: url.path) {
-                    if let fileHandle = try? FileHandle(forWritingTo: url) {
-                        fileHandle.seekToEndOfFile()
-                        if let dataToWrite = line.data(using: .utf8) {
-                            fileHandle.write(dataToWrite)
+            do {
+                let data = try JSONSerialization.data(withJSONObject: logEntry, options: [])
+                if let jsonString = String(data: data, encoding: .utf8) {
+                    let line = jsonString + "\n"
+                    
+                    if FileManager.default.fileExists(atPath: url.path) {
+                        if let fileHandle = try? FileHandle(forWritingTo: url) {
+                            fileHandle.seekToEndOfFile()
+                            if let dataToWrite = line.data(using: .utf8) {
+                                fileHandle.write(dataToWrite)
+                            }
+                            fileHandle.closeFile()
                         }
-                        fileHandle.closeFile()
+                    } else {
+                        try line.write(to: url, atomically: true, encoding: .utf8)
                     }
-                } else {
-                    try line.write(to: url, atomically: true, encoding: .utf8)
+                    
+                    // [Refined] Console Output
+                    let formatter = DateFormatter()
+                    formatter.dateFormat = "HH:mm:ss"
+                    let timeString = formatter.string(from: Date())
+                    
+                    // If value already has tag, use it. Else format standard.
+                    if value.contains(">>>") {
+                         print("[\(timeString)] \(value)")
+                    } else {
+                         print("[\(timeString)] >>> \(type.rawValue): \(value)")
+                    }
                 }
-                print(">>> OptimizationLogger: \(jsonString)")
-            }
-        } catch {
-            print("OptimizationLogger Error: \(error)")
+            } catch {
+                print("OptimizationLogger Error: \(error)")
             }
     }
     
