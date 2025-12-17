@@ -394,7 +394,10 @@ struct NaverMapView: UIViewRepresentable {
                 
                 marker.mapView = mapView
                 markers.append(marker)
+                markers.append(marker)
             }
+        }
+        
         // [NEW] Raw Renderer for Naver
         func renderRawItems(mapView: NMFMapView, allItems: [UnifiedMapItem]) {
             markers.forEach { $0.mapView = nil }; markers = []
@@ -423,14 +426,18 @@ struct NaverMapView: UIViewRepresentable {
             firstRender = false
             
             // Refresh
-            refreshWasmClusters()
+            refreshWasmClusters() // Will trigger full cluster after animation or immediately if needed, but here we just moved camera
             
-            // Start High
+            // Start High (Zoom 5 is fine for "Fit Bounds" equivalent if we wanted, but we want 15 per fast path request? 
+            // Wait, previous request was: 1. Init Zoom 15 (Immediate). 2. Fit Bounds (Zoom Out). 3. Wait 3s -> Zoom 15 (Current)
+            // The Fast Path logic handles the visual pins. The Camera logic should follow the sequence.
+            
+            // Step 1: Fit Bounds / Zoom Out (Using Zoom 5 as placeholder for fit bounds of Korea/World)
             let start = NMFCameraUpdate(scrollTo: NMGLatLng(lat: loc.coordinate.latitude, lng: loc.coordinate.longitude), zoomTo: 5)
             start.animation = .none
             map.moveCamera(start)
             
-            // Animate In
+            // Animate In after delay
             DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.launchAnimationDelay) {
                 // Action 2: Zoom to 15 (User Request), Duration 0.5s
                 let end = NMFCameraUpdate(scrollTo: NMGLatLng(lat: loc.coordinate.latitude, lng: loc.coordinate.longitude), zoomTo: 15)
