@@ -175,8 +175,8 @@ struct KakaoMapView: UIViewRepresentable {
                 // Initial Cluster (Removed to avoid WASM Error at launch)
                 // refreshWasmClusters() 
                 
-                // Launch Animation (Wait 4s -> Zoom User)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) { [weak self] in
+                // Launch Animation (Wait 3s -> Zoom User)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
                     guard let self = self else { return }
                     
                     // Trigger Clustering HERE (When moving to current location)

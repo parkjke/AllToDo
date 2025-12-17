@@ -540,9 +540,9 @@ struct GoogleMapView: UIViewRepresentable {
              let update = GMSCameraUpdate.fit(bounds, withPadding: 50.0)
              mapView.animate(with: update)
 
-             // Wait 4s -> Zoom to 15
-              DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
-                  // Action 2: Zoom to 15 (User Request)
+                // Launch Animation (Wait 3s -> Zoom User)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
+                    guard let self = self else { return }
                   let midCam = GMSCameraUpdate.setTarget(userLoc.coordinate, zoom: 15)
                   CATransaction.begin()
                   CATransaction.setValue(1.0, forKey: kCATransactionAnimationDuration) // Slower 1.0s

@@ -466,9 +466,9 @@ struct NaverMapView: UIViewRepresentable {
             cameraUpdate.animationDuration = 1.0 // Move smoothly to fit bounds
             map.moveCamera(cameraUpdate)
             
-            // 3. Wait Longer (4.0s) -> Zoom In
+            // 3. Wait Longer (3.0s) -> Zoom In
             // Delay increased to ensure user sees the pins for "at least 3 seconds" after animation finishes
-            DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
                 // Action 2: Zoom to 15 (User Request), Duration 1.0s for smoother feel
                 let end = NMFCameraUpdate(scrollTo: NMGLatLng(lat: loc.coordinate.latitude, lng: loc.coordinate.longitude), zoomTo: 15)
                 end.animation = .fly
