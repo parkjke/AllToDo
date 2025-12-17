@@ -252,18 +252,22 @@ struct KakaoMapView: UIViewRepresentable {
             
             for item in currentItems {
                 if let loc = item.location {
-                     // 500km Filter removed
-                     /*if let u = locationManager?.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: loc.latitude, longitude: loc.longitude)) {
+                     // 500km Filter Restored
+                     if let u = locationManager?.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: loc.latitude, longitude: loc.longitude)) {
                          farItemsCount += 1
                          continue
-                     }*/
+                     }
                     allItems.append(.todo(item))
                     rawPoints.append(Int32(loc.latitude * 1_000_000))
                     rawPoints.append(Int32(loc.longitude * 1_000_000))
                 }
             }
             for log in currentLogs {
-                // 500km Filter removed
+                // 500km Filter Restored
+                if let u = locationManager?.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: log.latitude, longitude: log.longitude)) {
+                    farItemsCount += 1
+                    continue
+                }
                 allItems.append(.history(log))
                 rawPoints.append(Int32(log.latitude * 1_000_000))
                 rawPoints.append(Int32(log.longitude * 1_000_000))

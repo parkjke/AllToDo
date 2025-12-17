@@ -247,9 +247,32 @@ struct GoogleMapView: UIViewRepresentable {
                  OptimizationLogger.shared.log(type: .launchStep, value: ">>> Fast Path (Google): Rendering raw")
                  // Prepare Raw
                  var allItems: [UnifiedMapItem] = []
-                 for item in parent.todoItems { if item.location != nil { allItems.append(.todo(item)) } }
-                 for log in parent.userLogs { allItems.append(.history(log)) }
+                 var farCount = 0
+                 
+                 for item in parent.todoItems {
+                     if let loc = item.location {
+                         // 500km
+                         if let u = parent.locationManager.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: loc.latitude, longitude: loc.longitude)) {
+                             farCount += 1
+                             continue
+                         }
+                         allItems.append(.todo(item))
+                     }
+                 }
+                 for log in parent.userLogs {
+                     // 500km
+                      if let u = parent.locationManager.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: log.latitude, longitude: log.longitude)) {
+                          farCount += 1
+                          continue
+                      }
+                     allItems.append(.history(log))
+                 }
                  if let u = parent.locationManager.currentLocation { allItems.append(.userLocation) }
+                 
+                 // Notify
+                 if farCount > 0 {
+                     DispatchQueue.main.async { self.parent.onFarItemsDetected?(farCount) }
+                 }
                  
                  DispatchQueue.main.async {
                      self.renderRawItems(mapView: mapView, allItems: allItems)
@@ -272,28 +295,28 @@ struct GoogleMapView: UIViewRepresentable {
             
             var farItemsCount = 0
             
+            let userLocation = parent.locationManager.currentLocation // Define userLocation here
+            
             OptimizationLogger.shared.log(type: .launchStep, value: ">>> Pins Loaded: \(currentItems.count) Items, \(currentLogs.count) Logs")
             
             for item in currentItems {
                 if let loc = item.location {
-                     // 500km Filter
-                     // 500km Filter removed as per user request to see foreign pins
-                     /*if let u = parent.locationManager.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: loc.latitude, longitude: loc.longitude)) {
+                     // 500km Filter Restored
+                     if let u = userLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: loc.latitude, longitude: loc.longitude)) {
                          farItemsCount += 1
                          continue
-                     }*/
+                     }
                     allItems.append(.todo(item))
                     rawPoints.append(Int32(loc.latitude * 1_000_000))
                     rawPoints.append(Int32(loc.longitude * 1_000_000))
                 }
             }
             for log in currentLogs {
-                 // 500km Filter
-                 // 500km Filter removed
-                 /*if let u = parent.locationManager.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: log.latitude, longitude: log.longitude)) {
-                     farItemsCount += 1
-                     continue
-                 }*/
+                  // 500km Filter Restored
+                  if let u = userLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: log.latitude, longitude: log.longitude)) {
+                      farItemsCount += 1
+                      continue
+                  }
                 allItems.append(.history(log))
                 rawPoints.append(Int32(log.latitude * 1_000_000))
                 rawPoints.append(Int32(log.longitude * 1_000_000))

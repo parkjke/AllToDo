@@ -185,9 +185,32 @@ struct NaverMapView: UIViewRepresentable {
             if firstRender && total < 50 {
                  OptimizationLogger.shared.log(type: .launchStep, value: ">>> Fast Path (Naver): Raw Render")
                  var allItems: [UnifiedMapItem] = []
-                 for item in parent.todoItems { if item.location != nil { allItems.append(.todo(item)) } }
-                 for log in parent.userLogs { allItems.append(.history(log)) }
+                 var farCount = 0
+                 
+                 for item in parent.todoItems {
+                     if let loc = item.location {
+                         // 500km Filter
+                         if let u = parent.locationManager.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: loc.latitude, longitude: loc.longitude)) {
+                             farCount += 1
+                             continue
+                         }
+                         allItems.append(.todo(item))
+                     }
+                 }
+                 for log in parent.userLogs {
+                     // 500km Filter
+                      if let u = parent.locationManager.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: log.latitude, longitude: log.longitude)) {
+                          farCount += 1
+                          continue
+                      }
+                     allItems.append(.history(log))
+                 }
                  if let u = parent.locationManager.currentLocation { allItems.append(.userLocation) }
+                 
+                 // Notify
+                 if farCount > 0 {
+                     DispatchQueue.main.async { self.parent.onFarItemsDetected?(farCount) }
+                 }
                  
                  DispatchQueue.main.async {
                      self.renderRawItems(mapView: map, allItems: allItems)
@@ -215,22 +238,22 @@ struct NaverMapView: UIViewRepresentable {
             
             for item in currentItems {
                 if let loc = item.location {
-                     // 500km Filter removed
-                     /*if let u = parent.locationManager.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: loc.latitude, longitude: loc.longitude)) {
+                     // 500km Filter Restored
+                     if let u = parent.locationManager.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: loc.latitude, longitude: loc.longitude)) {
                          farItemsCount += 1
                          continue
-                     }*/
+                     }
                     allItems.append(.todo(item))
                     rawPoints.append(Int32(loc.latitude * 1_000_000))
                     rawPoints.append(Int32(loc.longitude * 1_000_000))
                 }
             }
             for log in currentLogs {
-                  // 500km Filter removed
-                  /*if let u = parent.locationManager.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: log.latitude, longitude: log.longitude)) {
+                  // 500km Filter Restored
+                  if let u = parent.locationManager.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: log.latitude, longitude: log.longitude)) {
                       farItemsCount += 1
                       continue
-                  }*/
+                  }
                 allItems.append(.history(log))
                 rawPoints.append(Int32(log.latitude * 1_000_000))
                 rawPoints.append(Int32(log.longitude * 1_000_000))
