@@ -635,14 +635,19 @@ struct ContentView: View {
                 // [FIX] Conditional Relaunch (Logic from Step 966)
                 if let last = lastBackgroundDate {
                     let diff = Date().timeIntervalSince(last)
-                    let threshold = AppConfig.backgroundReentryThreshold
+                    // let threshold = AppConfig.backgroundReentryThreshold // Use Config
+                    let threshold: TimeInterval = 5.0 // [FIX] Force 5.0s per user request
                     
                     // User Request (Step 1046): 
                     // < 5s (Short): Keep State.
                     // > 5s (Long): Relaunch Animation.
                     if diff > threshold {
                         print("DEBUG: Background time \(diff)s > \(threshold)s. Triggering Launch Sequence.")
-                        mapAction = .launchSequence
+                        // [FIX] Pulse action to ensure change is detected if already in sequence
+                        mapAction = .none
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            self.mapAction = .launchSequence
+                        }
                     } else {
                         print("DEBUG: Background time \(diff)s <= \(threshold)s. Maintaining State.")
                     }
