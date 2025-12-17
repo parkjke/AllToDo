@@ -463,8 +463,20 @@ struct NaverMapView: UIViewRepresentable {
                                          northEast: NMGLatLng(lat: loc.coordinate.latitude, lng: loc.coordinate.longitude))
             
             // Expand to include visible items
-            for item in parent.todoItems { if let l = item.location { bounds = bounds.expand(toPoint: NMGLatLng(lat: l.latitude, lng: l.longitude)) } }
-            for log in parent.userLogs { bounds = bounds.expand(toPoint: NMGLatLng(lat: log.latitude, lng: log.longitude)) }
+            // Expand to include visible items (Filter 500km)
+            let uLat = Int(loc.coordinate.latitude * 100_000)
+            let uLon = Int(loc.coordinate.longitude * 100_000)
+            
+            for item in parent.todoItems { 
+                if let l = item.location {
+                     if SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: l.latInt, lon2: l.lonInt) { continue }
+                    bounds = bounds.expand(toPoint: NMGLatLng(lat: l.latitude, lng: l.longitude)) 
+                } 
+            }
+            for log in parent.userLogs {
+                 if SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: log.latInt, lon2: log.lonInt) { continue }
+                bounds = bounds.expand(toPoint: NMGLatLng(lat: log.latitude, lng: log.longitude)) 
+            }
             
             // Apply Fit Bounds with Padding
             let cameraUpdate = NMFCameraUpdate(fit: bounds, paddingInsets: UIEdgeInsets(top: 100, left: 50, bottom: 100, right: 50))

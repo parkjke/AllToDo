@@ -535,9 +535,21 @@ struct GoogleMapView: UIViewRepresentable {
             refreshWasmClusters(mapView: mapView)
             
              // 3. Fit Bounds (Dynamic)
+             // 3. Fit Bounds (Dynamically Filtered)
              var bounds = GMSCoordinateBounds(coordinate: userLoc.coordinate, coordinate: userLoc.coordinate)
-             for item in parent.todoItems { if let l = item.location { bounds = bounds.includingCoordinate(CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)) } }
-             for log in parent.userLogs { bounds = bounds.includingCoordinate(CLLocationCoordinate2D(latitude: log.latitude, longitude: log.longitude)) }
+             let uLat = Int(userLoc.coordinate.latitude * 100_000)
+             let uLon = Int(userLoc.coordinate.longitude * 100_000)
+             
+             for item in parent.todoItems { 
+                 if let l = item.location {
+                     if SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: l.latInt, lon2: l.lonInt) { continue }
+                     bounds = bounds.includingCoordinate(CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)) 
+                 } 
+             }
+             for log in parent.userLogs {
+                 if SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: log.latInt, lon2: log.lonInt) { continue }
+                 bounds = bounds.includingCoordinate(CLLocationCoordinate2D(latitude: log.latitude, longitude: log.longitude)) 
+             }
             
              // Apply Fit with Padding
              let update = GMSCameraUpdate.fit(bounds, withPadding: 50.0)

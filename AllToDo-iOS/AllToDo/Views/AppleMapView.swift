@@ -37,8 +37,22 @@ struct AppleMapView: UIViewRepresentable {
             var maxLon = userLoc.coordinate.longitude
             var hasPoints = true // User location is always a point
             
-            for item in todoItems { if let l = item.location { minLat = min(minLat, l.latitude); maxLat = max(maxLat, l.latitude); minLon = min(minLon, l.longitude); maxLon = max(maxLon, l.longitude) } }
-            for log in userLogs { minLat = min(minLat, log.latitude); maxLat = max(maxLat, log.latitude); minLon = min(minLon, log.longitude); maxLon = max(maxLon, log.longitude) }
+            // [FIX] Apply 500km Filter to Bounds Calculation (Using Int Logic)
+            let uLat = Int(userLoc.coordinate.latitude * 100_000)
+            let uLon = Int(userLoc.coordinate.longitude * 100_000)
+            
+            for item in todoItems { 
+                if let l = item.location {
+                    // Filter Check (Int Ops)
+                    if SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: l.latInt, lon2: l.lonInt) { continue }
+                    minLat = min(minLat, l.latitude); maxLat = max(maxLat, l.latitude); minLon = min(minLon, l.longitude); maxLon = max(maxLon, l.longitude) 
+                } 
+            }
+            for log in userLogs { 
+                // Filter Check (Int Ops)
+                if SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: log.latInt, lon2: log.lonInt) { continue }
+                minLat = min(minLat, log.latitude); maxLat = max(maxLat, log.latitude); minLon = min(minLon, log.longitude); maxLon = max(maxLon, log.longitude) 
+            }
             
             if hasPoints {
                 let center = CLLocationCoordinate2D(latitude: (minLat + maxLat) / 2, longitude: (minLon + maxLon) / 2)
