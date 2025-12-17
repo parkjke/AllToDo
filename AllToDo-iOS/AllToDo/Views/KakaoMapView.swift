@@ -23,6 +23,7 @@ struct KakaoMapView: UIViewRepresentable {
     @Binding var selectedItem: ToDoItem?
     @Binding var selectedClusterItems: [UnifiedMapItem]?
     var onLongTap: ((CLLocationCoordinate2D) -> Void)?
+    var onFarItemsDetected: ((Int) -> Void)? // [NEW] Callback
     
     func makeUIView(context: Context) -> KMViewContainer {
         let view = KMViewContainer()
@@ -34,6 +35,7 @@ struct KakaoMapView: UIViewRepresentable {
         context.coordinator.selectedItemBinding = $selectedItem
         context.coordinator.selectedClusterBinding = $selectedClusterItems
         context.coordinator.onLongTap = onLongTap
+        context.coordinator.onFarItemsDetected = onFarItemsDetected
         
         return view
     }
@@ -43,6 +45,7 @@ struct KakaoMapView: UIViewRepresentable {
         context.coordinator.selectedItemBinding = $selectedItem
         context.coordinator.selectedClusterBinding = $selectedClusterItems
         context.coordinator.onLongTap = onLongTap
+        context.coordinator.onFarItemsDetected = onFarItemsDetected
         
         // 2. Data Update & Refresh (Check Diff to avoid redundant WASM calls)
         let itemsChanged = todoItems.count != context.coordinator.currentItems.count 
@@ -85,6 +88,7 @@ struct KakaoMapView: UIViewRepresentable {
         var selectedItemBinding: Binding<ToDoItem?>?
         var selectedClusterBinding: Binding<[UnifiedMapItem]?>?
         var onLongTap: ((CLLocationCoordinate2D) -> Void)?
+        var onFarItemsDetected: ((Int) -> Void)?
         
         var currentItems: [ToDoItem] = []
         var currentLogs: [UserLog] = []
@@ -162,6 +166,7 @@ struct KakaoMapView: UIViewRepresentable {
         
         func addViewSucceeded(_ viewName: String, viewInfoName: String) {
             print("KakaoMap: View Added")
+            OptimizationLogger.shared.log(type: .launchStep, value: ">>> Map Ready")
             controller?.activateEngine() // Ensure Active
             
             if let mapView = controller?.getView("mapview") as? KakaoMap {
@@ -178,8 +183,9 @@ struct KakaoMapView: UIViewRepresentable {
                     self.refreshWasmClusters()
                     
                     if let loc = self.locationManager?.currentLocation {
+                         OptimizationLogger.shared.log(type: .launchStep, value: ">>> Current Location: \(loc.coordinate)")
                          let pos = MapPoint(longitude: loc.coordinate.longitude, latitude: loc.coordinate.latitude)
-                         let update = CameraUpdate.make(target: pos, zoomLevel: 15, rotation: 0, tilt: 0, mapView: mapView)
+                         let update = CameraUpdate.make(target: pos, zoomLevel: 18, rotation: 0, tilt: 0, mapView: mapView)
                          let options = CameraAnimationOptions(autoElevation: true, consecutive: false, durationInMillis: 1500)
                          mapView.animateCamera(cameraUpdate: update, options: options)
                     }
@@ -228,17 +234,34 @@ struct KakaoMapView: UIViewRepresentable {
             var allItems: [UnifiedMapItem] = []
             var rawPoints: [Int32] = []
             
+            var farItemsCount = 0
+            OptimizationLogger.shared.log(type: .launchStep, value: ">>> Pins Loaded: \(currentItems.count) Items, \(currentLogs.count) Logs")
+            
             for item in currentItems {
                 if let loc = item.location {
+                     if let u = locationManager?.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: loc.latitude, longitude: loc.longitude)) {
+                         farItemsCount += 1
+                         continue
+                     }
                     allItems.append(.todo(item))
                     rawPoints.append(Int32(loc.latitude * 1_000_000))
                     rawPoints.append(Int32(loc.longitude * 1_000_000))
                 }
             }
             for log in currentLogs {
+                 if let u = locationManager?.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: log.latitude, longitude: log.longitude)) {
+                     farItemsCount += 1
+                     continue
+                 }
                 allItems.append(.history(log))
                 rawPoints.append(Int32(log.latitude * 1_000_000))
                 rawPoints.append(Int32(log.longitude * 1_000_000))
+            }
+            
+            if farItemsCount > 0 {
+                DispatchQueue.main.async {
+                    self.onFarItemsDetected?(farItemsCount)
+                }
             }
             // [FIX] Add User Location
             if let userLoc = locationManager?.currentLocation {
@@ -404,8 +427,9 @@ struct KakaoMapView: UIViewRepresentable {
                 mapView.moveCamera(CameraUpdate.make(zoomLevel: mapView.zoomLevel - 1, mapView: mapView))
             case .currentLocation:
                 if let loc = locationManager?.currentLocation {
+                    OptimizationLogger.shared.log(type: .locationResume, value: ">>> Current Location Button Pressed: \(loc.coordinate)")
                     let pos = MapPoint(longitude: loc.coordinate.longitude, latitude: loc.coordinate.latitude)
-                    mapView.moveCamera(CameraUpdate.make(target: pos, zoomLevel: 15, mapView: mapView))
+                    mapView.moveCamera(CameraUpdate.make(target: pos, zoomLevel: 18, mapView: mapView))
                 }
             case .rotateNorth:
                 mapView.moveCamera(CameraUpdate.make(rotation: 0, tilt: 0, mapView: mapView))

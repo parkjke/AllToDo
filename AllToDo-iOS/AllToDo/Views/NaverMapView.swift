@@ -17,6 +17,7 @@ struct NaverMapView: UIViewRepresentable {
     var onDelete: ((ToDoItem) -> Void)?
     var onDeleteLog: ((UserLog) -> Void)?
     var onSelectLog: ((UserLog) -> Void)?
+    var onFarItemsDetected: ((Int) -> Void)? // [NEW] Callback
 
     func makeUIView(context: Context) -> NMFNaverMapView {
         let view = NMFNaverMapView()
@@ -59,6 +60,8 @@ struct NaverMapView: UIViewRepresentable {
             }
         }
         
+        OptimizationLogger.shared.log(type: .launchStep, value: ">>> Map Ready")
+        
         let update = NMFCameraUpdate(scrollTo: initialTarget, zoomTo: 16)
         update.animation = .none
         view.mapView.moveCamera(update)
@@ -73,6 +76,7 @@ struct NaverMapView: UIViewRepresentable {
         // Sync Logic
         context.coordinator.parent = self
         context.coordinator.mapView = uiView.mapView
+        context.coordinator.onFarItemsDetected = onFarItemsDetected
         
         // 1. Handle Actions
         if action != .none {
@@ -101,6 +105,7 @@ struct NaverMapView: UIViewRepresentable {
         var parent: NaverMapView
         var mapView: NMFMapView?
         var firstRender = true
+        var onFarItemsDetected: ((Int) -> Void)?
         
         var markers: [NMFMarker] = []
         // var pathOverlay: NMFPath? // Disabled
@@ -126,7 +131,8 @@ struct NaverMapView: UIViewRepresentable {
                 map.moveCamera(update)
             case .currentLocation:
                 if let loc = parent.locationManager.currentLocation {
-                    let update = NMFCameraUpdate(scrollTo: NMGLatLng(lat: loc.coordinate.latitude, lng: loc.coordinate.longitude), zoomTo: 16)
+                    OptimizationLogger.shared.log(type: .locationResume, value: ">>> Current Location Button Pressed: \(loc.coordinate)")
+                    let update = NMFCameraUpdate(scrollTo: NMGLatLng(lat: loc.coordinate.latitude, lng: loc.coordinate.longitude), zoomTo: 18)
                     update.animation = .fly
                     update.animationDuration = 1.0
                     map.moveCamera(update)
@@ -188,17 +194,34 @@ struct NaverMapView: UIViewRepresentable {
             var allItems: [UnifiedMapItem] = []
             var rawPoints: [Int32] = []
             
+            var farItemsCount = 0
+            OptimizationLogger.shared.log(type: .launchStep, value: ">>> Pins Loaded: \(currentItems.count) Items, \(currentLogs.count) Logs")
+            
             for item in currentItems {
                 if let loc = item.location {
+                     if let u = parent.locationManager.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: loc.latitude, longitude: loc.longitude)) {
+                         farItemsCount += 1
+                         continue
+                     }
                     allItems.append(.todo(item))
                     rawPoints.append(Int32(loc.latitude * 1_000_000))
                     rawPoints.append(Int32(loc.longitude * 1_000_000))
                 }
             }
             for log in currentLogs {
+                 if let u = parent.locationManager.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: log.latitude, longitude: log.longitude)) {
+                     farItemsCount += 1
+                     continue
+                 }
                 allItems.append(.history(log))
                 rawPoints.append(Int32(log.latitude * 1_000_000))
                 rawPoints.append(Int32(log.longitude * 1_000_000))
+            }
+            
+            if farItemsCount > 0 {
+                DispatchQueue.main.async {
+                    self.onFarItemsDetected?(farItemsCount)
+                }
             }
             // [FIX] Include User Location in Clustering
             if let userLoc = userLocation {
@@ -370,10 +393,12 @@ struct NaverMapView: UIViewRepresentable {
             
             // Animate In
             DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.launchAnimationDelay) {
-                let end = NMFCameraUpdate(scrollTo: NMGLatLng(lat: loc.coordinate.latitude, lng: loc.coordinate.longitude), zoomTo: 16)
+                let end = NMFCameraUpdate(scrollTo: NMGLatLng(lat: loc.coordinate.latitude, lng: loc.coordinate.longitude), zoomTo: 18)
                 end.animation = .fly
                 end.animationDuration = 2.0
                 map.moveCamera(end)
+                
+                OptimizationLogger.shared.log(type: .launchStep, value: ">>> Current Location: \(loc.coordinate)")
             }
         }
         

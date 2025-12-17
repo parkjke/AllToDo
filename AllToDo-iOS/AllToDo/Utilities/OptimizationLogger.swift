@@ -52,7 +52,7 @@ class OptimizationLogger {
                 } else {
                     try line.write(to: url, atomically: true, encoding: .utf8)
                 }
-                print("OptimizationLogger: \(jsonString)")
+                print(">>> OptimizationLogger: \(jsonString)")
             }
         } catch {
             print("OptimizationLogger Error: \(error)")

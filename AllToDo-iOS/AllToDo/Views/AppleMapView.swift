@@ -62,6 +62,7 @@ struct AppleMapView: UIViewRepresentable {
         longPress.minimumPressDuration = 0.3 // Make it snappier (default is 0.5)
         mapView.addGestureRecognizer(longPress)
         
+        OptimizationLogger.shared.log(type: .launchStep, value: ">>> Map Ready")
         return mapView
     }
     
@@ -119,7 +120,8 @@ struct AppleMapView: UIViewRepresentable {
                 mapView.setRegion(region, animated: true)
             case .currentLocation:
                 if let loc = parent.locationManager.currentLocation {
-                    let region = MKCoordinateRegion(center: loc.coordinate, span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01))
+                    OptimizationLogger.shared.log(type: .locationResume, value: ">>> Current Location Button Pressed: \(loc.coordinate)")
+                    let region = MKCoordinateRegion(center: loc.coordinate, span: MKCoordinateSpan(latitudeDelta: 0.0025, longitudeDelta: 0.0025))
                     mapView.setRegion(region, animated: true)
                 } else {
                     parent.locationManager.requestPermission()
@@ -131,7 +133,25 @@ struct AppleMapView: UIViewRepresentable {
             case .none:
                 break
             case .zoomToFit:
-                mapView.showAnnotations(mapView.annotations, animated: true)
+                 // Custom Fit with Max Zoom Cap (Zoom 15 -> Span ~0.01)
+                 var zoomRect = MKMapRect.null
+                 for annotation in mapView.annotations {
+                     if annotation is MKUserLocation { continue }
+                     let point = MKMapPoint(annotation.coordinate)
+                     let rect = MKMapRect(x: point.x, y: point.y, width: 0.1, height: 0.1)
+                     zoomRect = zoomRect.union(rect)
+                 }
+                 if !zoomRect.isNull {
+                     // Add Padding
+                     let region = MKCoordinateRegion(zoomRect)
+                     // Ensure Span isn't too small (Zoom > 15)
+                     let minSpan = 0.01
+                     let latDelta = max(region.span.latitudeDelta * 1.3, minSpan)
+                     let lonDelta = max(region.span.longitudeDelta * 1.3, minSpan)
+                     
+                     let finalRegion = MKCoordinateRegion(center: region.center, span: MKCoordinateSpan(latitudeDelta: latDelta, longitudeDelta: lonDelta))
+                     mapView.setRegion(finalRegion, animated: true)
+                 }
             case .launchSequence:
                 // [NEW] Relaunch Animation
                 self.performLaunchAnimation(mapView: mapView, userLocation: parent.locationManager.currentLocation)
@@ -235,6 +255,11 @@ struct AppleMapView: UIViewRepresentable {
             let currentItems = self.parent.todoItems
             let currentLogs = self.parent.userLogs
             let userLocation = self.parent.locationManager.currentLocation
+            
+            OptimizationLogger.shared.log(type: .launchStep, value: ">>> Pins Loaded: \(currentItems.count) Items, \(currentLogs.count) Logs")
+            if let u = userLocation {
+                 OptimizationLogger.shared.log(type: .launchStep, value: ">>> Current Location: \(u.coordinate.latitude), \(u.coordinate.longitude)")
+            }
             
             // 1. Prepare Data
             var allItems: [UnifiedMapItem] = []

@@ -139,7 +139,18 @@ struct ContentView: View {
                     userLogs: filteredLogs, // [Fixed] Added missing arg
                     selectedItem: $selectedItem,
                     selectedClusterItems: $selectedClusterItems, // [Fixed] Added missing arg
-                    onLongTap: handleLongTap
+                    onLongTap: handleLongTap,
+                    onFarItemsDetected: { count in
+                        let text = "\(count)개의 할 일이 멀리 있습니다."
+                        if farItemMessage != text {
+                            farItemMessage = text
+                            farMessageTask?.cancel()
+                            farMessageTask = Task {
+                                try? await Task.sleep(nanoseconds: 5 * 1_000_000_000)
+                                farItemMessage = nil
+                            }
+                        }
+                    }
                 )
             case .naver:
                 NaverMapView(
@@ -154,7 +165,18 @@ struct ContentView: View {
                     onUserLocationTap: {},
                     onDelete: deleteItem,
                     onDeleteLog: deleteLog,
-                    onSelectLog: { selectedLogForPath = $0 }
+                    onSelectLog: { selectedLogForPath = $0 },
+                    onFarItemsDetected: { count in
+                        let text = "\(count)개의 할 일이 멀리 있습니다."
+                        if farItemMessage != text {
+                            farItemMessage = text
+                            farMessageTask?.cancel()
+                            farMessageTask = Task {
+                                try? await Task.sleep(nanoseconds: 5 * 1_000_000_000)
+                                farItemMessage = nil
+                            }
+                        }
+                    }
                 )
             case .google:
                 GoogleMapView(
@@ -170,7 +192,18 @@ struct ContentView: View {
                     onUserLocationTap: {},
                     onDelete: deleteItem,
                     onDeleteLog: deleteLog,
-                    onSelectLog: { selectedLogForPath = $0 }
+                    onSelectLog: { selectedLogForPath = $0 },
+                    onFarItemsDetected: { count in
+                        let text = "\(count)개의 할 일이 멀리 있습니다."
+                        if farItemMessage != text {
+                            farItemMessage = text
+                            farMessageTask?.cancel()
+                            farMessageTask = Task {
+                                try? await Task.sleep(nanoseconds: 5 * 1_000_000_000)
+                                farItemMessage = nil
+                            }
+                        }
+                    }
                 )
             }
         }
@@ -522,7 +555,7 @@ struct ContentView: View {
         ZStack {
             mapLayer
             uiLayer
-            debugLayer
+            // debugLayer // Removed per user request
             clusterOverlay
             sideMenuLayer
             todoDetailOverlay

@@ -20,6 +20,7 @@ struct GoogleMapView: UIViewRepresentable {
     var onDelete: ((ToDoItem) -> Void)?
     var onDeleteLog: ((UserLog) -> Void)?
     var onSelectLog: ((UserLog) -> Void)?
+    var onFarItemsDetected: ((Int) -> Void)? // [NEW] Callback for hidden items
     
     func makeUIView(context: Context) -> GMSMapView {
         let options = GMSMapViewOptions()
@@ -62,6 +63,7 @@ struct GoogleMapView: UIViewRepresentable {
         
         // [Parity] Disable System UI to match Apple Map Custom UI
         
+        OptimizationLogger.shared.log(type: .launchStep, value: ">>> Map Ready")
         return view
     }
     
@@ -112,7 +114,8 @@ struct GoogleMapView: UIViewRepresentable {
                 mapView.animate(toZoom: zoom)
             case .currentLocation:
                 if let loc = parent.locationManager.currentLocation {
-                    let update = GMSCameraUpdate.setTarget(loc.coordinate, zoom: 16)
+                    OptimizationLogger.shared.log(type: .locationResume, value: ">>> Current Location Button Pressed: \(loc.coordinate)")
+                    let update = GMSCameraUpdate.setTarget(loc.coordinate, zoom: 18)
                     mapView.animate(with: update)
                 } else {
                     parent.locationManager.requestPermission()
@@ -134,6 +137,30 @@ struct GoogleMapView: UIViewRepresentable {
                     }
                 }
                 if count > 0 {
+                    // Manually expand bounds to ensure Zoom <= 15
+                    let northEast = bounds.northEast 
+                    let southWest = bounds.southWest
+                    
+                    let latSpan = northEast.latitude - southWest.latitude
+                    let lonSpan = northEast.longitude - southWest.longitude
+                    
+                    // Min Span ~ 0.01 for Zoom 15
+                    let MIN_SPAN = 0.01
+                    
+                    if latSpan < MIN_SPAN || lonSpan < MIN_SPAN {
+                         // Create new bounds centered on original center
+                         let centerLat = (northEast.latitude + southWest.latitude) / 2
+                         let centerLon = (northEast.longitude + southWest.longitude) / 2
+                         
+                         let deltaLat = max(latSpan, MIN_SPAN) / 2
+                         let deltaLon = max(lonSpan, MIN_SPAN) / 2
+                         
+                         let newNE = CLLocationCoordinate2D(latitude: centerLat + deltaLat, longitude: centerLon + deltaLon)
+                         let newSW = CLLocationCoordinate2D(latitude: centerLat - deltaLat, longitude: centerLon - deltaLon)
+                         
+                         bounds = GMSCoordinateBounds(coordinate: newNE, coordinate: newSW)
+                    }
+                    
                     mapView.animate(with: GMSCameraUpdate.fit(bounds, withPadding: 50.0))
                 }
             case .launchSequence:
@@ -223,17 +250,37 @@ struct GoogleMapView: UIViewRepresentable {
             var allItems: [UnifiedMapItem] = []
             var rawPoints: [Int32] = []
             
+            var farItemsCount = 0
+            
+            OptimizationLogger.shared.log(type: .launchStep, value: ">>> Pins Loaded: \(currentItems.count) Items, \(currentLogs.count) Logs")
+            
             for item in currentItems {
                 if let loc = item.location {
+                     // 500km Filter
+                     if let u = parent.locationManager.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: loc.latitude, longitude: loc.longitude)) {
+                         farItemsCount += 1
+                         continue
+                     }
                     allItems.append(.todo(item))
                     rawPoints.append(Int32(loc.latitude * 1_000_000))
                     rawPoints.append(Int32(loc.longitude * 1_000_000))
                 }
             }
             for log in currentLogs {
+                 // 500km Filter
+                 if let u = parent.locationManager.currentLocation, SmartLocationManager.shared.isFar(u, CLLocation(latitude: log.latitude, longitude: log.longitude)) {
+                     farItemsCount += 1
+                     continue
+                 }
                 allItems.append(.history(log))
                 rawPoints.append(Int32(log.latitude * 1_000_000))
                 rawPoints.append(Int32(log.longitude * 1_000_000))
+            }
+            
+            if farItemsCount > 0 {
+                DispatchQueue.main.async {
+                    self.parent.onFarItemsDetected?(farItemsCount)
+                }
             }
             
             // [FIX] Add User Location to Clustering Data
@@ -343,6 +390,10 @@ struct GoogleMapView: UIViewRepresentable {
                           if let img = UIImage(named: "PinReceiveReady") {
                               marker.icon = img.resized(to: CGSize(width: 40, height: 50))
                           }
+                     case .userLocation:
+                          if let img = UIImage(named: "PinCurrent") {
+                              marker.icon = img.resized(to: CGSize(width: 40, height: 50))
+                          }
                      default:
                          marker.icon = PinImageHelper.shared.createShieldPin(color: .blue, iconName: "circle.fill")
                      }
@@ -415,15 +466,17 @@ struct GoogleMapView: UIViewRepresentable {
             
              // Wait
              let delay = AppConfig.launchAnimationDelay
-             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                 // Action 2: Zoom to 15
-                 let midCam = GMSCameraUpdate.setTarget(userLoc.coordinate, zoom: 15)
-                 mapView.animate(with: midCam)
-                 self.isAnimating = false
-                 
-                 // Trigger Cluster
-                 self.refreshWasmClusters(mapView: mapView)
-             }
+              DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                  // Action 2: Zoom to 18 (User Request 9)
+                  let midCam = GMSCameraUpdate.setTarget(userLoc.coordinate, zoom: 18)
+                  mapView.animate(with: midCam)
+                  self.isAnimating = false
+                  
+                  OptimizationLogger.shared.log(type: .launchStep, value: ">>> Current Location: \(userLoc.coordinate)")
+                  
+                  // Trigger Cluster
+                  self.refreshWasmClusters(mapView: mapView)
+              }
         }
         
         // MARK: - Path
