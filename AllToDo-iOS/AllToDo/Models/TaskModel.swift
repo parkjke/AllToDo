@@ -137,8 +137,8 @@ struct LocationData: Codable {
             self.lonInt = Int(dLon * 100_000.0)
         }
         
-        self.name = try? container.decode(String.self, forKey: .name)
-        self.timestamp = try? container.decode(Date.self, forKey: .timestamp)
+        self.name = try container.decodeIfPresent(String.self, forKey: .name)
+        self.timestamp = try container.decodeIfPresent(Date.self, forKey: .timestamp)
     }
     
     // Encode only Ints
