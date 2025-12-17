@@ -252,22 +252,14 @@ struct NaverMapView: UIViewRepresentable {
             
             for item in currentItems {
                 if let loc = item.location {
-                     // 500km Filter Restored (Integer)
-                     if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: loc.latInt, lon2: loc.lonInt) {
-                         farItemsCount += 1
-                         continue
-                     }
+                     // Standard Path: Show All
                     allItems.append(.todo(item))
                     rawPoints.append(Int32(loc.latitude * 1_000_000))
                     rawPoints.append(Int32(loc.longitude * 1_000_000))
                 }
             }
             for log in currentLogs {
-                  // 500km Filter Restored (Integer)
-                  if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.latInt, lon2: log.lonInt) {
-                      farItemsCount += 1
-                      continue
-                  }
+                  // Standard Path: Show All
                 allItems.append(.history(log))
                 rawPoints.append(Int32(log.latitude * 1_000_000))
                 rawPoints.append(Int32(log.longitude * 1_000_000))

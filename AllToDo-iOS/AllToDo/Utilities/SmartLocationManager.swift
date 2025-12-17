@@ -67,10 +67,10 @@ class SmartLocationManager {
         
         let distSq = dx*dx + dy*dy
         
-        // 500km Limit -> Increased to 1500km to include Beijing/Tokyo
-        // 1 deg lat ~= 111km. 1500km ~= 13.5 deg.
-        // 13.5 deg * 100,000 = 1,350,000 units.
-        let limit: Int64 = 1350000 
+        // 500km Limit (Reverted to User Standard)
+        // 500km ~= 4.5 deg lat.
+        // 4.5 deg * 100,000 = 450,000 units.
+        let limit: Int64 = 450000 
         return distSq > (limit * limit)
     }
 }
