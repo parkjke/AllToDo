@@ -86,7 +86,19 @@ struct ContentView: View {
             guard let d = $0.dueDate else { return true }
             return d >= min && d <= max
         }
-        print("DEBUG: ContentView Filter (Restored) - Total: \(count) Filtered: \(filtered.count)")
+        
+        // DEBUG: Check items
+        if count > 0 {
+            print("DEBUG: Total Todos: \(count)")
+            for item in todoItems {
+                let locStr = item.location != nil ? "HasLoc (\(item.location!.latInt), \(item.location!.lonInt))" : "NoLoc"
+                print(" - Item: \(item.title), Due: \(item.dueDate?.description ?? "nil"), \(locStr)")
+            }
+            print("DEBUG: Filtered Count: \(filtered.count)")
+        } else {
+             print("DEBUG: Total Todos is ZERO.")
+        }
+        
         return filtered
     }
     
@@ -228,12 +240,13 @@ struct ContentView: View {
         // }
     }
     
-    private func handleLongTap(_ coord: CLLocationCoordinate2D) {
+        print("DEBUG: Inserting Item at: \(coord.latitude), \(coord.longitude)")
         let newItem = ToDoItem(
             title: "New Task",
             dueDate: Date(),
             location: LocationData(latitude: coord.latitude, longitude: coord.longitude, name: "Pinned Location")
         )
+        print("DEBUG: Created Item Location: \(newItem.location?.latInt ?? 0), \(newItem.location?.lonInt ?? 0)")
         modelContext.insert(newItem)
         try? modelContext.save()
         print("ContentView: Inserted Item.")
