@@ -240,6 +240,7 @@ struct ContentView: View {
         // }
     }
     
+    private func handleLongTap(_ coord: CLLocationCoordinate2D) {
         print("DEBUG: Inserting Item at: \(coord.latitude), \(coord.longitude)")
         let newItem = ToDoItem(
             title: "New Task",
