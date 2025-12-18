@@ -311,7 +311,8 @@ struct ContentView: View {
             onLocationClick: { mapAction = .currentLocation },
             onZoomInClick: { mapAction = .zoomIn },
             onZoomOutClick: { mapAction = .zoomOut },
-            onCompassClick: { mapAction = .rotateNorth }
+            onCompassClick: { mapAction = .rotateNorth },
+            onExpandClick: { withAnimation { showListView = true } }
         )
     }
 

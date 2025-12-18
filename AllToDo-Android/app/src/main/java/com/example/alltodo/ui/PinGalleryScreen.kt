@@ -145,7 +145,7 @@ fun PinGalleryScreen(onDismiss: () -> Unit) {
                     ) {
                         testCounts.forEach { count ->
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                val bitmap = PinImageManager.createShieldPin(context, resId, count)
+                                val bitmap = PinImageManager.createClusterPin(context, resId, count, android.graphics.Color.RED, 1.0f)
                                 if (bitmap != null) {
                                     Image(
                                         bitmap = bitmap.asImageBitmap(),
@@ -202,7 +202,7 @@ fun PinGalleryScreen(onDismiss: () -> Unit) {
                             // We want to simulate the map rendering.
                             // Anchor (0.4, 1.0) means the point (40% width, 100% height) of the image should be at the Center of the Box.
                             
-                            val bitmap = PinImageManager.createShieldPin(context, resId, 5) // Test with badge
+                            val bitmap = PinImageManager.createClusterPin(context, resId, 5, android.graphics.Color.RED, 1.0f) // Test with badge
                             if (bitmap != null) {
                                 // In Compose Box(contentAlignment = Center), the image center is placed at Box center.
                                 // We need to offset the image so its Anchor Point is at Box center.

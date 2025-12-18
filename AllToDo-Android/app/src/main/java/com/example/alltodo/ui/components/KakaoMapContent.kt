@@ -272,8 +272,8 @@ fun KakaoMapContent(
             if (styles == null) {
                 val (bitmap, anchorX, anchorY) = if (isSingle && firstItem != null) {
                     val resId = firstItem.getPinResId()
-                    val b = com.example.alltodo.ui.PinImageManager.getPinBitmap(resId) ?: 
-                            com.example.alltodo.ui.createKakaoPinBitmap(context, 1, resId, android.graphics.Color.TRANSPARENT)
+                    // Use createKakaoPinBitmap with count=0 for Single Pin (No Badge, Scaled 0.7)
+                    val b = com.example.alltodo.ui.createKakaoPinBitmap(context, 0, resId, android.graphics.Color.TRANSPARENT)
                     Triple(b, 0.5f, 1.0f)
                 } else {
                     var hasUserLocation = false
@@ -297,7 +297,8 @@ fun KakaoMapContent(
                         else -> com.example.alltodo.R.drawable.pin_todo_ready to android.graphics.Color.parseColor("#00AA00")
                     }
                     val b = com.example.alltodo.ui.createKakaoPinBitmap(context, cluster.count, resId, badgeColor) // Scale handled internally
-                    Triple(b, 0.4f, 1.0f)
+                    // [FIX] Adjusted Anchor X from 0.4 to 0.33 to match new padding ratio (16 / 48)
+                    Triple(b, 0.33f, 1.0f)
                 }
                 
                 if (bitmap != null) {

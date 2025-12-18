@@ -10,6 +10,7 @@ struct RightSideControls: View {
     var onZoomInClick: () -> Void
     var onZoomOutClick: () -> Void
     var onCompassClick: () -> Void
+    var onExpandClick: () -> Void
     
     var body: some View {
         Column(horizontalAlignment: .trailing) {
@@ -22,13 +23,6 @@ struct RightSideControls: View {
                 )
                 
                 ControlIcon(
-                    iconName: "bell.fill",
-                    onClick: onNotificationClick
-                )
-                .disabled(showHistoryMode)
-                .opacity(showHistoryMode ? 0.3 : 1.0)
-                
-                ControlIcon(
                     iconName: "person.fill",
                     onClick: onLoginClick
                 )
@@ -36,6 +30,20 @@ struct RightSideControls: View {
                 .opacity(showHistoryMode ? 0.3 : 1.0)
             }
             .padding(.bottom, 24)
+            
+            // 1. Checklist Icon & Text (Expand Click)
+            Button(action: onExpandClick) {
+                HStack(spacing: 8) {
+                    Image(systemName: "checklist")
+                        .resizable()
+                        .frame(width: 20, height: 20)
+                        .foregroundColor(Color(white: 0.2))
+                    
+                    Text("할 일")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(Color(white: 0.2))
+                }
+            }
             
             // Center Group: Location, Zoom, Compass
             VStack(spacing: 16) {
@@ -66,8 +74,9 @@ struct RightSideControls: View {
                     Button(action: onCompassClick) {
                         ZStack {
                             RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.allToDoGreen.opacity(0.7))
+                                .fill(Color.allToDoGreen)
                                 .frame(width: 48, height: 48)
+                                .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
                             
                             // Custom Compass Needle (Red/White with Outline)
                             ZStack {
@@ -119,8 +128,9 @@ struct ControlIcon: View {
         Button(action: onClick) {
             ZStack {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.allToDoGreen.opacity(0.7))
+                    .fill(Color.allToDoGreen)
                     .frame(width: 48, height: 48)
+                    .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
                 
                 Image(systemName: iconName)
                     .resizable()
@@ -160,7 +170,8 @@ struct Column<Content: View>: View {
             onLocationClick: {},
             onZoomInClick: {},
             onZoomOutClick: {},
-            onCompassClick: {}
-        )
+            onCompassClick: {},
+            onExpandClick: {}
+            )
     }
 }

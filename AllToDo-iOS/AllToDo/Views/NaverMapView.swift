@@ -89,11 +89,13 @@ struct NaverMapView: UIViewRepresentable {
         if !context.coordinator.firstRender {
             context.coordinator.refreshWasmClusters()
             
-            
-            // [NEW] Check Tethering
-            if let u = locationManager.currentLocation {
+            // [NEW] Check Tethering (Conditional)
+            // [DISABLED] User requested to disable tethering and rely on "Current Location" button
+            /*
+            if let u = locationManager.currentLocation, !context.coordinator.firstRender {
                 context.coordinator.checkTethering(mapView: uiView.mapView, userLocation: u)
             }
+            */
         }
         
         // 3. Launch Animation
@@ -113,7 +115,7 @@ struct NaverMapView: UIViewRepresentable {
         var onFarItemsDetected: ((Int) -> Void)?
         
         var markers: [NMFMarker] = []
-        var pathOverlay: NMFPath? // [RESTORED]
+        var pathOverlay: NMFPath? 
         
         init(_ parent: NaverMapView) {
             self.parent = parent
@@ -121,14 +123,51 @@ struct NaverMapView: UIViewRepresentable {
         
         // [NEW] Check Tethering
         func checkTethering(mapView: NMFMapView, userLocation: CLLocation) {
-            let target = mapView.cameraPosition.target
-            let mapCenter = SmartLocationManager.shared.toIntLocation(CLLocation(latitude: target.lat, longitude: target.lng))
-            let userInt = SmartLocationManager.shared.toIntLocation(userLocation)
+            // Disabled
+        }
+        
+        // ... (Actions omitted) ...
+
+        // [NEW] Raw Renderer for Naver
+        func renderRawItems(mapView: NMFMapView, allItems: [UnifiedMapItem]) {
+            markers.forEach { $0.mapView = nil }; markers = []
             
-            if SmartLocationManager.shared.needsCentering(user: userInt, center: mapCenter, spanLon: currentSpanLon) {
-                let update = NMFCameraUpdate(scrollTo: NMGLatLng(lat: userLocation.coordinate.latitude, lng: userLocation.coordinate.longitude))
-                update.animation = .linear
-                mapView.moveCamera(update)
+            for item in allItems {
+                let marker = NMFMarker()
+                
+                // 1. Position
+                switch item {
+                case .todo(let t): if let l = t.location { marker.position = NMGLatLng(lat: l.latitude, lng: l.longitude) }
+                case .history(let l): marker.position = NMGLatLng(lat: l.latitude, lng: l.longitude)
+                case .userLocation: if let u = parent.locationManager.currentLocation { marker.position = NMGLatLng(lat: u.coordinate.latitude, lng: u.coordinate.longitude) }
+                default: break
+                }
+                
+                // 2. Icon Type
+                var name = "PinTodoReady" // Default Green
+                
+                switch item {
+                case .todo(let t):
+                    if t.isCompleted { name = "PinTodoDone" }
+                    // Source check not available on ToDoItem currently
+                    // if t.source != "local" { name = "PinReceiveReady" }
+                    
+                case .history:
+                    name = "PinHistory" // Red
+                case .userLocation:
+                    name = "PinCurrent" // Red
+                case .serverMessage:
+                    name = "PinReceiveReady" // Blue
+                }
+                
+                let img = UIImage(named: name)?.resized(to: CGSize(width: 48, height: 60))
+                if let i = img { 
+                    marker.iconImage = NMFOverlayImage(image: i) 
+                    marker.anchor = CGPoint(x: 0.5, y: 1.0)
+                }
+                
+                marker.mapView = mapView
+                markers.append(marker)
             }
         }
         
@@ -429,8 +468,8 @@ struct NaverMapView: UIViewRepresentable {
                 else if baseName == "PinReceiveReady" { color = .blue }
                 else { color = UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0) }
                 
-                // [FIX] Resize Base Image FIRST to 40x50
-                let baseImage = UIImage(named: baseName)?.resized(to: CGSize(width: 40, height: 50))
+                // [FIX] Resize Base Image FIRST to 48x60 (Naver Special)
+                let baseImage = UIImage(named: baseName)?.resized(to: CGSize(width: 48, height: 60))
                 
                 // [FIX] Overlay Badge ONLY if count > 1
                 let displayCount: Int? = items.count > 1 ? items.count : nil
@@ -475,28 +514,7 @@ struct NaverMapView: UIViewRepresentable {
             }
         }
         
-        // [NEW] Raw Renderer for Naver
-        func renderRawItems(mapView: NMFMapView, allItems: [UnifiedMapItem]) {
-            markers.forEach { $0.mapView = nil }; markers = []
-            
-            for item in allItems {
-                let marker = NMFMarker()
-                switch item {
-                case .todo(let t): if let l = t.location { marker.position = NMGLatLng(lat: l.latitude, lng: l.longitude) }
-                case .history(let l): marker.position = NMGLatLng(lat: l.latitude, lng: l.longitude)
-                case .userLocation: if let u = parent.locationManager.currentLocation { marker.position = NMGLatLng(lat: u.coordinate.latitude, lng: u.coordinate.longitude) }
-                default: break
-                }
-                
-                // Simple Icon
-                let name = "PinTodoReady"
-                let img = UIImage(named: name)?.resized(to: CGSize(width: 40, height: 50))
-                if let i = img { marker.iconImage = NMFOverlayImage(image: i) }
-                
-                marker.mapView = mapView
-                markers.append(marker)
-            }
-        }
+
 
         func performLaunchAnimation(userLocation: CLLocation?) {
             guard let loc = userLocation, let map = mapView else { return }

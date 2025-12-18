@@ -130,7 +130,7 @@ fun getCachedClusterBitmap(context: android.content.Context, count: Int, baseRes
         cached
     } else {
         // Create new based on Scale
-        val newBitmap = createClusterBitmapInternal(context, count, baseResId, badgeColor, scale)
+        val newBitmap = PinImageManager.createClusterPin(context, baseResId, count, badgeColor, scale) ?: return com.google.android.gms.maps.model.BitmapDescriptorFactory.defaultMarker()
         bitmapCache.put(key, newBitmap)
         newBitmap
     }
@@ -140,137 +140,13 @@ fun getCachedClusterBitmap(context: android.content.Context, count: Int, baseRes
 
 // [NEW] Google Pin (Standard)
 fun createGooglePinBitmap(context: android.content.Context, count: Int, baseResId: Int, badgeColor: Int): Bitmap {
-    return createClusterBitmapInternal(context, count, baseResId, badgeColor, 1.0f)
+    return PinImageManager.createClusterPin(context, baseResId, count, badgeColor, 1.0f) ?: createRedDotBitmap()
 }
 
 // [NEW] Kakao Pin (Uses Pre-scaled Bitmap Resource, No Runtime Image Scaling)
 fun createKakaoPinBitmap(context: android.content.Context, count: Int, baseResId: Int, badgeColor: Int): Bitmap {
-    val density = context.resources.displayMetrics.density
-    val scale = 0.85f // Used ONLY for Badge sizing calculation, NOT image scaling
+    // val scale = 0.85f // [ROLLBACK INFO] Old value
+    val scale = 0.7f // [NEW] Adjusted to 0.7 as requested
     
-    // 1. Get Pre-scaled Bitmap
-    val cachedBase = PinImageManager.getKakaoPinBitmap(baseResId)
-    // If null, fallback to standard (or create new with densityMultiplier but Manager should handle it)
-    val baseBitmap = cachedBase ?: PinImageManager.createBitmapFromVector(context, baseResId, density * scale)
-    
-    if (baseBitmap == null) return createClusterBitmapInternal(context, count, baseResId, badgeColor, scale) // Fallback
-
-    val pinW = baseBitmap.width
-    val pinH = baseBitmap.height
-    
-    // Padding (16dp * scale)
-    val padding = (16 * density * scale).toInt()
-    
-    val sizeW = pinW + padding
-    val sizeH = pinH + padding
-    
-    val bitmap = Bitmap.createBitmap(sizeW, sizeH, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(bitmap)
-    
-    // Draw Base (No scaling, exact copy)
-    val srcRect = android.graphics.Rect(0, 0, pinW, pinH)
-    val dstRect = android.graphics.Rect(0, padding, pinW, pinH + padding)
-    canvas.drawBitmap(baseBitmap, srcRect, dstRect, null)
-    
-    // Draw Badge (Logic same as internal but using local scale/coords)
-    if (count > 0) {
-        val paint = Paint().apply {
-            isAntiAlias = true
-            color = badgeColor
-            style = Paint.Style.FILL
-        }
-        
-        val badgeSize = 20f * density * scale
-        val cx = pinW.toFloat()
-        val cy = padding.toFloat()
-        
-        // Border
-        paint.color = badgeColor
-        canvas.drawCircle(cx, cy, badgeSize/2 + 2 * density * scale, paint)
-        
-        // White BG
-        paint.color = android.graphics.Color.WHITE
-        canvas.drawCircle(cx, cy, badgeSize/2, paint)
-        
-        // Text
-        paint.color = badgeColor
-        paint.textSize = 12f * density * scale
-        paint.textAlign = Paint.Align.CENTER
-        paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
-        
-        val text = if (count > 9) "9+" else count.toString()
-        val bounds = android.graphics.Rect()
-        paint.getTextBounds(text, 0, text.length, bounds)
-        val yOff = bounds.height().toFloat() / 2f
-        
-        canvas.drawText(text, cx, cy + yOff, paint)
-    }
-    
-    return bitmap
-}
-
-// Internal reusable logic
-private fun createClusterBitmapInternal(context: android.content.Context, count: Int, baseResId: Int, badgeColor: Int, scale: Float): Bitmap {
-    val density = context.resources.displayMetrics.density
-    
-    // Base Size (40x50 dp) * Scale
-    val pinW = (40 * density * scale).toInt()
-    val pinH = (50 * density * scale).toInt()
-    
-    // Padding (16dp * scale) - Increased to prevent clipping
-    val padding = (16 * density * scale).toInt() 
-    
-    val sizeW = pinW + padding
-    val sizeH = pinH + padding
-    
-    val bitmap = Bitmap.createBitmap(sizeW, sizeH, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(bitmap)
-    
-    // 1. Base Icon
-    val cachedBase = PinImageManager.getPinBitmap(baseResId)
-    if (cachedBase != null) {
-        val srcRect = android.graphics.Rect(0, 0, cachedBase.width, cachedBase.height)
-        val dstRect = android.graphics.Rect(0, padding, pinW, pinH + padding)
-        canvas.drawBitmap(cachedBase, srcRect, dstRect, null)
-    } else {
-        val drawable = androidx.core.content.ContextCompat.getDrawable(context, baseResId)
-        drawable?.setBounds(0, padding, pinW, pinH + padding)
-        drawable?.draw(canvas)
-    }
-    
-    // 2. Badge
-    if (count > 0) {
-        val paint = Paint().apply {
-            isAntiAlias = true
-            color = badgeColor
-            style = Paint.Style.FILL
-        }
-        
-        val badgeSize = 20f * density * scale
-        val cx = pinW.toFloat()
-        val cy = padding.toFloat()
-        
-        // Border
-        paint.color = badgeColor
-        canvas.drawCircle(cx, cy, badgeSize/2 + 2 * density * scale, paint)
-        
-        // White BG
-        paint.color = android.graphics.Color.WHITE
-        canvas.drawCircle(cx, cy, badgeSize/2, paint)
-        
-        // Text
-        paint.color = badgeColor
-        paint.textSize = 12f * density * scale
-        paint.textAlign = Paint.Align.CENTER
-        paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
-        
-        val text = if (count > 9) "9+" else count.toString()
-        val bounds = android.graphics.Rect()
-        paint.getTextBounds(text, 0, text.length, bounds)
-        val yOff = bounds.height().toFloat() / 2f
-        
-        canvas.drawText(text, cx, cy + yOff, paint)
-    }
-    
-    return bitmap
+    return PinImageManager.createClusterPin(context, baseResId, count, badgeColor, scale) ?: createRedDotBitmap()
 }

@@ -5,13 +5,12 @@ class PinImageHelper {
     
     // Shield Shape Generator
     func createShieldPin(color: UIColor, text: String? = nil, iconName: String? = nil, count: Int? = nil, baseImage: UIImage? = nil) -> UIImage {
-        // [FIX] Increase size to accommodate Badge Overhang
-        let shieldWidth: CGFloat = baseImage?.size.width ?? 40
-        let shieldHeight: CGFloat = baseImage?.size.height ?? 50
+        // [FIX] Use Base Image Size if available, otherwise default to 32x40
+        let shieldWidth: CGFloat = baseImage?.size.width ?? 32
+        let shieldHeight: CGFloat = baseImage?.size.height ?? 40
         
-        // [FIX] Match Android Logic: No extra touch padding, only badge overhang
         let touchPadding: CGFloat = 0
-        let badgeSize: CGFloat = 20
+        let badgeSize: CGFloat = 16
         let badgeOverhang: CGFloat = badgeSize / 2
         
         let contextWidth = shieldWidth + badgeOverhang
@@ -23,7 +22,18 @@ class PinImageHelper {
         format.scale = 0.0 // Device Scale
         
         return UIGraphicsImageRenderer(size: size, format: format).image { context in
-            // 1. Draw Base Image (Shifted down)
+            // 1. Draw Base Image (Shifted down due to badge overhang possibility? No, badge overhang adds to width/height)
+            // Wait, badgeOverhang is added to context dimension.
+            // If badge is top-right, it extends beyond shieldWidth/0.
+            
+            // Logic:
+            // Shield is at (0, badgeOverhang). badgeOverhang (8pt) pushes it down.
+            // Original logic: `y: badgeOverhang` (Line 26).
+            // This means visual top of pin is at y=8.
+            // Badge center is at (width, 8).
+            // Badge is 16x16, so it goes from y=0 to y=16.
+            // If we keep this logic, it works for any size.
+            
             let imageRect = CGRect(x: 0, y: badgeOverhang, width: shieldWidth, height: shieldHeight)
             
             if let baseImage = baseImage {

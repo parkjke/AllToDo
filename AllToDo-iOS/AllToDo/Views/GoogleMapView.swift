@@ -85,10 +85,14 @@ struct GoogleMapView: UIViewRepresentable {
         // 2. Refresh WASM Clusters (if needed) - Logic inside
         context.coordinator.refreshWasmClusters(mapView: uiView)
         
-        // [NEW] Check Tethering
-        if let u = locationManager.currentLocation {
+        // [NEW] Check Tethering (Conditional)
+        // [DISABLED] User requested to disable
+        /*
+        // Only if NOT animating and NOT first render
+        if let u = locationManager.currentLocation, !context.coordinator.firstRender, !context.coordinator.isAnimating {
             context.coordinator.checkTethering(mapView: uiView, userLocation: u)
         }
+        */
         
         // 3. Launch Animation
         if context.coordinator.firstRender, let u = locationManager.currentLocation {
@@ -111,13 +115,43 @@ struct GoogleMapView: UIViewRepresentable {
         
         // [NEW] Check Tethering
         func checkTethering(mapView: GMSMapView, userLocation: CLLocation) {
-            // Logic: If deltaLon > spanLon/4 -> Recenter
-            let target = mapView.camera.target
-            let mapCenter = SmartLocationManager.shared.toIntLocation(CLLocation(latitude: target.latitude, longitude: target.longitude))
-            let userInt = SmartLocationManager.shared.toIntLocation(userLocation)
-            
-            if SmartLocationManager.shared.needsCentering(user: userInt, center: mapCenter, spanLon: currentSpanLon) {
-                mapView.animate(toLocation: userLocation.coordinate)
+           // Disabled
+        }
+
+        // ...Actions...
+
+        // [NEW] Raw Renderer for Google Maps
+        func renderRawItems(mapView: GMSMapView, allItems: [UnifiedMapItem]) {
+            mapView.clear()
+            for item in allItems {
+                let marker = WasmClusterMarker()
+                marker.items = [item]
+                
+                // 1. Position
+                switch item {
+                 case .todo(let t): if let l = t.location { marker.position = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude) }
+                 case .history(let l): marker.position = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)
+                 case .userLocation: if let u = parent.locationManager.currentLocation { marker.position = u.coordinate }
+                 default: break
+                }
+                
+                // 2. Icon Type
+                var name = "PinTodoReady" // Default Green
+                switch item {
+                case .todo(let t):
+                    if t.isCompleted { name = "PinTodoDone" }
+                    // Source check not available currently
+                    // if t.source != "local" { name = "PinReceiveReady" } // Blue
+                case .history: name = "PinHistory"
+                case .userLocation: name = "PinCurrent"
+                case .serverMessage: name = "PinReceiveReady"
+                }
+                
+                marker.icon = UIImage(named: name)?.resized(to: CGSize(width: 40, height: 50))
+                // Explicit Anchor
+                marker.groundAnchor = CGPoint(x: 0.5, y: 1.0)
+                
+                marker.map = mapView
             }
         }
         
@@ -536,27 +570,7 @@ struct GoogleMapView: UIViewRepresentable {
              }
         }
         
-        // [NEW] Raw Renderer for Google Maps
-        func renderRawItems(mapView: GMSMapView, allItems: [UnifiedMapItem]) {
-            mapView.clear()
-            for item in allItems {
-                let marker = WasmClusterMarker() // Reuse for convenience or GMSMarker
-                marker.items = [item] // Wrap as single item cluster
-                // Set position...
-                switch item {
-                 case .todo(let t): if let l = t.location { marker.position = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude) }
-                 case .history(let l): marker.position = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)
-                 case .userLocation: if let u = parent.locationManager.currentLocation { marker.position = u.coordinate }
-                 default: break
-                }
-                
-                // Set Icon (Simplified for Fast Path)
-                marker.icon = UIImage(named: "PinTodoReady")?.resized(to: CGSize(width: 40, height: 50))
-                if case .userLocation = item { marker.icon = UIImage(named: "PinCurrent")?.resized(to: CGSize(width: 40, height: 50)) }
-                
-                marker.map = mapView
-            }
-        }
+
 
         // MARK: - Animation
         func performLaunchAnimation(mapView: GMSMapView, userLocation: CLLocation?) {
@@ -604,7 +618,7 @@ struct GoogleMapView: UIViewRepresentable {
                 // Launch Animation (Wait 3s -> Zoom User)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
                     guard let self = self else { return }
-                  let midCam = GMSCameraUpdate.setTarget(userLoc.coordinate, zoom: 15)
+                  let midCam = GMSCameraUpdate.setTarget(userLoc.coordinate, zoom: 18)
                   CATransaction.begin()
                   CATransaction.setValue(1.0, forKey: kCATransactionAnimationDuration) // Slower 1.0s
                   mapView.animate(with: midCam)

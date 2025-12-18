@@ -46,17 +46,18 @@ struct TopLeftWidget: View {
             // 3. Badges (Expand Click area for convenience too)
             Button(action: onExpandClick) {
                 HStack(spacing: 6) {
-                    StatBadge(color: .allToDoRed, count: historyCount)
-                    StatBadge(color: .allToDoGreen, count: localTodoCount)
-                    StatBadge(color: .allToDoBlue, count: serverTodoCount)
+                    StatBadge(color: .allToDoBlue, count: serverTodoCount)  // 1. Server (Blue)
+                    StatBadge(color: .allToDoGreen, count: localTodoCount) // 2. Local (Green)
+                    StatBadge(color: .allToDoRed, count: historyCount)    // 3. History (Red)
                 }
             }
         }
+        
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Color.allToDoGreen.opacity(0.7))
-        .cornerRadius(20)
-        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+        .background(Color.white) // Use clear white for better contrast
+        .cornerRadius(16)
+        .shadow(color: Color.black.opacity(0.15), radius: 6, x: 0, y: 3)
     }
 }
 

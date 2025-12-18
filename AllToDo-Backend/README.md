@@ -40,8 +40,16 @@ Docker 없이 앱을 직접 실행하려면 다음 단계를 따르세요.
     ```
     또는 로컬 PostgreSQL을 실행하고 `.env` 파일의 접속 정보를 수정하세요.
 
-2.  **의존성 설치**:
+2.  **가상 환경 설정 및 의존성 설치**:
+    가상 환경을 생성하고 활성화한 후 필요한 패키지를 설치합니다.
     ```bash
+    # 가상 환경 생성
+    python3 -m venv .venv
+
+    # 가상 환경 활성화 (macOS/Linux)
+    source .venv/bin/activate
+
+    # 의존성 설치
     pip install -r requirements.txt
     ```
 

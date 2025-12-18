@@ -238,6 +238,8 @@ fun GoogleMapContent(
         }
         
         // [NEW] Check Tethering on Location Update
+        // [DISABLED] User requested to disable tethering and rely on "Current Location" button
+        /*
         LaunchedEffect(currentLocation, initialAnimationDone) {
              if (!initialAnimationDone) return@LaunchedEffect
              val loc = currentLocation ?: return@LaunchedEffect
@@ -262,6 +264,7 @@ fun GoogleMapContent(
                  )
              }
         }
+        */
         
         // [FIX] Render Clustered Items (Filtered)
         filteredItems.forEach { cluster ->

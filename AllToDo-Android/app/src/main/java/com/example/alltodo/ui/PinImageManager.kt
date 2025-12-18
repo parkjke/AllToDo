@@ -15,15 +15,14 @@ import java.nio.charset.StandardCharsets
 
 object PinImageManager {
     private const val TAG = "PinImageManager"
-    private const val HEADER_SIGNATURE = "ALLTODO_V1" // 10 bytes Parity/Header
+    // [FIX] Changed to V4 to invalidate cache (Force regenerate with new 0.7 scale)
+    private const val HEADER_SIGNATURE = "ALLTODO_V5" // [FIX] V5: Unified Pipeline
     private const val TARGET_WIDTH_DP = 40 // Standard Pin Width
     private const val TARGET_HEIGHT_DP = 50 // Standard Pin Height
 
-    private const val KAKAO_SCALE = 0.85f
-    
     // Cache in memory
     private val bitmapCache = mutableMapOf<Int, Bitmap>()
-    private val bitmapCacheKakao = mutableMapOf<Int, Bitmap>() // Separate cache for Kakao
+    // [Removed] bitmapCacheKakao - No longer needed, simplified pipeline
 
     // Mapping: Drawable Res ID -> Basename (No extension)
     private val managedPins = mapOf(
@@ -44,10 +43,9 @@ object PinImageManager {
         val density = context.resources.displayMetrics.density
         // Suffix ensures specific bitmap for this screen density
         val densitySuffix = "_d$density.png" 
-        val densitySuffixKakao = "_kakao_d$density.png"
 
         managedPins.forEach { (resId, basename) ->
-            // 1. Standard Pin (Google/Default)
+            // 1. Standard Pin Only (Unified)
             val filename = "$basename$densitySuffix"
             val file = File(pinsDir, filename)
             var bitmap: Bitmap? = null
@@ -63,26 +61,6 @@ object PinImageManager {
             }
             if (bitmap != null) {
                 bitmapCache[resId] = bitmap
-            } else {
-            }
-            
-            // 2. Kakao Pin (Scaled 0.85)
-            val filenameKakao = "$basename$densitySuffixKakao"
-            val fileKakao = File(pinsDir, filenameKakao)
-            var bitmapKakao: Bitmap? = null
-            
-            if (fileKakao.exists()) {
-                bitmapKakao = loadBitmapWithParity(fileKakao)
-            }
-            if (bitmapKakao == null) {
-                // Use KAKAO_SCALE applied to density
-                bitmapKakao = createBitmapFromVector(context, resId, density * KAKAO_SCALE)
-                if (bitmapKakao != null) {
-                    saveBitmapWithParity(fileKakao, bitmapKakao)
-                }
-            }
-            if (bitmapKakao != null) {
-                bitmapCacheKakao[resId] = bitmapKakao
             } else {
             }
         }
@@ -102,9 +80,6 @@ object PinImageManager {
         return bitmapCache[resId]
     }
     
-    fun getKakaoPinBitmap(resId: Int): Bitmap? {
-        return bitmapCacheKakao[resId]
-    }
 
     private fun loadBitmapWithParity(file: File): Bitmap? {
         try {
@@ -185,96 +160,69 @@ object PinImageManager {
 
 
     /**
-     * Creates a Pin with a Badge (Shield Pin) for Clustering.
-     * Matches iOS Design: Canvas 50x60, Pin 40x50, Badge Overhang.
+     * Creates a Cluster Pin with Badge.
+     * Unified Logic: Handles Base + Badge + Scaling.
      */
-    fun createShieldPin(context: Context, resId: Int, count: Int): Bitmap? {
+    fun createClusterPin(context: Context, resId: Int, count: Int, badgeColor: Int, scale: Float): Bitmap? {
         val density = context.resources.displayMetrics.density
         
-        // Target Sizes in DP
-        val canvasWidthDp = 50f
-        val canvasHeightDp = 60f
-        val pinWidthDp = 40f
-        val pinHeightDp = 50f
-        val badgeSizeDp = 20f
+        // Base Size (40x50 dp) * Scale
+        val pinW = (40 * density * scale).toInt()
+        val pinH = (50 * density * scale).toInt()
         
-        // Pixel Sizes
-        val w = (canvasWidthDp * density).toInt()
-        val h = (canvasHeightDp * density).toInt()
-        val pinW = (pinWidthDp * density).toInt()
-        val pinH = (pinHeightDp * density).toInt()
-        val badgeSize = (badgeSizeDp * density).toInt()
+        // Padding (16dp * scale)
+        val padding = (16 * density * scale).toInt()
         
-        // 1. Base Bitmap
-        val baseBitmap = getPinBitmap(resId) ?: createBitmapFromVector(context, resId) ?: return null
+        val sizeW = pinW + padding
+        val sizeH = pinH + padding
         
-        // 2. Create Canvas
-        val resultBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(resultBitmap)
+        val bitmap = Bitmap.createBitmap(sizeW, sizeH, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
         
-        // 3. Draw Pin (Offset y by 10dp to make room for top badge if needed, 
-        //    but iOS logic says Pin is 40x50. Canvas 50x60.
-        //    Let's align Pin to Bottom-Left or Center?
-        //    iOS: Anchor(0.4, 1.0). Visual Pin sits at (0, 10) in 50x60 canvas?
-        //    If pin is 40x50, and we want overhang top-right.
-        //    Pin Rect: (0, h - pinH, pinW, h) -> Bottom-Left alignment (0, 10) in 50x60 space.
-        //    Badge Center: Top-Right of Pin.
+        // 1. Base Icon
+        val baseBitmap = getPinBitmap(resId) ?: createBitmapFromVector(context, resId)
+        if (baseBitmap != null) {
+            val srcRect = Rect(0, 0, baseBitmap.width, baseBitmap.height)
+            val destRect = Rect(0, padding, pinW, pinH + padding)
+            canvas.drawBitmap(baseBitmap, srcRect, destRect, null)
+        } else {
+            return null
+        }
         
-        val pinLeft = 0f
-        val pinTop = (10f * density) // 10dp down
-        val pinRect = Rect(0, 0, resultBitmap.width, resultBitmap.height) // Dest rect?
+        // 2. Badge
+        if (count > 0) {
+            val paint = android.graphics.Paint().apply {
+                isAntiAlias = true
+                color = badgeColor
+                style = android.graphics.Paint.Style.FILL
+            }
+            
+            val badgeSize = 20f * density * scale
+            val cx = pinW.toFloat()
+            val cy = padding.toFloat()
+            
+            // Border
+            paint.color = badgeColor
+            canvas.drawCircle(cx, cy, badgeSize/2 + 2 * density * scale, paint)
+            
+            // White BG
+            paint.color = android.graphics.Color.WHITE
+            canvas.drawCircle(cx, cy, badgeSize/2, paint)
+            
+            // Text
+            paint.color = badgeColor
+            paint.textSize = 12f * density * scale
+            paint.textAlign = android.graphics.Paint.Align.CENTER
+            paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
+            
+            val text = if (count > 9) "9+" else count.toString()
+            val bounds = android.graphics.Rect()
+            paint.getTextBounds(text, 0, text.length, bounds)
+            val yOff = bounds.height().toFloat() / 2f
+            
+            canvas.drawText(text, cx, cy + yOff, paint)
+        }
         
-        // Scale base bitmap to pinW x pinH
-        val destRect = RectF(pinLeft, pinTop, pinLeft + pinW, pinTop + pinH)
-        canvas.drawBitmap(baseBitmap, null, destRect, null)
-        
-        // 4. Draw Badge (Red Circle)
-        // Position: Top-Right of the Pin (approx).
-        // Pin Top-Right is (pinW, pinTop).
-        // Badge Center should be around there.
-        // Let's verify iOS logic: Badge overhangs.
-        val badgeCenterX = (pinW - 5 * density) // Slight overlap
-        val badgeCenterY = (pinTop + 5 * density) 
-        
-        // Adjust for "Overhang": Badge should be fully visible?
-        // Check Canvas width: 50dp. Pin width 40dp. 10dp extra on right.
-        // So badge can go up to x=50dp.
-        // Badge Radius = 10dp.
-        // Center x=40dp means right edge is 50dp. Perfect.
-        val badgeRadius = badgeSize / 2f
-        val finalBadgeCenterX = (pinW) // Edge of pin
-        val finalBadgeCenterY = (pinTop) // Top of pin
-        
-        // Draw Red Circle
-        val paint = android.graphics.Paint()
-        paint.color = android.graphics.Color.RED
-        paint.isAntiAlias = true
-        paint.style = android.graphics.Paint.Style.FILL
-        
-        // Draw Shadow? Optional.
-        // canvas.drawCircle(finalBadgeCenterX, finalBadgeCenterY, badgeRadius, paint)
-        
-        // Better: Draw slightly shifted to utilize the extra space
-        // Center at (40dp, 10dp)?
-        // 40dp * density
-        val cx = (40f * density)
-        val cy = (10f * density)
-        
-        canvas.drawCircle(cx, cy, badgeRadius, paint)
-        
-        // 5. Draw Text
-        paint.color = android.graphics.Color.WHITE
-        paint.textSize = 12f * density
-        paint.textAlign = android.graphics.Paint.Align.CENTER
-        paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
-        
-        // Vertical Center Text
-        val fontMetrics = paint.fontMetrics
-        val baseline = cy - (fontMetrics.descent + fontMetrics.ascent) / 2
-        
-        val text = if (count > 99) "99+" else count.toString()
-        canvas.drawText(text, cx, baseline, paint)
-        
-        return resultBitmap
+        return bitmap
     }
 }

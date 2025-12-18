@@ -44,10 +44,15 @@ struct KakaoMapView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: KMViewContainer, context: Context) {
+        // [FIX] Safe Activation: Only activate if attached to window and frame is valid
+        if uiView.window != nil && uiView.frame.size.width > 0 {
+            context.coordinator.checkEngineActivation()
+        }
+        
         // 1. Sync Bindings
         context.coordinator.selectedItemBinding = $selectedItem
         context.coordinator.selectedClusterBinding = $selectedClusterItems
-        context.coordinator.tapPositionBinding = $tapPosition // [NEW]
+        context.coordinator.tapPositionBinding = $tapPosition
         context.coordinator.onLongTap = onLongTap
         context.coordinator.onFarItemsDetected = onFarItemsDetected
         context.coordinator.rotationBinding = $rotation
@@ -71,12 +76,6 @@ struct KakaoMapView: UIViewRepresentable {
         if action != .none {
             context.coordinator.handleAction(action)
             DispatchQueue.main.async { action = .none }
-        }
-        
-        // 4. [NEW] Check Tethering on Location Update
-        if let mapView = context.coordinator.controller?.getView("mapview") as? KakaoMap,
-           let userLoc = locationManager.currentLocation {
-            context.coordinator.checkTethering(mapView: mapView, userLocation: userLoc)
         }
     }
 
@@ -131,40 +130,33 @@ struct KakaoMapView: UIViewRepresentable {
             self.viewContainer = view
             controller = KMController(viewContainer: view)
             controller?.delegate = self
-            controller?.prepareEngine() // Async start
+            controller?.prepareEngine() // Init Engine
+        }
+        
+        // [NEW] Robust Activation Check
+        func checkEngineActivation() {
+            guard let container = viewContainer, let controller = controller else { return }
+            
+            // Criteria: Standard Engine State + Valid Window + Valid Frame
+            if container.window != nil && container.frame.width > 0 {
+                if !controller.isEngineActive {
+                    print(">>> KakaoMap: Safe Activation Triggered via updateUIView")
+                    controller.activateEngine()
+                    
+                    // Restore State if needed
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        self.refreshWasmClusters()
+                    }
+                }
+            }
         }
         
         @objc func appWillResignActive() { controller?.pauseEngine() }
         @objc func appDidEnterBackground() { controller?.pauseEngine() }
         @objc func appDidBecomeActive() {
-            if controller?.isEngineActive == false {
-                controller?.activateEngine()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    self.refreshWasmClusters()
-                }
-            }
+            checkEngineActivation()
         }
         
-        // MARK: - Tethering
-        func checkTethering(mapView: KakaoMap, userLocation: CLLocation) {
-            let center = CGPoint(x: mapView.viewRect.width / 2, y: mapView.viewRect.height / 2)
-            let target = mapView.getPosition(center)
-            let mapCenter = SmartLocationManager.shared.toIntLocation(CLLocation(latitude: target.wgsCoord.latitude, longitude: target.wgsCoord.longitude))
-            let userInt = SmartLocationManager.shared.toIntLocation(userLocation)
-            
-            // Re-calculate Span for Tethering check
-            if currentSpanLon <= 0 {
-                let width = mapView.viewRect.width > 0 ? mapView.viewRect.width : UIScreen.main.bounds.width
-                let metersPerPixel = 156543.03392 * cos(target.wgsCoord.latitude * .pi / 180.0) / pow(2, Double(mapView.zoomLevel))
-                let spanDegrees = (metersPerPixel * Double(width)) / 111320.0
-                currentSpanLon = Int(spanDegrees * 100_000.0)
-            }
-            
-            if SmartLocationManager.shared.needsCentering(user: userInt, center: mapCenter, spanLon: currentSpanLon) {
-                let pos = MapPoint(longitude: userLocation.coordinate.longitude, latitude: userLocation.coordinate.latitude)
-                mapView.moveCamera(CameraUpdate.make(target: pos, mapView: mapView))
-            }
-        }
         
         // MARK: - MapControllerDelegate
         func addViews() {
@@ -208,19 +200,80 @@ struct KakaoMapView: UIViewRepresentable {
             if let mapView = controller?.getView("mapview") as? KakaoMap {
                 mapView.eventDelegate = self
                 
-                // Initial Cluster (Sync with Viewport)
+                // [NEW] Apple Map Style: Fit Bounds Algorithm
+                // 1. Collect Points & Filter 500km
+                var points: [MapPoint] = []
+                let userLoc = locationManager?.currentLocation
+                
+                var uLat = 0
+                var uLon = 0
+                if let u = userLoc {
+                    let ui = SmartLocationManager.shared.toIntLocation(u)
+                    uLat = ui.lat; uLon = ui.lon
+                }
+                
+                for item in currentItems {
+                    if let l = item.location {
+                        // Integer Filter
+                        if let u = userLoc, SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: l.latInt, lon2: l.lonInt) { continue }
+                        points.append(MapPoint(longitude: l.longitude, latitude: l.latitude))
+                    }
+                }
+                for log in currentLogs {
+                    // Integer Filter
+                    if let u = userLoc, SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: log.latInt, lon2: log.lonInt) { continue }
+                    points.append(MapPoint(longitude: log.longitude, latitude: log.latitude))
+                }
+                if let u = userLoc {
+                    points.append(MapPoint(longitude: u.coordinate.longitude, latitude: u.coordinate.latitude))
+                }
+                
+                // 2. Initial Render (Clusters)
                 DispatchQueue.main.async {
                     self.refreshWasmClusters()
                 }
                 
-                // Launch Animation (Wait 3s -> Zoom User)
+                // 3. Move Camera to Fit Bounds
+                if !points.isEmpty {
+                    var minLat = points[0].wgsCoord.latitude
+                    var maxLat = points[0].wgsCoord.latitude
+                    var minLon = points[0].wgsCoord.longitude
+                    var maxLon = points[0].wgsCoord.longitude
+                    
+                    for p in points {
+                        if p.wgsCoord.latitude < minLat { minLat = p.wgsCoord.latitude }
+                        if p.wgsCoord.latitude > maxLat { maxLat = p.wgsCoord.latitude }
+                        if p.wgsCoord.longitude < minLon { minLon = p.wgsCoord.longitude }
+                        if p.wgsCoord.longitude > maxLon { maxLon = p.wgsCoord.longitude }
+                    }
+                    
+                    // Add Padding (Approx 1.4x like Apple Map, but Kakao uses AreaRect)
+                    let latSpan = max((maxLat - minLat) * 1.4, 0.005) // Reduced min span for Kakao
+                    let lonSpan = max((maxLon - minLon) * 1.4, 0.005)
+                    
+                    // Center
+                    let centerLat = (minLat + maxLat) / 2
+                    let centerLon = (minLon + maxLon) / 2
+                    
+                    // Create AreaRect logic manually via CameraUpdate
+                    // KakaoMap's AreaRect takes (minLon, minLat, maxLon, maxLat) ? No, it takes specific struct.
+                    // Easier: Move to Center and Set Zoom.
+                    // Or use CameraUpdate.make(area: AreaRect)
+                    
+                    let area = AreaRect(southWest: MapPoint(longitude: centerLon - lonSpan/2, latitude: centerLat - latSpan/2),
+                                        northEast: MapPoint(longitude: centerLon + lonSpan/2, latitude: centerLat + latSpan/2))
+                    
+                    mapView.moveCamera(CameraUpdate.make(area: area))
+                }
+                
+                // 4. Launch Animation (Wait 3s -> Zoom User)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
                     guard let self = self else { return }
                     
                     if let loc = self.locationManager?.currentLocation {
                          OptimizationLogger.shared.log(type: .launchStep, value: ">>> Current Location Zoom: \(loc.coordinate)")
                          let pos = MapPoint(longitude: loc.coordinate.longitude, latitude: loc.coordinate.latitude)
-                         let update = CameraUpdate.make(target: pos, zoomLevel: 15, rotation: 0, tilt: 0, mapView: mapView)
+                         let update = CameraUpdate.make(target: pos, zoomLevel: 18, rotation: 0, tilt: 0, mapView: mapView)
                          let options = CameraAnimationOptions(autoElevation: true, consecutive: false, durationInMillis: 1000)
                          mapView.animateCamera(cameraUpdate: update, options: options)
                     }
@@ -415,8 +468,8 @@ struct KakaoMapView: UIViewRepresentable {
                 if baseName == "PinHistory" { color = .red }
                 if baseName == "PinCurrent" { color = .blue } // Base PinCurrent is blueish/custom
                 
-                // Resize Base (Restored to reasonable size 44x55 for touch target, relying on scale 1.0 fix)
-                let baseImage = UIImage(named: baseName)?.resized(to: CGSize(width: 44, height: 55))
+                // Resize Base (Reduced to 32x40 for better UI balance)
+                let baseImage = UIImage(named: baseName)?.resized(to: CGSize(width: 32, height: 40))
                 
                 // Badge (Only if count > 1)
                 let displayCount = items.count > 1 ? items.count : nil
@@ -432,11 +485,9 @@ struct KakaoMapView: UIViewRepresentable {
                 
                 if !registeredStyleIDs.contains(styleID) {
                     if let rasterized = finalImage.rasterized() { // Rasterize for Kakao
-                         // [FIX] Adjust Anchor Point for Padding (PinImageHelper added 20px padding)
-                         // Content is centered with padding. Visual bottom is at (Height - Padding).
-                         // Anchor Y should be approx (TotalHeight - 20) / TotalHeight.
-                         // Estimate: 0.85
-                         let iconStyle = PoiIconStyle(symbol: rasterized, anchorPoint: CGPoint(x: 0.5, y: 0.85))
+                         // [FIX] Adjust Anchor Point for new size (32x40)
+                         // Content is centered. Tip is at the bottom.
+                         let iconStyle = PoiIconStyle(symbol: rasterized, anchorPoint: CGPoint(x: 0.5, y: 1.0))
                          let style = PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: iconStyle, level: 0)])
                          labelManager.addPoiStyle(style)
                          registeredStyleIDs.insert(styleID)
