@@ -96,13 +96,15 @@ class SmartLocationManager {
         // 3. Check (Also check Latitude for Y-axis tethering? User specified 'hdistance', likely horizontal)
         // Let's check both to be safe, assuming spanLat is roughly similar or passing separate spanLat.
         // For now, implementing strict adherence to user request "hdistance" (horizontal).
-        if deltaLon > threshold {
-            return true
-        }
+        // 3. Check Both Axes (Bi-directional Tethering)
+        let deltaLat = abs(user.lat - center.lat)
         
-        // Optional: Y-axis check (Vertical) - assuming aspect ratio 2:1 roughly, vertical span is half?
-        // Let's stick to user explicit instruction first.
+        // Use uniform threshold for now as requested (hdistance / 4)
+        // Note: Ideally vertical threshold should derive from spanLat, but user said "ignore aspect ratio".
+        // However, we must use spanLat if available or estimate it? 
+        // The signature only has spanLon. Let's assume ratio ~2:1 or just use the same logic if passed span is representative.
+        // Actually, better to just check if delta > threshold for *either*.
         
-        return false
+        return deltaLon > threshold || deltaLat > threshold
     }
 }

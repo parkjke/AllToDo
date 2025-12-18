@@ -288,6 +288,8 @@ struct ContentView: View {
             historyCount: userLogs.count,
             localTodoCount: todoItems.filter { $0.location != nil }.count, 
             serverTodoCount: 0,
+            compassRotation: compassRotation,
+            onCompassClick: { mapAction = .rotateNorth },
             onExpandClick: { withAnimation { showListView = true } }
         )
     }

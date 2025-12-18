@@ -4,34 +4,59 @@ struct TopLeftWidget: View {
     var historyCount: Int
     var localTodoCount: Int
     var serverTodoCount: Int
+    var compassRotation: Double // [NEW] 0 = North
+    var onCompassClick: () -> Void = {} // [NEW]
     var onExpandClick: () -> Void
     
+    var isNorth: Bool {
+        abs(compassRotation.truncatingRemainder(dividingBy: 360)) < 1.0
+    }
+    
     var body: some View {
-        Button(action: onExpandClick) {
-            HStack(spacing: 8) {
-                Image(systemName: "checklist")
-                    .resizable()
-                    .frame(width: 20, height: 20)
-                    .foregroundColor(Color(white: 0.2))
-                
-                Text("할 일")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(Color(white: 0.2))
-                
-                // 1. Red Badge (History)
-                StatBadge(color: .allToDoRed, count: historyCount)
-                
-                // 2. Green Badge (Local)
-                StatBadge(color: .allToDoGreen, count: localTodoCount)
-                
-                // 3. Blue Badge (Server)
-                StatBadge(color: .allToDoBlue, count: serverTodoCount)
+        HStack(spacing: 12) {
+            // 1. Checklist Icon & Text (Expand Click)
+            Button(action: onExpandClick) {
+                HStack(spacing: 8) {
+                    Image(systemName: "checklist")
+                        .resizable()
+                        .frame(width: 20, height: 20)
+                        .foregroundColor(Color(white: 0.2))
+                    
+                    Text("할 일")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(Color(white: 0.2))
+                }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(Color.allToDoGreen.opacity(0.7))
-            .cornerRadius(16)
+            
+            // 2. Compass (Reset Click)
+            Button(action: onCompassClick) {
+                ZStack {
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 32, height: 32)
+                    
+                    Image(systemName: "safari.fill")
+                        .resizable()
+                        .frame(width: 20, height: 20)
+                        .rotationEffect(.degrees(-compassRotation)) // [FIX] Match map rotation
+                        .foregroundColor(isNorth ? .gray : .red)
+                }
+            }
+            
+            // 3. Badges (Expand Click area for convenience too)
+            Button(action: onExpandClick) {
+                HStack(spacing: 6) {
+                    StatBadge(color: .allToDoRed, count: historyCount)
+                    StatBadge(color: .allToDoGreen, count: localTodoCount)
+                    StatBadge(color: .allToDoBlue, count: serverTodoCount)
+                }
+            }
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.allToDoGreen.opacity(0.7))
+        .cornerRadius(20)
+        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
     }
 }
 

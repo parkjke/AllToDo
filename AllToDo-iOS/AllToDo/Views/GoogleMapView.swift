@@ -616,8 +616,27 @@ struct GoogleMapView: UIViewRepresentable {
         
         // MARK: - Path
         func updatePath(mapView: GMSMapView, selectedItems: [UnifiedMapItem]?) {
-             // [FIX] Disabled Path Drawing as per user request
-             return
+             mapView.clear() // Google Maps clear actually removes polylines too
+             
+             guard let items = selectedItems else { return }
+             
+             let historyLogs = items.compactMap { item -> UserLog? in
+                  if case .history(let log) = item, log.pathData != nil { return log }
+                  return nil
+             }
+             
+             guard let log = historyLogs.first, let data = log.pathData else { return }
+             
+             if let points = try? JSONDecoder().decode([LocationData].self, from: data) {
+                 let path = GMSMutablePath()
+                 for p in points {
+                     path.add(CLLocationCoordinate2D(latitude: p.latitude, longitude: p.longitude))
+                 }
+                 let polyline = GMSPolyline(path: path)
+                 polyline.strokeColor = .red
+                 polyline.strokeWidth = 4
+                 polyline.map = mapView
+             }
         }
     }
 }

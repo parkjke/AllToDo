@@ -67,8 +67,10 @@ struct AppleMapView: UIViewRepresentable {
             fitRegion = MKCoordinateRegion(center: initialCenter, span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05))
         }
         
-        // [FIX] Initial State: Always Zoom 15 centered on User/Default or fit to items
-        mapView.setRegion(fitRegion, animated: false)
+        // [FIX] Instant Display (Saved/Default at Zoom 15)
+        let initialSpan = 0.01 // Zoom 15
+        let initialRegion = MKCoordinateRegion(center: initialCenter, span: MKCoordinateSpan(latitudeDelta: initialSpan, longitudeDelta: initialSpan))
+        mapView.setRegion(initialRegion, animated: false)
         
         // Long Press Gesture
         let longPress = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleLongPress(_:)))
@@ -559,24 +561,12 @@ struct AppleMapView: UIViewRepresentable {
         
         // MARK: - Launch Animation
         func performLaunchAnimation(mapView: MKMapView, userLocation: CLLocation?) {
-            firstRender = false
-            isLaunchAnimating = true // Start Guard
+            isLaunchAnimating = true
             
-            // Initial Cluster Calculation called immediately
-            refreshWasmClusters(mapView: mapView)
-            
-            // [LOG] Start Animation
-            OptimizationLogger.shared.logLaunchStep(step: "launch sequence", data: [
-                "action": "Fit Bounds -> Wait 3s -> Zoom Current",
-                "status": "Started"
-            ])
-            
-            // 1. Gather Points (Applying 500km Filter)
-            // 1. Gather Points (Applying 500km Filter)
+            // Step 1: Fit Bounds (pins within 500km)
             var points: [CLLocationCoordinate2D] = []
             let userLoc = userLocation
             
-            // Pre-calc User Int
             var uLat = 0
             var uLon = 0
             if let u = userLoc {
@@ -586,18 +576,15 @@ struct AppleMapView: UIViewRepresentable {
             
             for item in parent.todoItems { 
                 if let l = item.location { 
-                     // Filter Check (Int Ops)
                      if userLoc != nil && SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: l.latInt, lon2: l.lonInt) { continue }
                      points.append(CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)) 
                  } 
             }
             for log in parent.userLogs { 
-                 // Filter Check (Int Ops)
                  if userLoc != nil && SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: log.latInt, lon2: log.lonInt) { continue }
                  points.append(CLLocationCoordinate2D(latitude: log.latitude, longitude: log.longitude)) 
              }
             
-            // 2. Launch Sequence: Fit Bounds -> Wait 3s -> Zoom User
             if !points.isEmpty {
                  var minLat = points[0].latitude; var maxLat = points[0].latitude
                  var minLon = points[0].longitude; var maxLon = points[0].longitude
@@ -608,53 +595,37 @@ struct AppleMapView: UIViewRepresentable {
                     if p.longitude > maxLon { maxLon = p.longitude }
                  }
                  
-                 // Include User Location in bounds (optional, but good for context)
                  if let u = userLoc {
-                    minLat = min(minLat, u.coordinate.latitude)
-                    maxLat = max(maxLat, u.coordinate.latitude)
-                    minLon = min(minLon, u.coordinate.longitude)
-                    maxLon = max(maxLon, u.coordinate.longitude)
+                    minLat = min(minLat, u.coordinate.latitude); maxLat = max(maxLat, u.coordinate.latitude)
+                    minLon = min(minLon, u.coordinate.longitude); maxLon = max(maxLon, u.coordinate.longitude)
                  }
 
-                  let centerLat = (minLat + maxLat) / 2
-                  let centerLon = (minLon + maxLon) / 2
-                  // [FIX] Increase min span to 0.05 (Zoom ~13) to ensure visible Zoom-In animation to 15 later
                   let latSpan = max((maxLat - minLat) * 1.4, 0.05) 
                   let lonSpan = max((maxLon - minLon) * 1.4, 0.05)
+                  let fitRegion = MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: (minLat + maxLat) / 2, longitude: (minLon + maxLon) / 2), span: MKCoordinateSpan(latitudeDelta: latSpan, longitudeDelta: lonSpan))
                   
-                  let fitRegion = MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: centerLat, longitude: centerLon), span: MKCoordinateSpan(latitudeDelta: latSpan, longitudeDelta: lonSpan))
-                  
-                  // Step 1: Fit Bounds
                   mapView.setRegion(fitRegion, animated: true)
-                  OptimizationLogger.shared.logLaunchStep(step: "launch sequence", data: ["status": "fitted_bounds", "wait": 3])
-
-                  // Step 2: Wait 3s -> Zoom Current
-                  DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                      // Fetch latest user location from parent to ensure freshness
-                      if let freshLoc = self.parent.locationManager.currentLocation {
-                          let zoom15Span = 0.01
-                          let finalRegion = MKCoordinateRegion(center: freshLoc.coordinate, span: MKCoordinateSpan(latitudeDelta: zoom15Span, longitudeDelta: zoom15Span))
-                          
-                          // [FIX] Use setRegion with delay to unlock guard
-                          mapView.setRegion(finalRegion, animated: true)
-                          
-                          // Unlock Guard after animation approx time (1.0s)
-                          DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                              self.isLaunchAnimating = false
-                              self.firstRender = false 
-                          }
-                          
-                          
-                          // [OPTIMIZATION] Enable WASM Clustering NOW
-                          self.refreshWasmClusters(mapView: mapView) 
-                          
-                          OptimizationLogger.shared.logLaunchStep(step: "launch sequence", data: ["success": true, "final_loc": "\(freshLoc.coordinate)"])
-                      }
-                  }
-            } else if let u = userLoc {
-                // Fallback: Immediate if no pins
-                let region = MKCoordinateRegion(center: u.coordinate, span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01))
-                mapView.setRegion(region, animated: true)
+            }
+            
+            // Step 2: Immediate Pin Display (Fast Path)
+            self.refreshWasmClusters(mapView: mapView)
+            
+            // Step 3: Wait 3s -> Zoom 18 at Current Location
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                if let freshLoc = self.parent.locationManager.currentLocation {
+                    let zoom18Span = 0.0025 // Approx Zoom 18
+                    let finalRegion = MKCoordinateRegion(center: freshLoc.coordinate, span: MKCoordinateSpan(latitudeDelta: zoom18Span, longitudeDelta: zoom18Span))
+                    
+                    mapView.setRegion(finalRegion, animated: true)
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        self.isLaunchAnimating = false
+                        self.firstRender = false 
+                        self.refreshWasmClusters(mapView: mapView)
+                    }
+                    
+                    OptimizationLogger.shared.logLaunchStep(step: "launch sequence", data: ["success": true, "zoom": 18])
+                }
             }
         }
         
@@ -826,9 +797,30 @@ struct AppleMapView: UIViewRepresentable {
         }
         
         func updatePath(mapView: MKMapView, selectedItems: [UnifiedMapItem]?) {
-             // [FIX] Disabled Path Drawing as per user request
-             return
-             /*
+            // 1. Remove existing polylines
+            let oldOverlays = mapView.overlays.filter { $0 is MKPolyline }
+            mapView.removeOverlays(oldOverlays)
+            
+            guard let items = selectedItems else { return }
+            
+            // 2. Filter history items with pathData
+            let historyLogs = items.compactMap { item -> UserLog? in
+                 if case .history(let log) = item, log.pathData != nil { return log }
+                 return nil
+            }
+            
+            guard let log = historyLogs.first, let data = log.pathData else { return }
+            
+            // 3. Decode & Draw
+            if let points = try? JSONDecoder().decode([LocationData].self, from: data) {
+                var coords = points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+                if coords.count >= 2 {
+                    let polyline = MKPolyline(coordinates: &coords, count: coords.count)
+                    mapView.addOverlay(polyline)
+                }
+            }
+        }
+     /*
             // Remove existing polylines
             let oldOverlays = mapView.overlays.filter { $0 is MKPolyline }
             mapView.removeOverlays(oldOverlays)

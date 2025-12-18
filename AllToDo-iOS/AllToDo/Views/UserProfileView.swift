@@ -72,6 +72,12 @@ struct UserProfileView: View {
                         }
                     }
                     .pickerStyle(.automatic)
+                    .onChange(of: mapProvider) { _ in
+                        // [FIX] Close panel immediately on map change to show transition
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            isPresented = false
+                        }
+                    }
                 }
                 
                 Section(header: Text("Developer")) {

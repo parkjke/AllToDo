@@ -60,13 +60,11 @@ struct NaverMapView: UIViewRepresentable {
             }
         }
         
-        OptimizationLogger.shared.log(type: .launchStep, value: ">>> Map Ready")
-        
-        let update = NMFCameraUpdate(scrollTo: initialTarget, zoomTo: 16)
+        // [FIX] Instant Display (Saved/Default at Zoom 15)
+        let update = NMFCameraUpdate(scrollTo: initialTarget, zoomTo: 15)
         update.animation = .none
         view.mapView.moveCamera(update)
         
-        // Initial Delegate Call
         context.coordinator.mapView = view.mapView
         
         return view
@@ -179,8 +177,33 @@ struct NaverMapView: UIViewRepresentable {
         }
         
         func updatePath(selectedItems: [UnifiedMapItem]?) {
-             // [FIX] Disabled Path Drawing as per user request
-             return
+             guard let map = mapView, let items = selectedItems else { return }
+             
+             // 1. Remove existing
+             // Naver doesn't use removeOverlays generic, we need to track it
+             // Let's use a private property if possible or search.
+             // For now, removing all NMFPath objects if possible.
+             
+             // 2. Filter history items with pathData
+             let historyItems = items.compactMap { item -> UserLog? in
+                 if case .history(let log) = item, log.pathData != nil { return log }
+                 return nil
+             }
+             
+             guard let log = historyItems.first, let data = log.pathData else { return }
+             
+             // 3. Decode & Draw
+             if let points = try? JSONDecoder().decode([LocationData].self, from: data) {
+                 let coords = points.map { NMGLatLng(lat: $0.latitude, lng: $0.longitude) }
+                 if coords.count >= 2 {
+                     let path = NMFPath()
+                     path.coords = coords
+                     path.color = .red
+                     path.width = 4
+                     path.outlineWidth = 0
+                     path.mapView = map
+                 }
+             }
         }
         
         func updateUserLocation(_ location: CLLocation) {
@@ -249,7 +272,7 @@ struct NaverMapView: UIViewRepresentable {
             
             // Meter/Pixel Calc: 156543.03392 * cos(lat) / 2^zoom
             let metersPerPixel = 156543.03392 * cos(centerLat * .pi / 180.0) / pow(2, zoom)
-            let wasmCellSize = metersPerPixel * 100.0 // [FIX] Increased to 100.0 for Naver Map to ensure overlapping pins merge
+            let wasmCellSize = metersPerPixel * 70.0 // [FIX] Sync with Apple Map (70.0)
             
             // Prepare Data
             let currentItems = parent.todoItems
@@ -471,55 +494,49 @@ struct NaverMapView: UIViewRepresentable {
 
         func performLaunchAnimation(userLocation: CLLocation?) {
             guard let loc = userLocation, let map = mapView else { return }
-            // [FIX] Keep firstRender = true during animation
-            // firstRender = false
             
-            // [FIX] Skip redundant refresh, rely on Fast Path
-            // refreshWasmClusters()
-            
-            // 2. Fit Bounds (Dynamic)
-            // Instead of Zoom 5 (Korea), calculate actual bounds of pins
+            // Step 1: Fit Bounds (pins within 500km)
             var bounds = NMGLatLngBounds(southWest: NMGLatLng(lat: loc.coordinate.latitude, lng: loc.coordinate.longitude),
                                          northEast: NMGLatLng(lat: loc.coordinate.latitude, lng: loc.coordinate.longitude))
             
-            // Expand to include visible items
-            // Expand to include visible items (Filter 500km)
             let uLat = Int(loc.coordinate.latitude * 100_000)
             let uLon = Int(loc.coordinate.longitude * 100_000)
             
+            var hasPins = false
             for item in parent.todoItems { 
                 if let l = item.location {
                      if SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: l.latInt, lon2: l.lonInt) { continue }
                     bounds = bounds.expand(toPoint: NMGLatLng(lat: l.latitude, lng: l.longitude)) 
+                    hasPins = true
                 } 
             }
             for log in parent.userLogs {
                  if SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: log.latInt, lon2: log.lonInt) { continue }
                 bounds = bounds.expand(toPoint: NMGLatLng(lat: log.latitude, lng: log.longitude)) 
+                hasPins = true
             }
             
-            // Apply Fit Bounds with Padding
-            let cameraUpdate = NMFCameraUpdate(fit: bounds, paddingInsets: UIEdgeInsets(top: 100, left: 50, bottom: 100, right: 50))
-            cameraUpdate.animation = .easeOut
-            cameraUpdate.animationDuration = 1.0 // Move smoothly to fit bounds
-            map.moveCamera(cameraUpdate)
+            if hasPins {
+                let cameraUpdate = NMFCameraUpdate(fit: bounds, paddingInsets: UIEdgeInsets(top: 100, left: 50, bottom: 100, right: 50))
+                cameraUpdate.animation = .easeOut
+                cameraUpdate.animationDuration = 1.0
+                map.moveCamera(cameraUpdate)
+            }
             
-            // 3. Wait Longer (3.0s) -> Zoom In
-            // Delay increased to ensure user sees the pins for "at least 3 seconds" after animation finishes
+            // Step 2: Immediate Pin Display (Fast Path)
+            self.refreshWasmClusters()
+            
+            // Step 3: Wait 3s -> Zoom 18 at Current Location
             DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                // Action 2: Zoom to 15 (User Request), Duration 1.0s for smoother feel
-                let end = NMFCameraUpdate(scrollTo: NMGLatLng(lat: loc.coordinate.latitude, lng: loc.coordinate.longitude), zoomTo: 15)
+                let end = NMFCameraUpdate(scrollTo: NMGLatLng(lat: loc.coordinate.latitude, lng: loc.coordinate.longitude), zoomTo: 18)
                 end.animation = .fly
                 end.animationDuration = 1.0
                 map.moveCamera(end)
                 
-                map.moveCamera(end)
+                OptimizationLogger.shared.log(type: .launchStep, value: ">>> Current Location Zoom 18: \(loc.coordinate)")
                 
-                OptimizationLogger.shared.log(type: .launchStep, value: ">>> Current Location: \(loc.coordinate)")
-                
-                // [FIX] Enable WASM Clustering
                 self.firstRender = false
-                self.refreshWasmClusters()
+                self.refreshWasmClusters() // Disable 500km filter internally by setting firstRender = false
             }
         }
         
