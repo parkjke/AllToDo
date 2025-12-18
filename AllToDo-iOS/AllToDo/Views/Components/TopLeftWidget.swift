@@ -80,6 +80,6 @@ struct StatBadge: View {
 #Preview {
     ZStack {
         Color.white
-        TopLeftWidget(historyCount: 5, localTodoCount: 3, serverTodoCount: 1, onExpandClick: {})
+        TopLeftWidget(historyCount: 5, localTodoCount: 3, serverTodoCount: 1, compassRotation: 0, onCompassClick: {}, onExpandClick: {})
     }
 }
