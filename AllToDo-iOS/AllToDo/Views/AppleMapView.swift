@@ -827,27 +827,6 @@ struct AppleMapView: UIViewRepresentable {
                 }
             }
         }
-     /*
-            // Remove existing polylines
-            let oldOverlays = mapView.overlays.filter { $0 is MKPolyline }
-            mapView.removeOverlays(oldOverlays)
-            
-            guard let items = selectedItems, let first = items.first, case .history(let log) = first else { return }
-            
-            // Draw path for selected log
-            if let data = log.pathData, let points = try? JSONDecoder().decode([LocationData].self, from: data) {
-                var coords = points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
-                let polyline = MKPolyline(coordinates: &coords, count: coords.count)
-                mapView.addOverlay(polyline)
-            }
-             */
-        }
-
-        // ... performLaunchAnimation ... UNCHANGED (omitted for brevity in replacement if possible, but context requires care)
-        // I will copy existing performLaunchAnimation body or target replace better.
-        // Actually, replacing from Line 282 is safer.
-        // Wait, I need to update injectSwiftUI definition too (Line 416).
-        // And callsites at 196, 242.
         
         func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, calloutAccessoryControlTapped control: UIControl) {
             // Handled in SwiftUI
@@ -883,7 +862,6 @@ struct AppleMapView: UIViewRepresentable {
     } 
 } 
 
-    // ... Classes (ToDoAnnotation, UnifiedMapItem) remain UNCHANGED ...
 
 struct ClusterListCallout: View {
     var items: [UnifiedMapItem]
