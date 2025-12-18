@@ -30,6 +30,7 @@ struct ContentView: View {
     @State private var showCalendar = false
     @State private var showListView = false
     @State private var lastBackgroundDate: Date? // [NEW] Track background entry time
+    @State private var tapPosition: CGPoint? // [NEW] Screen coordinates of tapped pin
     
     // [NEW] Far Item Message State
     @State private var farItemMessage: String?
@@ -126,6 +127,7 @@ struct ContentView: View {
                     userLogs: filteredLogs,
                     selectedItem: $selectedItem,
                     selectedClusterItems: $selectedClusterItems,
+                    tapPosition: $tapPosition, // [NEW]
                     onLongTap: handleLongTap,
                     onUserLocationTap: {},
                     onDelete: deleteItem,
@@ -152,7 +154,8 @@ struct ContentView: View {
                     todoItems: filteredTodos,
                     userLogs: filteredLogs, // [Fixed] Added missing arg
                     selectedItem: $selectedItem,
-                    selectedClusterItems: $selectedClusterItems, // [Fixed] Added missing arg
+                    selectedClusterItems: $selectedClusterItems,
+                    tapPosition: $tapPosition, // [NEW]
                     onLongTap: handleLongTap,
                     onFarItemsDetected: { count in
                         guard !hasShownFarItemToast, count > 0 else { return }
@@ -176,6 +179,7 @@ struct ContentView: View {
                     userLogs: filteredLogs,
                     selectedItem: $selectedItem,
                     selectedClusterItems: $selectedClusterItems,
+                    tapPosition: $tapPosition, // [NEW]
                     onLongTap: handleLongTap,
                     onUserLocationTap: {},
                     onDelete: deleteItem,
@@ -203,6 +207,7 @@ struct ContentView: View {
                     userLogs: filteredLogs,
                     selectedItem: $selectedItem,
                     selectedClusterItems: $selectedClusterItems,
+                    tapPosition: $tapPosition, // [NEW]
                     hasItems: !filteredTodos.isEmpty || !filteredLogs.isEmpty,
                     onLongTap: handleLongTap,
                     onUserLocationTap: {},
@@ -400,6 +405,8 @@ struct ContentView: View {
                     .background(Color.white)
                     .cornerRadius(12)
                     .shadow(radius: 10)
+                    .position(x: tapPosition?.x ?? UIScreen.main.bounds.width / 2,
+                              y: (tapPosition?.y ?? UIScreen.main.bounds.height / 2) - (((CGFloat(clusterItems.count) * (popupFontSize == 0 ? 38 : (popupFontSize == 1 ? 42 : 52)) + 36)) / 2 + 60))
                     .transition(.scale.combined(with: .opacity))
                 }
                 .zIndex(999)

@@ -10,6 +10,7 @@ struct AppleMapView: UIViewRepresentable {
     var userLogs: [UserLog]
     @Binding var selectedItem: ToDoItem?
     @Binding var selectedClusterItems: [UnifiedMapItem]?
+    @Binding var tapPosition: CGPoint? // [NEW]
     var onLongTap: ((CLLocationCoordinate2D) -> Void)?
     var onUserLocationTap: (() -> Void)?
     var onDelete: ((ToDoItem) -> Void)?
@@ -261,6 +262,12 @@ struct AppleMapView: UIViewRepresentable {
                 case .history: print("DEBUG: Button Tap History")
                 default: break
                 }
+            }
+            
+            // [NEW] Update tapPosition
+            if let annotationView = sender.superview {
+                 let screenPoint = annotationView.convert(CGPoint(x: annotationView.bounds.midX, y: 0), to: nil)
+                 self.parent.tapPosition = screenPoint
             }
             
             // Update State Immediately

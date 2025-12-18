@@ -10,6 +10,7 @@ struct NaverMapView: UIViewRepresentable {
     var userLogs: [UserLog]
     @Binding var selectedItem: ToDoItem?
     @Binding var selectedClusterItems: [UnifiedMapItem]?
+    @Binding var tapPosition: CGPoint? // [NEW]
     var onLongTap: ((CLLocationCoordinate2D) -> Void)?
     var onUserLocationTap: (() -> Void)?
     
@@ -445,6 +446,12 @@ struct NaverMapView: UIViewRepresentable {
                     generator.impactOccurred()
                     
                     DispatchQueue.main.async {
+                        // [NEW] Update tapPosition
+                        if let map = self?.mapView {
+                            let point = map.projection.point(from: marker.position)
+                            self?.parent.tapPosition = point
+                        }
+                        
                         // [FIX] Distinguish Single Todo vs Cluster
                         if items.count == 1, let first = items.first {
                             switch first {

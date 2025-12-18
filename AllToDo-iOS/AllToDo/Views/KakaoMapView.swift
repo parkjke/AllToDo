@@ -22,6 +22,7 @@ struct KakaoMapView: UIViewRepresentable {
     var userLogs: [UserLog]
     @Binding var selectedItem: ToDoItem?
     @Binding var selectedClusterItems: [UnifiedMapItem]?
+    @Binding var tapPosition: CGPoint? // [NEW]
     var onLongTap: ((CLLocationCoordinate2D) -> Void)?
     var onFarItemsDetected: ((Int) -> Void)? // [NEW] Callback
     
@@ -35,6 +36,7 @@ struct KakaoMapView: UIViewRepresentable {
         context.coordinator.locationManager = locationManager
         context.coordinator.selectedItemBinding = $selectedItem
         context.coordinator.selectedClusterBinding = $selectedClusterItems
+        context.coordinator.tapPositionBinding = $tapPosition // [NEW]
         context.coordinator.onLongTap = onLongTap
         context.coordinator.onFarItemsDetected = onFarItemsDetected
         
@@ -45,6 +47,7 @@ struct KakaoMapView: UIViewRepresentable {
         // 1. Sync Bindings
         context.coordinator.selectedItemBinding = $selectedItem
         context.coordinator.selectedClusterBinding = $selectedClusterItems
+        context.coordinator.tapPositionBinding = $tapPosition // [NEW]
         context.coordinator.onLongTap = onLongTap
         context.coordinator.onFarItemsDetected = onFarItemsDetected
         context.coordinator.rotationBinding = $rotation
@@ -96,6 +99,7 @@ struct KakaoMapView: UIViewRepresentable {
         // Data & Bindings
         var selectedItemBinding: Binding<ToDoItem?>?
         var selectedClusterBinding: Binding<[UnifiedMapItem]?>?
+        var tapPositionBinding: Binding<CGPoint?>? // [NEW]
         var rotationBinding: Binding<Double>?
         var onLongTap: ((CLLocationCoordinate2D) -> Void)?
         var onFarItemsDetected: ((Int) -> Void)?
@@ -521,6 +525,13 @@ struct KakaoMapView: UIViewRepresentable {
             
              if let items = labelIdToClusterItems[poiID] {
                  DispatchQueue.main.async {
+                     // [NEW] Update tapPosition
+                     if let layer = kakaoMap.getLabelManager().getLabelLayer(layerID: layerID),
+                        let poi = layer.getPoi(poiID: poiID) {
+                         let point = kakaoMap.viewPoint(from: poi.position)
+                         self.tapPositionBinding?.wrappedValue = point
+                     }
+                     
                      // [FIX] Distinguish Single Todo vs Cluster
                      if items.count == 1, let first = items.first {
                          switch first {

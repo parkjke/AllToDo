@@ -12,6 +12,7 @@ struct GoogleMapView: UIViewRepresentable {
     
     @Binding var selectedItem: ToDoItem?
     @Binding var selectedClusterItems: [UnifiedMapItem]?
+    @Binding var tapPosition: CGPoint? // [NEW]
     var hasItems: Bool
     
     // Actions
@@ -230,6 +231,10 @@ struct GoogleMapView: UIViewRepresentable {
             // Handle Marker Tap
             if let custom = marker as? WasmClusterMarker {
                 DispatchQueue.main.async {
+                    // [NEW] Update tapPosition
+                    let point = mapView.projection.point(for: marker.position)
+                    self.parent.tapPosition = point
+                    
                     // [FIX] Distinguish Single Todo vs Cluster
                     if custom.items.count == 1, let first = custom.items.first {
                         switch first {
