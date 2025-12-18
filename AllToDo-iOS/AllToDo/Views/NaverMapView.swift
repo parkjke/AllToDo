@@ -113,7 +113,7 @@ struct NaverMapView: UIViewRepresentable {
         var onFarItemsDetected: ((Int) -> Void)?
         
         var markers: [NMFMarker] = []
-        // var pathOverlay: NMFPath? // Disabled
+        var pathOverlay: NMFPath? // [RESTORED]
         
         init(_ parent: NaverMapView) {
             self.parent = parent
@@ -176,14 +176,12 @@ struct NaverMapView: UIViewRepresentable {
         func updateAnnotations(items: [ToDoItem]) {
             refreshWasmClusters()
         }
-        
         func updatePath(selectedItems: [UnifiedMapItem]?) {
              guard let map = mapView, let items = selectedItems else { return }
              
              // 1. Remove existing
-             // Naver doesn't use removeOverlays generic, we need to track it
-             // Let's use a private property if possible or search.
-             // For now, removing all NMFPath objects if possible.
+             pathOverlay?.mapView = nil
+             pathOverlay = nil
              
              // 2. Filter history items with pathData
              let historyItems = items.compactMap { item -> UserLog? in
@@ -198,11 +196,12 @@ struct NaverMapView: UIViewRepresentable {
                  let coords = points.map { NMGLatLng(lat: $0.latitude, lng: $0.longitude) }
                  if coords.count >= 2 {
                      let path = NMFPath()
-                     path.coords = coords
+                     path.path = NMGLineString(points: coords)
                      path.color = .red
                      path.width = 4
                      path.outlineWidth = 0
                      path.mapView = map
+                     self.pathOverlay = path
                  }
              }
         }

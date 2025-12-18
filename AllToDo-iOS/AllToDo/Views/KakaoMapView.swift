@@ -147,12 +147,12 @@ struct KakaoMapView: UIViewRepresentable {
         
         // MARK: - Tethering
         func checkTethering(mapView: KakaoMap, userLocation: CLLocation) {
-            let target = mapView.cameraPosition.target
+            let center = CGPoint(x: mapView.viewRect.width / 2, y: mapView.viewRect.height / 2)
+            let target = mapView.getPosition(center)
             let mapCenter = SmartLocationManager.shared.toIntLocation(CLLocation(latitude: target.latitude, longitude: target.longitude))
             let userInt = SmartLocationManager.shared.toIntLocation(userLocation)
             
             // Re-calculate Span for Tethering check
-            // Kakao doesn't expose span directly, we estimate from viewport and zoom
             if currentSpanLon <= 0 {
                 let width = mapView.viewRect.width > 0 ? mapView.viewRect.width : UIScreen.main.bounds.width
                 let metersPerPixel = 156543.03392 * cos(target.latitude * .pi / 180.0) / pow(2, Double(mapView.zoomLevel))
@@ -238,7 +238,8 @@ struct KakaoMapView: UIViewRepresentable {
             
             // Update Span
             if size.width > 0 {
-                let target = mapView?.cameraPosition.target ?? MapPoint(longitude: 126.9, latitude: 37.5)
+                let center = CGPoint(x: size.width / 2, y: size.height / 2)
+                let target = mapView?.getPosition(center) ?? MapPoint(longitude: 126.9, latitude: 37.5)
                 let metersPerPixel = 156543.03392 * cos(target.latitude * .pi / 180.0) / pow(2, Double(mapView?.zoomLevel ?? 12))
                 let spanDegrees = (metersPerPixel * Double(size.width)) / 111320.0
                 currentSpanLon = Int(spanDegrees * 100_000.0)
@@ -476,14 +477,16 @@ struct KakaoMapView: UIViewRepresentable {
                  let coords = points.map { MapPoint(longitude: $0.longitude, latitude: $0.latitude) }
                  if coords.count >= 2 {
                      let layer = shapeManager.addShapeLayer(layerID: "pathLayer", zOrder: 500)
-                     let style = PolylineStyle(styles: [
-                         PerLevelPolylineStyle(styleID: "redPath", color: .red, strokeWidth: 4, level: 0)
+                     let style = PolylineStyleSet(styleID: "redPathSet", styles: [
+                         PolylineStyle(styles: [
+                             PerLevelPolylineStyle(bodyColor: .red, bodyWidth: 4, strokeColor: .clear, strokeWidth: 0, level: 0)
+                         ])
                      ])
-                     shapeManager.addPolylineStyle(style)
+                     shapeManager.addPolylineStyleSet(style)
                      
-                     let options = PolylineOptions(styleID: "redPath", layerID: "pathLayer")
-                     options.addPoints(coords)
-                     layer?.addPolyline(option: options)
+                     let options = MapPolylineShapeOptions(shapeID: "path", styleID: "redPathSet", layerID: "pathLayer")
+                     options.addPolylines([MapPolyline(line: coords, styleIndex: 0)])
+                     layer?.addMapPolylineShape(options: options)
                  }
              }
         }
@@ -526,11 +529,14 @@ struct KakaoMapView: UIViewRepresentable {
              if let items = labelIdToClusterItems[poiID] {
                  DispatchQueue.main.async {
                      // [NEW] Update tapPosition
-                     if let layer = kakaoMap.getLabelManager().getLabelLayer(layerID: layerID),
-                        let poi = layer.getPoi(poiID: poiID) {
-                         let point = kakaoMap.viewPoint(from: poi.position)
-                         self.tapPositionBinding?.wrappedValue = point
-                     }
+                      // [NEW] Update tapPosition
+                      if let layer = kakaoMap.getLabelManager().getLabelLayer(layerID: layerID),
+                         let poi = layer.getPoi(poiID: poiID) {
+                          // [FIX] Use viewPoint(fromMapPoint:) for KakaoMapsSDK v2.10+
+                          if let point = kakaoMap.viewPoint(fromMapPoint: poi.position) {
+                              self.tapPositionBinding?.wrappedValue = point
+                          }
+                      }
                      
                      // [FIX] Distinguish Single Todo vs Cluster
                      if items.count == 1, let first = items.first {
@@ -561,7 +567,7 @@ struct KakaoMapView: UIViewRepresentable {
         }
         
         func cameraDidStopped(kakaoMap: KakaoMap, by: MoveBy) {
-             let rotation = kakaoMap.cameraPosition.rotation * 180.0 / .pi
+             let rotation = kakaoMap.rotation 
              DispatchQueue.main.async {
                  self.rotationBinding?.wrappedValue = rotation
              }
