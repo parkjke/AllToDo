@@ -1,28 +1,28 @@
-# Map Optimization & Feature Parity Log
+# 지도 최적화 및 기능 동기화 로그 (Map Optimization Log)
 
 ## 🎯 목표 (Objectives)
-*   **Feature Parity**: Android(Google, Kakao, Naver)와 iOS(Apple, Google, Kakao, Naver) 간 기능 동기화.
-*   **WASM Only Logic**: RDP(경로 최적화) 및 Clustering(핀 그룹화) 로직을 WASM 모듈 하나로 통일.
-*   **High Frequency Path**: 0.9초 단위의 정밀한 경로 추적 및 실시간 압축.
-*   **Modular Architecture**: 맵 공급자(Provider) 별 로직 분리 및 공통 인터페이스 사용.
+*   **기능 동기화 (Feature Parity)**: Android(Google, Kakao, Naver)와 iOS(Apple, Google, Kakao, Naver) 간 기능 동기화.
+*   **WASM 통합 (WASM Only Logic)**: RDP(경로 최적화) 및 Clustering(핀 그룹화) 로직을 WASM 모듈 하나로 통일.
+*   **고빈도 경로 추적 (High Frequency Path)**: 0.9초 단위의 정밀한 경로 추적 및 실시간 압축.
+*   **모듈형 아키텍처 (Modular Architecture)**: 맵 공급자(Provider) 별 로직 분리 및 공통 인터페이스 사용.
 
 ## 📊 기능 현황 (Feature Status)
 
-### 1. General Feature Matrix
+### 1. 일반 기능 매트릭스 (General Feature Matrix)
 | Feature | Android | iOS | Status |
 | :--- | :---: | :---: | :--- |
-| **Path Tracking Interval** | ✅ 0.9s | ✅ 0.9s | **High Frequency Update** |
-| **Path Tracking Logic** | ✅ Callback | ✅ Streaming | OS Event Driven 방식으로 통일 |
-| **RDP Compression** | ✅ WASM | ✅ WASM | 5개 점마다 Batch 처리 |
-| **Clustering** | ✅ WASM | ✅ WASM | Zoom Level 기반 자동 그룹화 |
-| **Initial Animation** | ✅ | ✅ | Fit Bounds -> 1s Delay -> Zoom User |
-| **Self-Test** | ✅ | ✅ | App 실행 시 WASM 무결성 자동 검증 |
-| **Unified Pin Design** | ✅ Shield | ✅ Shield | All Providers Standardized (Green/Red/Blue) |
-| **Path History Line** | ✅ | ✅ | UserLog 선택 시 Red Polyline 표시 |
+| **경로 추적 간격** | ✅ 0.9s | ✅ 0.9s | **고빈도 업데이트 (High Frequency)** |
+| **경로 추적 로직** | ✅ Callback | ✅ Streaming | OS 이벤트 구동 (Event Driven) |
+| **RDP 압축** | ✅ WASM | ✅ WASM | 5개 점마다 배치 처리 |
+| **클러스터링** | ✅ WASM | ✅ WASM | 줌 레벨 기반 자동 그룹화 |
+| **초기화 애니메이션** | ✅ | ✅ | Fit Bounds -> 1s 대기 -> 유저 줌인 |
+| **무결성 검증 (Self-Test)** | ✅ | ✅ | 앱 실행 시 WASM 무결성 자동 검증 |
+| **통일된 핀 디자인** | ✅ Shield | ✅ Shield | 모든 지도 동일 디자인 (Green/Red/Blue) |
+| **경로 히스토리 라인** | ✅ | ✅ | UserLog 선택 시 붉은 실선 표시 |
 
-### 2. WASM Integration Status
-*   **Single Source**: `compressTrajectory` (RDP), `clusterPoints` (Clustering) 모두 서버 호스팅 WASM 사용.
-*   **Auto Update**: 실행 시 버전 체크 -> 다운로드 -> `verifyWasm` 검증 루틴.
+### 2. WASM 통합 현황
+*   **단일 소스**: `compressTrajectory` (RDP), `clusterPoints` (Clustering) 모두 서버 호스팅 WASM 사용.
+*   **자동 업데이트**: 실행 시 버전 체크 -> 다운로드 -> `verifyWasm` 검증 루틴.
 
 ---
 

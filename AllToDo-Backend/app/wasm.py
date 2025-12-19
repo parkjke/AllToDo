@@ -9,8 +9,8 @@ router = APIRouter(prefix="/wasm", tags=["wasm"])
 logger = logging.getLogger("API_LOGGER")
 
 # Directory to store uploaded WASMs
-WASM_DIR = Path("wasm")
-WASM_DIR.mkdir(exist_ok=True)
+WASM_DIR = Path("app/static/wasm")
+WASM_DIR.mkdir(parents=True, exist_ok=True)
 ACTIVE_WASM_FILE = WASM_DIR / "advanced_v1.wasm"
 VERSION_FILE = WASM_DIR / "version.txt"
 
@@ -18,20 +18,20 @@ import os
 import base64
 
 # Load secret key (Base64 -> Bytes)
-# Fallback to test key if not found, but we should use the env.
+# Load secret key (Base64 -> Bytes)
 ENV_KEY = os.getenv("ENCRYPTION_KEY")
-if ENV_KEY:
+# [FIX] Force Sync with iOS Key (Ignore Env for now to fix mismatch without restart)
+if False: # ENV_KEY:
     # Handle URL-Safe or Standard by replacing -_ with +/ if needed or just use urlsafe?
     # The key in .env has _, so it's URL safe-ish.
-    # Python's urlsafe_b64decode handles -_ correctly.
-    # If it is standard, it might fail? No, urlsafe usually handles both if padding correct.
-    # Safe approach: Try URL safe, then standard.
     try:
         AES_KEY = base64.urlsafe_b64decode(ENV_KEY)
     except:
         AES_KEY = base64.b64decode(ENV_KEY)
 else:
-    AES_KEY = b"0123456789abcdef0123456789abcdef" # Fallback
+    # Fallback to iOS matching key (Standard Base64)
+    # Key: h5eDj7nnM4A17/L1IrsbMMHsbA8YFdFL3L5ONYNkzNA=
+    AES_KEY = base64.b64decode("h5eDj7nnM4A17/L1IrsbMMHsbA8YFdFL3L5ONYNkzNA=")
 
 
 class WasmResponse(BaseModel):
@@ -46,7 +46,7 @@ class VersionResponse(BaseModel):
 def get_current_version():
     if VERSION_FILE.exists():
         return VERSION_FILE.read_text().strip()
-    return "1.0.0"
+    return "1.0.2"
 
 def set_current_version(v: str):
     VERSION_FILE.write_text(v)

@@ -52,6 +52,65 @@ enum UnifiedMapItem: Identifiable {
             return "PinCurrent"
         }
     }
+
+    // [NEW] Centralized Cluster Style Logic (Priority: User > Majority > Blue > Green > Red)
+    static func resolveClusterStyle(items: [UnifiedMapItem]) -> (baseName: String, color: UIColor, count: Int) {
+        var userLocationFound = false
+        var blueCount = 0   // Server Todo / Message
+        var greenCount = 0  // Local Todo (Ready + Done)
+        var redCount = 0    // History
+        
+        for item in items {
+            switch item {
+            case .userLocation: userLocationFound = true
+            case .serverMessage: blueCount += 1
+            case .todo: greenCount += 1 // Treat all todos as green for now, or check source if available
+            case .history: redCount += 1
+            }
+        }
+        
+        var baseName = "PinTodoReady" // Default
+        
+        if userLocationFound {
+            // [Rule 1] User Location Priority
+            baseName = "PinCurrent"
+        } else {
+            // [Rule 2 & 3] Majority Vote with Tie-Breaker (Blue > Green > Red)
+            // Array order determines priority for ties
+            let counts = [
+                ("PinReceiveReady", blueCount),
+                ("PinTodoReady", greenCount),
+                ("PinHistory", redCount)
+            ]
+            
+            // max(by:) returns the first element if values are equal but the closure returns false.
+            // Wait, max(by:) behavior: "If there are multiple elements with the same maximum value, this method returns the first one."
+            // So we want the HIGHER priority to be returned if counts are equal.
+            // But we need to use strict inequality for 'less than'.
+            // If we sort by Count Descending, then by Priority Order?
+            
+            // Let's use the standard Swift max. 
+            // counts.max(by: { $0.1 < $1.1 })
+            // Example: Blue=1, Green=1. 
+            // Compare Blue(1) < Green(1) -> False.
+            // Compare Green(1) < Blue(1) -> False.
+            // They are equal. `max` returns the FIRST one encountered (Blue).
+            // So implicit order in array: Blue, Green, Red matches our priority.
+            
+            if let max = counts.max(by: { $0.1 < $1.1 }), max.1 > 0 {
+                baseName = max.0
+            }
+        }
+        
+        // Color Resolution
+        let color: UIColor
+        if baseName == "PinHistory" { color = .red }
+        else if baseName == "PinReceiveReady" { color = .blue }
+        else if baseName == "PinCurrent" { color = .red } // User Location is Red Badge (Wait, Android says Red? Doc says Red)
+        else { color = UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0) } // Green
+        
+        return (baseName, color, items.count)
+    }
 }
 
 // Custom Annotation Class

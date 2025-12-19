@@ -10,7 +10,8 @@ struct AppleMapView: UIViewRepresentable {
     var userLogs: [UserLog]
     @Binding var selectedItem: ToDoItem?
     @Binding var selectedClusterItems: [UnifiedMapItem]?
-    @Binding var tapPosition: CGPoint? // [NEW]
+    @Binding var tapPosition: CGPoint?
+    @Binding var clusterRadius: Double? // [NEW] // [NEW]
     var onLongTap: ((CLLocationCoordinate2D) -> Void)?
     var onUserLocationTap: (() -> Void)?
     var onDelete: ((ToDoItem) -> Void)?
@@ -84,6 +85,7 @@ struct AppleMapView: UIViewRepresentable {
     
     func updateUIView(_ uiView: MKMapView, context: Context) {
         context.coordinator.parent = self
+        context.coordinator.currentMapView = uiView // [NEW] Set Reference
         uiView.showsUserLocation = false // Force disable System Blue Dot
         
         // Handle Map Actions
@@ -103,8 +105,8 @@ struct AppleMapView: UIViewRepresentable {
             context.coordinator.checkTethering(mapView: uiView, userLocation: u)
         }
         
-        // Update Path Visualization
-        context.coordinator.updatePath(mapView: uiView, selectedItems: selectedClusterItems)
+        // Update Path Visualization -> REMOVED
+        // context.coordinator.updatePath(mapView: uiView, selectedItems: selectedClusterItems)
         
         // Launch Animation
         // [FIX] Only launch when User Location is READY.
@@ -124,35 +126,133 @@ struct AppleMapView: UIViewRepresentable {
         var lastItemIDs: Set<UUID> = []
         var lastLogIDs: Set<UUID> = []
         
+        weak var currentMapView: MKMapView? // [NEW] Store Reference
+        
         init(_ parent: AppleMapView) {
             self.parent = parent
         }
         
         // [NEW] Tethering State
         var currentSpanLon: Int = 0
+        var currentSpanLat: Int = 0 
+        var moveLocation: (lat: Int, lon: Int)? = nil
+        
         var isLaunchAnimating = false
 
         
-        // Match removed logic block
-
-        
-        // [NEW] Check Tethering
+        // [NEW] Check Tethering (Restored & Updated)
         func checkTethering(mapView: MKMapView, userLocation: CLLocation) {
-            if isLaunchAnimating { return } // Prevent interference during launch
+            if isLaunchAnimating || firstRender { return } 
             
-            // Logic: If deltaLon > spanLon/4 -> Recenter
-            // Use SmartLocationManager helper
-            let mapCenter = SmartLocationManager.shared.toIntLocation(CLLocation(latitude: mapView.centerCoordinate.latitude, longitude: mapView.centerCoordinate.longitude))
-            let userInt = SmartLocationManager.shared.toIntLocation(userLocation)
+            let uInt = SmartLocationManager.shared.toIntLocation(userLocation)
+             
+            if moveLocation == nil {
+                moveLocation = uInt
+                return
+            }
             
-            if SmartLocationManager.shared.needsCentering(user: userInt, center: mapCenter, spanLon: currentSpanLon) {
-                // Determine animation speed based on distance? Just standard animated.
+            if SmartLocationManager.shared.shouldRecenter(user: uInt, moveLoc: moveLocation!, hLen: currentSpanLon, vLen: currentSpanLat) {
+                // Move Camera
                 mapView.setCenter(userLocation.coordinate, animated: true)
-                // OptimizationLogger.shared.log(type: .locationResume, value: "Tethering Activated")
+                moveLocation = uInt // Update Anchor
+                // OptimizationLogger.shared.log(type: .locationResume, value: ">>> Smart Tethering Activated (Apple)")
             }
         }
         
+        // [NEW] Pending Selection for Auto-Center
+        var pendingSelection: (annotation: MKAnnotation, position: CLLocationCoordinate2D)?
+
         // MARK: - Actions
+        
+        func mapViewDidChangeVisibleRegion(_ mapView: MKMapView) {
+             let heading = mapView.camera.heading
+             DispatchQueue.main.async {
+                 self.parent.rotation = heading
+                 // Sync Span
+                 self.currentSpanLon = Int(mapView.region.span.longitudeDelta * 100_000.0)
+                 self.currentSpanLat = Int(mapView.region.span.latitudeDelta * 100_000.0)
+                 self.parent.locationManager.currentSpan = mapView.region.span.latitudeDelta
+             }
+             // Trigger WASM Clustering (Continuous)
+             refreshWasmClusters(mapView: mapView)
+        }
+        
+        func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+             // [NEW] Handle Pending Selection (Auto-Center Complete)
+             if let pending = pendingSelection {
+                 let annotation = pending.annotation
+                 let position = pending.position
+                 pendingSelection = nil
+                 
+                 DispatchQueue.main.async {
+                     // 1. Calculate Screen Point
+                     let point = mapView.convert(position, toPointTo: mapView)
+                     self.parent.tapPosition = point
+                     
+                     // 2. Show Callout
+                     if let cluster = annotation as? WasmClusterAnnotation {
+                         self.parent.selectedClusterItems = cluster.items
+                         self.parent.selectedItem = nil
+                     } else if let nativeCluster = annotation as? MKClusterAnnotation {
+                         // [FIX] Handle Native Cluster in Pending Selection
+                         var items: [UnifiedMapItem] = []
+                         for member in nativeCluster.memberAnnotations {
+                             if let uni = member as? UnifiedAnnotation, let item = uni.item {
+                                 items.append(item)
+                             }
+                         }
+                         self.parent.selectedClusterItems = items
+                         self.parent.selectedItem = nil
+                     } else if let uni = annotation as? UnifiedAnnotation, let item = uni.item {
+                         self.parent.selectedClusterItems = [item]
+                         self.parent.selectedItem = nil
+                     }
+                 }
+             }
+        }
+        
+        func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
+            guard let annotation = view.annotation else { return }
+            
+            // [TEMPORARY CHECK] Handle Native Cluster Selection
+            if let cluster = annotation as? MKClusterAnnotation {
+                // Extract items
+                var items: [UnifiedMapItem] = []
+                for member in cluster.memberAnnotations {
+                    if let uni = member as? UnifiedAnnotation, let item = uni.item {
+                        items.append(item)
+                    }
+                }
+                
+                // Show Overlay
+                if !items.isEmpty {
+                     // Auto-Center on Cluster
+                     mapView.setCenter(cluster.coordinate, animated: true)
+                     parent.selectedClusterItems = items
+                     parent.selectedItem = nil
+                     
+                     // Deselect to allow re-tap
+                     mapView.deselectAnnotation(annotation, animated: false)
+                }
+                return
+            }
+            
+            if annotation is MKUserLocation { return } // Ignore User Location tap
+            
+            // [NEW] Auto-Center Logic
+            let generator = UIImpactFeedbackGenerator(style: .medium)
+            generator.impactOccurred()
+            
+            // 1. Store Pending
+            pendingSelection = (annotation, annotation.coordinate)
+            
+            // 2. Animate
+            mapView.setCenter(annotation.coordinate, animated: true)
+            
+            // 3. Deselect immediately to allow re-tap
+            mapView.deselectAnnotation(annotation, animated: false)
+        }
+        
         func handleAction(_ action: MapAction, mapView: MKMapView) {
             switch action {
             case .zoomIn:
@@ -219,84 +319,7 @@ struct AppleMapView: UIViewRepresentable {
             }
         }
         
-        // Custom Button subclass just to carry data
-        class MapPinButton: UIButton {
-            var items: [UnifiedMapItem] = []
-        }
-        
-        // [NEW] Custom Annotation View to enforce HitTest
-        class TouchableAnnotationView: MKAnnotationView {
-            override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-                // [FIX] Force-return the button if the touch is within our expanded bounds
-                // This guarantees the button receives the touch event
-                if self.point(inside: point, with: event) {
-                    return self.subviews.first { $0 is UIButton } ?? super.hitTest(point, with: event)
-                }
-                return super.hitTest(point, with: event)
-            }
-            override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
-                // [FIX] Expand hit area significantly to catch touches easily
-                let largerBounds = self.bounds.insetBy(dx: -20, dy: -20)
-                return largerBounds.contains(point)
-            }
-        }
-
-        @objc func handlePinButtonTap(_ sender: UIButton) {
-            // [FIX] Read data directly from Button, ignoring MapView
-            guard let btn = sender as? MapPinButton else { return }
-            print("DEBUG: ----- handlePinButtonTap \(btn.touchesBegan)")
-
-            // Impact Feedback
-            let generator = UIImpactFeedbackGenerator(style: .medium)
-            generator.impactOccurred()
-            
-            let items = btn.items
-            if items.isEmpty { return }
-            
-            // Debug Logs (User Requirement)
-            if items.count > 1 {
-                print("DEBUG: Button Tap Cluster (\(items.count) items)")
-            } else if let first = items.first {
-                switch first {
-                case .todo(let todo): print("DEBUG: Button Tap ToDo: \(todo.title)")
-                case .history: print("DEBUG: Button Tap History")
-                default: break
-                }
-            }
-            
-            // [NEW] Update tapPosition
-            if let annotationView = sender.superview {
-                 let screenPoint = annotationView.convert(CGPoint(x: annotationView.bounds.midX, y: 0), to: nil)
-                 self.parent.tapPosition = screenPoint
-            }
-            
-            // Update State Immediately
-            self.parent.selectedClusterItems = items
-            self.parent.selectedItem = nil
-        }
-
-        func mapViewDidChangeVisibleRegion(_ mapView: MKMapView) {
-             let heading = mapView.camera.heading
-             DispatchQueue.main.async {
-                 self.parent.rotation = heading
-                 // [NEW] Sync Span with LocationManager for Smart Tracking
-                 // Also Update Local Coordinator State for Tethering
-                 self.currentSpanLon = Int(mapView.region.span.longitudeDelta * 100_000.0)
-                 self.parent.locationManager.currentSpan = mapView.region.span.latitudeDelta
-             }
-        }
-        
         // MARK: - WASM Clustering Integration
-        
-        func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
-             let heading = mapView.camera.heading
-             DispatchQueue.main.async {
-                 self.parent.rotation = heading
-             }
-             
-             // Trigger WASM Clustering
-             refreshWasmClusters(mapView: mapView)
-        }
         
         private func refreshWasmClusters(mapView: MKMapView) {
             // [FIX] Fallback to Screen Width if Map View is not yet laid out (Width=0)
@@ -309,9 +332,63 @@ struct AppleMapView: UIViewRepresentable {
             
             // [OPTIMIZATION] Fast Path: Bypass WASM if forced OR item count is small (< 50) AND not animating to user yet
             // This prevents initial delay and shows raw pins immediately during "Fit Bounds" phase.
+            // [OPTIMIZATION] Fast Path: Bypass WASM on launch for speed.
+            // visual overlap is acceptable during this phase.
+            // [CRITICAL LOCK: DO NOT MODIFY] Raw First -> Cluster Strategy
             let totalCount = parent.todoItems.count + parent.userLogs.count
             let isLaunchPhase = parent.action == .launchSequence || firstRender // Identify launch
-            let useFastPath = isLaunchPhase && totalCount < 50
+            
+            // [TEMPORARY CHECK] switch to native clustering
+            let useNativeClustering = false 
+            
+            if useNativeClustering {
+                OptimizationLogger.shared.log(type: .launchStep, value: ">>> Native Clustering Mode Active")
+                 // Pre-calc user int location
+                var uInt: (lat: Int, lon: Int)? = nil
+                if let u = parent.locationManager.currentLocation {
+                    uInt = SmartLocationManager.shared.toIntLocation(u)
+                }
+                
+                // Collect All Items
+                 var allItems: [UnifiedMapItem] = []
+                 var farCount = 0
+                 
+                 for item in parent.todoItems {
+                     if let loc = item.location {
+                         // 500km Filter (Integer)
+                         if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: loc.latInt, lon2: loc.lonInt) {
+                             farCount += 1
+                             continue
+                         }
+                         allItems.append(.todo(item))
+                     }
+                 }
+                 for log in parent.userLogs {
+                     // 500km Filter (Integer)
+                      if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.latInt, lon2: log.lonInt) {
+                          farCount += 1
+                          continue
+                      }
+                     allItems.append(.history(log))
+                 }
+                 // User Location handled by system or separate annotation? 
+                 // If using native clustering, we treat UserLocation as a pin too if we want it clustered.
+                 // Current logic: UserLocation is separate .userLocation item.
+                 if let u = parent.locationManager.currentLocation { allItems.append(.userLocation) }
+                 
+                 // Notify Far Items
+                 if farCount > 0 {
+                     DispatchQueue.main.async { self.parent.onFarItemsDetected?(farCount) }
+                 }
+                 
+                 // Render Raw Immediately (Native Clustering will group them)
+                 DispatchQueue.main.async {
+                     self.renderRawItems(mapView: mapView, allItems: allItems)
+                 }
+                 return
+            }
+            
+            let useFastPath = isLaunchPhase
             
             if useFastPath {
                  OptimizationLogger.shared.log(type: .launchStep, value: ">>> Fast Path: Rendering \(totalCount) items raw (No WASM)")
@@ -361,7 +438,7 @@ struct AppleMapView: UIViewRepresentable {
             let currentLogs = self.parent.userLogs
             let userLocation = self.parent.locationManager.currentLocation
             
-            OptimizationLogger.shared.log(type: .launchStep, value: ">>> Pins Loaded: \(currentItems.count) Items, \(currentLogs.count) Logs")
+            // OptimizationLogger.shared.log(type: .launchStep, value: ">>> Pins Loaded: \(currentItems.count) Items, \(currentLogs.count) Logs")
             if let u = userLocation {
                  OptimizationLogger.shared.log(type: .launchStep, value: ">>> Current Location: \(u.coordinate.latitude), \(u.coordinate.longitude)")
             }
@@ -369,8 +446,6 @@ struct AppleMapView: UIViewRepresentable {
             // 1. Prepare Data
             var allItems: [UnifiedMapItem] = []
             var rawPoints: [Int32] = []
-            
-            // ... (rest of logic)
             
             var farItemsCount = 0 // [NEW] Track hidden items
             
@@ -384,15 +459,15 @@ struct AppleMapView: UIViewRepresentable {
                 if let loc = item.location {
                     // Standard Path: Show ALL items (Filter only on Fast Path)
                     allItems.append(.todo(item))
-                    rawPoints.append(Int32(loc.latitude * 1_000_000))
-                    rawPoints.append(Int32(loc.longitude * 1_000_000))
+                    rawPoints.append(Int32(loc.latitude * 100_000))
+                    rawPoints.append(Int32(loc.longitude * 100_000))
                 }
             }
             for log in currentLogs {
                 // Standard Path: Show ALL items
                 allItems.append(.history(log))
-                rawPoints.append(Int32(log.latitude * 1_000_000))
-                rawPoints.append(Int32(log.longitude * 1_000_000))
+                rawPoints.append(Int32(log.latitude * 100_000))
+                rawPoints.append(Int32(log.longitude * 100_000))
             }
             
             // Trigger Callback
@@ -405,8 +480,8 @@ struct AppleMapView: UIViewRepresentable {
             // [FIX] Add User Location to Clustering Data
             if let userLoc = userLocation {
                 allItems.append(.userLocation)
-                rawPoints.append(Int32(userLoc.coordinate.latitude * 1_000_000))
-                rawPoints.append(Int32(userLoc.coordinate.longitude * 1_000_000))
+                rawPoints.append(Int32(userLoc.coordinate.latitude * 100_000))
+                rawPoints.append(Int32(userLoc.coordinate.longitude * 100_000))
             }
             
             // 2. Cell Size Calculation
@@ -414,11 +489,18 @@ struct AppleMapView: UIViewRepresentable {
             let cosLat = cos(region.center.latitude * .pi / 180.0)
             let widthMeters = region.span.longitudeDelta * 111320.0 * cosLat
             let metersPerPixel = widthMeters / widthPixels
-            let wasmCellSize = metersPerPixel * 70.0 // User requested 70.0 for broader clustering
+            let wasmCellSize = metersPerPixel * 100.0 // [FIX] Restored Standard Sensitivity (100.0) for broader clustering
+            
+            // [NEW] Update Binding for UI
+            DispatchQueue.main.async {
+                self.parent.clusterRadius = wasmCellSize
+            }
             
             Task {
+                // print(">>> WASM Clustering Start")
                 let start = Date()
                 let result = await WasmManager.shared.cluster(points: rawPoints, cellSize: wasmCellSize)
+                // print(">>> WASM Clustering Result: \(result.count/3)")
                 let _ = Date().timeIntervalSince(start) * 1000 
                                 
                 await MainActor.run {
@@ -444,8 +526,8 @@ struct AppleMapView: UIViewRepresentable {
             
             if clusterResult.count % 3 == 0 {
                 for i in stride(from: 0, to: clusterResult.count, by: 3) {
-                    let lat = Double(clusterResult[i]) / 1_000_000.0
-                    let lon = Double(clusterResult[i+1]) / 1_000_000.0
+                    let lat = Double(clusterResult[i]) / 100_000.0
+                    let lon = Double(clusterResult[i+1]) / 100_000.0
                     let count = Int(clusterResult[i+2])
                     centroids.append(Centroid(lat: lat, lon: lon, count: count))
                 }
@@ -640,20 +722,29 @@ struct AppleMapView: UIViewRepresentable {
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
             if annotation is MKUserLocation { return nil }
             
-            // Check for WASM Cluster
+            // Check for WASM Cluster OR Native Cluster
             let isWasmCluster = annotation is WasmClusterAnnotation
-            let identifier = isWasmCluster ? "WasmCluster" : "UnifiedPin"
+            let isNativeCluster = annotation is MKClusterAnnotation
+            
+            let identifier = isWasmCluster ? "WasmCluster" : (isNativeCluster ? "NativeCluster" : "UnifiedPin")
             
             var view = mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? TouchableAnnotationView
             if view == nil {
                 view = TouchableAnnotationView(annotation: annotation, reuseIdentifier: identifier)
                 view?.canShowCallout = false
-                view?.displayPriority = isWasmCluster ? .required : .defaultHigh
+                view?.displayPriority = (isWasmCluster || isNativeCluster) ? .required : .defaultHigh
                 view?.collisionMode = .circle
             }
             
+            // [TEMPORARY CHECK] Enable Native Clustering (Only for Singles)
+            if !isWasmCluster && !isNativeCluster {
+                view?.clusteringIdentifier = "native_cluster_id"
+            } else {
+                view?.clusteringIdentifier = nil
+            }
+            
             view?.annotation = annotation
-            view?.layer.zPosition = isWasmCluster ? 100 : 10
+            view?.layer.zPosition = (isWasmCluster || isNativeCluster) ? 100 : 10
             
             configurePinView(view: view!, annotation: annotation)
             
@@ -695,52 +786,51 @@ struct AppleMapView: UIViewRepresentable {
             view.addSubview(btn)
             
             // 6. Data Binding
-            if let wasmCluster = annotation as? WasmClusterAnnotation {
+            // [NEW] Native Cluster Support
+            if let cluster = annotation as? MKClusterAnnotation {
+                var items: [UnifiedMapItem] = []
+                for member in cluster.memberAnnotations {
+                    if let uni = member as? UnifiedAnnotation, let item = uni.item {
+                        items.append(item)
+                    }
+                }
+                btn.items = items
+                let count = items.count
+                
+                // Style Logic
+                let (baseName, color, _) = UnifiedMapItem.resolveClusterStyle(items: items)
+                
+                if let img = UIImage(named: baseName) {
+                    imageView.image = img
+                } else {
+                     imageView.image = PinImageHelper.shared.createShieldPin(color: color, count: count)
+                }
+                
+                // Badge
+                if count > 1 {
+                    let badgeSize: CGFloat = 20
+                    let badgeLabel = UILabel(frame: CGRect(x: width - (badgeSize/2), y: -(badgeSize/4), width: badgeSize, height: badgeSize))
+                    badgeLabel.backgroundColor = .white
+                    badgeLabel.textColor = .red
+                    badgeLabel.textAlignment = .center
+                    badgeLabel.font = UIFont.systemFont(ofSize: 12, weight: .bold)
+                    badgeLabel.text = count > 9 ? "9+" : "\(count)"
+                    badgeLabel.layer.cornerRadius = badgeSize / 2
+                    badgeLabel.layer.masksToBounds = true
+                    badgeLabel.layer.borderWidth = 1.5
+                    badgeLabel.layer.borderColor = UIColor.red.cgColor
+                    view.addSubview(badgeLabel)
+                }
+                view.bringSubviewToFront(btn)
+                
+            } else if let wasmCluster = annotation as? WasmClusterAnnotation {
                 // [WASM CLUSTER LOGIC]
                 let items = wasmCluster.items
                 btn.items = items
                 let count = items.count
                 
-                var userLocationFound = false
-                var historyCount = 0
-                var todoReadyCount = 0
-                var todoDoneCount = 0
-                var messageCount = 0
-                
-                for item in items {
-                    switch item {
-                    case .userLocation: userLocationFound = true
-                    case .history: historyCount += 1
-                    case .todo(let t):
-                        if t.isCompleted { todoDoneCount += 1 }
-                        else { todoReadyCount += 1 }
-                    case .serverMessage: messageCount += 1
-                    }
-                }
-                
-                // Determine Base Image Name
-                var baseName = "PinTodoReady" // Default
-                
-                if userLocationFound {
-                    baseName = "PinCurrent"
-                } else {
-                    // Find Max
-                    let counts = [
-                        ("PinHistory", historyCount),
-                        ("PinTodoReady", todoReadyCount),
-                        ("PinTodoDone", todoDoneCount),
-                        ("PinReceiveReady", messageCount)
-                    ]
-                    
-                    if let max = counts.max(by: { $0.1 < $1.1 }), max.1 > 0 {
-                        baseName = max.0
-                    }
-                }
-                
-                let color: UIColor
-                if baseName == "PinHistory" { color = .red }
-                else if baseName == "PinReceiveReady" { color = .blue }
-                else { color = UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0) } // Green for Todos
+                // [FIX] Centralized Logic
+                let (baseName, color, _) = UnifiedMapItem.resolveClusterStyle(items: items)
                 
                 if let img = UIImage(named: baseName) {
                     // Use base image directly. Badge is added by code below (UIView)
@@ -751,19 +841,21 @@ struct AppleMapView: UIViewRepresentable {
                 }
                 
                 // Badge
-                let badgeSize: CGFloat = 20
-                let badgeLabel = UILabel(frame: CGRect(x: width - (badgeSize/2), y: -(badgeSize/4), width: badgeSize, height: badgeSize))
-                // Badge Style (Reverted)
-                badgeLabel.backgroundColor = .white
-                badgeLabel.textColor = .red
-                badgeLabel.textAlignment = .center
-                badgeLabel.font = UIFont.systemFont(ofSize: 12, weight: .bold)
-                badgeLabel.text = count > 9 ? "9+" : "\(count)"
-                badgeLabel.layer.cornerRadius = badgeSize / 2
-                badgeLabel.layer.masksToBounds = true
-                badgeLabel.layer.borderWidth = 1.5
-                badgeLabel.layer.borderColor = UIColor.red.cgColor
-                view.addSubview(badgeLabel)
+                if count > 1 {
+                    let badgeSize: CGFloat = 20
+                    let badgeLabel = UILabel(frame: CGRect(x: width - (badgeSize/2), y: -(badgeSize/4), width: badgeSize, height: badgeSize))
+                    // Badge Style (Updated: White BG, Red Text/Border)
+                    badgeLabel.backgroundColor = .white
+                    badgeLabel.textColor = .red
+                    badgeLabel.textAlignment = .center
+                    badgeLabel.font = UIFont.systemFont(ofSize: 12, weight: .bold)
+                    badgeLabel.text = count > 9 ? "9+" : "\(count)"
+                    badgeLabel.layer.cornerRadius = badgeSize / 2
+                    badgeLabel.layer.masksToBounds = true
+                    badgeLabel.layer.borderWidth = 1.5
+                    badgeLabel.layer.borderColor = UIColor.red.cgColor
+                    view.addSubview(badgeLabel)
+                }
                 view.bringSubviewToFront(btn)
                 
             } else if let unified = annotation as? UnifiedAnnotation, let item = unified.item {
@@ -774,14 +866,11 @@ struct AppleMapView: UIViewRepresentable {
                       if todo.isCompleted { imageName = "PinTodoDone" }
                       if let img = UIImage(named: imageName) { imageView.image = img }
                       if let date = todo.dueDate {
-                          let f = DateFormatter(); f.dateFormat = "H:mm"
-                          // [FIX] User requested to clear text for now, but keep structure
-                          label.text = "" // f.string(from: date)
+                          // Only show label if needed
                       }
                    case .history(let log):
                        if let img = UIImage(named: "PinHistory") { imageView.image = img }
                        else { imageView.image = PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill") }
-                      let f = DateFormatter(); f.dateFormat = "H:mm"
                       // [FIX] User requested to clear text for now
                       label.text = "" // f.string(from: log.startTime)
                    case .serverMessage:
@@ -792,6 +881,63 @@ struct AppleMapView: UIViewRepresentable {
             }
         }
         
+        @objc func handlePinButtonTap(_ sender: UIButton) {
+            // [FIX] Read data directly from Button
+            guard let btn = sender as? MapPinButton else { return }
+
+            // Impact Feedback
+            let generator = UIImpactFeedbackGenerator(style: .medium)
+            generator.impactOccurred()
+            
+            let items = btn.items
+            if items.isEmpty { return }
+            
+            // [NEW] Auto-Center Logic
+            if let annotationView = sender.superview as? MKAnnotationView,
+               let mapView = self.currentMapView,
+               let annotation = annotationView.annotation {
+                
+                // 1. Store Pending Selection
+                // Note: We need to pass the annotation so regionDidChangeAnimated can process it.
+                // However, 'btn.items' already has the data. 
+                // To keep consistency with 'regionDidChangeAnimated', we can attach items to annotation or pass a temporary struct?
+                // Actually 'regionDidChangeAnimated' uses 'pendingSelection.annotation'.
+                // If the annotation is 'WasmClusterAnnotation', it has items.
+                // If 'UnifiedAnnotation', it has one item.
+                // So passing the annotation is sufficient.
+                
+                pendingSelection = (annotation, annotation.coordinate)
+                
+                // 2. Animate to Center
+                mapView.setCenter(annotation.coordinate, animated: true)
+                
+                // 3. Defer Selection Update (Handled in regionDidChangeAnimated)
+                // We do NOT set parent.selectedClusterItems here.
+            }
+        }
+        
+        // Custom Button subclass just to carry data
+        class MapPinButton: UIButton {
+            var items: [UnifiedMapItem] = []
+        }
+        
+        // [NEW] Custom Annotation View to enforce HitTest
+        class TouchableAnnotationView: MKAnnotationView {
+            override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+                // [FIX] Force-return the button if the touch is within our expanded bounds
+                // This guarantees the button receives the touch event
+                if self.point(inside: point, with: event) {
+                    return self.subviews.first { $0 is UIButton } ?? super.hitTest(point, with: event)
+                }
+                return super.hitTest(point, with: event)
+            }
+            override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+                // [FIX] Expand hit area significantly to catch touches easily
+                let largerBounds = self.bounds.insetBy(dx: -20, dy: -20)
+                return largerBounds.contains(point)
+            }
+        }
+
         // MARK: - Overlays
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             if let polyline = overlay as? MKPolyline {
@@ -840,11 +986,11 @@ struct AppleMapView: UIViewRepresentable {
             
             let controller = UIHostingController(rootView: swiftUIView)
             controller.view.translatesAutoresizingMaskIntoConstraints = false
-            controller.view.backgroundColor = .clear 
+            controller.view.backgroundColor = UIColor.clear 
             
             let containerView = UIView()
             containerView.translatesAutoresizingMaskIntoConstraints = false
-            containerView.backgroundColor = .clear 
+            containerView.backgroundColor = UIColor.clear 
             containerView.addSubview(controller.view)
             
             NSLayoutConstraint.activate([
@@ -906,9 +1052,6 @@ struct ClusterListCallout: View {
                 .frame(maxHeight: 250) // Limit height for large lists
             }
         }
-        .background(Color.white) // Ensure background is visible
-        .cornerRadius(12)        // Add styling if missing
-        .shadow(radius: 5)
     }
     
     // Constant widths for alignment
@@ -1000,4 +1143,3 @@ struct ClusterListCallout: View {
         .frame(height: isSingle ? 50 : nil)
     }
 }
-

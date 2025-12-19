@@ -13,6 +13,7 @@ struct GoogleMapView: UIViewRepresentable {
     @Binding var selectedItem: ToDoItem?
     @Binding var selectedClusterItems: [UnifiedMapItem]?
     @Binding var tapPosition: CGPoint? // [NEW]
+    @Binding var clusterRadius: Double? // [NEW]
     var hasItems: Bool
     
     // Actions
@@ -86,13 +87,13 @@ struct GoogleMapView: UIViewRepresentable {
         context.coordinator.refreshWasmClusters(mapView: uiView)
         
         // [NEW] Check Tethering (Conditional)
-        // [DISABLED] User requested to disable
-        /*
         // Only if NOT animating and NOT first render
         if let u = locationManager.currentLocation, !context.coordinator.firstRender, !context.coordinator.isAnimating {
             context.coordinator.checkTethering(mapView: uiView, userLocation: u)
         }
-        */
+        
+        // [FIX] Update Path Visualization -> REMOVED per user request
+        // context.coordinator.updatePath(mapView: uiView, selectedItems: selectedClusterItems)
         
         // 3. Launch Animation
         if context.coordinator.firstRender, let u = locationManager.currentLocation {
@@ -113,10 +114,7 @@ struct GoogleMapView: UIViewRepresentable {
             self.parent = parent
         }
         
-        // [NEW] Check Tethering
-        func checkTethering(mapView: GMSMapView, userLocation: CLLocation) {
-           // Disabled
-        }
+
 
         // ...Actions...
 
@@ -221,8 +219,13 @@ struct GoogleMapView: UIViewRepresentable {
             }
         }
         
-        // [NEW] Tethering State
+        // [NEW] Pending Selection for Auto-Center
+        var pendingSelection: (items: [UnifiedMapItem], position: CLLocationCoordinate2D)?
+
+        // [FIX] Restored Missing Properties
         var currentSpanLon: Int = 0
+        var currentSpanLat: Int = 0 
+        var moveLocation: (lat: Int, lon: Int)? = nil
 
         // MARK: - Delegate Methods
         func mapView(_ mapView: GMSMapView, didChange position: GMSCameraPosition) {
@@ -231,18 +234,57 @@ struct GoogleMapView: UIViewRepresentable {
                  
                  // [NEW] Update Span
                  let region = mapView.projection.visibleRegion()
-                 // Calculate longitude delta (approx width)
-                 // Using FarRight - FarLeft might be inaccurate if tilted, generally GMS uses bounds.
-                 // Let's use bounding box of visible region.
                  let bounds = GMSCoordinateBounds(region: region)
-                 let span = bounds.northEast.longitude - bounds.southWest.longitude
-                 self.currentSpanLon = Int(abs(span) * 100_000.0)
+                 
+                 let spanLon = abs(bounds.northEast.longitude - bounds.southWest.longitude)
+                 let spanLat = abs(bounds.northEast.latitude - bounds.southWest.latitude)
+                 
+                 self.currentSpanLon = Int(spanLon * 100_000.0)
+                 self.currentSpanLat = Int(spanLat * 100_000.0)
              }
         }
         
+        // (Removed duplicate performLaunchAnimation)
+        
+        // [NEW] Check Tethering (Restored)
+        func checkTethering(mapView: GMSMapView, userLocation: CLLocation) {
+            if firstRender || isAnimating { return }
+            
+            let uInt = SmartLocationManager.shared.toIntLocation(userLocation)
+            
+            if moveLocation == nil {
+                moveLocation = uInt
+                return 
+            }
+            
+            if SmartLocationManager.shared.shouldRecenter(user: uInt, moveLoc: moveLocation!, hLen: currentSpanLon, vLen: currentSpanLat) {
+                let update = GMSCameraUpdate.setTarget(userLocation.coordinate)
+                mapView.animate(with: update)
+                moveLocation = uInt // Update Anchor
+                // OptimizationLogger.shared.log(type: .locationResume, value: ">>> Smart Tethering Activated (Google)")
+            }
+        }
+        
         func mapView(_ mapView: GMSMapView, idleAt position: GMSCameraPosition) {
-            // Trigger WASM Clustering on Idle (Region Change End)
-            refreshWasmClusters(mapView: mapView)
+            // [NEW] Handle Pending Selection (Auto-Center Complete)
+            if let pending = pendingSelection {
+                let items = pending.items
+                let pos = pending.position
+                pendingSelection = nil
+                
+                DispatchQueue.main.async {
+                    // 1. Calculate Screen Point
+                    let point = mapView.projection.point(for: pos)
+                    self.parent.tapPosition = point
+                    
+                    // 2. Show Callout
+                    self.parent.selectedClusterItems = items
+                    self.parent.selectedItem = nil
+                }
+            } else {
+                 // Trigger WASM Clustering on Idle (Region Change End)
+                 refreshWasmClusters(mapView: mapView)
+            }
         }
         
         func mapView(_ mapView: GMSMapView, didTapAt coordinate: CLLocationCoordinate2D) {
@@ -259,35 +301,20 @@ struct GoogleMapView: UIViewRepresentable {
         }
         
         func mapView(_ mapView: GMSMapView, didTap marker: GMSMarker) -> Bool {
-            let generator = UIImpactFeedbackGenerator(style: .medium)
-            generator.impactOccurred()
-            
-            // Handle Marker Tap
-            if let custom = marker as? WasmClusterMarker {
-                DispatchQueue.main.async {
-                    // [NEW] Update tapPosition
-                    let point = mapView.projection.point(for: marker.position)
-                    self.parent.tapPosition = point
-                    
-                    // [FIX] Distinguish Single Todo vs Cluster
-                    if custom.items.count == 1, let first = custom.items.first {
-                        switch first {
-                        case .todo(let item):
-                            self.parent.selectedItem = item
-                            self.parent.selectedClusterItems = nil
-                        default:
-                            self.parent.selectedClusterItems = custom.items
-                            self.parent.selectedItem = nil
-                        }
-                    } else {
-                        self.parent.selectedClusterItems = custom.items
-                        self.parent.selectedItem = nil
-                    }
-                }
-                return true
-            }
-            
-            return false // Default behavior
+             // [NEW] Auto-Center Logic
+             let update = GMSCameraUpdate.setTarget(marker.position)
+             mapView.animate(with: update)
+
+             if let custom = marker as? WasmClusterMarker {
+                 let generator = UIImpactFeedbackGenerator(style: .medium)
+                 generator.impactOccurred()
+                 
+                 // [NEW] Pending Logic
+                 pendingSelection = (custom.items, marker.position)
+                 
+                 return true
+             }
+             return false
         }
         
         // MARK: - WASM Clustering
@@ -306,9 +333,10 @@ struct GoogleMapView: UIViewRepresentable {
             // guard widthPixels > 0 else { return } // Removed guard
             
             // [OPTIMIZATION] Fast Path
+            // [CRITICAL LOCK: DO NOT MODIFY] Raw First -> Cluster Strategy
             let totalCount = parent.todoItems.count + parent.userLogs.count
             let isLaunchPhase = parent.action == .launchSequence || firstRender
-            let useFastPath = isLaunchPhase && totalCount < 50
+            let useFastPath = isLaunchPhase
             
             if useFastPath {
                  OptimizationLogger.shared.log(type: .launchStep, value: ">>> Fast Path (Google): Rendering raw")
@@ -358,7 +386,12 @@ struct GoogleMapView: UIViewRepresentable {
             let zoom = mapView.camera.zoom
             // Meters per pixel ~ 156543.03392 * cos(lat) / 2^zoom
             let metersPerPixel = 156543.03392 * cos(center.latitude * .pi / 180.0) / pow(2, Double(zoom))
-            let wasmCellSize = metersPerPixel * 70.0 // User requested 70.0
+            let wasmCellSize = metersPerPixel * 100.0 // [FIX] Restored Standard Sensitivity (100.0)
+            
+            // [NEW] Update Binding
+            DispatchQueue.main.async {
+                self.parent.clusterRadius = wasmCellSize
+            }
             
             // Prepare Data
             let currentItems = parent.todoItems
@@ -376,21 +409,21 @@ struct GoogleMapView: UIViewRepresentable {
                 uInt = SmartLocationManager.shared.toIntLocation(u)
             }
             
-            OptimizationLogger.shared.log(type: .launchStep, value: ">>> Pins Loaded: \(currentItems.count) Items, \(currentLogs.count) Logs")
+            // OptimizationLogger.shared.log(type: .launchStep, value: ">>> Pins Loaded: \(currentItems.count) Items, \(currentLogs.count) Logs")
             
             for item in currentItems {
                 if let loc = item.location {
                      // Standard Path: Show All
                     allItems.append(.todo(item))
-                    rawPoints.append(Int32(loc.latitude * 1_000_000))
-                    rawPoints.append(Int32(loc.longitude * 1_000_000))
+                    rawPoints.append(Int32(loc.latitude * 100_000))
+                    rawPoints.append(Int32(loc.longitude * 100_000))
                 }
             }
             for log in currentLogs {
                   // Standard Path: Show All
                 allItems.append(.history(log))
-                rawPoints.append(Int32(log.latitude * 1_000_000))
-                rawPoints.append(Int32(log.longitude * 1_000_000))
+                rawPoints.append(Int32(log.latitude * 100_000))
+                rawPoints.append(Int32(log.longitude * 100_000))
             }
             
             if farItemsCount > 0 {
@@ -402,13 +435,15 @@ struct GoogleMapView: UIViewRepresentable {
             // [FIX] Add User Location to Clustering Data
             if let userLoc = parent.locationManager.currentLocation {
                 allItems.append(.userLocation)
-                rawPoints.append(Int32(userLoc.coordinate.latitude * 1_000_000))
-                rawPoints.append(Int32(userLoc.coordinate.longitude * 1_000_000))
+                rawPoints.append(Int32(userLoc.coordinate.latitude * 100_000))
+                rawPoints.append(Int32(userLoc.coordinate.longitude * 100_000))
             }
             
             Task {
+                // print(">>> WASM Clustering Start")
                 let start = Date()
                 let result = await WasmManager.shared.cluster(points: rawPoints, cellSize: wasmCellSize)
+                // print(">>> WASM Clustering Result: \(result.count/3)")
                 let _ = Date().timeIntervalSince(start) * 1000
                 
                 await MainActor.run {
@@ -425,16 +460,16 @@ struct GoogleMapView: UIViewRepresentable {
             // 1. Re-add User Location
             // 1. (Removed) User Location handled in clusters
             
-            // 2. Re-add Path Overlay if exists
-            updatePath(mapView: mapView, selectedItems: parent.selectedClusterItems)
+            // 2. Re-add Path Overlay if exists -> REMOVED per user request
+            // updatePath(mapView: mapView, selectedItems: parent.selectedClusterItems)
             
             // 3. Process Clusters
              struct Centroid { let lat: Double; let lon: Double; let count: Int }
              var centroids: [Centroid] = []
              if clusterResult.count % 3 == 0 {
                  for i in stride(from: 0, to: clusterResult.count, by: 3) {
-                     let lat = Double(clusterResult[i]) / 1_000_000.0
-                     let lon = Double(clusterResult[i+1]) / 1_000_000.0
+                     let lat = Double(clusterResult[i]) / 100_000.0
+                     let lon = Double(clusterResult[i+1]) / 100_000.0
                      let count = Int(clusterResult[i+2])
                      centroids.append(Centroid(lat: lat, lon: lon, count: count))
                  }
@@ -519,43 +554,9 @@ struct GoogleMapView: UIViewRepresentable {
                      // [FIX] Adjust Anchor for Cluster (Right Badge Overhang)
                      // Visual Center is at x=20 of total width 50 -> 0.4
                      marker.groundAnchor = CGPoint(x: 0.4, y: 1.0)
-                     
-                     var userLocationFound = false
-                     var historyCount = 0
-                     var todoReadyCount = 0
-                     var todoDoneCount = 0
-                     var messageCount = 0
-                     
-                     for i in items {
-                         switch i {
-                         case .userLocation: userLocationFound = true
-                         case .history: historyCount += 1
-                         case .todo(let t):
-                             if t.isCompleted { todoDoneCount += 1 }
-                             else { todoReadyCount += 1 }
-                         case .serverMessage: messageCount += 1
-                         }
-                     }
-                     
-                     var baseName = "PinTodoReady"
-                     if userLocationFound {
-                         baseName = "PinCurrent"
-                     } else {
-                         let counts = [
-                             ("PinHistory", historyCount),
-                             ("PinTodoReady", todoReadyCount),
-                             ("PinTodoDone", todoDoneCount),
-                             ("PinReceiveReady", messageCount)
-                         ]
-                         if let max = counts.max(by: { $0.1 < $1.1 }), max.1 > 0 {
-                             baseName = max.0
-                         }
-                     }
-                     
-                     let color: UIColor
-                     if baseName == "PinHistory" { color = .red }
-                     else if baseName == "PinReceiveReady" { color = .blue }
-                     else { color = UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0) }
+                                          
+                      // [FIX] Centralized Logic
+                      let (baseName, color, _) = UnifiedMapItem.resolveClusterStyle(items: items)
                      
                      
                      // [FIX] Resize Base Image FIRST to match Apple Map size (40x50)
@@ -579,8 +580,8 @@ struct GoogleMapView: UIViewRepresentable {
              // firstRender = false
              isAnimating = true
             
-            // [FIX] Skip WASM refresh, allow Fast Path to persist
-            // refreshWasmClusters(mapView: mapView)
+            // [FIX] Ensure Data is Fresh on Launch/Resume
+            refreshWasmClusters(mapView: mapView)
             
              // 3. Fit Bounds (Dynamic)
              // 3. Fit Bounds (Dynamically Filtered)

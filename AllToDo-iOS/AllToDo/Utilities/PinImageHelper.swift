@@ -42,24 +42,25 @@ class PinImageHelper {
             
             // 2. Draw Badge (Top-Right Corner of Pin)
             if let count = count {
-                let badgeCenter = CGPoint(x: shieldWidth, y: badgeOverhang)
+                // [FIX] Shift inward (-1, +1) to prevent border clipping (Stroke width 1.5)
+                let badgeCenter = CGPoint(x: shieldWidth - 1.0, y: badgeOverhang + 1.0)
                 let badgeRect = CGRect(x: badgeCenter.x - badgeSize/2, y: badgeCenter.y - badgeSize/2, width: badgeSize, height: badgeSize)
                 
-                // Red Circle
+                // White Circle
                 let path = UIBezierPath(ovalIn: badgeRect)
-                UIColor.red.setFill()
+                UIColor.white.setFill()
                 path.fill()
-                // Border
-                UIColor.white.setStroke()
+                // Red Border
+                UIColor.red.setStroke()
                 path.lineWidth = 1.5
                 path.stroke()
                 
-                // Text
+                // Red Text
                 let countText = count > 9 ? "9+" : "\(count)"
                 let fontSize: CGFloat = 11
                 let attributes: [NSAttributedString.Key: Any] = [
                     .font: UIFont.systemFont(ofSize: fontSize, weight: .bold),
-                    .foregroundColor: UIColor.white
+                    .foregroundColor: UIColor.red
                 ]
                 let string = NSString(string: countText)
                 let textSize = string.size(withAttributes: attributes)

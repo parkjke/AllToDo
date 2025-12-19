@@ -120,9 +120,9 @@ final class WasmManager {
             }
             
             // 2. Clustering Test
-            let clusterPoints: [Int32] = [0, 0, 100, 100]
-            // Safe to call now as Protocol is updated
-            let clusterResult = try await runtime.clusterPoints(clusterPoints, cellSizeMeters: 100.0)
+            let clusterPoints: [Int32] = [0, 0, 100, 100] // Dist ~ 141 units
+            // Radius 200m -> ~180 units > 141 units -> Should Cluster
+            let clusterResult = await cluster(points: clusterPoints, cellSize: 200.0)
             
             var clusterPassed = false
             if clusterResult.count == 3 {
@@ -188,8 +188,13 @@ final class WasmManager {
         let start = Date()
         // print("[WASM_STATUS] ⚡️ Executing WASM 'clusterPoints' with \(points.count/2) points...")
         
+        // Integer Conversion (Meters -> Scaled 1e5 Units)
+        // 1 degree ≈ 111,320 meters
+        // 1 scaled unit (1e-5 deg) ≈ 1.1132 meters
+        let radiusInt = Int32(cellSize / 1.1132)
+        
         do {
-            let result = try await runtime.clusterPoints(points, cellSizeMeters: cellSize)
+            let result = try await runtime.clusterPoints(points, radiusInt: radiusInt)
             
             let duration = Date().timeIntervalSince(start) * 1000
             // print("[WASM_STATUS] ✨ WASM Cluster Success: \(result.count/3) clusters found (\(String(format: "%.1f", duration))ms)")

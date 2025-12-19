@@ -74,37 +74,30 @@ class SmartLocationManager {
         return distSq > (limit * limit)
     }
     
-    /// Checks if the map needs to be re-centered based on user position.
-    /// Logic: If user moves beyond 1/4 of the screen width (hdistance) from the center, return true.
-    /// All inputs are Integer-based (1/100,000 degree).
+    // MARK: - New Smart Tethering Logic (User Request 2025-12-19)
+    
+    /// Checks if the map needs to be re-centered based on the "Move Location" anchor.
+    /// Logic: If user moves beyond 1/4 of the screen dimensions from the anchor point, return true.
     /// - Parameters:
     ///   - user: User's current location (IntLocation)
-    ///   - center: Map's current center location (IntLocation)
-    ///   - spanLon: Map's current longitude span (e.g. 0.05 * 100,000 = 5000)
-    /// - Returns: True if map should recenter.
+    ///   - moveLoc: The anchor location where the map was last centered (IntLocation)
+    ///   - hLen: Horizontal span of the visible map (Longitude delta in Int units)
+    ///   - vLen: Vertical span of the visible map (Latitude delta in Int units)
+    /// - Returns: True if re-centering is required.
+    func shouldRecenter(user: IntLocation, moveLoc: IntLocation, hLen: Int, vLen: Int) -> Bool {
+        let deltaLat = abs(user.lat - moveLoc.lat)
+        let deltaLon = abs(user.lon - moveLoc.lon)
+        
+        // Threshold: 1/4 of the screen info
+        // Guard against zero lengths
+        let thresholdH = hLen > 0 ? hLen / 4 : Int.max
+        let thresholdV = vLen > 0 ? vLen / 4 : Int.max
+        
+        return deltaLat > thresholdV || deltaLon > thresholdH
+    }
+    
+    // Deprecated: Old centering logic
     func needsCentering(user: IntLocation, center: IntLocation, spanLon: Int) -> Bool {
-        // Calculate distance from center (Longitude only for width check, or both?)
-        // User Requirement: "hdistance (screen width) / 4"
-        
-        // 1. Calculate X-axis distance (Longitude)
-        // Adjust for date line if necessary (skipped for now, assuming local usage)
-        let deltaLon = abs(user.lon - center.lon)
-        
-        // 2. Threshold is 1/4 of the width
-        let threshold = spanLon / 4
-        
-        // 3. Check (Also check Latitude for Y-axis tethering? User specified 'hdistance', likely horizontal)
-        // Let's check both to be safe, assuming spanLat is roughly similar or passing separate spanLat.
-        // For now, implementing strict adherence to user request "hdistance" (horizontal).
-        // 3. Check Both Axes (Bi-directional Tethering)
-        let deltaLat = abs(user.lat - center.lat)
-        
-        // Use uniform threshold for now as requested (hdistance / 4)
-        // Note: Ideally vertical threshold should derive from spanLat, but user said "ignore aspect ratio".
-        // However, we must use spanLat if available or estimate it? 
-        // The signature only has spanLon. Let's assume ratio ~2:1 or just use the same logic if passed span is representative.
-        // Actually, better to just check if delta > threshold for *either*.
-        
-        return deltaLon > threshold || deltaLat > threshold
+        return false // Disabled in favor of new logic
     }
 }

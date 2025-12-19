@@ -90,6 +90,7 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         
         // [NEW] Allow auto-pause to save battery, but we control it via motion
         locationManager.pausesLocationUpdatesAutomatically = false 
+        locationManager.allowsBackgroundLocationUpdates = true // [FIX] Ensure recording continues in background 
         
         locationManager.requestWhenInUseAuthorization()
         locationManager.startUpdatingLocation()
@@ -104,21 +105,21 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
                 
                 // Logging
                 let type = self.getActivityString(activity)
-                OptimizationLogger.shared.log(type: .motionChange, value: type)
+                // OptimizationLogger.shared.log(type: .motionChange, value: type)
                 
                 // Logic: High confidence stationary -> Stop Location
                 // [FIX] Only stop if we actually have a location!
                 if activity.stationary && activity.confidence == .high {
                     if self.currentLocation != nil {
                         self.locationManager.stopUpdatingLocation()
-                        OptimizationLogger.shared.log(type: .locationPause, value: "Stationary High")
+                        // OptimizationLogger.shared.log(type: .locationPause, value: "Stationary High")
                     } else {
-                        print("DEBUG: Stationary detected but waiting for first location...")
+                        // print("DEBUG: Stationary detected but waiting for first location...")
                     }
                 } else {
                     // Moving or unknown -> Ensure Location Running
                     self.locationManager.startUpdatingLocation()
-                    OptimizationLogger.shared.log(type: .locationResume, value: "Moving")
+                    // OptimizationLogger.shared.log(type: .locationResume, value: "Moving")
                 }
             }
         }

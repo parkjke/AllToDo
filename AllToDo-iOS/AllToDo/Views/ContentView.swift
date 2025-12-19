@@ -37,6 +37,9 @@ struct ContentView: View {
     @State private var farMessageTask: Task<Void, Never>?
     @State private var hasShownFarItemToast = false
     
+    // [NEW] Cluster Radius Indicator
+    @State private var clusterLookAheadDistance: Double?
+    
     // MARK: - Logging Methods
     private func logTodoListStats() {
         let centerDate = Date() // Use current date for "future" calculation
@@ -88,17 +91,17 @@ struct ContentView: View {
             return d >= min && d <= max
         }
         
-        // DEBUG: Check items
-        if count > 0 {
-            print("DEBUG: Total Todos: \(count)")
-            for item in todoItems {
-                let locStr = item.location != nil ? "HasLoc (\(item.location!.latInt), \(item.location!.lonInt))" : "NoLoc"
-                print(" - Item: \(item.title), Due: \(item.dueDate?.description ?? "nil"), \(locStr)")
-            }
-            print("DEBUG: Filtered Count: \(filtered.count)")
-        } else {
-             print("DEBUG: Total Todos is ZERO.")
-        }
+        // DEBUG: Check items (Disabled per user request)
+        // if count > 0 {
+        //     print("DEBUG: Total Todos: \(count)")
+        //     for item in todoItems {
+        //         let locStr = item.location != nil ? "HasLoc (\(item.location!.latInt), \(item.location!.lonInt))" : "NoLoc"
+        //         print(" - Item: \(item.title), Due: \(item.dueDate?.description ?? "nil"), \(locStr)")
+        //     }
+        //     print("DEBUG: Filtered Count: \(filtered.count)")
+        // } else {
+        //      print("DEBUG: Total Todos is ZERO.")
+        // }
         
         return filtered
     }
@@ -128,6 +131,7 @@ struct ContentView: View {
                     selectedItem: $selectedItem,
                     selectedClusterItems: $selectedClusterItems,
                     tapPosition: $tapPosition, // [NEW]
+                    clusterRadius: $clusterLookAheadDistance, // [NEW]
                     onLongTap: handleLongTap,
                     onUserLocationTap: {},
                     onDelete: deleteItem,
@@ -152,10 +156,11 @@ struct ContentView: View {
                     rotation: $compassRotation,
                     locationManager: locationManager,
                     todoItems: filteredTodos,
-                    userLogs: filteredLogs, // [Fixed] Added missing arg
+                    userLogs: filteredLogs,
                     selectedItem: $selectedItem,
                     selectedClusterItems: $selectedClusterItems,
                     tapPosition: $tapPosition, // [NEW]
+                    clusterRadius: $clusterLookAheadDistance, // [NEW]
                     onLongTap: handleLongTap,
                     onFarItemsDetected: { count in
                         guard !hasShownFarItemToast, count > 0 else { return }
@@ -180,6 +185,7 @@ struct ContentView: View {
                     selectedItem: $selectedItem,
                     selectedClusterItems: $selectedClusterItems,
                     tapPosition: $tapPosition, // [NEW]
+                    clusterRadius: $clusterLookAheadDistance, // [NEW]
                     onLongTap: handleLongTap,
                     onUserLocationTap: {},
                     onDelete: deleteItem,
@@ -208,6 +214,7 @@ struct ContentView: View {
                     selectedItem: $selectedItem,
                     selectedClusterItems: $selectedClusterItems,
                     tapPosition: $tapPosition, // [NEW]
+                    clusterRadius: $clusterLookAheadDistance, // [NEW]
                     hasItems: !filteredTodos.isEmpty || !filteredLogs.isEmpty,
                     onLongTap: handleLongTap,
                     onUserLocationTap: {},
@@ -357,61 +364,94 @@ struct ContentView: View {
                         .ignoresSafeArea()
                     
                     VStack(spacing: 0) {
-                        HStack {
-                            Spacer()
-                            Button(action: { selectedClusterItems = nil }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.gray)
-                                    .font(.title3)
+                        // Bubble Content
+                        VStack(spacing: 0) {
+                            HStack {
+                                Spacer()
+                                Button(action: { selectedClusterItems = nil }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(.gray)
+                                        .font(.title2) // [FIX] Bigger Icon
+                                        .frame(width: 44, height: 44) // [FIX] Bigger Touch Area
+                                }
+                                Spacer() // [FIX] Center Alignment to avoid Trash collision
                             }
-                            .padding([.top, .trailing], 8)
+                            // .background(Color.white) // Moved to container
+                            
+                            ClusterListCallout(
+                                items: clusterItems.sorted(by: { $0.date > $1.date }),
+                                isCluster: true,
+                                onDeleteToDo: { item in
+                                    modelContext.delete(item)
+                                    if let idx = selectedClusterItems?.firstIndex(where: { 
+                                        if case .todo(let t) = $0 { return t.id == item.id }
+                                        return false
+                                    }) {
+                                        selectedClusterItems?.remove(at: idx)
+                                        if selectedClusterItems?.isEmpty == true { selectedClusterItems = nil }
+                                    }
+                                },
+                                onDeleteLog: { log in
+                                    modelContext.delete(log)
+                                    if let idx = selectedClusterItems?.firstIndex(where: {
+                                        if case .history(let h) = $0 { return h.id == log.id }
+                                        return false
+                                    }) {
+                                        selectedClusterItems?.remove(at: idx)
+                                        if selectedClusterItems?.isEmpty == true { selectedClusterItems = nil }
+                                    }
+                                },
+                                onSelectLog: { log in
+                                    selectedLogForPath = log
+                                    selectedClusterItems = nil
+                                }
+                            )
+                            .padding(.bottom, 8)
                         }
+                        .frame(width: 260)
+                        .frame(height: min(
+                            CGFloat(clusterItems.count) * (popupFontSize == 0 ? 38 : (popupFontSize == 1 ? 42 : 52)) + 36, 
+                            CGFloat(maxPopupItems) * (popupFontSize == 0 ? 38 : (popupFontSize == 1 ? 42 : 52)) + 36
+                        ) + 44) // [FIX] Add Header Height (44) to Frame Calculation
                         .background(Color.white)
+                        .cornerRadius(12)
                         
-                        ClusterListCallout(
-                            items: clusterItems.sorted(by: { $0.date > $1.date }),
-                            isCluster: true,
-                            onDeleteToDo: { item in
-                                modelContext.delete(item)
-                                if let idx = selectedClusterItems?.firstIndex(where: { 
-                                    if case .todo(let t) = $0 { return t.id == item.id }
-                                    return false
-                                }) {
-                                    selectedClusterItems?.remove(at: idx)
-                                    if selectedClusterItems?.isEmpty == true { selectedClusterItems = nil }
-                                }
-                            },
-                            onDeleteLog: { log in
-                                modelContext.delete(log)
-                                if let idx = selectedClusterItems?.firstIndex(where: {
-                                    if case .history(let h) = $0 { return h.id == log.id }
-                                    return false
-                                }) {
-                                    selectedClusterItems?.remove(at: idx)
-                                    if selectedClusterItems?.isEmpty == true { selectedClusterItems = nil }
-                                }
-                            },
-                            onSelectLog: { log in
-                                selectedLogForPath = log
-                                selectedClusterItems = nil
-                            }
-                        )
-                        .padding(.bottom, 8)
+                        // Triangle Edge
+                        CalloutTriangle()
+                            .fill(Color.white)
+                            .frame(width: 20, height: 10)
+                            .padding(.top, -1)
                     }
-                    .frame(width: 260)
-                    .frame(height: min(
-                        CGFloat(clusterItems.count) * (popupFontSize == 0 ? 38 : (popupFontSize == 1 ? 42 : 52)) + 36, 
-                        CGFloat(maxPopupItems) * (popupFontSize == 0 ? 38 : (popupFontSize == 1 ? 42 : 52)) + 36
-                    ))
-                    .background(Color.white)
-                    .cornerRadius(12)
                     .shadow(radius: 10)
-                    .position(x: tapPosition?.x ?? UIScreen.main.bounds.width / 2,
-                              y: (tapPosition?.y ?? UIScreen.main.bounds.height / 2) - (((CGFloat(clusterItems.count) * (popupFontSize == 0 ? 38 : (popupFontSize == 1 ? 42 : 52)) + 36)) / 2 + 60))
+                    // [CRITICAL LOCK: DO NOT MODIFY]
+                    // Strategy: Pin Tracking (tapPosition) + Frame Height Clamping + Map Specific Offsets
+                    // This logic is tuned by user request. Do NOT optimize or center-force.
+                    .position(x: (tapPosition?.x ?? UIScreen.main.bounds.width / 2) + mapXOffset,
+                              y: (tapPosition?.y ?? UIScreen.main.bounds.height / 2) - (((min(CGFloat(clusterItems.count), CGFloat(maxPopupItems)) * (popupFontSize == 0 ? 38 : (popupFontSize == 1 ? 42 : 52)) + 36) + 44) / 2 + 10) + mapYOffset) 
                     .transition(.scale.combined(with: .opacity))
                 }
                 .zIndex(999)
             }
+        }
+    }
+    
+    // [CRITICAL LOCK: DO NOT MODIFY] User-Defined Offsets
+    // These values are visually tuned for each map provider.
+    var mapXOffset: CGFloat {
+        switch mapProvider {
+        case .kakao: return -6
+        case .naver: return -4
+        case .apple: return -1
+        case .google: return -1
+        }
+    }
+    
+    var mapYOffset: CGFloat {
+        switch mapProvider {
+        case .kakao: return -110
+        case .naver: return -110
+        case .apple: return -100
+        case .google: return -100
         }
     }
     
@@ -580,6 +620,12 @@ struct ContentView: View {
         }
     }
 
+    var clusterRadiusOverlay: some View {
+        Group {
+            // Disabled per user request
+        }
+    }
+
     var body: some View {
         ZStack {
             mapLayer
@@ -590,6 +636,7 @@ struct ContentView: View {
             todoDetailOverlay
             allItemsOverlay
             farItemOverlay // [NEW]
+            clusterRadiusOverlay // [NEW]
         }
         .sheet(item: $selectedLogForPath) { log in
             PathHistoryView(log: log) {
@@ -657,6 +704,8 @@ struct ContentView: View {
                 locationManager.startSession()
                 
                 // [FIX] Conditional Relaunch (Logic from Step 966)
+                // [CRITICAL LOCK: DO NOT MODIFY] Background Re-Launch Logic
+                // Rule: If background time > 5s, Trigger Launch Sequence (Raw -> Cluster)
                 if let last = lastBackgroundDate {
                     let diff = Date().timeIntervalSince(last)
                     // let threshold = AppConfig.backgroundReentryThreshold // Use Config
@@ -669,7 +718,8 @@ struct ContentView: View {
                         print("DEBUG: Background time \(diff)s > \(threshold)s. Triggering Launch Sequence.")
                         // [FIX] Pulse action to ensure change is detected if already in sequence
                         mapAction = .none
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                            print("DEBUG: Executing Launch Sequence after delay.")
                             self.mapAction = .launchSequence
                         }
                     } else {
@@ -709,6 +759,9 @@ struct ContentView: View {
             // [LOG] Step 1 & 2
             logTodoListStats()
             logMapSetup()
+            
+            // [FIX] Ensure Clean Slate
+            mapAction = .none
         }
         .onChange(of: todoItems) {
              logTodoListStats()
@@ -722,4 +775,15 @@ struct ContentView: View {
 #Preview {
     ContentView()
         .modelContainer(for: ToDoItem.self, inMemory: true)
+}
+
+struct CalloutTriangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+        path.closeSubpath()
+        return path
+    }
 }

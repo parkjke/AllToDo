@@ -87,17 +87,17 @@ final class WebViewWasmRuntime: NSObject, WasmRuntime, WKNavigationDelegate {
         function compress(points, minDist, angleThresh) {
             try {
                 var int32Array = new Int32Array(points);
-                var result = wasm_bindgen.compress_trajectory(int32Array, minDist, angleThresh);
-                return Array.from(result);
+            var result = wasm_bindgen.compress_trajectory(int32Array, minDist);
+            return Array.from(result);
             } catch (e) {
                 return null;
             }
         }
         
-        function cluster(points, cellSizeMeters) {
+        function cluster(points, radiusInt) {
             try {
                 var int32Array = new Int32Array(points);
-                var result = wasm_bindgen.cluster_points(int32Array, cellSizeMeters);
+                var result = wasm_bindgen.cluster_points(int32Array, radiusInt);
                 return Array.from(result);
             } catch (e) {
                 return null;
@@ -126,8 +126,15 @@ final class WebViewWasmRuntime: NSObject, WasmRuntime, WKNavigationDelegate {
     
     private func ensurePageLoaded() async throws {
         if !webView.isLoading { return }
-        try await withCheckedThrowingContinuation { continuation in
-            self.pageLoadedContinuation = continuation
+        
+        var attempts = 0
+        while webView.isLoading && attempts < 50 { // Wait up to 5 seconds
+            try await Task.sleep(nanoseconds: 100_000_000) // 100ms
+            attempts += 1
+        }
+        
+        if webView.isLoading {
+             print("[WASM_RUNTIME] ⚠️ WebView load timeout")
         }
     }
 
@@ -167,6 +174,7 @@ final class WebViewWasmRuntime: NSObject, WasmRuntime, WKNavigationDelegate {
     }
     
     func compressTrajectory(_ points: [Int32], minDistMeters: Double, angleThreshDeg: Double) async throws -> [Int32] {
+        try await ensurePageLoaded()
         // Assume ready if called (managed by WasmManager)
         
         let pointsJson = points.description
@@ -186,15 +194,13 @@ final class WebViewWasmRuntime: NSObject, WasmRuntime, WKNavigationDelegate {
              throw NSError(domain: "WebViewWasm", code: -3, userInfo: [NSLocalizedDescriptionKey: "Invalid result format"])
         }
     }
-
     
-    func clusterPoints(_ points: [Int32], cellSizeMeters: Double) async throws -> [Int32] {
+
+    func clusterPoints(_ points: [Int32], radiusInt: Int32) async throws -> [Int32] {
+        try await ensurePageLoaded()
         let pointsJson = points.description
-        // Ensure 'cluster' function exists in JS. We need to add it to HTML.
-        // Assuming we update HTML below or in this same edit.
-        // Let's rely on the updated HTML string which I will modify now.
         
-        let js = "cluster(\(pointsJson), \(cellSizeMeters))"
+        let js = "cluster(\(pointsJson), \(radiusInt))"
         let rawResult = try await webView.evaluateJavaScript(js)
         
         if let array = rawResult as? [NSNumber] {
