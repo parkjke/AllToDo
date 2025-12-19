@@ -12,19 +12,26 @@ import java.util.concurrent.CountDownLatch // Simple sync for now, or use Corout
 class WebViewWasmRuntime(private val context: Context) : WasmRuntime {
     private var webView: WebView? = null
     private var isReady = false
-    private val handler = Handler(Looper.getMainLooper())
+    private fun logStep(message: String) {
+        val time = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault()).format(java.util.Date())
+        android.util.Log.e("WASM_LOG", "$time >>> WASM_RUNTIME ($message)")
+        System.out.println("$time >>> WASM_RUNTIME ($message)")
+    }
 
+    private val handler = Handler(Looper.getMainLooper())
     private var isPageLoaded = false
 
     init {
         handler.post {
             try {
+                logStep("Creating WebView...")
                 val wv = WebView(context)
                 wv.settings.javaScriptEnabled = true
                 wv.webViewClient = object : WebViewClient() {
                      override fun onPageFinished(view: WebView?, url: String?) {
                          super.onPageFinished(view, url)
                          isPageLoaded = true
+                         logStep("WebView Page Loaded")
                      }
                 }
                 
@@ -45,6 +52,8 @@ class WebViewWasmRuntime(private val context: Context) : WasmRuntime {
                 <head></head>
                 <body>
                 <script>
+                window.WASM_INITIALIZED = false; // Flag
+                
                 // 0. Error Handler
                 window.LAST_ERROR = null;
                 window.onerror = function(message, source, lineno, colno, error) {
@@ -84,17 +93,23 @@ class WebViewWasmRuntime(private val context: Context) : WasmRuntime {
                         }
                         
                         await wasm_bindgen(bytes);
+                        window.WASM_INITIALIZED = true; // Set Flag
                         return "OK";
                     } catch (e) {
                         return "ERROR: " + e.toString();
                     }
                 }
                 
+                function checkWasmStatus() {
+                    return window.WASM_INITIALIZED.toString();
+                }
+                
                 function compress(pointsJson, minDist, angleThresh) {
                     try {
+                        if (!window.WASM_INITIALIZED) return null;
                         const points = JSON.parse(pointsJson);
                         const int32Array = new Int32Array(points);
-                        const result = wasm_bindgen.compress_trajectory(int32Array, minDist, angleThresh);
+                        const result = wasm_bindgen.compress_trajectory(int32Array, minDist);
                         return Array.from(result);
                     } catch (e) {
                         return null;
@@ -103,12 +118,15 @@ class WebViewWasmRuntime(private val context: Context) : WasmRuntime {
                 
                 function cluster(pointsJson, cellSizeMeters) {
                     try {
+                        if (!window.WASM_INITIALIZED) {
+                            console.error("Cluster called but WASM not init");
+                            return null;
+                        }
                         const points = JSON.parse(pointsJson);
                         const int32Array = new Int32Array(points);
                         const result = wasm_bindgen.cluster_points(int32Array, cellSizeMeters);
                         return Array.from(result);
                     } catch (e) {
-                         // Fallback or Error
                          console.error("Cluster Error: " + e);
                          return null;
                     }
@@ -124,30 +142,55 @@ class WebViewWasmRuntime(private val context: Context) : WasmRuntime {
             } catch (e: Exception) {
                 // If WebView creation fails (e.g. headless emulator or system issue), do not crash.
                 webView = null
+                logStep("WebView Creation Failed: ${e.message}")
             }
         }
     }
 
     override fun loadModule(wasmBytes: ByteArray) {
         val base64 = Base64.encodeToString(wasmBytes, Base64.NO_WRAP)
+        logStep("Injecting WASM JS (Size: ${wasmBytes.size} bytes)...")
         val js = "loadWasm('$base64')"
         
         // Retry loop using handler
         val retryRunnable = object : Runnable {
             var attempts = 0
+            var loadTriggered = false
+            
             override fun run() {
+                if (isReady) return
+                
                 if (isPageLoaded && webView != null) {
-                    webView?.evaluateJavascript(js) { result ->
-                        if (result != null && !result.startsWith("\"ERROR") && !result.startsWith("\"LOAD_ERROR")) {
-                             isReady = true
+                    if (!loadTriggered) {
+                        loadTriggered = true
+                        logStep("Page Loaded. Triggering loadWasm()...")
+                        // Trigger Load
+                        webView?.evaluateJavascript(js) { _ -> 
+                            // We don't rely on return value here for "OK" because it's a Promise
+                        }
+                    }
+                    
+                    // Poll Status
+                    webView?.evaluateJavascript("checkWasmStatus()") { result ->
+                        if (result == "\"true\"") {
+                            isReady = true
+                            logStep("WASM Initialization COMPLETE")
                         } else {
+                            // Still loading or failed
+                            attempts++
+                            if (attempts < 50) { // 5s timeout
+                                handler.postDelayed(this, 100)
+                            } else {
+                                logStep("WASM Init TIMEOUT")
+                            }
                         }
                     }
                 } else {
                     attempts++
-                    if (attempts < 20) {
-                        handler.postDelayed(this, 100) // Retry every 100ms
+                    if (attempts < 50) {
+                        handler.postDelayed(this, 100) // Wait for Page Load
                     } else {
+                        logStep("WebView Page Load TIMEOUT")
                     }
                 }
             }
@@ -162,6 +205,7 @@ class WebViewWasmRuntime(private val context: Context) : WasmRuntime {
     // Non-blocking Suspend Call using Coroutines
     override suspend fun compressTrajectory(points: List<Int>, minDist: Int, angleThresh: Int): List<Int> = kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
         if (!isReady) {
+            logStep("Compress skipped (Not Ready)")
             continuation.resumeWith(Result.success(points))
             return@suspendCancellableCoroutine
         }
@@ -200,6 +244,7 @@ class WebViewWasmRuntime(private val context: Context) : WasmRuntime {
 
     override suspend fun clusterPoints(points: List<Int>, cellSizeMeters: Int): List<Int> = kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
         if (!isReady) {
+             logStep("Cluster skipped (Not Ready)")
              continuation.resumeWith(Result.success(emptyList()))
              return@suspendCancellableCoroutine
         }
@@ -224,6 +269,7 @@ class WebViewWasmRuntime(private val context: Context) : WasmRuntime {
                            return@evaluateJavascript
                        }
                    } catch (e: Exception) {
+                        logStep("Cluster parse error: ${e.message}")
                    }
                 }
                 // Fallback / Error

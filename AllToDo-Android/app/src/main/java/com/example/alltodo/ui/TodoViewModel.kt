@@ -148,6 +148,17 @@ class TodoViewModel @Inject constructor(
         }
     }
 
+    // [NEW] Delayed Clustering State
+    private val _isClusteringEnabled = MutableStateFlow(false)
+    val isClusteringEnabled: StateFlow<Boolean> = _isClusteringEnabled.asStateFlow()
+
+    fun enableClustering() {
+        if (!_isClusteringEnabled.value) {
+            _isClusteringEnabled.value = true
+            recalculateClusters()
+        }
+    }
+
     private fun recalculateClusters() {
         val items = _displayItems.value
         val zoom = _currentZoom.value
@@ -181,9 +192,35 @@ class TodoViewModel @Inject constructor(
                  return@launch
              }
 
+             // [FIX] Delayed Clustering Check
+             // If disabled (Initial Launch), skip WASM and show raw items
+             if (!_isClusteringEnabled.value) {
+                 val rawClusters = mutableListOf<PinClusterItem>()
+                 items.forEach { item ->
+                     val (lat, lng) = when(item) {
+                         is com.example.alltodo.ui.UnifiedItem.Todo -> item.item.latitude to item.item.longitude
+                         is com.example.alltodo.ui.UnifiedItem.History -> item.log.latitude to item.log.longitude
+                         is com.example.alltodo.ui.UnifiedItem.CurrentLocation -> item.lat to item.lon
+                     }
+                     if (lat != null && lng != null && lng != 0.0) {
+                         val list = ArrayList<UnifiedItem>()
+                         list.add(item)
+                         rawClusters.add(PinClusterItem(lat, lng, 1, list))
+                     }
+                 }
+                 withContext(Dispatchers.Main) {
+                     _clusteredItems.value = rawClusters
+                 }
+                 return@launch
+             }
+
              // 2. Calculate Cell Size based on Zoom
-             val resolution = 12_500_000.0 / Math.pow(2.0, zoom.toDouble())
-             val cellSizeMeters = resolution.toInt().coerceAtLeast(10) // Min 10m
+             // [FIX] Dynamic Clustering Radius to ensure unclustering at high zoom
+             // Constant (12M) / 2^zoom approx equals 75px visual radius on screen.
+             // Zoom 15: ~366 units (~400m)
+             // Zoom 20: ~11 units (~12m) -> Allows separation of close pins
+             val resolution = 12_000_000.0 / Math.pow(2.0, zoom.toDouble())
+             val cellSizeMeters = resolution.toInt().coerceAtLeast(2) 
 
              // 3. Call WASM
              // Returns [lat, lng, count, lat, lng, count...]
@@ -214,6 +251,7 @@ class TodoViewModel @Inject constructor(
                  withContext(Dispatchers.Main) {
                      _clusteredItems.value = fallbackClusters
                  }
+                 System.out.println(">>> WASM [TodoViewModel] Fallback Triggered (Empty Result from WASM)")
                  return@launch
              }
              
@@ -288,6 +326,8 @@ class TodoViewModel @Inject constructor(
         wasmManager.initialize { success -> 
             println("WASM initialized in ViewModel: $success")
             if (!success) _debugStatus.value = "WASM Init Failed"
+            // [FIX] Trigger Recalculation now that WASM is ready (if clustering is enabled)
+            recalculateClusters()
         }
         
         // Listen to WASM Status

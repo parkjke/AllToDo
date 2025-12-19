@@ -37,7 +37,9 @@ fun KakaoMapContent(
     onCameraRotate: (Float) -> Unit,
     initialAnimationDone: Boolean,
     onInitialAnimationDone: () -> Unit,
-    onFarItemsDetected: (Int) -> Unit = {}
+    onFarItemsDetected: (Int) -> Unit = {},
+    onZoomChange: (Float) -> Unit, // [NEW] Zoom Callback
+    onEnableClustering: () -> Unit // [NEW] Delayed Clustering Trigger
 ) {
     // [FIX] Capture callback to avoid name shadowing in KakaoMapReadyCallback
     val activeOnMapReady = onMapReady
@@ -115,11 +117,6 @@ fun KakaoMapContent(
              } catch(e: Exception) {}
         }
         
-        // [MapStep 1] Map Initialized
-        // [MapStep 1] Map Initialized
-        android.util.Log.e("MapStep", "1. Map Initialized")
-        System.out.println(">>> MapStep 1. Map Initialized")
-
         // Data Polling (Max 3s)
         val start = System.currentTimeMillis()
         var hasValidData = false
@@ -128,10 +125,6 @@ fun KakaoMapContent(
             val items = latestVisibleClusters.value
              if (items.isNotEmpty()) {
                  hasValidData = true
-                 // [MapStep 2] All Pins Loaded
-                  // [MapStep 2] All Pins Loaded
-                  android.util.Log.e("MapStep", "2. Data Loaded (Count=${items.size})")
-                  System.out.println(">>> MapStep 2. Data Loaded (Count=${items.size})")
                  break
              }
              delay(200)
@@ -140,7 +133,7 @@ fun KakaoMapContent(
         // Re-read latest items
         val visibleClusters = latestVisibleClusters.value
         
-        if (!hasValidData) android.util.Log.e("MapStep", "2. Data Load Timeout (Empty)")
+        if (!hasValidData) {} 
         
         try {
             // Step 1: Center + Zoom 14 (Instead of FitBounds)
@@ -169,16 +162,7 @@ fun KakaoMapContent(
                 validPoints++
             }
                     
-            // [MapStep 3] Calculation Done (Filter 500km + Add Current Loc)
-            // [MapStep 3] Calculation Done (Filter 500km + Add Current Loc)
-            android.util.Log.e("MapStep", "3. Filtered & Calculated (ValidPoints=$validPoints)")
-            System.out.println(">>> MapStep 3. Filtered & Calculated (ValidPoints=$validPoints)")
-
             if (validPoints > 0) {
-                 // [MapStep 4] Change Zoom to Show All
-                 // [MapStep 4] Change Zoom to Show All
-                 android.util.Log.e("MapStep", "4. FitBounds (Show All)")
-                 System.out.println(">>> MapStep 4. FitBounds (Show All)")
                 // [FIX] Restore FitBounds with Min Span (0.05)
                 val safeBounds = com.example.alltodo.utils.SmartLocationManager.ensureMinSpan(
                     com.google.android.gms.maps.model.LatLngBounds(
@@ -212,45 +196,21 @@ fun KakaoMapContent(
                 delay(500)
             }
 
-            // Step 2: Move to User Location (Zoom 18)
-            // Poll for location (Max 10s)
-            var attempts = 0
-            while (attempts < 20) {
-                // Check captured state or helper
-                val latestLoc = currentLocState.value
-                if (latestLoc != null && latestLoc.latitude != 0.0) {
-                     break
-                }
-                delay(500)
-                attempts++
-            }
-            
-            val latestLoc = currentLocState.value
-            if (latestLoc != null && latestLoc.latitude != 0.0) {
-                val lat = latestLoc.latitude
-                val lon = latestLoc.longitude
-                
-                val finalUpdate = CameraUpdateFactory.newCenterPosition(
-                    com.kakao.vectormap.LatLng.from(lat, lon), 18
-                )
-                  // [MapStep 5] Move to Current Location
-                  android.util.Log.e("MapStep", "5. Move to Current Location")
-                  System.out.println(">>> MapStep 5. Move to Current Location")
-                  
-                  // [FIX] Disable Filter to show ALL pins (including Beijing) now
-                  isDistanceFilterEnabled = false
-                  
-                  val anim = CameraAnimation.from(500, true, true)
-                  map.moveCamera(finalUpdate, anim) 
-            } else {
-                 android.util.Log.e("MapStep", "5. Current Location Unknown (Skip)")
-                 System.out.println(">>> MapStep 5. Current Location Unknown (Skip)")
-            }
             onInitialAnimationDone()
             // hasLocalAnimationRun = true // Already set at start
         } catch (e: Exception) { e.printStackTrace() }
 
         }
+
+    // [FIX] Independent Clustering Activation Trigger
+    LaunchedEffect(isMapReady) {
+        if (isMapReady) {
+            delay(3000)
+            android.util.Log.e("WASM_LOG", ">>> WASM [KakaoMapContent] Force enabling clustering after 3s")
+            System.out.println(">>> WASM [KakaoMapContent] Force enabling clustering after 3s")
+            onEnableClustering()
+        }
+    }
     
     
     // Rendering Logic
@@ -312,14 +272,24 @@ fun KakaoMapContent(
                         .setClickable(true)
                  
                  val label = layer?.addLabel(options)
-                 
-                 // How to handle click? 
-                 // KakaoMap Label Click Listener is Global (set on Map).
-                 // Logic must be inside AndroidView 'start' block.
-                 // We need to map Label -> Cluster.
-                 // Storing map in Tag? Label doesn't support SetTag easily.
-                 // We can use Position matching or global mapping.
-                 // Step 1311 used "Find by Position". I will stick to that or use External Map.
+            }
+        }
+    }
+
+
+
+    // [FIX] Fallback Zoom Polling (Since Listeners cause compilation issues)
+    LaunchedEffect(kakaoMap) {
+        val map = kakaoMap
+        if (map != null) {
+            var lastZoom = 0
+            while (true) {
+                val z = map.zoomLevel
+                if (z != lastZoom) {
+                    lastZoom = z
+                    onZoomChange(z.toFloat())
+                }
+                delay(300) // Poll every 300ms
             }
         }
     }
@@ -328,8 +298,6 @@ fun KakaoMapContent(
     LaunchedEffect(currentLocation) {
         if (currentLocation != null) {
             val msg = ">>> [MapStep Event] OS Location Received: ${currentLocation.latitude}, ${currentLocation.longitude}"
-            android.util.Log.e("MapStep", msg)
-            System.out.println(msg)
         }
     }
     
@@ -347,7 +315,11 @@ fun KakaoMapContent(
                             isMapReady = true
                             activeOnMapReady(kMap) // Call captured parent callback with Map instance
 
-                            // Set Global Listener
+                            // [FIX] Polling for Zoom Change (since Listener API is uncertain/failed)
+                            // This ensures we catch Zoom changes even if listeners are tricky
+                            // We will handle this in a LaunchedEffect outside, or basic polling here?
+                            // LaunchedEffect is better.
+                            
                             kMap.setOnLabelClickListener { _, _, label ->
                                 val pos = label.position
                                 // Find Cluster by Position (Approx)

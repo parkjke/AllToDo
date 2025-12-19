@@ -440,6 +440,8 @@ fun MainScreen(
         
         // Mark animation as done so it doesn't run again on updates
         initialAnimationDone = true
+        // [FIX] Enable Clustering after initial zoom sequence
+        viewModel.enableClustering()
     }
 
 
@@ -560,8 +562,12 @@ fun MainScreen(
                           compassRotation = rot 
                       },
                       initialAnimationDone = initialAnimationDone,
-                      onInitialAnimationDone = { initialAnimationDone = true },
-                      onFarItemsDetected = { count -> farItemCount = count }
+                      onInitialAnimationDone = { 
+                          initialAnimationDone = true
+                      },
+                      onFarItemsDetected = { count -> farItemCount = count },
+                      onZoomChange = { zoom -> viewModel.updateZoom(zoom) },
+                      onEnableClustering = { viewModel.enableClustering() }
                   )
             }
             
@@ -710,6 +716,8 @@ fun MainScreen(
                      mapProvider = newProvider
                      // [FIX] Save Map Provider Preference
                      prefs.edit().putString("last_map_provider", newProvider.name).apply()
+                     // [FIX] Close My Info View on Map Change
+                     showMyInfo = false
                 },
                  )
              }

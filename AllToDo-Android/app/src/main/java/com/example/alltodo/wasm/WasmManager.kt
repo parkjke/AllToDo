@@ -32,7 +32,14 @@ class WasmManager @Inject constructor(
         
     var onStatusUpdate: ((String) -> Unit)? = null
 
+    private fun logStep(message: String) {
+        val time = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault()).format(java.util.Date())
+        android.util.Log.e("WASM_LOG", "$time >>> WASM ($message)")
+        System.out.println("$time >>> WASM ($message)")
+    }
+
     fun initialize(onReady: (Boolean) -> Unit) {
+        logStep("Connecting to Server...")
         
         // 1. Initial Load from storage if available
         storage.load()?.let { (_, blobJson) ->
@@ -43,6 +50,7 @@ class WasmManager @Inject constructor(
                 RemoteLogger.info("WASM Init (Stored): Version ${bundle.version}")
                 lastErrorMessage = null
                 onStatusUpdate?.invoke("Ready (Stored v${bundle.version})")
+                logStep("Loaded Stored v${bundle.version}")
             } catch (e: Exception) {
                 e.printStackTrace()
                 RemoteLogger.error("Failed to load stored WASM: ${e.message}")
@@ -62,7 +70,6 @@ class WasmManager @Inject constructor(
     }
     
     // [NEW] Exposed method to replace Native Code
-    // [NEW] Exposed method to replace Native Code
     suspend fun compress(points: List<Int>): List<Int> {
         val start = System.currentTimeMillis()
         
@@ -70,7 +77,6 @@ class WasmManager @Inject constructor(
         
         val duration = System.currentTimeMillis() - start
         val msg = "WASM Success: ${points.size/2} -> ${result.size/2} pts (${duration}ms)"
-        // RemoteLogger.info(msg)
         lastErrorMessage = null
         withContext(Dispatchers.Main) {
             onStatusUpdate?.invoke("Comp: ${points.size/2}->${result.size/2} (${duration}ms)")
@@ -86,16 +92,17 @@ class WasmManager @Inject constructor(
         
         val duration = System.currentTimeMillis() - start
         lastErrorMessage = null
-        // onStatusUpdate?.invoke("Cluster: ${duration}ms")
         return result
     }
 
     private suspend fun checkForUpdate() {
         try {
             // A. Check Server Version
+            logStep("Checking Server Version...")
             val request = Request.Builder().url(versionUrl).build()
             val response = client.newCall(request).execute()
             if (!response.isSuccessful) {
+                logStep("Server Check Failed: ${response.code}")
                 return
             }
             
@@ -103,14 +110,20 @@ class WasmManager @Inject constructor(
             val (storedVersion, _) = storage.load() ?: ("0.0.0" to "")
             
             if (serverVersion != storedVersion) {
+                logStep("New Version Found: $serverVersion (Current: $storedVersion)")
+                logStep("Downloading Advanced Module...")
                 if (fetchAndLoadAdvanced()) {
                     RemoteLogger.info("WASM Upgraded to Version $serverVersion")
+                    logStep("Download & Load Success")
                 } else {
+                    logStep("Download Failed")
                 }
             } else {
+                logStep("Already Latest Version ($serverVersion)")
             }
         } catch (e: Exception) {
             e.printStackTrace()
+            logStep("Server Check Error: ${e.message}")
         }
     }
 
@@ -123,14 +136,12 @@ class WasmManager @Inject constructor(
                 return false
             }
             
-            
             val body = response.body?.string() ?: return false
             val bundle = gson.fromJson(body, WasmBundle::class.java)
             val decrypted = WasmCrypto.decrypt(bundle)
             
             runtime.loadModule(decrypted)
             storage.save(bundle.version, body)
-            
             
             // [NEW] Self-Test Routine
             verifyWasm()
@@ -144,8 +155,8 @@ class WasmManager @Inject constructor(
 
     private suspend fun verifyWasm() {
         try {
+            logStep("Running Self-Test...")
             // 1. RDP Test Case
-            // (0,0) -> (1,1) -> (2,2) with thresh=5m. Expected: (0,0) -> (2,2)
             val rdpPoints = listOf(0, 0, 100000, 100000, 200000, 200000) 
             val rdpResult = runtime.compressTrajectory(rdpPoints, 5, 5)
             
@@ -156,8 +167,6 @@ class WasmManager @Inject constructor(
             } else false
             
             // 2. Clustering Test Case
-            // 2 points close to each other: (0,0) and (10,10) (approx 1.4m dist)
-            // Cell Size: 100m. Expected: 1 Cluster with count 2.
             val clusterPoints = listOf(0, 0, 100, 100)
             val clusterResult = runtime.clusterPoints(clusterPoints, 100)
             
@@ -168,23 +177,29 @@ class WasmManager @Inject constructor(
 
             if (rdpPassed && clusterPassed) {
                 onStatusUpdate?.invoke("WASM Verified (RDP+Cluster)")
+                logStep("Self-Test Passed")
             } else {
+                logStep("Self-Test Failed (RDP=$rdpPassed, Cluster=$clusterPassed)")
             }
         } catch (e: Exception) {
+            logStep("Self-Test Error: ${e.message}")
         }
     }
 
     private fun loadFallback() {
         try {
+            logStep("Loading Fallback...")
             val input = context.assets.open("fallback.wasm")
             val bytes = input.readBytes()
             runtime.loadModule(bytes)
             RemoteLogger.info("Loaded Fallback WASM")
             lastErrorMessage = null
+            logStep("Fallback Loaded Success")
         } catch (e: Exception) {
             e.printStackTrace()
             RemoteLogger.error("CRITICAL: Failed to load Fallback WASM")
             lastErrorMessage = "Failed to load WASM"
+            logStep("Fallback Load Failed")
         }
     }
 }
