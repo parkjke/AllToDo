@@ -1,4 +1,4 @@
-# AllToDo Documentation Index
+# AllToDo 문서 인덱스 (Documentation Index)
 
 ## 🧠 핵심 로직 및 알고리즘 (Core Logic)
 *   [**알고리즘 및 로직 (ALGORITHMS)**](logic/ALGORITHMS.md)
@@ -7,7 +7,7 @@
     *   500km 필터링: 태평양 줌아웃 방지.
 *   [**앱 실행 시나리오 (APP_LAUNCH_SCENARIO)**](logic/APP_LAUNCH_SCENARIO.md)
     *   Case A: 핀 없음 (내 위치 줌인).
-    *   Case B: 핀 있음 (Fit Bounds -> 3s -> User Zoom).
+    *   Case B: 핀 있음 (Fit Bounds -> 3초 -> User Zoom).
 *   [**핵심 기술 및 IP (CORE_TECHNOLOGY_IP)**](logic/CORE_TECHNOLOGY_IP.md)
     *   WASM 하이브리드 아키텍처.
     *   좌표 정수화 (x100,000) 전략.
@@ -25,3 +25,4 @@
     *   주요 최적화 작업 이력 (RDP, WASM, Battery).
 *   [**작업 로그 (Work Log)**](history/work_log.md)
     *   일일 작업 내역 요약.
+

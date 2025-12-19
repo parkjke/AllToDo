@@ -127,59 +127,59 @@ func performLaunchAnimation(mapView: MKMapView, userLocation: CLLocation?) {
 }
 ```
 
-## 5. Launch Debugging & Logging Standards
+## 5. 앱 실행 디버깅 및 로그 표준 (Launch Debugging & Logging Standards)
 
-Debugging and logging standards for the app launch process. Logs are saved locally and can be uploaded to the server.
+앱 실행 과정의 디버깅 및 로깅 표준입니다. 로그는 로컬에 저장되며 서버로 전송될 수 있습니다.
 
-### 📋 Required Log Points
+### 📋 필수 로그 포인트 (Required Log Points)
 
-The following 6 steps must be logged in sequence during app launch:
+앱 실행 시 다음 6단계의 로그가 순서대로 기록되어야 합니다:
 
 #### 1. `set todo list`
-*   **Trigger**: When `todoItems` are loaded from local database.
-*   **Content**:
-    *   `count_24h`: Count of items within ±24 hours.
-    *   `count_future`: Count of items after +24 hours.
-    *   `total`: Total count.
+*   **시점 (Trigger)**: 로컬 데이터베이스에서 `todoItems` 로딩 완료 시.
+*   **내용 (Content)**:
+    *   `count_24h`: ±24시간 이내 항목 수.
+    *   `count_future`: +24시간 이후 항목 수.
+    *   `total`: 전체 항목 수.
 
 #### 2. `setup map`
-*   **Trigger**: When the specific `MapView` (Apple/Kakao/Naver/Google) is initialized.
-*   **Content**:
-    *   `provider`: Selected Map Provider Name.
-    *   `status_visible`: UI Status Widget visibility (Boolean).
-    *   `history_visible`: UI History View visibility (Boolean).
-    *   `current_loc_btn_visible`: UI Current Location Button visibility (Boolean).
-    *   `zoom_controls_visible`: UI Zoom In/Out Buttons visibility (Boolean).
-    *   `compass_visible`: UI Compass availability (Boolean).
+*   **시점 (Trigger)**: 특정 지도 뷰(`MapView`)가 초기화될 때.
+*   **내용 (Content)**:
+    *   `provider`: 선택된 지도 공급자 이름 (Apple/Naver/Kakao/Google).
+    *   `status_visible`: UI 상태 위젯 표시 여부 (Boolean).
+    *   `history_visible`: UI 히스토리 뷰 표시 여부 (Boolean).
+    *   `current_loc_btn_visible`: 현 위치 버튼 표시 여부 (Boolean).
+    *   `zoom_controls_visible`: 줌 버튼 표시 여부 (Boolean).
+    *   `compass_visible`: 나침반 표시 여부 (Boolean).
 
 #### 3. `set current location`
-*   **Trigger**: When `AppLocationManager` receives the first valid location.
-*   **Content**:
-    *   `latitude`: Latitude value.
-    *   `longitude`: Longitude value.
-    *   `accuracy`: Horizontal accuracy (meters).
-    *   `timestamp`: Location timestamp.
+*   **시점 (Trigger)**: `AppLocationManager`가 첫 번째 유효 위치를 수신했을 때.
+*   **내용 (Content)**:
+    *   `latitude`: 위도.
+    *   `longitude`: 경도.
+    *   `accuracy`: 수평 정확도 (미터).
+    *   `timestamp`: 위치 수신 시간.
 
 #### 4. `setup map zoom`
-*   **Trigger**: Before the initial animation starts (Launch Logic).
-*   **Content**:
-    *   `case`: "Case A" (No Pins) or "Case B" (With Pins).
-    *   `fit_zoom`: Calculated zoom level (if pins exist).
-    *   `final_zoom`: Applied initial zoom level (e.g., 15).
+*   **시점 (Trigger)**: 초기화 애니메이션(Launch Logic) 시작 직전.
+*   **내용 (Content)**:
+    *   `case`: "Case A" (핀 없음) 또는 "Case B" (핀 있음).
+    *   `fit_zoom`: 계산된 최적 줌 레벨 (핀이 있을 경우).
+    *   `final_zoom`: 실제 적용된 초기 줌 레벨 (예: 15).
 
 #### 5. `all pin view`
-*   **Trigger**: Immediately after `updateAnnotations` adds pins to the map.
-*   **Content**:
-    *   `added_pin_count`: Number of pins added to the map.
-    *   `user_pin_added`: Whether User Location Pin was added (Boolean).
+*   **시점 (Trigger)**: `updateAnnotations`가 지도에 핀 추가를 완료한 직후.
+*   **내용 (Content)**:
+    *   `added_pin_count`: 지도에 추가된 핀 개수.
+    *   `user_pin_added`: 사용자 위치 핀 추가 여부 (Boolean).
 
 #### 6. `go current location`
-*   **Trigger**: After the initial 1-second animation completes (Zoom to User).
-*   **Content**:
+*   **시점 (Trigger)**: 초기 1초 애니메이션(사용자 위치로 줌인) 완료 후.
+*   **내용 (Content)**:
     *   `final_action`: "Zoom to User Location (Level 9)".
-    *   `success`: True (if no errors occurred).
+    *   `success`: 성공 여부 (에러 없으면 True).
 
-### 🛠 Implementation
+### 🛠 구현 (Implementation)
 
 *   **Logger**: `OptimizationLogger.swift`
 *   **Type**: `LAUNCH_STEP` (New Enum Case)
