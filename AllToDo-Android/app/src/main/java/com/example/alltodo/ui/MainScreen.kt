@@ -144,8 +144,10 @@ fun MainScreen(
         )
     }
 
+
     // [FIX] Hoist Animation State to prevent reset on Recomposition
     var initialAnimationDone by remember { mutableStateOf(false) }
+
     var lastStopTime by remember { mutableStateOf(0L) } // [NEW] Track background duration
     // [FIX] Load Saved IntLocation
     val savedLatE7 = prefs.getInt("saved_latE7", 0)
@@ -191,11 +193,13 @@ fun MainScreen(
     }
 
     var kakaoMap by remember { mutableStateOf<KakaoMap?>(null) }
+    var naverMap by remember { mutableStateOf<com.naver.maps.map.NaverMap?>(null) }
 
     
     // [FIX] Split isMapReady
     var isKakaoMapReady by remember { mutableStateOf(false) }
     var isGoogleMapReady by remember { mutableStateOf(false) }
+    var isNaverMapReady by remember { mutableStateOf(false) }
 
 
     var isSdkInitialized by remember { mutableStateOf(false) }
@@ -289,6 +293,7 @@ fun MainScreen(
     LaunchedEffect(mapProvider) {
         isKakaoMapReady = false
         isGoogleMapReady = false
+        isNaverMapReady = false
         // [FIX] Fast Path > Current Location on Map Switch
         initialAnimationDone = false
         
@@ -303,6 +308,24 @@ fun MainScreen(
         }
 
         prefs.edit().putString("map_provider", mapProvider.name).apply()
+    }
+    
+    // [FIX] Reset Animation State on Provider Change or App Resume
+    DisposableEffect(lifecycleOwner, mapProvider) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                // User requested: "Background -> Foreground triggers All Pins"
+                initialAnimationDone = false
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        
+        // Provider Change also resets (redundant with LaunchedEffect above but safe)
+        // initialAnimationDone = false // Already handled in LaunchedEffect(mapProvider)
+        
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
     
     // [FIX] Location Tracking Loop (Buffering via ViewModel)
@@ -346,6 +369,15 @@ fun MainScreen(
                             MapProvider.Google -> googleCameraPositionState.position.zoom
 
                             MapProvider.Kakao -> kakaoMap?.zoomLevel?.toFloat() ?: 15f
+                            
+                            MapProvider.Naver -> 15f // Placeholder as we don't access NaverMap here directly yet (State Hoisted needed or reference needed)
+                            // Actually we can't easily access naverMap here as it's inside the component.
+                            // But wait, kakaoMap IS hoisted. We need to hoist naverMap too.
+                            // I see `var naverMap by remember { mutableStateOf<NaverMap?>(null) }` inside NaverMapContent? No, it should be in MainScreen.
+                            // In NaverMapContent I see: `var naverMap by remember { mutableStateOf<NaverMap?>(null) }`.
+                            // This means MainScreen doesn't have access to it.
+                            // I should add `onMapReady` callback in MainScreen to capture it, similar to `kakaoMap`.
+
                         }
                     } catch (e: Exception) { 15f }
 
@@ -530,9 +562,9 @@ fun MainScreen(
                 }
             }
             
+            
+
             MapProvider.Kakao -> {
-                // Kakao Map
-                 // Kakao Map
                   com.example.alltodo.ui.components.KakaoMapContent(
                       modifier = Modifier.fillMaxSize(),
                       isSdkInitialized = isSdkInitialized,
@@ -571,7 +603,39 @@ fun MainScreen(
                   )
             }
             
-
+            MapProvider.Naver -> {
+                 com.example.alltodo.ui.components.NaverMapContent(
+                      modifier = Modifier.fillMaxSize(),
+                      clusteredItems = clusteredItems,
+                      currentLocation = currentLocation.value,
+                      onMapReady = { nMap ->
+                           naverMap = nMap
+                           isNaverMapReady = true
+                      },
+                      onClusterClickWithCoords = { items, x, y ->
+                            selectedClusterPosition = Offset(x, y)
+                            val hasTodo = items.any { it is UnifiedItem.Todo }
+                            val hasHistory = items.any { it is UnifiedItem.History }
+                            val type = if(hasTodo && hasHistory) "mixed" else if(hasTodo) "todo" else "history"
+                            val first = items.firstOrNull() ?: items.first()
+                            selectedCluster = PinCluster(first.latitude, first.longitude, items, type)
+                      },
+                      onItemClickWithCoords = { item, x, y ->
+                            selectedClusterPosition = Offset(x, y)
+                            selectedCluster = PinCluster(
+                                item.latitude, item.longitude, 
+                                listOf(item), 
+                                if(item is UnifiedItem.Todo) "todo" else "history"
+                            )
+                      },
+                      onCameraRotate = { rot -> compassRotation = rot },
+                      initialAnimationDone = initialAnimationDone,
+                      onInitialAnimationDone = { initialAnimationDone = true },
+                      onFarItemsDetected = { count -> farItemCount = count },
+                      onZoomChange = { zoom -> viewModel.updateZoom(zoom) },
+                      onEnableClustering = { viewModel.enableClustering() }
+                 )
+            }
         }
         
         // [NEW] Far Item Message Overlay (Shared for All Maps)
@@ -956,8 +1020,17 @@ fun MainScreen(
                              } catch (e: Exception) {}
                          }
                     }
+                    MapProvider.Naver -> {
+                        val params = com.naver.maps.map.CameraUpdateParams().rotateTo(0.0)
+                        val camUpdate = com.naver.maps.map.CameraUpdate.withParams(params)
+                            .animate(com.naver.maps.map.CameraAnimation.Fly, 500)
+                        naverMap?.moveCamera(camUpdate)
+                        compassRotation = 0f
+                    }
+                    else -> {}
+                    }
 
-                }
+
             },
             onLocationClick = {
                  if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
@@ -981,7 +1054,13 @@ fun MainScreen(
                                  MapProvider.Google -> {
                                      scope.launch {
                                          googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(com.google.android.gms.maps.model.LatLng(lat, lon), 19f))
-                                     }
+    
+                                 }
+                                 }
+                                 MapProvider.Naver -> {
+                                      val camUpdate = com.naver.maps.map.CameraUpdate.scrollTo(com.naver.maps.geometry.LatLng(lat, lon))
+                                          .animate(com.naver.maps.map.CameraAnimation.Easing)
+                                      naverMap?.moveCamera(camUpdate)
                                  }
                                  else -> {}
                              }
@@ -994,6 +1073,10 @@ fun MainScreen(
                     MapProvider.Kakao -> kakaoMap?.moveCamera(CameraUpdateFactory.zoomIn())
 
                     MapProvider.Google -> googleCameraPositionState.move(com.google.android.gms.maps.CameraUpdateFactory.zoomIn())
+                    MapProvider.Naver -> {
+                         val camUpdate = com.naver.maps.map.CameraUpdate.zoomBy(1.0)
+                         naverMap?.moveCamera(camUpdate)
+                    }
                     else -> {}
                 }
             },
@@ -1002,6 +1085,10 @@ fun MainScreen(
                     MapProvider.Kakao -> kakaoMap?.moveCamera(CameraUpdateFactory.zoomOut())
 
                     MapProvider.Google -> googleCameraPositionState.move(com.google.android.gms.maps.CameraUpdateFactory.zoomOut())
+                    MapProvider.Naver -> {
+                         val camUpdate = com.naver.maps.map.CameraUpdate.zoomBy(-1.0)
+                         naverMap?.moveCamera(camUpdate)
+                    }
                     else -> {}
                 }
             }

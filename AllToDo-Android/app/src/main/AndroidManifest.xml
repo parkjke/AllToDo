@@ -24,6 +24,11 @@
         <meta-data
             android:name="com.kakao.vectormap.APP_KEY"
             android:value="73c078184e5277946f8078004f60bd51" />
+
+        <!-- Naver Map Client ID -->
+        <meta-data
+            android:name="com.naver.maps.map.CLIENT_ID"
+            android:value="i7652syq10" />
             
 
 

@@ -355,32 +355,38 @@ class TodoViewModel @Inject constructor(
     }
     
     fun endSession() {
-        val start = sessionStartTime
-        if (start == 0L || (processedSessionPoints.isEmpty() && pendingBuffer.isEmpty())) return
-        
-        val now = System.currentTimeMillis()
-        val endTime = now
+        try {
+            val start = sessionStartTime
+            // [FIX] Guard: If session not started or empty, skip
+            if (start == 0L || (processedSessionPoints.isEmpty() && pendingBuffer.isEmpty())) {
+                _debugStatus.value = "Session Empty/Inactive"
+                return
+            }
+            
+            val now = System.currentTimeMillis()
+            val endTime = now
 
-        // [FIX] Snapshot data immediately to prevent Race Condition with clear()
-        val finalPoints = ArrayList(processedSessionPoints)
-        if (pendingBuffer.isNotEmpty()) {
-            finalPoints.addAll(pendingBuffer)
-        }
+            // [ROBUST] Snapshot data immediately
+            val finalPoints = ArrayList(processedSessionPoints)
+            if (pendingBuffer.isNotEmpty()) {
+                finalPoints.addAll(pendingBuffer)
+            }
+            
+            // [ROBUST] Reset State immediately to prevent Double-Save
+            processedSessionPoints.clear()
+            pendingBuffer.clear()
+            _liveSessionPoints.value = emptyList()
+            sessionStartTime = 0
+            
+            if (finalPoints.isEmpty()) return
 
-        // Cleanup immediately (UI Thread)
-        processedSessionPoints.clear()
-        pendingBuffer.clear()
-        _liveSessionPoints.value = emptyList()
-        sessionStartTime = 0
+            val pointCount = finalPoints.size
+            com.example.alltodo.services.RemoteLogger.info(">>> Ending Session. Saving $pointCount points (Start: $start)")
 
-        if (finalPoints.isEmpty()) return
-
-        // [FIX] Use NonCancellable to ensure save completes in background without blocking Main Thread (No ANR)
-        viewModelScope.launch(Dispatchers.IO) {
-            withContext(NonCancellable) {
+            // [ROBUST] Launch with NonCancellable to survive ViewModel clearing during save
+            // Using IO Dispatcher for DB operations
+            viewModelScope.launch(Dispatchers.IO + NonCancellable) {
                 try {
-                    val totalCount = finalPoints.size
-                    
                     // 1. Calculate Midpoint
                     var sumLat: Double = 0.0
                     var sumLng: Double = 0.0
@@ -388,10 +394,10 @@ class TodoViewModel @Inject constructor(
                         sumLat += p.latitude
                         sumLng += p.longitude
                     }
-                    val avgLat = sumLat / totalCount
-                    val avgLon = sumLng / totalCount
+                    val avgLat = sumLat / pointCount
+                    val avgLon = sumLng / pointCount
                     
-                    // 2. Encode
+                    // 2. Encode Path
                     val pathJson = StringBuilder("[")
                     for (i in finalPoints.indices) {
                         if (i > 0) pathJson.append(",")
@@ -408,21 +414,26 @@ class TodoViewModel @Inject constructor(
                         pathData = pathJson.toString()
                     )
                     
-                    // Save to DB (Suspend safe)
+                    // 3. Save to DB
                     userLogDao.insertLog(log)
                     
-                    // Remote Log
-                    com.example.alltodo.services.RemoteLogger.info("Session Saved (Async): $totalCount pts")
-                    com.example.alltodo.services.RemoteLogger.log("PATH_DATA", pathJson.toString())
-
-                    // Refresh logs on UI
-                    loadUserLogs()
+                    com.example.alltodo.services.RemoteLogger.info(">>> Session Saved Successfully to DB.")
+                    
+                    // Refresh logs on Main Thread
+                    withContext(Dispatchers.Main) {
+                        loadUserLogs()
+                        _debugStatus.value = "Saved $pointCount pts"
+                    }
 
                 } catch (e: Exception) {
                     e.printStackTrace()
-                    com.example.alltodo.services.RemoteLogger.error("Failed to save session: ${e.message}")
+                    com.example.alltodo.services.RemoteLogger.error(">>> CRITICAL: Failed to save session: ${e.message}")
+                    // Note: Data is in finalPoints snapshot. We could try to recover here if critical.
                 }
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // Sync Error
         }
     }
     

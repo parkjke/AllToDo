@@ -81,70 +81,43 @@ fun KakaoMapContent(
          // Log removed
     }
 
-    // [FIX] Changed Key to isMapReady to prevent cancellation when initialAnimationDone changes mid-flight
-    LaunchedEffect(isMapReady) {
-        // [FIX] Run if Global is False OR Local hasn't run yet (Force one run per load)
-        // Check local flag again to prevent duplicate run
-        if (hasLocalAnimationRun) return@LaunchedEffect
-        
-        // Wait until map is truly ready
-        if (!isMapReady) return@LaunchedEffect
-        
-        // If global is already done AND local hasn't run, we still run it once (Local Guard)
-        // logic: shouldRun = !initialAnimationDone || !hasLocalAnimationRun
-        // implicit: we are here because isMapReady is true
+    // [FIX] Initial Animation & Clustering Trigger
+    // Runs when map is ready AND initialAnimationDone is false (Launch, Switch, Resume)
+    LaunchedEffect(isMapReady, initialAnimationDone) {
+        if (!isMapReady || initialAnimationDone) return@LaunchedEffect
         
         val map = kakaoMap ?: return@LaunchedEffect
         
-        // Now we commit to running
-        hasLocalAnimationRun = true
-        
-        // [FIX] Anti-Dalian: Move to known location immediately just in case data takes time
+        // 1. Move to roughly current location (anti-Dalian)
         val knownLoc = currentLocState.value
-        
         if (knownLoc != null && knownLoc.latitude != 0.0) {
              try {
                  map.moveCamera(CameraUpdateFactory.newCenterPosition(
                      com.kakao.vectormap.LatLng.from(knownLoc.latitude, knownLoc.longitude), 14
                  ))
              } catch(e: Exception) {}
-        } else {
-             // [FIX] If location is null, move to Default (Gwanghwamun) to avoid Dalian
-             try {
-                 map.moveCamera(CameraUpdateFactory.newCenterPosition(
-                     com.kakao.vectormap.LatLng.from(37.5759, 126.9768), 15
-                 ))
-             } catch(e: Exception) {}
         }
         
-        // Data Polling (Max 3s)
+        // 2. Wait for Data (Max 3s)
         val start = System.currentTimeMillis()
         var hasValidData = false
-        
         while (System.currentTimeMillis() - start < 3000) {
-            val items = latestVisibleClusters.value
-             if (items.isNotEmpty()) {
+             if (latestVisibleClusters.value.isNotEmpty()) {
                  hasValidData = true
                  break
              }
              delay(200)
         }
         
-        // Re-read latest items
-        val visibleClusters = latestVisibleClusters.value
-        
-        if (!hasValidData) {} 
-        
+        // 3. Fit Bounds (All Pins)
         try {
-            // Step 1: Center + Zoom 14 (Instead of FitBounds)
-            // Calculate Min/Max
+            val visibleClusters = latestVisibleClusters.value
             var minLat = 90.0; var maxLat = -90.0
             var minLon = 180.0; var maxLon = -180.0
             var validPoints = 0
             
-            // Add visible items
             visibleClusters.forEach {
-                if (it.latitude != 0.0 && it.longitude != 0.0) {
+                if (it.latitude != 0.0) {
                     if (it.latitude < minLat) minLat = it.latitude
                     if (it.latitude > maxLat) maxLat = it.latitude
                     if (it.longitude < minLon) minLon = it.longitude
@@ -152,63 +125,55 @@ fun KakaoMapContent(
                     validPoints++
                 }
             }
-            // Add User Location
+            // Include User
             val loc = currentLocState.value
             if (loc != null && loc.latitude != 0.0) {
-                if (loc.latitude < minLat) minLat = loc.latitude
-                if (loc.latitude > maxLat) maxLat = loc.latitude
-                if (loc.longitude < minLon) minLon = loc.longitude
-                if (loc.longitude > maxLon) maxLon = loc.longitude
-                validPoints++
+                 if (loc.latitude < minLat) minLat = loc.latitude
+                 if (loc.latitude > maxLat) maxLat = loc.latitude
+                 if (loc.longitude < minLon) minLon = loc.longitude
+                 if (loc.longitude > maxLon) maxLon = loc.longitude
+                 validPoints++
             }
-                    
+            
             if (validPoints > 0) {
-                // [FIX] Restore FitBounds with Min Span (0.05)
-                val safeBounds = com.example.alltodo.utils.SmartLocationManager.ensureMinSpan(
+                 val safeBounds = com.example.alltodo.utils.SmartLocationManager.ensureMinSpan(
                     com.google.android.gms.maps.model.LatLngBounds(
                         com.google.android.gms.maps.model.LatLng(minLat, minLon),
                         com.google.android.gms.maps.model.LatLng(maxLat, maxLon)
-                    ),
-                    0.05
-                )
-                
-                // [FIX] Try fitMapPoints first, fallback to Center+Zoom14 if it fails
-                try {
-                    val sw = LatLng.from(safeBounds.southwest.latitude, safeBounds.southwest.longitude)
-                    val ne = LatLng.from(safeBounds.northeast.latitude, safeBounds.northeast.longitude)
-                    
-                    // Use larger padding (100 -> 150)
-                    val update = CameraUpdateFactory.fitMapPoints(arrayOf(sw, ne), 150)
-                    map.moveCamera(update, CameraAnimation.from(1000, true, true))
-                } catch (e: Exception) {
-                    val centerLat = safeBounds.center.latitude
-                    val centerLon = safeBounds.center.longitude
-                
-                    val update = CameraUpdateFactory.newCenterPosition(
-                        com.kakao.vectormap.LatLng.from(centerLat, centerLon), 
-                        14
-                    )
-                    map.moveCamera(update, CameraAnimation.from(1000, true, true))
-                }
-                
-                delay(3000)
-            } else {
-                delay(500)
+                    ), 0.05
+                 )
+                 
+                 // Show All Pins
+                 try {
+                     val sw = LatLng.from(safeBounds.southwest.latitude, safeBounds.southwest.longitude)
+                     val ne = LatLng.from(safeBounds.northeast.latitude, safeBounds.northeast.longitude)
+                     map.moveCamera(CameraUpdateFactory.fitMapPoints(arrayOf(sw, ne), 150), CameraAnimation.from(1000, true, true))
+                 } catch (e: Exception) {
+                     map.moveCamera(CameraUpdateFactory.newCenterPosition(LatLng.from(safeBounds.center.latitude, safeBounds.center.longitude), 14))
+                 }
             }
-
+            
+            // [FIX 1] Unconditional Zoom to User after 3s (Matches iOS)
+            delay(3000)
+            
+            // Re-fetch latest location just in case
+            val latestLoc = currentLocState.value
+            if (latestLoc != null && latestLoc.latitude != 0.0) {
+                 map.moveCamera(CameraUpdateFactory.newCenterPosition(LatLng.from(latestLoc.latitude, latestLoc.longitude), 17), CameraAnimation.from(800, true, true))
+            }
+            
+            // [FIX 4] Ensure Clustering Enabled
             onInitialAnimationDone()
-            // hasLocalAnimationRun = true // Already set at start
+            onEnableClustering()
+            
         } catch (e: Exception) { e.printStackTrace() }
-
-        }
-
-    // [FIX] Independent Clustering Activation Trigger
+    }
+    
+    // Independent Clustering Trigger (Backup)
     LaunchedEffect(isMapReady) {
         if (isMapReady) {
             delay(3000)
-            android.util.Log.e("WASM_LOG", ">>> WASM [KakaoMapContent] Force enabling clustering after 3s")
-            System.out.println(">>> WASM [KakaoMapContent] Force enabling clustering after 3s")
-            onEnableClustering()
+            onEnableClustering() // Should match the primary flow timing roughly
         }
     }
     
@@ -301,10 +266,29 @@ fun KakaoMapContent(
         }
     }
     
+    // [FIX] Lifecycle Management for Fast Resume (Avoid Zombie State)
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    var mapView by remember { mutableStateOf<MapView?>(null) }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_RESUME -> mapView?.resume()
+                androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> mapView?.pause()
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+    
     if (isSdkInitialized) {
         AndroidView(
             factory = { ctx ->
                 MapView(ctx).apply {
+                    mapView = this // [FIX] Capture Reference
                     start(object : MapLifeCycleCallback() {
                         override fun onMapDestroy() {}
                         override fun onMapError(e: Exception?) {}
@@ -350,6 +334,11 @@ fun KakaoMapContent(
                              return 18
                         }
                     })
+                    
+                    // [FIX] Black Screen Fix: Force Resume if Activity is already Resumed
+                    if (lifecycleOwner.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
+                        this.resume()
+                    }
                 }
             },
             modifier = modifier

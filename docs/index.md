@@ -26,3 +26,7 @@
 *   [**작업 로그 (Work Log)**](history/work_log.md)
     *   일일 작업 내역 요약.
 
+## 🗺️ 적용 사례 (Case Studies)
+*   [**네이버맵 안드로이드 적용 사례**](plans/NAVER_MAP_ANDROID_INTEGRATION.md)
+    *   구현 계획, 상세 로직, Fast Resume 최적화 및 결과 리포트.
+
