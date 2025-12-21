@@ -26,7 +26,9 @@
 *   [**작업 로그 (Work Log)**](history/work_log.md)
     *   일일 작업 내역 요약.
 
-## 🗺️ 적용 사례 (Case Studies)
-*   [**네이버맵 안드로이드 적용 사례**](plans/NAVER_MAP_ANDROID_INTEGRATION.md)
-    *   구현 계획, 상세 로직, Fast Resume 최적화 및 결과 리포트.
+## 🗺️ 적용 사례 및 트러블슈팅 (Case Studies)
+*   [**네이버맵 안드로이드 통합 사례 (Case Study)**](NAVER_MAP_ANDROID_CASE_STUDY.md)
+    *   빌드 오류, 인증 실패(401, 800), (0,0) 좌표 방어 로직 등 문제 해결 종합 가이드.
+*   [**구현 계획 아카이브 (Old Plan)**](plans/NAVER_MAP_ANDROID_INTEGRATION.md)
+    *   초기 구현 계획 및 상세 로직 히스토리.
 

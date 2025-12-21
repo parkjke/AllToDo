@@ -7,13 +7,13 @@ plugins {
 }
 
 android {
-    namespace = "com.example.alltodo"
-    compileSdk = 34
+    namespace = "kr.alltodo"
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "kr.alltodo"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
         
@@ -78,7 +78,8 @@ dependencies {
     implementation("com.kakao.maps.open:android:2.13.0")
 
     // Naver Map SDK
-    implementation("com.naver.maps:map-sdk:3.17.0")
+    implementation("com.naver.maps:map-sdk:3.21.0")
+    implementation("io.github.fornewid:naver-map-compose:1.8.2")
     
 
 
