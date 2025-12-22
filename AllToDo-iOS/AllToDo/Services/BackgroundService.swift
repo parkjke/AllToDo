@@ -36,12 +36,13 @@ class BackgroundService {
         let locationManager = LocationManager()
         
         if let loc = locationManager.location {
-            let log = UserLog(
-                startTime: Date(),
-                endTime: Date(), // Single point
+            let log = ToDoItem(
+                todo_name: "자동 기록", // "Auto Log"
+                begin_time: Date(),
+                end_time: Date(),
+                type: "00", // History
                 latitude: loc.coordinate.latitude,
-                longitude: loc.coordinate.longitude,
-                pathData: nil
+                longitude: loc.coordinate.longitude
             )
             context.insert(log)
             try? context.save()

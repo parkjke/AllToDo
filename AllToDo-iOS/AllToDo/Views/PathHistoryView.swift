@@ -3,11 +3,13 @@ import MapKit
 import GoogleMaps
 import KakaoMapsSDK
 import NMapsMap
+import SwiftData
 
 struct PathHistoryView: View {
-    var log: UserLog
+    var item: ToDoItem
     var onClose: () -> Void
     
+    @Environment(\.modelContext) private var modelContext
     @AppStorage("selectedMapProvider") private var mapProvider: MapProvider = .apple
     @State private var pathCoordinates: [CLLocationCoordinate2D] = []
     
@@ -35,7 +37,6 @@ struct PathHistoryView: View {
             .ignoresSafeArea()
             
             // Close Button
-            // Close Button [Styled]
             Button(action: onClose) {
                 Image(systemName: "xmark")
                     .font(.system(size: 20, weight: .bold))
@@ -47,18 +48,20 @@ struct PathHistoryView: View {
             }
         }
         .onAppear {
-            decodePath()
+            loadPath()
         }
     }
     
-    private func decodePath() {
-        guard let data = log.pathData else { return }
+    private func loadPath() {
+        // Query paths for this todo_id
+        let searchID = item.todo_id
+        let descriptor = FetchDescriptor<PathItem>(
+            predicate: #Predicate<PathItem> { $0.todo_id == searchID },
+            sortBy: [SortDescriptor<PathItem>(\.timestamp, order: .forward)]
+        )
         
-        do {
-            let locations = try JSONDecoder().decode([LocationData].self, from: data)
-            self.pathCoordinates = locations.map { 
-                CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) 
-            }
+        if let paths = try? modelContext.fetch(descriptor) {
+            self.pathCoordinates = paths.map { $0.coordinate }
             
             // Initial Region Calculation for Apple Key
             if !pathCoordinates.isEmpty {
@@ -66,16 +69,12 @@ struct PathHistoryView: View {
                 let lons = pathCoordinates.map { $0.longitude }
                 let center = CLLocationCoordinate2D(latitude: (lats.min()! + lats.max()!) / 2, longitude: (lons.min()! + lons.max()!) / 2)
                 
-                // [FIX] Zoom Logic: Maintain at least Level 17 (Span ~0.003) if path is very short
                 let latDelta = max((lats.max()! - lats.min()!) * 1.5, 0.003)
                 let lonDelta = max((lons.max()! - lons.min()!) * 1.5, 0.003)
                 
                 let span = MKCoordinateSpan(latitudeDelta: latDelta, longitudeDelta: lonDelta)
                 self.region = MKCoordinateRegion(center: center, span: span)
             }
-            
-        } catch {
-            print("Failed to decode path: \(error)")
         }
     }
 }

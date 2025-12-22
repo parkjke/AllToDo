@@ -5,9 +5,7 @@ import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var todoItems: [ToDoItem]
-    // Fetch logs for history count (simplistic query)
-    @Query private var userLogs: [UserLog]
+    @Query private var allItems: [ToDoItem]
     
     @State private var showProfile = false
     @State private var showTasks = false
@@ -20,628 +18,250 @@ struct ContentView: View {
     
     @State private var showLocationHistory = false
     
-
-    
     @State private var selectedItem: ToDoItem?
     @State private var selectedClusterItems: [UnifiedMapItem]?
-    @State private var selectedLogForPath: UserLog?
+    @State private var viewingHistoryItem: ToDoItem?
     @State private var showHistoryMode = false
     @State private var selectedDate = Date()
     @State private var showCalendar = false
     @State private var showListView = false
-    @State private var lastBackgroundDate: Date? // [NEW] Track background entry time
-    @State private var tapPosition: CGPoint? // [NEW] Screen coordinates of tapped pin
+    @State private var backgroundStartTime: Date?
+    @State private var tapPosition: CGPoint?
     
-    // [NEW] Far Item Message State
+    // Far Item / Cluster State
     @State private var farItemMessage: String?
     @State private var farMessageTask: Task<Void, Never>?
     @State private var hasShownFarItemToast = false
-    
-    // [NEW] Cluster Radius Indicator
-    @State private var clusterLookAheadDistance: Double?
-    
-    // MARK: - Logging Methods
-    private func logTodoListStats() {
-        let centerDate = Date() // Use current date for "future" calculation
-        let now = Date()
-        let dayBefore = Calendar.current.date(byAdding: .hour, value: -24, to: now)!
-        let dayAfter = Calendar.current.date(byAdding: .hour, value: 24, to: now)!
-        
-        let count24h = todoItems.filter { 
-            guard let d = $0.dueDate else { return false }
-            return d >= dayBefore && d <= dayAfter
-        }.count
-        
-        let countFuture = todoItems.filter {
-            guard let d = $0.dueDate else { return false }
-            return d > dayAfter
-        }.count
-        
-        OptimizationLogger.shared.logLaunchStep(step: "set todo list", data: [
-            "count_24h": count24h,
-            "count_future": countFuture,
-            "total": todoItems.count
-        ])
-    }
-    
-    private func logMapSetup() {
-        OptimizationLogger.shared.logLaunchStep(step: "setup map", data: [
-            "provider": mapProvider.rawValue,
-            "status_visible": true, // Always visible in current layout
-            "history_visible": !showHistoryMode, // Logic check
-            "current_loc_btn_visible": true,
-            "zoom_controls_visible": true,
-            "compass_visible": true
-        ])
-    }
-    
-    // Settings
+    @State private var farItemsCount = 0
+    @State private var showFarNotification = false
+    @State private var clusterRadius: Double? = 100.0
+
+    // Create Todo State
+    @State private var isCreatingTodo = false
+    @State private var creatingTodoLocation: CLLocationCoordinate2D?
+    @State private var initialTodoName = ""
+    @State private var initialTodoTitle = "할 일 만들기"
+
+    @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("selectedMapProvider") private var mapProvider: MapProvider = .apple
     @AppStorage("maxPopupItems") private var maxPopupItems = 5
     @AppStorage("popupFontSize") private var popupFontSize = 1
-    
-    // Time Filtering Logic
+
+    // MARK: - Filtered Data
     var filteredTodos: [ToDoItem] {
         let centerDate = showHistoryMode ? selectedDate : Date()
-        // Logic: "24 hours window" (Restore User Scenario)
         let min = Calendar.current.date(byAdding: .hour, value: -24, to: centerDate)!
         let max = Calendar.current.date(byAdding: .hour, value: 24, to: centerDate)!
-        let count = todoItems.count
-        let filtered = todoItems.filter {
-            guard let d = $0.dueDate else { return true }
-            return d >= min && d <= max
+        
+        return allItems.filter {
+            $0.type == "10" && (
+                $0.date_time == nil || ($0.date_time! >= min && $0.date_time! <= max)
+            )
         }
-        
-        // DEBUG: Check items (Disabled per user request)
-        // if count > 0 {
-        //     print("DEBUG: Total Todos: \(count)")
-        //     for item in todoItems {
-        //         let locStr = item.location != nil ? "HasLoc (\(item.location!.latInt), \(item.location!.lonInt))" : "NoLoc"
-        //         print(" - Item: \(item.title), Due: \(item.dueDate?.description ?? "nil"), \(locStr)")
-        //     }
-        //     print("DEBUG: Filtered Count: \(filtered.count)")
-        // } else {
-        //      print("DEBUG: Total Todos is ZERO.")
-        // }
-        
-        return filtered
     }
     
-    var filteredLogs: [UserLog] {
+    var filteredLogs: [ToDoItem] {
         let centerDate = showHistoryMode ? selectedDate : Date()
-        // Logic: "24 hours window ending at selectedDate" (Standard)
         let min = Calendar.current.date(byAdding: .hour, value: -24, to: centerDate)!
         let max = Calendar.current.date(byAdding: .hour, value: 24, to: centerDate)!
-        return userLogs.filter { $0.startTime >= min && $0.startTime <= max }
-    }
-    
-    // MapProvider Enum moved to UnifiedMapModels.swift
-    
-    @AppStorage("selectedMapProvider") private var mapProvider: MapProvider = .apple
-    
-    var mapLayer: some View {
-        Group {
-            switch mapProvider {
-            case .apple:
-                AppleMapView(
-                    action: $mapAction,
-                    rotation: $compassRotation,
-                    locationManager: locationManager,
-                    todoItems: filteredTodos,
-                    userLogs: filteredLogs,
-                    selectedItem: $selectedItem,
-                    selectedClusterItems: $selectedClusterItems,
-                    tapPosition: $tapPosition, // [NEW]
-                    clusterRadius: $clusterLookAheadDistance, // [NEW]
-                    onLongTap: handleLongTap,
-                    onUserLocationTap: {},
-                    onDelete: deleteItem,
-                    onDeleteLog: deleteLog,
-                    onSelectLog: { selectedLogForPath = $0 },
-                    onFarItemsDetected: { count in
-                        guard !hasShownFarItemToast, count > 0 else { return }
-                        hasShownFarItemToast = true
-                        
-                        let text = "\(count)개의 할 일이 멀리 있습니다."
-                        farItemMessage = text
-                        farMessageTask?.cancel()
-                        farMessageTask = Task {
-                            try? await Task.sleep(nanoseconds: 3 * 1_000_000_000)
-                            farItemMessage = nil
-                        }
-                    }
-                )
-            case .kakao:
-                KakaoMapView(
-                    action: $mapAction,
-                    rotation: $compassRotation,
-                    locationManager: locationManager,
-                    todoItems: filteredTodos,
-                    userLogs: filteredLogs,
-                    selectedItem: $selectedItem,
-                    selectedClusterItems: $selectedClusterItems,
-                    tapPosition: $tapPosition, // [NEW]
-                    clusterRadius: $clusterLookAheadDistance, // [NEW]
-                    onLongTap: handleLongTap,
-                    onFarItemsDetected: { count in
-                        guard !hasShownFarItemToast, count > 0 else { return }
-                        hasShownFarItemToast = true
-                        
-                        let text = "\(count)개의 할 일이 멀리 있습니다."
-                        farItemMessage = text
-                        farMessageTask?.cancel()
-                        farMessageTask = Task {
-                            try? await Task.sleep(nanoseconds: 3 * 1_000_000_000)
-                            farItemMessage = nil
-                        }
-                    }
-                )
-            case .naver:
-                NaverMapView(
-                    action: $mapAction,
-                    rotation: $compassRotation,
-                    locationManager: locationManager,
-                    todoItems: filteredTodos,
-                    userLogs: filteredLogs,
-                    selectedItem: $selectedItem,
-                    selectedClusterItems: $selectedClusterItems,
-                    tapPosition: $tapPosition, // [NEW]
-                    clusterRadius: $clusterLookAheadDistance, // [NEW]
-                    onLongTap: handleLongTap,
-                    onUserLocationTap: {},
-                    onDelete: deleteItem,
-                    onDeleteLog: deleteLog,
-                    onSelectLog: { selectedLogForPath = $0 },
-                    onFarItemsDetected: { count in
-                        guard !hasShownFarItemToast, count > 0 else { return }
-                        hasShownFarItemToast = true
-                        
-                        let text = "\(count)개의 할 일이 멀리 있습니다."
-                        farItemMessage = text
-                        farMessageTask?.cancel()
-                        farMessageTask = Task {
-                            try? await Task.sleep(nanoseconds: 3 * 1_000_000_000)
-                            farItemMessage = nil
-                        }
-                    }
-                )
-            case .google:
-                GoogleMapView(
-                    action: $mapAction,
-                    rotation: $compassRotation,
-                    locationManager: locationManager,
-                    todoItems: filteredTodos,
-                    userLogs: filteredLogs,
-                    selectedItem: $selectedItem,
-                    selectedClusterItems: $selectedClusterItems,
-                    tapPosition: $tapPosition, // [NEW]
-                    clusterRadius: $clusterLookAheadDistance, // [NEW]
-                    hasItems: !filteredTodos.isEmpty || !filteredLogs.isEmpty,
-                    onLongTap: handleLongTap,
-                    onUserLocationTap: {},
-                    onDelete: deleteItem,
-                    onDeleteLog: deleteLog,
-                    onSelectLog: { selectedLogForPath = $0 },
-                    onFarItemsDetected: { count in
-                        guard !hasShownFarItemToast, count > 0 else { return }
-                        hasShownFarItemToast = true
-                        
-                        let text = "\(count)개의 할 일이 멀리 있습니다."
-                        farItemMessage = text
-                        farMessageTask?.cancel()
-                        farMessageTask = Task {
-                            try? await Task.sleep(nanoseconds: 3 * 1_000_000_000)
-                            farItemMessage = nil
-                        }
-                    }
-                )
-            }
-        }
-        .ignoresSafeArea()
-        // [NEW] Feed LayoutManager with items for WASM Clustering
-        // Note: Clustering logic resides in MapViews or specialized manager, not AppLocationManager.
-        // If we want WASM clustering global, we need a dedicated manager or update AppLocationManager.
-        // For now, assuming MapViews handle it.
-        // .onChange(of: filteredTodos) { newTodos in
-        //     locationManager.setItems(todos: newTodos, logs: filteredLogs)
-        // }
-        // .onChange(of: filteredLogs) { newLogs in
-        //     locationManager.setItems(todos: filteredTodos, logs: newLogs)
-        // }
-        // .onAppear {
-        //      locationManager.setItems(todos: filteredTodos, logs: filteredLogs)
-        // }
-    }
-    
-    private func handleLongTap(_ coord: CLLocationCoordinate2D) {
-        print("DEBUG: Inserting Item at: \(coord.latitude), \(coord.longitude)")
-        let newItem = ToDoItem(
-            title: "New Task",
-            dueDate: Date(),
-            location: LocationData(latitude: coord.latitude, longitude: coord.longitude, name: "Pinned Location")
-        )
-        print("DEBUG: Created Item Location: \(newItem.location?.latInt ?? 0), \(newItem.location?.lonInt ?? 0)")
-        modelContext.insert(newItem)
-        try? modelContext.save()
-        print("ContentView: Inserted Item.")
-        selectedItem = newItem
-    }
-    
-    private func deleteItem(_ item: ToDoItem) {
-        modelContext.delete(item)
-        try? modelContext.save()
-    }
-
-    private func deleteLog(_ log: UserLog) {
-        modelContext.delete(log)
-        try? modelContext.save()
-    }
-    
-    private func getItemDate(_ item: UnifiedMapItem) -> Date {
-        switch item {
-        case .todo(let t): return t.dueDate ?? t.createdAt
-        case .history(let l): return l.startTime
-        case .serverMessage: return Date()
-        case .userLocation: return Date()
+        
+        return allItems.filter {
+            $0.type == "00" && (
+                ($0.begin_time ?? Date(timeIntervalSince1970: Double($0.created_at)/1000.0)) >= min &&
+                ($0.begin_time ?? Date(timeIntervalSince1970: Double($0.created_at)/1000.0)) <= max
+            )
         }
     }
 
-    private func handleHistoryClick() {
-        if !showHistoryMode {
-            showHistoryMode = true
-            selectedDate = Date()
-            mapAction = .zoomToFit
-        } else {
-            showCalendar = true
-        }
-    }
-    
-    var statusWidget: some View {
-        TopLeftWidget(
-            historyCount: userLogs.count,
-            localTodoCount: todoItems.filter { $0.location != nil }.count, 
-            serverTodoCount: 0,
-            compassRotation: compassRotation,
-            onCompassClick: { mapAction = .rotateNorth },
-            onExpandClick: { withAnimation { showListView = true } }
-        )
-    }
-    
-    var navigationControls: some View {
-        RightSideControls(
-            compassRotation: compassRotation,
-            showHistoryMode: showHistoryMode,
-            onHistoryClick: handleHistoryClick,
-            onNotificationClick: {
-                // TODO: Notifications
-            },
-            onLoginClick: { showProfile = true },
-            onLocationClick: { mapAction = .currentLocation },
-            onZoomInClick: { mapAction = .zoomIn },
-            onZoomOutClick: { mapAction = .zoomOut },
-            onCompassClick: { mapAction = .rotateNorth },
-            onExpandClick: { withAnimation { showListView = true } }
-        )
-    }
-
-    var uiLayer: some View {
-        VStack {
-             HStack(alignment: .top) {
-                 statusWidget
-                 Spacer()
-                 navigationControls
-             }
-             .padding(.top, 32)
-             .padding(.horizontal, 8)
-             Spacer()
-        }
-    }
-    
-     var debugLayer: some View {
-          VStack(alignment: .leading) {
-              Spacer()
-              VStack(alignment: .leading, spacing: 4) {
-                  Text(locationManager.debugStatus).font(.caption).foregroundColor(.white)
-                  // Text(locationManager.lastResult).font(.caption2).foregroundColor(.yellow)
-                  Text("ID: \(RemoteLogger.shared.deviceID.prefix(8).description)").font(.caption2).foregroundColor(.gray)
-              }
-              .padding(8)
-              .background(Color.black.opacity(0.6))
-              .cornerRadius(8)
-              .padding(.bottom, 60)
-              .padding(.leading, 12)
-          }
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .allowsHitTesting(false)
-     }
-    
-    var clusterOverlay: some View {
-        Group {
-            if let clusterItems = selectedClusterItems {
-                ZStack {
-                    Color.black.opacity(0.01)
-                        .contentShape(Rectangle())
-                        .onTapGesture { selectedClusterItems = nil }
-                        .ignoresSafeArea()
-                    
-                    VStack(spacing: 0) {
-                        // Bubble Content
-                        VStack(spacing: 0) {
-                            HStack {
-                                Spacer()
-                                Button(action: { selectedClusterItems = nil }) {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundColor(.gray)
-                                        .font(.title2) // [FIX] Bigger Icon
-                                        .frame(width: 44, height: 44) // [FIX] Bigger Touch Area
-                                }
-                                Spacer() // [FIX] Center Alignment to avoid Trash collision
-                            }
-                            // .background(Color.white) // Moved to container
-                            
-                            ClusterListCallout(
-                                items: clusterItems.sorted(by: { $0.date > $1.date }),
-                                isCluster: true,
-                                onDeleteToDo: { item in
-                                    modelContext.delete(item)
-                                    if let idx = selectedClusterItems?.firstIndex(where: { 
-                                        if case .todo(let t) = $0 { return t.id == item.id }
-                                        return false
-                                    }) {
-                                        selectedClusterItems?.remove(at: idx)
-                                        if selectedClusterItems?.isEmpty == true { selectedClusterItems = nil }
-                                    }
-                                },
-                                onDeleteLog: { log in
-                                    modelContext.delete(log)
-                                    if let idx = selectedClusterItems?.firstIndex(where: {
-                                        if case .history(let h) = $0 { return h.id == log.id }
-                                        return false
-                                    }) {
-                                        selectedClusterItems?.remove(at: idx)
-                                        if selectedClusterItems?.isEmpty == true { selectedClusterItems = nil }
-                                    }
-                                },
-                                onSelectLog: { log in
-                                    selectedLogForPath = log
-                                    selectedClusterItems = nil
-                                }
-                            )
-                            .padding(.bottom, 8)
-                        }
-                        .frame(width: 260)
-                        .frame(height: min(
-                            CGFloat(clusterItems.count) * (popupFontSize == 0 ? 38 : (popupFontSize == 1 ? 42 : 52)) + 36, 
-                            CGFloat(maxPopupItems) * (popupFontSize == 0 ? 38 : (popupFontSize == 1 ? 42 : 52)) + 36
-                        ) + 44) // [FIX] Add Header Height (44) to Frame Calculation
-                        .background(Color.white)
-                        .cornerRadius(12)
-                        
-                        // Triangle Edge
-                        CalloutTriangle()
-                            .fill(Color.white)
-                            .frame(width: 20, height: 10)
-                            .padding(.top, -1)
-                    }
-                    .shadow(radius: 10)
-                    // [CRITICAL LOCK: DO NOT MODIFY]
-                    // Strategy: Pin Tracking (tapPosition) + Frame Height Clamping + Map Specific Offsets
-                    // This logic is tuned by user request. Do NOT optimize or center-force.
-                    .position(x: (tapPosition?.x ?? UIScreen.main.bounds.width / 2) + mapXOffset,
-                              y: (tapPosition?.y ?? UIScreen.main.bounds.height / 2) - (((min(CGFloat(clusterItems.count), CGFloat(maxPopupItems)) * (popupFontSize == 0 ? 38 : (popupFontSize == 1 ? 42 : 52)) + 36) + 44) / 2 + 10) + mapYOffset) 
-                    .transition(.scale.combined(with: .opacity))
-                }
-                .zIndex(999)
-            }
-        }
-    }
-    
-    // [CRITICAL LOCK: DO NOT MODIFY] User-Defined Offsets
-    // These values are visually tuned for each map provider.
-    var mapXOffset: CGFloat {
-        switch mapProvider {
-        case .kakao: return -6
-        case .naver: return -4
-        case .apple: return -1
-        case .google: return -1
-        }
-    }
-    
-    var mapYOffset: CGFloat {
-        switch mapProvider {
-        case .kakao: return -110
-        case .naver: return -110
-        case .apple: return -100
-        case .google: return -100
-        }
-    }
-    
-    var sideMenuLayer: some View {
-        Group {
-            if showProfile {
-                ZStack {
-                    Color.black.opacity(0.3)
-                        .ignoresSafeArea()
-                        .onTapGesture { withAnimation { showProfile = false } }
-                    
-                    HStack {
-                        UserProfileView(isPresented: $showProfile)
-                            .frame(width: UIScreen.main.bounds.width - 80) // Unified with Login icon left margin
-                            .background(Color.white)
-                            .shadow(radius: 5)
-                        Spacer()
-                    }
-                    .transition(.move(edge: .leading))
-                }
-                .zIndex(300)
-            }
-        }
-    }
-    
-    var todoDetailOverlay: some View {
-        Group {
-            if let item = selectedItem {
-                ZStack(alignment: .bottom) {
-                    // Scrim
-                    Color.black.opacity(0.3)
-                        .ignoresSafeArea()
-                        .onTapGesture { 
-                            selectedItem = nil 
-                        }
-                    
-                    // Bottom Sheet
-                    VStack(spacing: 0) {
-                         // Header
-                         HStack {
-                             Text("할 일")
-                                 .font(.headline)
-                             Spacer()
-                             Button(action: { 
-                                 // [FIX] Disable manual selection handling to allow Native Callout ("Water Balloon") to appear.
-                                 // We do NOT want to trigger 'selectedClusterItems' (Overlay) or 'selectedItem' (Sheet).
-                                 // The injected 'detailCalloutAccessoryView' will handle the interaction.
-                                 print("DEBUG: didSelect called. Letting native callout handle it.")
-                                 return
-                                 selectedItem = nil 
-                             }) {
-                                 Image(systemName: "xmark.circle.fill")
-                                     .foregroundColor(.gray)
-                                     .font(.title2)
-                             }
-                         }
-                         .padding()
-                         .background(Color(.systemGroupedBackground))
-                         
-                         // Content
-                         ScrollView {
-                             VStack(alignment: .leading, spacing: 16) {
-                                 Text(item.title)
-                                     .font(.title2)
-                                     .fontWeight(.semibold)
-                                 
-                                 if let date = item.dueDate {
-                                     HStack {
-                                         Image(systemName: "calendar")
-                                         Text(date.formatted(date: .long, time: .shortened))
-                                     }
-                                     .foregroundColor(.secondary)
-                                 }
-                                 
-                                 Spacer()
-                             }
-                             .padding()
-                             .frame(maxWidth: .infinity, alignment: .leading)
-                         }
-                         .frame(height: UIScreen.main.bounds.height * 0.5)
-                         .background(Color.white)
-                    }
-                    .cornerRadius(16) // Rounded top corners visually by padding/clipping? standard cornerRadius is fine
-                    .shadow(radius: 10)
-                    .transition(.move(edge: .bottom))
-                }
-                .zIndex(400) // Top of everything
-            }
-        }
-    }
-
-    var allItemsOverlay: some View {
-        Group {
-            if showListView {
-                ZStack(alignment: .bottom) {
-                    Color.black.opacity(0.3)
-                        .ignoresSafeArea()
-                        .onTapGesture { withAnimation { showListView = false } }
-                    
-                    VStack(spacing: 0) {
-                        // Header
-                        HStack {
-                            Text("모든 항목 (\(filteredTodos.count + filteredLogs.count))")
-                                .font(.headline)
-                            Spacer()
-                            Button(action: { withAnimation { showListView = false } }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.gray)
-                                    .font(.title2)
-                            }
-                        }
-                        .padding()
-                        .background(Color(.systemGroupedBackground))
-                        
-                        // Content
-                        let allItems: [UnifiedMapItem] = (
-                            filteredTodos.map { UnifiedMapItem.todo($0) } +
-                            filteredLogs.map { UnifiedMapItem.history($0) }
-                        ).sorted { getItemDate($0) > getItemDate($1) }
-                        
-                        if allItems.isEmpty {
-                            Text("표시할 항목이 없습니다.")
-                                .foregroundColor(.gray)
-                                .frame(height: 200)
-                                .frame(maxWidth: .infinity)
-                        } else {
-                            ClusterListCallout(
-                                items: allItems,
-                                isCluster: true,
-                                onDeleteToDo: { deleteItem($0) },
-                                onDeleteLog: { deleteLog($0) },
-                                onSelectLog: { log in
-                                    withAnimation { showListView = false }
-                                    selectedLogForPath = log
-                                }
-                            )
-                            .frame(height: UIScreen.main.bounds.height * 0.5)
-                        }
-                    }
-                    .background(Color.white)
-                    .cornerRadius(16)
-                    .transition(.move(edge: .bottom))
-                }
-                .zIndex(500)
-            }
-        }
-    }
-
-    var farItemOverlay: some View {
-        Group {
-            if let msg = farItemMessage {
-                VStack {
-                    Text(msg)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(Color.black.opacity(0.7))
-                        .cornerRadius(20)
-                        .padding(.top, 80) // Match Android 80dp
-                    Spacer()
-                }
-                .transition(.opacity)
-                .zIndex(600)
-                .allowsHitTesting(false)
-            }
-        }
-    }
-
-    var clusterRadiusOverlay: some View {
-        Group {
-            // Disabled per user request
-        }
-    }
-
+    // MARK: - Body
     var body: some View {
         ZStack {
-            mapLayer
-            uiLayer
-            // debugLayer // Removed per user request
+            // Map Layer
+            Group {
+                switch mapProvider {
+                case .apple:
+                    AppleMapView(
+                        action: $mapAction,
+                        rotation: $compassRotation,
+                        locationManager: locationManager,
+                        todoItems: filteredTodos,
+                        userLogs: filteredLogs,
+                        selectedItem: $selectedItem,
+                        selectedClusterItems: $selectedClusterItems,
+                        tapPosition: $tapPosition,
+                        clusterRadius: $clusterRadius,
+                        onLongTap: { coord in
+                            self.creatingTodoLocation = coord
+                            self.initialTodoName = ""
+                            self.initialTodoTitle = "할 일 만들기"
+                            self.isCreatingTodo = true
+                        },
+                        onUserLocationTap: {},
+                        onDelete: { deleteItem($0) },
+                        onDeleteLog: { deleteItem($0) },
+                        onSelectLog: { viewingHistoryItem = $0 }, onSelectItem: { selectedItem = $0 },
+                        onFarItemsDetected: { count in
+                            self.farItemsCount = count
+                            self.showFarNotification = true
+                        }
+                    )
+                case .kakao:
+                     KakaoMapView(
+                         action: $mapAction,
+                         rotation: $compassRotation,
+                         locationManager: locationManager,
+                         todoItems: filteredTodos,
+                         userLogs: filteredLogs,
+                         selectedItem: $selectedItem,
+                         selectedClusterItems: $selectedClusterItems,
+                         tapPosition: $tapPosition,
+                         clusterRadius: $clusterRadius,
+                         onLongTap: { coord in
+                            self.creatingTodoLocation = coord
+                            self.initialTodoName = ""
+                            self.initialTodoTitle = "할 일 만들기"
+                            self.isCreatingTodo = true
+                         },
+                         onDelete: { deleteItem($0) },
+                         onDeleteLog: { deleteItem($0) },
+                         onSelectLog: { viewingHistoryItem = $0 },
+                         onSelectItem: { selectedItem = $0 },
+                         onFarItemsDetected: { count in
+                             self.farItemsCount = count
+                             self.showFarNotification = true
+                         }
+                     )
+                case .naver:
+                    NaverMapView(
+                        action: $mapAction,
+                        rotation: $compassRotation,
+                        locationManager: locationManager,
+                        todoItems: filteredTodos,
+                        userLogs: filteredLogs,
+                        selectedItem: $selectedItem,
+                        selectedClusterItems: $selectedClusterItems,
+                        tapPosition: $tapPosition,
+                        clusterRadius: $clusterRadius,
+                        onLongTap: { coord in
+                            self.creatingTodoLocation = coord
+                            self.initialTodoName = ""
+                            self.initialTodoTitle = "할 일 만들기"
+                            self.isCreatingTodo = true
+                        },
+                        onUserLocationTap: {},
+                        onDelete: { deleteItem($0) },
+                        onDeleteLog: { deleteItem($0) },
+                        onSelectLog: { viewingHistoryItem = $0 }, onSelectItem: { selectedItem = $0 },
+                        onFarItemsDetected: { count in
+                            self.farItemsCount = count
+                            self.showFarNotification = true
+                        }
+                    )
+                case .google:
+                    GoogleMapView(
+                        action: $mapAction,
+                        rotation: $compassRotation,
+                        locationManager: locationManager,
+                        todoItems: filteredTodos,
+                        userLogs: filteredLogs,
+                        selectedItem: $selectedItem,
+                        selectedClusterItems: $selectedClusterItems,
+                        tapPosition: $tapPosition,
+                        clusterRadius: $clusterRadius,
+                        hasItems: !filteredTodos.isEmpty || !filteredLogs.isEmpty,
+                        onLongTap: { coord in
+                            self.creatingTodoLocation = coord
+                            self.initialTodoName = ""
+                            self.initialTodoTitle = "할 일 만들기"
+                            self.isCreatingTodo = true
+                        },
+                        onUserLocationTap: {},
+                        onDelete: { deleteItem($0) },
+                        onDeleteLog: { deleteItem($0) },
+                        onSelectLog: { viewingHistoryItem = $0 }, onSelectItem: { selectedItem = $0 },
+                        onFarItemsDetected: { count in
+                            self.farItemsCount = count
+                            self.showFarNotification = true
+                        }
+                    )
+                }
+            }
+            .ignoresSafeArea()
+            .onTapGesture {
+                if selectedClusterItems != nil { selectedClusterItems = nil }
+                if viewingHistoryItem != nil { viewingHistoryItem = nil }
+            }
+            
+            // UI Layer
+            VStack {
+                 HStack(alignment: .top) {
+                     statusWidget
+                     Spacer()
+                     VStack(spacing: 12) {
+                        if showFarNotification {
+                            Button(action: { showFarNotification = false }) {
+                                HStack {
+                                    Image(systemName: "mappin.circle.fill")
+                                    Text("\(farItemsCount)개의 핀이 멀리 있어요")
+                                        .font(.system(size: 12, weight: .bold))
+                                }
+                                .padding(10)
+                                .background(Color.white.opacity(0.8)) // 80% transparency
+                                .foregroundColor(.red)
+                                .cornerRadius(20)
+                            }
+                        }
+                        navigationControls
+                     }
+                     .padding(.trailing, 8)
+                     .padding(.bottom, isCreatingTodo ? 350 : 0)
+                     .animation(.spring(), value: isCreatingTodo)
+                 }
+                 .padding(.top, 32)
+                 .padding(.horizontal, 8)
+                 Spacer()
+            }
+            
+            // Overlays
             clusterOverlay
-            sideMenuLayer
             todoDetailOverlay
             allItemsOverlay
-            farItemOverlay // [NEW]
-            clusterRadiusOverlay // [NEW]
-        }
-        .sheet(item: $selectedLogForPath) { log in
-            PathHistoryView(log: log) {
-                selectedLogForPath = nil
+            sideMenuLayer
+            
+            // Create Todo Layer
+            if isCreatingTodo {
+                CreateTodoLayer(
+                    title: initialTodoTitle,
+                    defaultName: "새 할 일",
+                    initialName: initialTodoName,
+                    onRegister: { name, person, dateStr, timeStr, memo in
+                        if let loc = creatingTodoLocation {
+                            let formatter = DateFormatter()
+                            formatter.dateFormat = "yyyy.MM.dd HH:mm"
+                            let combinedStr = "\(dateStr) \(timeStr)"
+                            let dateTime = formatter.date(from: combinedStr) ?? Date()
+                            handleLongTap(lat: loc.latitude, lon: loc.longitude, name: name, dateTime: dateTime)
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { centerMapOn(loc) }
+                        }
+                        isCreatingTodo = false
+                        creatingTodoLocation = nil
+                        initialTodoName = ""
+                    },
+                    onCancel: {
+                        if let loc = creatingTodoLocation {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { centerMapOn(loc) }
+                        }
+                        isCreatingTodo = false
+                        creatingTodoLocation = nil
+                        initialTodoName = ""
+                    }
+                )
+                .transition(.move(edge: .bottom))
+                .animation(.spring(), value: isCreatingTodo)
             }
+        }
+        .sheet(item: $viewingHistoryItem) { item in
+            PathHistoryView(item: item, onClose: { viewingHistoryItem = nil })
         }
         .sheet(isPresented: $showCalendar) {
              VStack {
@@ -654,17 +274,12 @@ struct ContentView: View {
                      .padding()
                  
                  HStack {
-                     // Return to Current Time Button
                      Button(action: {
                          showCalendar = false
                          showHistoryMode = false
-                         selectedDate = Date() // Reset
-                         // Sequence: Show All Current -> Wait 3s -> Zoom User
+                         selectedDate = Date()
                          mapAction = .zoomToFit
                          DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                             withAnimation(.easeInOut(duration: 0.5)) {
-                                 // View animation handled by Map logic, triggers region change
-                             }
                              mapAction = .currentLocation
                          }
                      }) {
@@ -680,10 +295,8 @@ struct ContentView: View {
                      
                      Spacer()
                      
-                     // Confirm
                      Button("Go") {
                          showCalendar = false
-                         // Filter updates automatically via selectedDate
                          mapAction = .zoomToFit
                      }
                      .padding()
@@ -699,84 +312,312 @@ struct ContentView: View {
         }
         .onChange(of: scenePhase) { oldPhase, newPhase in
             switch newPhase {
-            case .active:
-                // Start Recording Session
-                locationManager.startSession()
-                
-                // [FIX] Conditional Relaunch (Logic from Step 966)
-                // [CRITICAL LOCK: DO NOT MODIFY] Background Re-Launch Logic
-                // Rule: If background time > 5s, Trigger Launch Sequence (Raw -> Cluster)
-                if let last = lastBackgroundDate {
-                    let diff = Date().timeIntervalSince(last)
-                    // let threshold = AppConfig.backgroundReentryThreshold // Use Config
-                    let threshold: TimeInterval = 5.0 // [FIX] Force 5.0s per user request
-                    
-                    // User Request (Step 1046): 
-                    // < 5s (Short): Keep State.
-                    // > 5s (Long): Relaunch Animation.
-                    if diff > threshold {
-                        print("DEBUG: Background time \(diff)s > \(threshold)s. Triggering Launch Sequence.")
-                        // [FIX] Pulse action to ensure change is detected if already in sequence
-                        mapAction = .none
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                            print("DEBUG: Executing Launch Sequence after delay.")
-                            self.mapAction = .launchSequence
-                        }
-                    } else {
-                        print("DEBUG: Background time \(diff)s <= \(threshold)s. Maintaining State.")
-                    }
-                    lastBackgroundDate = nil // Reset
-                } else {
-                    // First launch handled by onAppear
-                }
-                
             case .background, .inactive:
-                // Track Time
-                if newPhase == .background {
-                    lastBackgroundDate = Date()
-                }
-                
-                // End Recording Session ...
+                backgroundStartTime = Date()
                 Task {
                     if let session = await locationManager.endSession() {
-                        let log = UserLog(
-                            startTime: session.start,
-                            endTime: session.end,
+                        let log = ToDoItem(
+                            todo_name: "이동 경로",
+                            date_time: session.start,
+                            begin_time: session.start,
+                            end_time: session.end,
+                            type: "00",
                             latitude: session.midLat,
-                            longitude: session.midLon,
-                            pathData: session.pathData
+                            longitude: session.midLon
                         )
                         modelContext.insert(log)
+                        for point in session.points {
+                            let path = PathItem(
+                                todo_id: log.todo_id,
+                                latitude: point.latitude,
+                                longitude: point.longitude
+                            )
+                            modelContext.insert(path)
+                        }
                         try? modelContext.save()
-                        
+                        locationManager.startSession()
                     }
                 }
-            default:
+            case .active:
+                if let start = backgroundStartTime {
+                    let elapsed = Date().timeIntervalSince(start)
+                    if elapsed > 5 {
+                        NotificationCenter.default.post(name: NSNotification.Name("TriggerLaunchAnimation"), object: nil)
+                    }
+                }
+                backgroundStartTime = nil
+                locationManager.startSession()
+            @unknown default:
                 break
             }
         }
-        .onAppear {
-            // [LOG] Step 1 & 2
-            logTodoListStats()
-            logMapSetup()
-            
-            // [FIX] Ensure Clean Slate
-            mapAction = .none
-        }
-        .onChange(of: todoItems) {
-             logTodoListStats()
+    }
+
+    // MARK: - Computed Properties / Helper Views
+    var sortedAllItems: [UnifiedMapItem] {
+        (filteredTodos.map { UnifiedMapItem.todo($0) } +
+         filteredLogs.map { UnifiedMapItem.history($0) })
+        .sorted { getItemDate($0) > getItemDate($1) }
+    }
+
+    var statusWidget: some View {
+        TopLeftWidget(
+            historyCount: allItems.filter { $0.type == "00" }.count,
+            localTodoCount: allItems.filter { $0.type == "10" && $0.int_lat != 0 }.count, 
+            serverTodoCount: 0,
+            compassRotation: compassRotation,
+            onCompassClick: { mapAction = .rotateNorth },
+            onExpandClick: { withAnimation { showListView = true } }
+        )
+    }
+    
+    var navigationControls: some View {
+        RightSideControls(
+            compassRotation: compassRotation,
+            showHistoryMode: showHistoryMode,
+            onHistoryClick: handleHistoryClick,
+            onNotificationClick: {},
+            onLoginClick: { showProfile = true },
+            onLocationClick: { mapAction = .currentLocation },
+            onZoomInClick: { mapAction = .zoomIn },
+            onZoomOutClick: { mapAction = .zoomOut },
+            onCompassClick: { mapAction = .rotateNorth },
+            onExpandClick: { withAnimation { showListView = true } }
+        )
+    }
+
+    var clusterOverlay: some View {
+        Group {
+            if let clusterItems = selectedClusterItems {
+                ZStack {
+                    Color.black.opacity(0.01)
+                        .contentShape(Rectangle())
+                        .onTapGesture { selectedClusterItems = nil }
+                        .ignoresSafeArea()
+                    
+                    VStack(spacing: 0) {
+                        VStack(spacing: 0) {
+                            ClusterListCallout(
+                                items: clusterItems.sorted(by: { $0.date > $1.date }),
+                                isCluster: true,
+                                onClose: { selectedClusterItems = nil },
+                                onDeleteToDo: { item in deleteItem(item) },
+                                onDeleteLog: { item in deleteItem(item) },
+                                onSelectLog: { item in
+                                    viewingHistoryItem = item
+                                    selectedClusterItems = nil
+                                },
+                                onSelectItem: { item in
+                                    selectedItem = item
+                                    selectedClusterItems = nil
+                                }
+                            )
+                            .padding(.bottom, 8)
+                        }
+                        .frame(width: 320)
+                        .background(Color.white)
+                        .cornerRadius(12)
+                        
+                        CalloutTriangle()
+                            .fill(Color.white)
+                            .frame(width: 20, height: 10)
+                            .padding(.top, -1)
+                    }
+                    .shadow(radius: 10)
+                    .frame(width: 320, height: 0, alignment: .bottom) // [사용자 원천기술] 하단 고정 상단 확장
+                    .position(x: (tapPosition?.x ?? 0) + mapXOffset, y: (tapPosition?.y ?? 0) + mapYOffset)
+                    .transition(.scale.combined(with: .opacity))
+                }
+                .zIndex(999)
+            }
         }
     }
     
-    // Timer removed entirely.
-    @Environment(\.scenePhase) private var scenePhase: ScenePhase
+    var mapXOffset: CGFloat {
+        switch mapProvider {
+        case .kakao: return -6
+        case .naver: return -4
+        default: return -1
+        }
+    }
+    
+    var mapYOffset: CGFloat {
+        switch mapProvider {
+        case .kakao, .naver: return -120
+        default: return -110
+        }
+    }
+    
+    var sideMenuLayer: some View {
+        Group {
+            if showProfile {
+                ZStack {
+                    Color.black.opacity(0.3)
+                        .ignoresSafeArea()
+                        .onTapGesture { withAnimation { showProfile = false } }
+                    
+                    HStack {
+                        UserProfileView(isPresented: $showProfile)
+                            .frame(width: 300)
+                            .background(Color.white)
+                            .shadow(radius: 5)
+                        Spacer()
+                    }
+                    .transition(.move(edge: .leading))
+                }
+                .zIndex(300)
+            }
+        }
+    }
+    
+    var todoDetailOverlay: some View {
+        Group {
+            if let item = selectedItem {
+                ZStack(alignment: .bottom) {
+                    Color.black.opacity(0.3)
+                        .ignoresSafeArea()
+                        .onTapGesture { selectedItem = nil }
+                    
+                    CreateTodoLayer(
+                        existingItem: item,
+                        onRegister: { name, person, dateStr, timeStr, memo in
+                            // Update existing item
+                            item.todo_name = name
+                            item.memo = memo
+                            try? modelContext.save()
+                            selectedItem = nil
+                        },
+                        onCancel: { selectedItem = nil }
+                    )
+                }
+                .transition(.move(edge: .bottom))
+                .zIndex(400)
+            }
+        }
+    }
 }
 
-#Preview {
-    ContentView()
-        .modelContainer(for: ToDoItem.self, inMemory: true)
+extension ContentView {
+    
+    var allItemsOverlay: some View {
+        Group {
+            if showListView {
+                ZStack(alignment: .bottom) {
+                    Color.black.opacity(0.3)
+                        .ignoresSafeArea()
+                        .onTapGesture { withAnimation { showListView = false } }
+                    
+                    VStack(spacing: 0) {
+                        HStack {
+                            Text("모든 항목 (\(filteredTodos.count + filteredLogs.count))")
+                                .font(.headline)
+                            Spacer()
+                            Button(action: { withAnimation { showListView = false } }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.gray)
+                                    .font(.title2)
+                             }
+                        }
+                        .padding()
+                        .background(Color(.systemGroupedBackground))
+                        
+                        let allItemsList = sortedAllItems
+                        
+                        if allItemsList.isEmpty {
+                            Text("표시할 항목이 없습니다.")
+                                .foregroundColor(.gray)
+                                .frame(height: 200)
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            ClusterListCallout(
+                                items: allItemsList,
+                                isCluster: true,
+                                onClose: { withAnimation { showListView = false } },
+                                onDeleteToDo: { deleteItem($0) },
+                                onDeleteLog: { deleteItem($0) },
+                                onSelectLog: { log in
+                                    withAnimation { showListView = false }
+                                    viewingHistoryItem = log
+                                },
+                                onSelectItem: { item in
+                                    withAnimation { showListView = false }
+                                    selectedItem = item
+                                }
+                            )
+                            .frame(maxHeight: 400)
+                        }
+                    }
+                    .background(Color.white)
+                    .cornerRadius(16)
+                    .transition(.move(edge: .bottom))
+                }
+                .zIndex(500)
+            }
+        }
+    }
+
+    // MARK: - Actions
+    private func handleHistoryClick() {
+        if !showHistoryMode {
+            showHistoryMode = true
+            selectedDate = Date()
+            mapAction = .zoomToFit
+        } else {
+            showCalendar = true
+        }
+    }
+
+    private func handleLongTap(lat: Double, lon: Double, name: String, dateTime: Date) {
+        let newItem = ToDoItem(
+            todo_name: name,
+            date_time: dateTime,
+            type: "10",
+            latitude: lat,
+            longitude: lon
+        )
+        modelContext.insert(newItem)
+        try? modelContext.save()
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
+    }
+
+    private func deleteItem(_ item: ToDoItem) {
+        // Clear selection first
+        if selectedItem?.todo_id == item.todo_id { selectedItem = nil }
+        if let idx = selectedClusterItems?.firstIndex(where: {
+            if case .todo(let t) = $0 { return t.todo_id == item.todo_id }
+            if case .history(let t) = $0 { return t.todo_id == item.todo_id }
+            return false
+        }) {
+            selectedClusterItems?.remove(at: idx)
+            if selectedClusterItems?.isEmpty == true { selectedClusterItems = nil }
+        }
+        
+        // Delete from DB and Save
+        modelContext.delete(item)
+        do {
+            try modelContext.save()
+            print("Successfully deleted and saved \(item.todo_name)")
+        } catch {
+            print("Failed to save after deletion: \(error)")
+        }
+    }
+
+    private func getItemDate(_ item: UnifiedMapItem) -> Date {
+        switch item {
+        case .todo(let t): return t.date_time ?? Date(timeIntervalSince1970: Double(t.created_at)/1000.0)
+        case .history(let t): return t.begin_time ?? Date(timeIntervalSince1970: Double(t.created_at)/1000.0)
+        case .serverMessage: return Date()
+        case .userLocation: return Date()
+        }
+    }
+
+    private func centerMapOn(_ loc: CLLocationCoordinate2D) {
+        NotificationCenter.default.post(name: NSNotification.Name("CenterMapOnLocation"), object: loc)
+    }
 }
 
+// MARK: - Helper Views
 struct CalloutTriangle: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()

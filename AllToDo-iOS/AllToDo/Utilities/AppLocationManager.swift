@@ -4,11 +4,10 @@ import CoreMotion
 import Combine
 // LocationData is defined in TaskModel.swift which is in the same module.
 
-struct ClusterItem: Identifiable {
-    let id = UUID()
-    let coordinate: CLLocationCoordinate2D
-    let count: Int
-    var items: [UnifiedMapItem] // Items belonging to this cluster
+struct PathPoint: Codable {
+    var latitude: Double
+    var longitude: Double
+    var timestamp: Date
 }
 
 class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
@@ -25,10 +24,10 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
     // [NEW] Recording State
     @Published var isRecording = false
     @Published var debugStatus: String = "Ready"
-    @Published var processedSessionPoints: [LocationData] = []
+    @Published var processedSessionPoints: [PathPoint] = []
     
     // [NEW] Buffer for Batch Processing
-    var pendingBuffer: [LocationData] = []
+    var pendingBuffer: [PathPoint] = []
     
     // [NEW] Logging Flag
     private var hasLoggedInitialLocation = false
@@ -37,43 +36,41 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
     var currentSpan: Double = 0.005 // Default Zoom ~17
     private var lastIntLocation: SmartLocationManager.IntLocation?
     
-    // [NEW] Process Buffer with WASM
-    func processBuffer() async {
+    private func processBuffer() async {
         guard !pendingBuffer.isEmpty else { return }
         
-        let batch = pendingBuffer // Capture current batch
-        pendingBuffer.removeAll() // Clear buffer immediately
+        let rawPoints = pendingBuffer
+        pendingBuffer.removeAll()
         
-        // Convert to Int32 array [lat, lon, lat, lon...]
-        var rawPoints: [Int32] = []
-        for p in batch {
-            rawPoints.append(Int32(p.latitude * 1_000_000)) // Micro-degrees
-            rawPoints.append(Int32(p.longitude * 1_000_000))
+        // 1. Convert to Int32 for WASM (scaled by 1e5)
+        var intPoints: [Int32] = []
+        for p in rawPoints {
+            intPoints.append(Int32(p.latitude * 100_000))
+            intPoints.append(Int32(p.longitude * 100_000))
         }
         
-        // Call WASM
-        let compressed = await WasmManager.shared.compress(points: rawPoints)
+        // 2. Call WASM Compression
+        let compressedInts = await WasmManager.shared.compress(points: intPoints)
         
-        // [LOG] Log RDP Compression
-        let inputCount = rawPoints.count / 2
-        let outputCount = compressed.count / 2
-        if inputCount > 0 {
-            OptimizationLogger.shared.log(type: .network, value: "WASM RDP: \(inputCount) -> \(outputCount) pts")
-        }
-        
-        // Convert back to LocationData
-        var resultBatch: [LocationData] = []
-        for i in stride(from: 0, to: compressed.count, by: 2) {
-            let lat = Double(compressed[i]) / 1_000_000.0
-            let lon = Double(compressed[i+1]) / 1_000_000.0
-            // We use approximate timestamp of the batch for simplicity or interpolate
-            // Use last point's time? Or just 'now'
-            resultBatch.append(LocationData(latitude: lat, longitude: lon, name: nil, timestamp: Date()))
+        // 3. Convert back to PathPoint
+        var newPoints: [PathPoint] = []
+        if compressedInts.count % 2 == 0 {
+            for i in stride(from: 0, to: compressedInts.count, by: 2) {
+                let lat = Double(compressedInts[i]) / 100_000.0
+                let lon = Double(compressedInts[i+1]) / 100_000.0
+                
+                // Find original timestamp if possible (approximate)
+                // Use the timestamp from the corresponding point in rawPoints if possible, 
+                // but since WASM returns a subset, we'll just use the one from rawPoints that matches or interpolation.
+                // Simple approach: Take from rawPoints at matching index or just use current.
+                let originalTimestamp = rawPoints.first?.timestamp ?? Date() 
+                
+                newPoints.append(PathPoint(latitude: lat, longitude: lon, timestamp: originalTimestamp))
+            }
         }
         
         DispatchQueue.main.async {
-            self.processedSessionPoints.append(contentsOf: resultBatch)
-            self.debugStatus = "Saved: \(self.processedSessionPoints.count) pts"
+            self.processedSessionPoints.append(contentsOf: newPoints)
         }
     }
     
@@ -144,7 +141,7 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         debugStatus = "Recording..."
     }
     
-    func endSession() async -> (start: Date, end: Date, midLat: Double, midLon: Double, pathData: Data?, pointCount: Int)? {
+    func endSession() async -> (start: Date, end: Date, midLat: Double, midLon: Double, points: [PathPoint])? {
         guard isRecording else { return nil }
         isRecording = false
         debugStatus = "Stopping..."
@@ -155,7 +152,7 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         // [FIX] Fallback for Stationary Sessions (Single Point)
         if processedSessionPoints.isEmpty, let current = currentLocation {
             print("AppLocationManager: Session empty, using current location as single point.")
-            let point = LocationData(latitude: current.coordinate.latitude, longitude: current.coordinate.longitude, timestamp: Date())
+            let point = PathPoint(latitude: current.coordinate.latitude, longitude: current.coordinate.longitude, timestamp: Date())
             processedSessionPoints.append(point)
         }
         
@@ -169,11 +166,7 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         let lonSum = processedSessionPoints.reduce(0.0) { $0 + $1.longitude }
         let count = Double(processedSessionPoints.count)
         
-        // Serialize path data
-        let pathData = try? JSONEncoder().encode(processedSessionPoints)
-        let pointCount = processedSessionPoints.count
-        
-        return (start: start, end: end, midLat: latSum / count, midLon: lonSum / count, pathData: pathData, pointCount: pointCount)
+        return (start: start, end: end, midLat: latSum / count, midLon: lonSum / count, points: processedSessionPoints)
     }
     
     func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
@@ -211,7 +204,7 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         if isRecording {
             // Filter: 1s or 5m delta? Logic is in main stream usually, but here we just buffer raw.
             // Or use distanceFilter from manager.
-            let data = LocationData(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude, name: nil, timestamp: location.timestamp)
+            let data = PathPoint(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude, timestamp: location.timestamp)
             pendingBuffer.append(data)
             
             // Trigger WASM compression if buffer full?

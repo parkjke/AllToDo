@@ -4,14 +4,14 @@ import MapKit
 // Wrapper for different item types
 enum UnifiedMapItem: Identifiable {
     case todo(ToDoItem)
-    case history(UserLog)
+    case history(ToDoItem)
     case serverMessage(String)
-    case userLocation // [NEW]
+    case userLocation
     
     var id: UUID {
         switch self {
-        case .todo(let item): return item.id
-        case .history(let log): return log.id
+        case .todo(let item): return item.todo_id
+        case .history(let item): return item.todo_id
         case .serverMessage: return UUID()
         case .userLocation: return UUID()
         }
@@ -19,31 +19,38 @@ enum UnifiedMapItem: Identifiable {
     
     var date: Date {
         switch self {
-        case .todo(let item): return item.dueDate ?? Date.distantFuture
-        case .history(let log): return log.startTime
+        case .todo(let item): return item.date_time ?? Date(timeIntervalSince1970: Double(item.created_at) / 1000.0)
+        case .history(let item): return item.begin_time ?? Date(timeIntervalSince1970: Double(item.created_at) / 1000.0)
         case .serverMessage: return Date()
         case .userLocation: return Date()
         }
     }
+    
     var location: CLLocationCoordinate2D? {
         switch self {
         case .todo(let item): 
-            if let loc = item.location {
-                return CLLocationCoordinate2D(latitude: loc.latitude, longitude: loc.longitude)
-            }
-            return nil
-        case .history(let log):
-            return CLLocationCoordinate2D(latitude: log.latitude, longitude: log.longitude)
+            return item.coordinate
+        case .history(let item):
+            return item.coordinate
         case .serverMessage: return nil
         case .userLocation: return nil // dynamic
+        }
+    }
+    
+    var name: String {
+        switch self {
+        case .todo(let item): return item.todo_name
+        case .history(let item): return item.todo_name
+        case .serverMessage(let msg): return msg
+        case .userLocation: return "현재 위치"
         }
     }
     
     // [NEW] Asset Image Name Mapping
     var imageName: String {
         switch self {
-        case .todo(let item):
-            return item.isCompleted ? "PinTodoDone" : "PinTodoReady"
+        case .todo:
+            return "PinTodoReady"
         case .history:
             return "PinHistory"
         case .serverMessage:
@@ -111,6 +118,13 @@ enum UnifiedMapItem: Identifiable {
         
         return (baseName, color, items.count)
     }
+    
+    // [NEW] Centralized Date Formatter for Callouts
+    static let calloutDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM/dd HH:mm"
+        return formatter
+    }()
 }
 
 // Custom Annotation Class

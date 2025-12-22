@@ -1,13 +1,15 @@
 import SwiftUI
 import NMapsMap
 import CoreLocation
+import SwiftData
 
 struct NaverMapView: UIViewRepresentable {
+    @Environment(\.modelContext) var modelContext
     @Binding var action: MapAction
     @Binding var rotation: Double
     @ObservedObject var locationManager: AppLocationManager
     var todoItems: [ToDoItem]
-    var userLogs: [UserLog]
+    var userLogs: [ToDoItem]
     @Binding var selectedItem: ToDoItem?
     @Binding var selectedClusterItems: [UnifiedMapItem]?
     @Binding var tapPosition: CGPoint? // [NEW]
@@ -17,8 +19,9 @@ struct NaverMapView: UIViewRepresentable {
     
     // Callbacks
     var onDelete: ((ToDoItem) -> Void)?
-    var onDeleteLog: ((UserLog) -> Void)?
-    var onSelectLog: ((UserLog) -> Void)?
+    var onDeleteLog: ((ToDoItem) -> Void)?
+    var onSelectLog: ((ToDoItem) -> Void)?
+    var onSelectItem: ((ToDoItem) -> Void)?
     var onFarItemsDetected: ((Int) -> Void)? // [NEW] Callback
 
     func makeUIView(context: Context) -> NMFNaverMapView {
@@ -88,15 +91,16 @@ struct NaverMapView: UIViewRepresentable {
         
         // 2. Trigger Clustering (Only if not in first render sequence)
         if !context.coordinator.firstRender {
-            context.coordinator.refreshWasmClusters()
+            let currentSummary = "\(todoItems.count)-\(todoItems.first?.todo_id.uuidString ?? "")-\(userLogs.count)-\(userLogs.first?.todo_id.uuidString ?? "")"
+            if context.coordinator.lastDataSummary != currentSummary {
+                context.coordinator.lastDataSummary = currentSummary
+                context.coordinator.refreshWasmClusters()
+            }
             
             // [NEW] Check Tethering (Conditional)
             if let u = locationManager.currentLocation, !context.coordinator.firstRender {
                 context.coordinator.checkTethering(mapView: uiView.mapView, userLocation: u)
             }
-            
-            // [FIX] Update Path Visualization -> REMOVED per user request (Use Details Sheet)
-            // context.coordinator.updatePath(selectedItems: selectedClusterItems)
         }
         
         // 3. Launch Animation
@@ -113,6 +117,7 @@ struct NaverMapView: UIViewRepresentable {
         var parent: NaverMapView
         var mapView: NMFMapView?
         var firstRender = true
+        var lastDataSummary: String = "" // For Smart Refresh
         var onFarItemsDetected: ((Int) -> Void)?
         
         var markers: [NMFMarker] = []
@@ -218,17 +223,23 @@ struct NaverMapView: UIViewRepresentable {
              pathOverlay?.mapView = nil
              pathOverlay = nil
              
-             // 2. Filter history items with pathData
-             let historyItems = items.compactMap { item -> UserLog? in
-                 if case .history(let log) = item, log.pathData != nil { return log }
+             // 2. Filter history items (Using ToDoItem)
+             guard let items = selectedItems else { return }
+             let historyItems = items.compactMap { item -> ToDoItem? in
+                 if case .history(let log) = item { return log }
                  return nil
              }
              
-             guard let log = historyItems.first, let data = log.pathData else { return }
+             guard let log = historyItems.first else { return }
              
-             // 3. Decode & Draw
-             if let points = try? JSONDecoder().decode([LocationData].self, from: data) {
-                 let coords = points.map { NMGLatLng(lat: $0.latitude, lng: $0.longitude) }
+             // 3. Query PathItems
+             let idString = log.todo_id.uuidString
+             let searchID = UUID(uuidString: idString) ?? log.todo_id
+             let descriptor = FetchDescriptor<PathItem>(predicate: #Predicate<PathItem> { path in
+                 path.todo_id == searchID
+             })
+             if let paths = try? parent.modelContext.fetch(descriptor) {
+                 let coords = paths.map { NMGLatLng(lat: $0.coordinate.latitude, lng: $0.coordinate.longitude) }
                  if coords.count >= 2 {
                      let path = NMFPath()
                      path.path = NMGLineString(points: coords)
@@ -275,7 +286,7 @@ struct NaverMapView: UIViewRepresentable {
                  for item in parent.todoItems {
                      if let loc = item.location {
                          // 500km Filter (Integer)
-                         if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: loc.latInt, lon2: loc.lonInt) {
+                         if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: item.latInt, lon2: item.lonInt) {
                              farCount += 1
                              continue
                          }

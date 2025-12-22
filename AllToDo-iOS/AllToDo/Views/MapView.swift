@@ -11,13 +11,14 @@ struct MapView: View {
     public init() {}
     
     var body: some View {
-        Map(coordinateRegion: $locationManager.region, showsUserLocation: true, annotationItems: tasks.filter { $0.location != nil }) { task in
+        @Bindable var locationManager = locationManager
+        return Map(coordinateRegion: $locationManager.region, showsUserLocation: true, annotationItems: tasks.filter { $0.location != nil }) { task in
             MapAnnotation(coordinate: CLLocationCoordinate2D(latitude: task.location!.latitude, longitude: task.location!.longitude)) {
                 VStack {
                     Image(systemName: "mappin.circle.fill")
                         .foregroundColor(.red)
                         .font(.title)
-                    Text(task.title)
+                    Text(task.todo_name)
                         .font(.caption)
                         .padding(4)
                         .background(.ultraThinMaterial)

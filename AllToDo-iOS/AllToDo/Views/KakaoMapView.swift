@@ -1,6 +1,7 @@
 import SwiftUI
 import KakaoMapsSDK
 import CoreLocation
+import SwiftData
 
 // MARK: - Map Action Enum
 enum MapAction {
@@ -15,16 +16,21 @@ enum MapAction {
 
 // MARK: - KakaoMapView Struct
 struct KakaoMapView: UIViewRepresentable {
+    @Environment(\.modelContext) var modelContext
     @Binding var action: MapAction
     @Binding var rotation: Double
     @ObservedObject var locationManager: AppLocationManager
     var todoItems: [ToDoItem]
-    var userLogs: [UserLog]
+    var userLogs: [ToDoItem]
     @Binding var selectedItem: ToDoItem?
     @Binding var selectedClusterItems: [UnifiedMapItem]?
     @Binding var tapPosition: CGPoint? // [NEW]
     @Binding var clusterRadius: Double? // [NEW]
     var onLongTap: ((CLLocationCoordinate2D) -> Void)?
+    var onDelete: ((ToDoItem) -> Void)?
+    var onDeleteLog: ((ToDoItem) -> Void)?
+    var onSelectLog: ((ToDoItem) -> Void)?
+    var onSelectItem: ((ToDoItem) -> Void)?
     var onFarItemsDetected: ((Int) -> Void)? // [NEW] Callback
     
     func makeUIView(context: Context) -> KMViewContainer {
@@ -59,11 +65,10 @@ struct KakaoMapView: UIViewRepresentable {
         context.coordinator.rotationBinding = $rotation
         
         // 2. Data Update & Refresh (Check Diff to avoid redundant WASM calls)
-        let itemsChanged = todoItems.count != context.coordinator.currentItems.count 
-                        || todoItems.first?.id != context.coordinator.currentItems.first?.id
-        let logsChanged = userLogs.count != context.coordinator.currentLogs.count
+        let currentSummary = "\(todoItems.count)-\(todoItems.first?.todo_id.uuidString ?? "")-\(userLogs.count)-\(userLogs.first?.todo_id.uuidString ?? "")"
         
-        if itemsChanged || logsChanged {
+        if context.coordinator.lastDataSummary != currentSummary {
+            context.coordinator.lastDataSummary = currentSummary
             context.coordinator.currentItems = todoItems
             context.coordinator.currentLogs = userLogs
             
@@ -105,7 +110,8 @@ struct KakaoMapView: UIViewRepresentable {
         var onFarItemsDetected: ((Int) -> Void)?
         
         var currentItems: [ToDoItem] = []
-        var currentLogs: [UserLog] = []
+        var currentLogs: [ToDoItem] = []
+        var lastDataSummary: String = "" // For Smart Refresh
         var currentSpanLon: Int = 0
         var firstRender: Bool = true // [NEW] Track initial render for Raw/Switch logic
         
@@ -217,7 +223,7 @@ struct KakaoMapView: UIViewRepresentable {
                 for item in currentItems {
                     if let l = item.location {
                         // Integer Filter
-                        if let u = userLoc, SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: l.latInt, lon2: l.lonInt) { continue }
+                        if let u = userLoc, SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: item.latInt, lon2: item.lonInt) { continue }
                         points.append(MapPoint(longitude: l.longitude, latitude: l.latitude))
                     }
                 }
@@ -574,16 +580,20 @@ struct KakaoMapView: UIViewRepresentable {
              let shapeManager = mapView.getShapeManager()
              shapeManager.removeShapeLayer(layerID: "pathLayer")
              
+             // 2. Filter history items
              guard let items = selectedItems else { return }
-             let historyLogs = items.compactMap { item -> UserLog? in
-                  if case .history(let log) = item, log.pathData != nil { return log }
+             let historyLogs = items.compactMap { item -> ToDoItem? in
+                  if case .history(let log) = item { return log }
                   return nil
              }
              
-             guard let log = historyLogs.first, let data = log.pathData else { return }
+             guard let log = historyLogs.first else { return }
              
-             if let points = try? JSONDecoder().decode([LocationData].self, from: data) {
-                 let coords = points.map { MapPoint(longitude: $0.longitude, latitude: $0.latitude) }
+             // 3. Query PathItems
+             let searchID = log.todo_id
+             let descriptor = FetchDescriptor<PathItem>(predicate: #Predicate<PathItem> { $0.todo_id == searchID })
+             if let paths = try? parent?.modelContext.fetch(descriptor) {
+                 let coords = paths.map { MapPoint(longitude: $0.coordinate.longitude, latitude: $0.coordinate.latitude) }
                  if coords.count >= 2 {
                      let layer = shapeManager.addShapeLayer(layerID: "pathLayer", zOrder: 500)
                       let style = PolylineStyleSet(styleSetID: "redPathSet", styles: [

@@ -1,23 +1,26 @@
 import SwiftUI
 import MapKit
 import CoreLocation
+import SwiftData
 
 struct AppleMapView: UIViewRepresentable {
+    @Environment(\.modelContext) var modelContext
     @Binding var action: MapAction
     @Binding var rotation: Double
     @ObservedObject var locationManager: AppLocationManager
     var todoItems: [ToDoItem]
-    var userLogs: [UserLog]
+    var userLogs: [ToDoItem]
     @Binding var selectedItem: ToDoItem?
     @Binding var selectedClusterItems: [UnifiedMapItem]?
     @Binding var tapPosition: CGPoint?
-    @Binding var clusterRadius: Double? // [NEW] // [NEW]
+    @Binding var clusterRadius: Double?
     var onLongTap: ((CLLocationCoordinate2D) -> Void)?
     var onUserLocationTap: (() -> Void)?
     var onDelete: ((ToDoItem) -> Void)?
-    var onDeleteLog: ((UserLog) -> Void)?
-    var onSelectLog: ((UserLog) -> Void)?
-    var onFarItemsDetected: ((Int) -> Void)? // [NEW] Callback for hidden items
+    var onDeleteLog: ((ToDoItem) -> Void)?
+    var onSelectLog: ((ToDoItem) -> Void)?
+    var onSelectItem: ((ToDoItem) -> Void)?
+    var onFarItemsDetected: ((Int) -> Void)?
     
     func makeUIView(context: Context) -> MKMapView {
         let mapView = MKMapView()
@@ -46,7 +49,7 @@ struct AppleMapView: UIViewRepresentable {
             for item in todoItems { 
                 if let l = item.location {
                     // Filter Check (Int Ops)
-                    if SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: l.latInt, lon2: l.lonInt) { continue }
+                    if SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: item.latInt, lon2: item.lonInt) { continue }
                     minLat = min(minLat, l.latitude); maxLat = max(maxLat, l.latitude); minLon = min(minLon, l.longitude); maxLon = max(maxLon, l.longitude) 
                 } 
             }
@@ -109,9 +112,15 @@ struct AppleMapView: UIViewRepresentable {
         // context.coordinator.updatePath(mapView: uiView, selectedItems: selectedClusterItems)
         
         // Launch Animation
-        // [FIX] Only launch when User Location is READY.
         if context.coordinator.firstRender, let u = locationManager.currentLocation {
             context.coordinator.performLaunchAnimation(mapView: uiView, userLocation: u)
+        }
+        
+        // [SMART REFRESH] Only trigger if data changed
+        let currentSummary = "\(todoItems.count)-\(todoItems.first?.todo_id.uuidString ?? "")-\(userLogs.count)-\(userLogs.first?.todo_id.uuidString ?? "")"
+        if context.coordinator.lastItemsSummary != currentSummary {
+            context.coordinator.lastItemsSummary = currentSummary
+            context.coordinator.refreshWasmClusters(mapView: uiView)
         }
     }
     
@@ -123,6 +132,7 @@ struct AppleMapView: UIViewRepresentable {
         var parent: AppleMapView
         var firstRender = true
         var userAnnotation: UnifiedAnnotation?
+        var lastItemsSummary: String = "" // For Smart Refresh
         var lastItemIDs: Set<UUID> = []
         var lastLogIDs: Set<UUID> = []
         
@@ -321,7 +331,7 @@ struct AppleMapView: UIViewRepresentable {
         
         // MARK: - WASM Clustering Integration
         
-        private func refreshWasmClusters(mapView: MKMapView) {
+        func refreshWasmClusters(mapView: MKMapView) {
             // [FIX] Fallback to Screen Width if Map View is not yet laid out (Width=0)
             // This prevents "No pins on launch" bug.
             var widthPixels = mapView.bounds.width
@@ -354,34 +364,30 @@ struct AppleMapView: UIViewRepresentable {
                  var farCount = 0
                  
                  for item in parent.todoItems {
-                     if let loc = item.location {
-                         // 500km Filter (Integer)
-                         if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: loc.latInt, lon2: loc.lonInt) {
-                             farCount += 1
-                             continue
-                         }
-                         allItems.append(.todo(item))
+                     // 500km Filter (Integer)
+                     if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: item.int_lat, lon2: item.int_long) {
+                         farCount += 1
+                         continue
                      }
+                     allItems.append(.todo(item))
                  }
                  for log in parent.userLogs {
                      // 500km Filter (Integer)
-                      if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.latInt, lon2: log.lonInt) {
+                      if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.int_lat, lon2: log.int_long) {
                           farCount += 1
                           continue
                       }
                      allItems.append(.history(log))
                  }
-                 // User Location handled by system or separate annotation? 
-                 // If using native clustering, we treat UserLocation as a pin too if we want it clustered.
-                 // Current logic: UserLocation is separate .userLocation item.
-                 if let u = parent.locationManager.currentLocation { allItems.append(.userLocation) }
+                 // User Location
+                 if parent.locationManager.currentLocation != nil { allItems.append(.userLocation) }
                  
                  // Notify Far Items
                  if farCount > 0 {
                      DispatchQueue.main.async { self.parent.onFarItemsDetected?(farCount) }
                  }
                  
-                 // Render Raw Immediately (Native Clustering will group them)
+                 // Render Raw Immediately
                  DispatchQueue.main.async {
                      self.renderRawItems(mapView: mapView, allItems: allItems)
                  }
@@ -391,7 +397,7 @@ struct AppleMapView: UIViewRepresentable {
             let useFastPath = isLaunchPhase
             
             if useFastPath {
-                 OptimizationLogger.shared.log(type: .launchStep, value: ">>> Fast Path: Rendering \(totalCount) items raw (No WASM)")
+                OptimizationLogger.shared.log(type: .launchStep, value: ">>> Fast Path: Rendering \(totalCount) items raw (No WASM)")
                 // Pre-calc user int location
                 var uInt: (lat: Int, lon: Int)? = nil
                 if let u = parent.locationManager.currentLocation {
@@ -403,24 +409,22 @@ struct AppleMapView: UIViewRepresentable {
                  var farCount = 0
                  
                  for item in parent.todoItems {
-                     if let loc = item.location {
-                         // 500km Filter (Integer)
-                         if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: loc.latInt, lon2: loc.lonInt) {
-                             farCount += 1
-                             continue
-                         }
-                         allItems.append(.todo(item))
+                     // 500km Filter (Integer)
+                     if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: item.int_lat, lon2: item.int_long) {
+                         farCount += 1
+                         continue
                      }
+                     allItems.append(.todo(item))
                  }
                  for log in parent.userLogs {
                      // 500km Filter (Integer)
-                      if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.latInt, lon2: log.lonInt) {
+                      if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.int_lat, lon2: log.int_long) {
                           farCount += 1
                           continue
                       }
                      allItems.append(.history(log))
                  }
-                 if let u = parent.locationManager.currentLocation { allItems.append(.userLocation) }
+                 if parent.locationManager.currentLocation != nil { allItems.append(.userLocation) }
                  
                  // Notify Far Items
                  if farCount > 0 {
@@ -438,71 +442,42 @@ struct AppleMapView: UIViewRepresentable {
             let currentLogs = self.parent.userLogs
             let userLocation = self.parent.locationManager.currentLocation
             
-            // OptimizationLogger.shared.log(type: .launchStep, value: ">>> Pins Loaded: \(currentItems.count) Items, \(currentLogs.count) Logs")
-            if let u = userLocation {
-                 OptimizationLogger.shared.log(type: .launchStep, value: ">>> Current Location: \(u.coordinate.latitude), \(u.coordinate.longitude)")
-            }
-            
             // 1. Prepare Data
             var allItems: [UnifiedMapItem] = []
             var rawPoints: [Int32] = []
             
-            var farItemsCount = 0 // [NEW] Track hidden items
-            
-            // Pre-calc user int location
-            var uInt: (lat: Int, lon: Int)? = nil
-            if let u = userLocation {
-                uInt = SmartLocationManager.shared.toIntLocation(u)
-            }
+            var farItemsCount = 0 
             
             for item in currentItems {
-                if let loc = item.location {
-                    // Standard Path: Show ALL items (Filter only on Fast Path)
-                    allItems.append(.todo(item))
-                    rawPoints.append(Int32(loc.latitude * 100_000))
-                    rawPoints.append(Int32(loc.longitude * 100_000))
-                }
+                allItems.append(.todo(item))
+                rawPoints.append(Int32(item.int_lat))
+                rawPoints.append(Int32(item.int_long))
             }
             for log in currentLogs {
-                // Standard Path: Show ALL items
                 allItems.append(.history(log))
-                rawPoints.append(Int32(log.latitude * 100_000))
-                rawPoints.append(Int32(log.longitude * 100_000))
+                rawPoints.append(Int32(log.int_lat))
+                rawPoints.append(Int32(log.int_long))
             }
             
-            // Trigger Callback
-            if farItemsCount > 0 {
-                DispatchQueue.main.async {
-                    self.parent.onFarItemsDetected?(farItemsCount)
-                }
-            }
-            
-            // [FIX] Add User Location to Clustering Data
             if let userLoc = userLocation {
                 allItems.append(.userLocation)
                 rawPoints.append(Int32(userLoc.coordinate.latitude * 100_000))
                 rawPoints.append(Int32(userLoc.coordinate.longitude * 100_000))
             }
             
-            // 2. Cell Size Calculation
+            // 2. WASM Clustering
             let region = mapView.region
             let cosLat = cos(region.center.latitude * .pi / 180.0)
             let widthMeters = region.span.longitudeDelta * 111320.0 * cosLat
             let metersPerPixel = widthMeters / widthPixels
-            let wasmCellSize = metersPerPixel * 100.0 // [FIX] Restored Standard Sensitivity (100.0) for broader clustering
+            let wasmCellSize = metersPerPixel * 100.0 
             
-            // [NEW] Update Binding for UI
             DispatchQueue.main.async {
                 self.parent.clusterRadius = wasmCellSize
             }
             
             Task {
-                // print(">>> WASM Clustering Start")
-                let start = Date()
                 let result = await WasmManager.shared.cluster(points: rawPoints, cellSize: wasmCellSize)
-                // print(">>> WASM Clustering Result: \(result.count/3)")
-                let _ = Date().timeIntervalSince(start) * 1000 
-                                
                 await MainActor.run {
                     self.renderWasmResults(mapView: mapView, clusterResult: result, allItems: allItems, userLocation: userLocation)
                 }
@@ -510,17 +485,6 @@ struct AppleMapView: UIViewRepresentable {
         }
         
         private func renderWasmResults(mapView: MKMapView, clusterResult: [Int32], allItems: [UnifiedMapItem], userLocation: CLLocation?) {
-            // Parse Results
-            // Result format: [lat, lon, count, lat, lon, count...]
-            
-            var newAnnotations: [MKAnnotation] = []
-            
-            // 1. (Removed) User Location is now handled within WASM clustering data directly.
-            
-            // 2. Process Clusters
-            // Simple approach: Assign items to nearest Centroid
-            // This is slightly heavy O(N*M) but N(Items)~100, M(Clusters)~10. Fast enough.
-            
             struct Centroid { let lat: Double; let lon: Double; let count: Int }
             var centroids: [Centroid] = []
             
@@ -533,7 +497,6 @@ struct AppleMapView: UIViewRepresentable {
                 }
             }
             
-            // Buckets
             var clusters: [[UnifiedMapItem]] = Array(repeating: [], count: centroids.count)
             
             for item in allItems {
@@ -541,74 +504,42 @@ struct AppleMapView: UIViewRepresentable {
                 var itemLon: Double = 0
                 
                 switch item {
-                case .todo(let t): if let l = t.location { itemLat = l.latitude; itemLon = l.longitude }
-                case .history(let l): itemLat = l.latitude; itemLon = l.longitude
+                case .todo(let t): itemLat = t.latitude; itemLon = t.longitude
+                case .history(let t): itemLat = t.latitude; itemLon = t.longitude
                 case .userLocation: 
                      if let userLoc = userLocation { itemLat = userLoc.coordinate.latitude; itemLon = userLoc.coordinate.longitude }
                 default: break
                 }
                 
-                // Find nearest centroid
                 var bestIdx = -1
                 var minDist = Double.greatestFiniteMagnitude
-                
                 for (idx, c) in centroids.enumerated() {
                     let dLat = itemLat - c.lat
                     let dLon = itemLon - c.lon
                     let dist = dLat*dLat + dLon*dLon
-                    if dist < minDist {
-                        minDist = dist
-                        bestIdx = idx
-                    }
+                    if dist < minDist { minDist = dist; bestIdx = idx }
                 }
-                
-                if bestIdx >= 0 {
-                    clusters[bestIdx].append(item)
-                }
+                if bestIdx >= 0 { clusters[bestIdx].append(item) }
             }
             
-            // Create Annotations
+            var newAnnotations: [MKAnnotation] = []
             for (idx, items) in clusters.enumerated() {
                 if items.isEmpty { continue }
-                
                 let centroid = centroids[idx]
                 let coordinate = CLLocationCoordinate2D(latitude: centroid.lat, longitude: centroid.lon)
                 
                 if items.count == 1 {
-                    // Single Item
-                    let item = items[0]
                     let ann = UnifiedAnnotation()
-                    ann.item = item
-                    // Use actual item location instead of centroid for precision
-                     switch item {
-                    case .todo(let t): if let l = t.location { ann.coordinate = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude) }
-                    case .history(let l): ann.coordinate = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)
-                    default: ann.coordinate = coordinate
-                    }
-                    ann.title = "Item"
+                    ann.item = items[0]
+                    ann.coordinate = items[0].location ?? coordinate
                     newAnnotations.append(ann)
                 } else {
-                    // Cluster Item
-                    // We need a way to represent a "WASM Cluster" as a single annotation.
-                    // We can reuse UnifiedAnnotation but with a special flag or list.
-                    // UnifiedAnnotation doesn't have a list.
-                    // Let's use MKPointAnnotation and handle it in viewFor, 
-                    // OR reuse UnifiedAnnotation and inject the whole list into 'item' (if extended)
-                    // Hack: Use the first item as valid 'item', but attach list to View later?
-                    // Better: Create a 'WasmClusterAnnotation' class.
-                    
                     let clusterAnn = WasmClusterAnnotation()
                     clusterAnn.coordinate = coordinate
                     clusterAnn.items = items
-                    clusterAnn.title = "\(items.count)"
                     newAnnotations.append(clusterAnn)
                 }
             }
-            
-            // Sync Map
-            // remove all EXCEPT UserLocation to correct flashing?
-            // MKMapView handles add/remove gracefully if IDs match? No, annotations are objects.
-            // Full Diff is hard. Let's just remove all non-User and add new.
             
             let oldInterval = mapView.annotations.filter { !($0 is MKUserLocation) }
             mapView.removeAnnotations(oldInterval)
@@ -620,22 +551,14 @@ struct AppleMapView: UIViewRepresentable {
             var items: [UnifiedMapItem] = []
         }
         
-        // [NEW] Raw Renderer for Fast Path
         private func renderRawItems(mapView: MKMapView, allItems: [UnifiedMapItem]) {
             var newAnnotations: [MKAnnotation] = []
-            
             for item in allItems {
                 let ann = UnifiedAnnotation()
                 ann.item = item
-                switch item {
-                case .todo(let t): if let l = t.location { ann.coordinate = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude) }
-                case .history(let l): ann.coordinate = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)
-                case .userLocation: if let l = parent.locationManager.currentLocation { ann.coordinate = l.coordinate }
-                default: break
-                }
+                ann.coordinate = item.location ?? CLLocationCoordinate2D()
                 newAnnotations.append(ann)
             }
-            
             let oldInterval = mapView.annotations.filter { !($0 is MKUserLocation) }
             mapView.removeAnnotations(oldInterval)
             mapView.addAnnotations(newAnnotations)
@@ -643,8 +566,6 @@ struct AppleMapView: UIViewRepresentable {
         
         // MARK: - Legacy Update (Disabled)
         func updateAnnotations(mapView: MKMapView, items: [ToDoItem], userLocation: CLLocation?) {
-            // [FIX] Always refresh clusters when data/location updates, not just on first render.
-            // This ensures User Location participates in clustering dynamically.
             refreshWasmClusters(mapView: mapView)
         }
         
@@ -656,32 +577,27 @@ struct AppleMapView: UIViewRepresentable {
             var points: [CLLocationCoordinate2D] = []
             let userLoc = userLocation
             
-            var uLat = 0
-            var uLon = 0
+            var uLat = 0, uLon = 0
             if let u = userLoc {
                 let ui = SmartLocationManager.shared.toIntLocation(u)
                 uLat = ui.lat; uLon = ui.lon
             }
             
             for item in parent.todoItems { 
-                if let l = item.location { 
-                     if userLoc != nil && SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: l.latInt, lon2: l.lonInt) { continue }
-                     points.append(CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)) 
-                 } 
+                if userLoc != nil && SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: item.int_lat, lon2: item.int_long) { continue }
+                points.append(item.coordinate) 
             }
             for log in parent.userLogs { 
-                 if userLoc != nil && SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: log.latInt, lon2: log.lonInt) { continue }
-                 points.append(CLLocationCoordinate2D(latitude: log.latitude, longitude: log.longitude)) 
+                 if userLoc != nil && SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: log.int_lat, lon2: log.int_long) { continue }
+                 points.append(log.coordinate) 
              }
             
             if !points.isEmpty {
                  var minLat = points[0].latitude; var maxLat = points[0].latitude
                  var minLon = points[0].longitude; var maxLon = points[0].longitude
                  for p in points {
-                    if p.latitude < minLat { minLat = p.latitude }
-                    if p.latitude > maxLat { maxLat = p.latitude }
-                    if p.longitude < minLon { minLon = p.longitude }
-                    if p.longitude > maxLon { maxLon = p.longitude }
+                    minLat = min(minLat, p.latitude); maxLat = max(maxLat, p.latitude)
+                    minLon = min(minLon, p.longitude); maxLon = max(maxLon, p.longitude)
                  }
                  
                  if let u = userLoc {
@@ -770,18 +686,13 @@ struct AppleMapView: UIViewRepresentable {
             imageView.isUserInteractionEnabled = false
             view.addSubview(imageView)
             
-            // 4. Visuals - Layer 2: Label
-            let label = UILabel(frame: CGRect(x: 0, y: 0, width: width, height: height * 0.4))
-            label.textAlignment = .center
-            label.font = UIFont.systemFont(ofSize: 10, weight: .bold)
-            label.textColor = .white
-            view.addSubview(label)
+            // 4. Visuals - Layer 2: Label (Removed, now part of badge or not needed)
             
             // 5. Interaction - Layer 3: Invisible Button
             let btn = MapPinButton(type: .custom)
             btn.frame = view.bounds
             btn.backgroundColor = .clear
-            btn.setTitle("", for: .normal)
+            btn.setTitle("", for: .normal) // Removed label, so no title needed
             btn.addTarget(self, action: #selector(handlePinButtonTap(_:)), for: .touchUpInside)
             view.addSubview(btn)
             
@@ -808,18 +719,7 @@ struct AppleMapView: UIViewRepresentable {
                 
                 // Badge
                 if count > 1 {
-                    let badgeSize: CGFloat = 20
-                    let badgeLabel = UILabel(frame: CGRect(x: width - (badgeSize/2), y: -(badgeSize/4), width: badgeSize, height: badgeSize))
-                    badgeLabel.backgroundColor = .white
-                    badgeLabel.textColor = .red
-                    badgeLabel.textAlignment = .center
-                    badgeLabel.font = UIFont.systemFont(ofSize: 12, weight: .bold)
-                    badgeLabel.text = count > 9 ? "9+" : "\(count)"
-                    badgeLabel.layer.cornerRadius = badgeSize / 2
-                    badgeLabel.layer.masksToBounds = true
-                    badgeLabel.layer.borderWidth = 1.5
-                    badgeLabel.layer.borderColor = UIColor.red.cgColor
-                    view.addSubview(badgeLabel)
+                    addBadge(view: view, count: count)
                 }
                 view.bringSubviewToFront(btn)
                 
@@ -842,43 +742,29 @@ struct AppleMapView: UIViewRepresentable {
                 
                 // Badge
                 if count > 1 {
-                    let badgeSize: CGFloat = 20
-                    let badgeLabel = UILabel(frame: CGRect(x: width - (badgeSize/2), y: -(badgeSize/4), width: badgeSize, height: badgeSize))
-                    // Badge Style (Updated: White BG, Red Text/Border)
-                    badgeLabel.backgroundColor = .white
-                    badgeLabel.textColor = .red
-                    badgeLabel.textAlignment = .center
-                    badgeLabel.font = UIFont.systemFont(ofSize: 12, weight: .bold)
-                    badgeLabel.text = count > 9 ? "9+" : "\(count)"
-                    badgeLabel.layer.cornerRadius = badgeSize / 2
-                    badgeLabel.layer.masksToBounds = true
-                    badgeLabel.layer.borderWidth = 1.5
-                    badgeLabel.layer.borderColor = UIColor.red.cgColor
-                    view.addSubview(badgeLabel)
+                    addBadge(view: view, count: count)
                 }
                 view.bringSubviewToFront(btn)
                 
             } else if let unified = annotation as? UnifiedAnnotation, let item = unified.item {
                 btn.items = [item]
-                 switch item {
-                  case .todo(let todo):
-                      var imageName = "PinTodoReady"
-                      if todo.isCompleted { imageName = "PinTodoDone" }
-                      if let img = UIImage(named: imageName) { imageView.image = img }
-                      if let date = todo.dueDate {
-                          // Only show label if needed
-                      }
-                   case .history(let log):
-                       if let img = UIImage(named: "PinHistory") { imageView.image = img }
-                       else { imageView.image = PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill") }
-                      // [FIX] User requested to clear text for now
-                      label.text = "" // f.string(from: log.startTime)
-                   case .serverMessage:
-                       if let img = UIImage(named: "PinReceiveReady") { imageView.image = img }
-                   case .userLocation:
-                        if let customImage = UIImage(named: "PinCurrent") { imageView.image = customImage }
-                   }
+                imageView.image = UIImage(named: item.imageName)
             }
+        }
+        
+        private func addBadge(view: UIView, count: Int) {
+            let badgeSize: CGFloat = 20
+            let badgeLabel = UILabel(frame: CGRect(x: 40 - (badgeSize/2), y: -(badgeSize/4), width: badgeSize, height: badgeSize))
+            badgeLabel.backgroundColor = .white
+            badgeLabel.textColor = .red
+            badgeLabel.textAlignment = .center
+            badgeLabel.font = UIFont.systemFont(ofSize: 12, weight: .bold)
+            badgeLabel.text = count > 9 ? "9+" : "\(count)"
+            badgeLabel.layer.cornerRadius = badgeSize / 2
+            badgeLabel.layer.masksToBounds = true
+            badgeLabel.layer.borderWidth = 1.5
+            badgeLabel.layer.borderColor = UIColor.red.cgColor
+            view.addSubview(badgeLabel)
         }
         
         @objc func handlePinButtonTap(_ sender: UIButton) {
@@ -949,24 +835,19 @@ struct AppleMapView: UIViewRepresentable {
             return MKOverlayRenderer(overlay: overlay)
         }
         
-        func updatePath(mapView: MKMapView, selectedItems: [UnifiedMapItem]?) {
+        func updatePath(mapView: MKMapView, historyItem: ToDoItem?) {
             // 1. Remove existing polylines
             let oldOverlays = mapView.overlays.filter { $0 is MKPolyline }
             mapView.removeOverlays(oldOverlays)
             
-            guard let items = selectedItems else { return }
+            guard let item = historyItem else { return }
             
             // 2. Filter history items with pathData
-            let historyLogs = items.compactMap { item -> UserLog? in
-                 if case .history(let log) = item, log.pathData != nil { return log }
-                 return nil
-            }
-            
-            guard let log = historyLogs.first, let data = log.pathData else { return }
-            
-            // 3. Decode & Draw
-            if let points = try? JSONDecoder().decode([LocationData].self, from: data) {
-                var coords = points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+            // Query paths for this todo_id
+            let searchID = item.todo_id
+            let descriptor = FetchDescriptor<PathItem>(predicate: #Predicate<PathItem> { $0.todo_id == searchID })
+            if let paths = try? parent.modelContext.fetch(descriptor) {
+                var coords = paths.map { $0.coordinate }
                 if coords.count >= 2 {
                     let polyline = MKPolyline(coordinates: &coords, count: coords.count)
                     mapView.addOverlay(polyline)
@@ -1013,108 +894,114 @@ struct ClusterListCallout: View {
     var items: [UnifiedMapItem]
     var isCluster: Bool
     @AppStorage("popupFontSize") private var popupFontSize = 1
+    @AppStorage("maxPopupItems") private var maxPopupItems = 5
+    var onClose: () -> Void
     
     var fontSize: CGFloat {
         switch popupFontSize {
-        case 0: return 12
-        case 1: return 15 // Default
-        case 2: return 18
-        default: return 15
+        case 0: return 14
+        case 1: return 17 // Default
+        case 2: return 20
+        default: return 17
         }
     }
 
     var onDeleteToDo: (ToDoItem) -> Void
-    var onDeleteLog: (UserLog) -> Void
-    var onSelectLog: (UserLog) -> Void
+    var onDeleteLog: (ToDoItem) -> Void
+    var onSelectLog: (ToDoItem) -> Void
+    var onSelectItem: (ToDoItem) -> Void // [NEW] Added for todo detail
     
     var body: some View {
+        let displayCount = max(1, maxPopupItems)
+        let displayItems = Array(items.prefix(displayCount))
+        
         VStack(spacing: 0) {
-            if items.count <= 4 {
-                // Small number of items: Render ALL directly to avoid ScrollView height issues
-                VStack(spacing: 0) {
-                    ForEach(items) { item in
-                        itemRow(item, isSingle: items.count == 1)
-                        if item.id != items.last?.id {
+            // [Header] Center Close Button
+            Button(action: onClose) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.gray7)
+                    .font(.title3)
+            }
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+            .buttonStyle(.plain)
+            
+            // [List Contents]
+            VStack(spacing: 0) {
+                if displayItems.count <= 3 {
+                    ForEach(displayItems) { item in
+                        itemRow(item)
+                        if item.id != displayItems.last?.id {
                             Divider()
                         }
                     }
-                }
-            } else {
-                // Many items: Use ScrollView
-                ScrollView {
-                    VStack(spacing: 0) {
-                        ForEach(items) { item in
-                            itemRow(item, isSingle: false)
-                            Divider()
+                } else {
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            ForEach(displayItems) { item in
+                                itemRow(item)
+                                Divider()
+                            }
                         }
                     }
+                    .frame(maxHeight: 250)
                 }
-                .frame(maxHeight: 250) // Limit height for large lists
             }
         }
+        .fixedSize(horizontal: false, vertical: true) // [FIX] Zero-height frame 대응
     }
     
     // Constant widths for alignment
     private let iconWidth: CGFloat = 40
     
-    @ViewBuilder
-    func itemRow(_ item: UnifiedMapItem, isSingle: Bool) -> some View {
-        HStack(spacing: 0) {
-            // [Col 1] Map Icon / Spacer
-            Group {
-                if case .history(let log) = item, log.pathData != nil {
-                    Button(action: {
-                        onSelectLog(log)
-                    }) {
-                        Image(systemName: "map.fill")
-                            .font(.system(size: fontSize))
-                            .foregroundColor(isCluster ? .red : .black)
-                            .frame(width: iconWidth, height: iconWidth)
-                    }
-                    .buttonStyle(.plain)
-                } else {
-                    // Placeholder Map Icon for Balance
+    private func itemRow(_ item: UnifiedMapItem) -> some View {
+        HStack(spacing: 8) {
+            // [Col 1] Map Icon
+            if case .history(let t) = item {
+                Button(action: { onSelectLog(t) }) {
                     Image(systemName: "map.fill")
                         .font(.system(size: fontSize))
-                        .foregroundColor(.gray.opacity(0.3)) // Light Gray
-                        .frame(width: iconWidth, height: iconWidth)
+                        .foregroundColor(.black)
+                        .frame(width: 30)
                 }
+                .buttonStyle(.plain)
+            } else {
+                Image(systemName: "map.fill")
+                    .font(.system(size: fontSize))
+                    .foregroundColor(.gray4)
+                    .frame(width: 30)
             }
             
-            Spacer()
-            
-            // [Col 2] Content (Time / Title)
-            Group {
+            // [Col 2] Content (Icon, Date, Time, Title)
+            HStack(spacing: 8) {
+                // Date (Gray 7, MM/dd)
+                let dateStr = item.date.formatted(.dateTime.month(.twoDigits).day(.twoDigits))
+                Text(dateStr)
+                    .font(.system(size: fontSize - 1))
+                    .foregroundColor(.gray7)
+                
+                // Time (Bold Gray 8)
+                let timeStr = item.date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
+                Text(timeStr)
+                    .font(.system(size: fontSize - 1, weight: .bold))
+                    .foregroundColor(.gray8)
+                
+                // Title (Gray 8)
+                Text(item.name)
+                    .font(.system(size: fontSize))
+                    .foregroundColor(.gray8)
+                    .lineLimit(1)
+                
+                Spacer()
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
                 switch item {
-                case .todo(let todo):
-                    VStack(alignment: .center, spacing: 2) {
-                        Text(todo.title)
-                            .font(.system(size: fontSize, weight: .bold))
-                            .foregroundColor(.green)
-                            .lineLimit(1)
-                        if let date = todo.dueDate {
-                            Text(date.formatted(date: .omitted, time: .shortened))
-                                .font(.system(size: fontSize * 0.8))
-                                .foregroundColor(.gray)
-                        }
-                    }
-                case .history(let log):
-                    Text(log.startTime.formatted(date: .omitted, time: .shortened))
-                        .font(.system(size: fontSize))
-                        .foregroundColor(isCluster ? .red : .black)
-                case .serverMessage(let msg):
-                    Text(msg)
-                        .font(.system(size: fontSize))
-                        .foregroundColor(isCluster ? .blue : .black)
-                case .userLocation:
-                    Text(Date().formatted(date: .omitted, time: .shortened))
-                        .font(.system(size: fontSize, weight: .bold))
-                        .foregroundColor(.red)
+                case .todo(let t): onSelectItem(t)
+                case .history(let t): onSelectItem(t) 
+                default: break
                 }
             }
-            .frame(maxWidth: .infinity) // Fill center
-            
-            Spacer()
             
             // [Col 3] Trash Icon
             Button(action: {
@@ -1122,24 +1009,17 @@ struct ClusterListCallout: View {
                 case .todo(let todo): onDeleteToDo(todo)
                 case .history(let log): onDeleteLog(log)
                 case .serverMessage(_): break
-                case .userLocation: break // No action
+                case .userLocation: break
                 }
             }) {
-                if case .userLocation = item {
-                    Image(systemName: "person.fill")
-                        .font(.system(size: fontSize)) // Consistent size
-                        .foregroundColor(.red)
-                } else {
-                    Image(systemName: "trash.fill")
-                        .font(.system(size: fontSize))
-                        .foregroundColor(.red)
-                }
+                Image(systemName: "trash.fill")
+                    .font(.system(size: fontSize))
+                    .foregroundColor(.red)
             }
-            .frame(width: iconWidth, height: iconWidth)
             .buttonStyle(.plain)
+            .frame(width: 30)
         }
-        .padding(.vertical, isSingle ? 0 : 4)
-        .padding(.horizontal, 8)
-        .frame(height: isSingle ? 50 : nil)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
     }
 }

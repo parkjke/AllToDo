@@ -1,14 +1,16 @@
 import SwiftUI
 import GoogleMaps
 import CoreLocation
+import SwiftData
 
 struct GoogleMapView: UIViewRepresentable {
+    @Environment(\.modelContext) var modelContext
     @Binding var action: MapAction
     @Binding var rotation: Double
     @ObservedObject var locationManager: AppLocationManager
     
     var todoItems: [ToDoItem]
-    var userLogs: [UserLog]
+    var userLogs: [ToDoItem]
     
     @Binding var selectedItem: ToDoItem?
     @Binding var selectedClusterItems: [UnifiedMapItem]?
@@ -20,8 +22,9 @@ struct GoogleMapView: UIViewRepresentable {
     var onLongTap: ((CLLocationCoordinate2D) -> Void)?
     var onUserLocationTap: (() -> Void)?
     var onDelete: ((ToDoItem) -> Void)?
-    var onDeleteLog: ((UserLog) -> Void)?
-    var onSelectLog: ((UserLog) -> Void)?
+    var onDeleteLog: ((ToDoItem) -> Void)?
+    var onSelectLog: ((ToDoItem) -> Void)?
+    var onSelectItem: ((ToDoItem) -> Void)?
     var onFarItemsDetected: ((Int) -> Void)? // [NEW] Callback for hidden items
     
     func makeUIView(context: Context) -> GMSMapView {
@@ -327,7 +330,11 @@ struct GoogleMapView: UIViewRepresentable {
             // [FIX] Fallback to Screen Width if Map View is not yet laid out
             var widthPixels = mapView.frame.width // frame used in GMS
             if widthPixels <= 0 {
-                widthPixels = UIScreen.main.bounds.width
+                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                    widthPixels = windowScene.screen.bounds.width
+                } else {
+                    widthPixels = 375 // Fallback
+                }
             }
             
             // guard widthPixels > 0 else { return } // Removed guard
@@ -354,7 +361,7 @@ struct GoogleMapView: UIViewRepresentable {
                  for item in parent.todoItems {
                      if let loc = item.location {
                          // 500km (Integer)
-                         if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: loc.latInt, lon2: loc.lonInt) {
+                         if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: item.latInt, lon2: item.lonInt) {
                              farCount += 1
                              continue
                          }
@@ -591,8 +598,8 @@ struct GoogleMapView: UIViewRepresentable {
              
              for item in parent.todoItems { 
                  if let l = item.location {
-                     if SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: l.latInt, lon2: l.lonInt) { continue }
-                     bounds = bounds.includingCoordinate(CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)) 
+                     if SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: item.latInt, lon2: item.lonInt) { continue }
+                     bounds = bounds.includingCoordinate(l) 
                  } 
              }
              for log in parent.userLogs {
@@ -638,24 +645,29 @@ struct GoogleMapView: UIViewRepresentable {
         func updatePath(mapView: GMSMapView, selectedItems: [UnifiedMapItem]?) {
              mapView.clear() // Google Maps clear actually removes polylines too
              
+             // 2. Filter history items
              guard let items = selectedItems else { return }
-             
-             let historyLogs = items.compactMap { item -> UserLog? in
-                  if case .history(let log) = item, log.pathData != nil { return log }
+             let historyLogs = items.compactMap { item -> ToDoItem? in
+                  if case .history(let log) = item { return log }
                   return nil
              }
              
-             guard let log = historyLogs.first, let data = log.pathData else { return }
+             guard let log = historyLogs.first else { return }
              
-             if let points = try? JSONDecoder().decode([LocationData].self, from: data) {
+             // 3. Query PathItems
+             let searchID = log.todo_id
+             let descriptor = FetchDescriptor<PathItem>(predicate: #Predicate<PathItem> { $0.todo_id == searchID })
+             if let paths = try? parent.modelContext.fetch(descriptor) {
                  let path = GMSMutablePath()
-                 for p in points {
-                     path.add(CLLocationCoordinate2D(latitude: p.latitude, longitude: p.longitude))
+                 for p in paths {
+                     path.add(p.coordinate)
                  }
-                 let polyline = GMSPolyline(path: path)
-                 polyline.strokeColor = .red
-                 polyline.strokeWidth = 4
-                 polyline.map = mapView
+                 if path.count() >= 2 {
+                     let polyline = GMSPolyline(path: path)
+                     polyline.strokeColor = .red
+                     polyline.strokeWidth = 4
+                     polyline.map = mapView
+                 }
              }
         }
     }

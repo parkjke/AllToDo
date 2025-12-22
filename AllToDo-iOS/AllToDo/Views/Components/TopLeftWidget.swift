@@ -13,10 +13,10 @@ struct TopLeftWidget: View {
     }
     
     var body: some View {
-        HStack(spacing: 12) {
-            // 1. Checklist Icon & Text (Expand Click)
-            Button(action: onExpandClick) {
-                HStack(spacing: 8) {
+        Button(action: onExpandClick) {
+            HStack(spacing: 12) {
+                // 1. Checklist Icon & Text
+                HStack(spacing: 6) {
                     Image(systemName: "checklist")
                         .resizable()
                         .frame(width: 20, height: 20)
@@ -26,38 +26,20 @@ struct TopLeftWidget: View {
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(Color(white: 0.2))
                 }
-            }
-            
-            // 2. Compass (Reset Click)
-            Button(action: onCompassClick) {
-                ZStack {
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: 32, height: 32)
-                    
-                    Image(systemName: "safari.fill")
-                        .resizable()
-                        .frame(width: 20, height: 20)
-                        .rotationEffect(.degrees(-compassRotation)) // [FIX] Match map rotation
-                        .foregroundColor(isNorth ? .gray : .red)
-                }
-            }
-            
-            // 3. Badges (Expand Click area for convenience too)
-            Button(action: onExpandClick) {
-                HStack(spacing: 6) {
+                
+                // 2. Badges (Blue, Green, Red)
+                HStack(spacing: 4) {
                     StatBadge(color: .allToDoBlue, count: serverTodoCount)  // 1. Server (Blue)
                     StatBadge(color: .allToDoGreen, count: localTodoCount) // 2. Local (Green)
                     StatBadge(color: .allToDoRed, count: historyCount)    // 3. History (Red)
                 }
             }
+            .padding(.horizontal, 16)
+            .frame(height: 48) // Match ControlIcon height
+            .background(Color.allToDoGreen.opacity(0.8)) // Match Button background
+            .cornerRadius(12) // Match ControlIcon corner radius
         }
-        
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color.white) // Use clear white for better contrast
-        .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.15), radius: 6, x: 0, y: 3)
+        .buttonStyle(.plain)
     }
 }
 
@@ -68,8 +50,8 @@ struct StatBadge: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(color)
-                .frame(width: 24, height: 24)
+                .fill(color.opacity(0.8))
+                .frame(width: 28, height: 28)
             
             Text("\(count)")
                 .font(.system(size: 12, weight: .bold))

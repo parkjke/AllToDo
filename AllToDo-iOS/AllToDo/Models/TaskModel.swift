@@ -2,167 +2,170 @@ import Foundation
 import SwiftData
 import CoreLocation
 
+// MARK: - 1. ToDoItem Table (Integrated with History)
 @Model
 final class ToDoItem {
-    var id: UUID
-    var title: String
-    var isCompleted: Bool
-    var createdAt: Date
-    var dueDate: Date?
-    var location: LocationData?
+    @Attribute(.unique) var todo_id: UUID
+    var todo_name: String
+    var is_exist_person: Bool
+    var date_time: Date?
+    var memo: String
+    var is_exist_location_path: Bool
+    var begin_time: Date?
+    var end_time: Date?
+    var type: String // 00: History, 10: To-do, 20: Server
+    var is_completed: Bool = false
+    var created_at: Int64
     
-    init(title: String, dueDate: Date? = nil, location: LocationData? = nil) {
-        self.id = UUID()
-        self.title = title
-        self.isCompleted = false
-        self.createdAt = Date()
-        self.dueDate = dueDate
-        self.location = location
+    // Coordinates (Integer storage x100,000)
+    var int_lat: Int
+    var int_long: Int
+    
+    var isSelected: Bool = false
+    var source: String = "local"
+    
+    // Computed Properties
+    var latitude: Double {
+        get { Double(int_lat) / 100_000.0 }
+        set { int_lat = Int((newValue * 100_000.0).rounded()) }
+    }
+    
+    var longitude: Double {
+        get { Double(int_long) / 100_000.0 }
+        set { int_long = Int((newValue * 100_000.0).rounded()) }
+    }
+    
+    var coordinate: CLLocationCoordinate2D {
+        return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+    
+    var location: CLLocationCoordinate2D? {
+        guard int_lat != 0 || int_long != 0 else { return nil }
+        return coordinate
+    }
+    
+    var latInt: Int { int_lat }
+    var lonInt: Int { int_long }
+    
+    var isCompleted: Bool {
+        get { is_completed }
+        set { is_completed = newValue }
+    }
+    
+    init(
+        todo_id: UUID = UUID(),
+        todo_name: String,
+        is_exist_person: Bool = false,
+        date_time: Date? = nil,
+        memo: String = "",
+        is_exist_location_path: Bool = false,
+        begin_time: Date? = nil,
+        end_time: Date? = nil,
+        type: String = "10",
+        latitude: Double = 0.0,
+        longitude: Double = 0.0,
+        is_completed: Bool = false,
+        source: String = "local"
+    ) {
+        self.todo_id = todo_id
+        self.todo_name = todo_name
+        self.is_exist_person = is_exist_person
+        self.date_time = date_time
+        self.memo = memo
+        self.is_exist_location_path = is_exist_location_path
+        self.begin_time = begin_time
+        self.end_time = end_time
+        self.type = type
+        self.created_at = Int64(Date().timeIntervalSince1970 * 1000)
+        self.int_lat = Int((latitude * 100_000.0).rounded())
+        self.int_long = Int((longitude * 100_000.0).rounded())
+        self.is_completed = is_completed
+        self.source = source
     }
 }
 
-
-
+// MARK: - 2. PathItem Table
 @Model
-final class Appointment {
-    var id: UUID
-    var title: String
-    var startTime: Date
-    var endTime: Date
-    var location: LocationData?
-    var participants: [Contact]
+final class PathItem {
+    var todo_id: UUID
+    var int_long: Int
+    var int_lat: Int
+    var timestamp: Date = Date()
     
-    init(title: String, startTime: Date, endTime: Date, location: LocationData? = nil, participants: [Contact] = []) {
-        self.id = UUID()
-        self.title = title
-        self.startTime = startTime
-        self.endTime = endTime
-        self.location = location
-        self.participants = participants
+    init(todo_id: UUID, latitude: Double, longitude: Double) {
+        self.todo_id = todo_id
+        self.int_lat = Int((latitude * 100_000.0).rounded())
+        self.int_long = Int((longitude * 100_000.0).rounded())
+        self.timestamp = Date()
+    }
+    
+    var coordinate: CLLocationCoordinate2D {
+        return CLLocationCoordinate2D(
+            latitude: Double(int_lat) / 100_000.0,
+            longitude: Double(int_long) / 100_000.0
+        )
     }
 }
 
+// MARK: - 3. AddressBookItem Table
 @Model
-final class Contact {
-    var id: UUID
+final class AddressBookItem {
+    @Attribute(.unique) var address_id: UUID
+    var last_name: String
+    var first_name: String
     var name: String
-    var phoneNumber: String?
-    var groupName: String?
+    var name_consonants: String
     
-    init(name: String, phoneNumber: String? = nil, groupName: String? = nil) {
-        self.id = UUID()
+    var phone_name1: String?
+    var phone_name2: String?
+    var phone_name3: String?
+    var phone_name4: String?
+    var phone_name5: String?
+    
+    var home_address: String
+    var int_long_home: Int
+    var int_lat_home: Int
+    
+    var company_address: String
+    var company_int_long: Int
+    var company_int_lat: Int
+    
+    init(
+        name: String,
+        lastName: String = "",
+        firstName: String = "",
+        consonants: String = "",
+        homeAddress: String = "",
+        companyAddress: String = ""
+    ) {
+        self.address_id = UUID()
         self.name = name
-        self.phoneNumber = phoneNumber
-        self.groupName = groupName
+        self.last_name = lastName
+        self.first_name = firstName
+        self.name_consonants = consonants
+        self.home_address = homeAddress
+        self.int_long_home = 0
+        self.int_lat_home = 0
+        self.company_address = companyAddress
+        self.company_int_long = 0
+        self.company_int_lat = 0
     }
 }
 
+// MARK: - 4. ContactItem Table
 @Model
-final class UserLog {
-    var id: UUID
-    var startTime: Date
-    var endTime: Date
-    var latInt: Int // Stored as Integer for 20% space saving
-    var lonInt: Int // Stored as Integer
-    var pathData: Data? // JSON encoded [LocationData]
+final class ContactItem {
+    var todo_id: UUID
+    var address_id: UUID?
+    var name: String
+    var p_name: String
+    var int_long: Int?
+    var int_lat: Int?
     
-    // Computed Properties for compatibility
-    var latitude: Double {
-        get { Double(latInt) / 100_000.0 }
-        set { latInt = Int(newValue * 100_000.0) }
-    }
-    
-    var longitude: Double {
-        get { Double(lonInt) / 100_000.0 }
-        set { lonInt = Int(newValue * 100_000.0) }
-    }
-    
-    init(startTime: Date, endTime: Date, latitude: Double, longitude: Double, pathData: Data? = nil) {
-        self.id = UUID()
-        self.startTime = startTime
-        self.endTime = endTime
-        self.latInt = Int(latitude * 100_000.0)
-        self.lonInt = Int(longitude * 100_000.0)
-        self.pathData = pathData
-    }
-}
-
-// Helper struct for Location (SwiftData doesn't support CLLocation directly easily yet without ValueTransformer, keeping it simple)
-// Helper struct for Location
-struct LocationData: Codable {
-    var latInt: Int // Stored as Integer
-    var lonInt: Int // Stored as Integer
-    var name: String?
-    var timestamp: Date?
-    
-    // Computed properties wrapping integer storage
-    var latitude: Double {
-        get { Double(latInt) / 100_000.0 }
-        set { latInt = Int(newValue * 100_000.0) }
-    }
-    
-    var longitude: Double {
-        get { Double(lonInt) / 100_000.0 }
-        set { lonInt = Int(newValue * 100_000.0) }
-    }
-    
-    // Default Init
-    init(latitude: Double, longitude: Double, name: String? = nil, timestamp: Date? = nil) {
-        self.latInt = Int(latitude * 100_000.0)
-        self.lonInt = Int(longitude * 100_000.0)
+    init(todo_id: UUID, address_id: UUID? = nil, name: String, phoneNumber: String) {
+        self.todo_id = todo_id
+        self.address_id = address_id
         self.name = name
-        self.timestamp = timestamp
-    }
-    
-    // Custom CodingKeys include both sets
-    enum CodingKeys: String, CodingKey {
-        case latitude, longitude, name, timestamp
-        case latInt, lonInt // New keys
-    }
-    
-    // Custom Decoding for Migration
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        
-        // 1. Try reading New Integer format
-        if let iLat = try? container.decode(Int.self, forKey: .latInt),
-           let iLon = try? container.decode(Int.self, forKey: .lonInt) {
-            self.latInt = iLat
-            self.lonInt = iLon
-        }
-        // 2. Fallback: Try reading Legacy Double format
-        else if let dLat = try? container.decode(Double.self, forKey: .latitude),
-                let dLon = try? container.decode(Double.self, forKey: .longitude) {
-            self.latInt = Int(dLat * 100_000.0)
-            self.lonInt = Int(dLon * 100_000.0)
-        } else {
-            // Default 0.0 (Gwanghwamun fallback) if all fails
-            self.latInt = 3757590
-            self.lonInt = 12697680
-        }
-        
-        self.name = try container.decodeIfPresent(String.self, forKey: .name)
-        self.timestamp = try container.decodeIfPresent(Date.self, forKey: .timestamp)
-    }
-    
-    // Encode only Ints (Efficient Storage)
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(latInt, forKey: .latInt)
-        try container.encode(lonInt, forKey: .lonInt)
-        try container.encode(name, forKey: .name)
-        try container.encode(timestamp, forKey: .timestamp)
-    }
-    
-    // [NEW] Integer-Coordinate Integration
-    var intCoordinate: IntCoordinate {
-        return IntCoordinate(lat: latInt, lng: lonInt)
-    }
-}
-
-extension UserLog {
-    // [NEW] Integer-Coordinate Integration
-    var intCoordinate: IntCoordinate {
-        return IntCoordinate.from(latitude: latitude, longitude: longitude)
+        self.p_name = phoneNumber
     }
 }

@@ -31,20 +31,6 @@ struct RightSideControls: View {
             }
             .padding(.bottom, 24)
             
-            // 1. Checklist Icon & Text (Expand Click)
-            Button(action: onExpandClick) {
-                HStack(spacing: 8) {
-                    Image(systemName: "checklist")
-                        .resizable()
-                        .frame(width: 20, height: 20)
-                        .foregroundColor(Color(white: 0.2))
-                    
-                    Text("할 일")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(Color(white: 0.2))
-                }
-            }
-            
             // Center Group: Location, Zoom, Compass
             VStack(spacing: 16) {
                 ControlIcon(
@@ -76,7 +62,6 @@ struct RightSideControls: View {
                             RoundedRectangle(cornerRadius: 12)
                                 .fill(Color.allToDoGreen)
                                 .frame(width: 48, height: 48)
-                                .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
                             
                             // Custom Compass Needle (Red/White with Outline)
                             ZStack {
@@ -112,6 +97,7 @@ struct RightSideControls: View {
                             .rotationEffect(.degrees(-compassRotation)) // Counter-rotate to point North
                         }
                     }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -128,9 +114,8 @@ struct ControlIcon: View {
         Button(action: onClick) {
             ZStack {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.allToDoGreen)
+                    .fill(Color.allToDoGreen.opacity(0.8))
                     .frame(width: 48, height: 48)
-                    .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
                 
                 Image(systemName: iconName)
                     .resizable()
@@ -140,6 +125,7 @@ struct ControlIcon: View {
                     .rotationEffect(.degrees(rotation))
             }
         }
+        .buttonStyle(.plain)
     }
 }
 

@@ -62,9 +62,9 @@ struct AllToDoApp: App {
     static var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             ToDoItem.self,
-            Appointment.self,
-            Contact.self,
-            UserLog.self
+            PathItem.self,
+            AddressBookItem.self,
+            ContactItem.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

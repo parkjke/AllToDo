@@ -4,7 +4,9 @@ import SwiftData
 struct TodoListSheet: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \ToDoItem.createdAt, order: .reverse) private var todoItems: [ToDoItem]
+    @Query(sort: \ToDoItem.created_at, order: .reverse) private var todoItems: [ToDoItem]
+    
+    init() {}
     
     // Theme Colors
     let headerColor = Color(red: 0.0, green: 0.39, blue: 0.0) // Dark Green #006400
@@ -41,22 +43,22 @@ struct TodoListSheet: View {
                 }
             } else {
                 List {
-                    ForEach(todoItems) { item in
+                    ForEach(todoItems.filter { $0.type == "10" }) { item in
                         HStack {
                             // Custom Checkbox
                             Button(action: {
                                 toggleComplete(item)
                             }) {
-                                Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
+                                Image(systemName: item.is_completed ? "checkmark.circle.fill" : "circle")
                                     .font(.system(size: 24))
-                                    .foregroundColor(item.isCompleted ? headerColor : .gray)
+                                    .foregroundColor(item.is_completed ? headerColor : .gray)
                             }
                             .buttonStyle(PlainButtonStyle()) // remove default list button style
                             
-                            Text(item.title)
+                            Text(item.todo_name)
                                 .font(.body)
                                 .foregroundColor(.black) // Requested Black Color
-                                .strikethrough(item.isCompleted, color: .gray)
+                                .strikethrough(item.is_completed, color: .gray)
                                 .padding(.leading, 8)
                             
                             Spacer()
@@ -72,7 +74,7 @@ struct TodoListSheet: View {
     }
     
     private func toggleComplete(_ item: ToDoItem) {
-        item.isCompleted.toggle()
+        item.is_completed.toggle()
         // SwiftData autosaves, but we can verify changes if needed
     }
     
