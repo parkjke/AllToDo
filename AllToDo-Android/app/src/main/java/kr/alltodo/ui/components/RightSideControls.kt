@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -65,59 +66,73 @@ fun RightSideControls(
 ) {
     Column(
         modifier = modifier.padding(end = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
         horizontalAlignment = Alignment.End
     ) {
-        // [Item 2] Top to Bottom: [My Info] -> ([Zoom In] [Zoom Out]) -> [Compass]
-        
-        // 1. My Info (Person)
+        // [Item 1] My Info (Person)
         ControlIcon(
             icon = Icons.Default.Person,
             contentDescription = "My Info",
             onClick = onLoginClick,
-            containerColor = AllToDoGreen.copy(alpha = 0.9f),
-            iconTint = Color.White
+            containerColor = AllToDoGreen.copy(alpha = 0.8f),
+            iconTint = Color(0xFF333333)
         )
 
-        // [NEW] Current Location Button
+        Spacer(modifier = Modifier.height(24.dp)) // "--" Spacing (2 spaces)
+
+        // [Item 2] Current Location Button
         ControlIcon(
             icon = Icons.Default.MyLocation,
             contentDescription = "Current Location",
             onClick = onLocationClick,
-            containerColor = Color.White.copy(alpha = 0.9f),
-            iconTint = AllToDoGreen
+            containerColor = AllToDoGreen.copy(alpha = 0.8f),
+            iconTint = Color(0xFF333333)
         )
 
-        // 2. Zoom Group
-        ControlIcon(
-            icon = Icons.Default.Add,
-            contentDescription = "Zoom In",
-            onClick = onZoomInClick,
-            containerColor = Color.White.copy(alpha = 0.9f),
-            iconTint = Color(0xFF333333)
-        )
-        ControlIcon(
-            icon = Icons.Default.Remove,
-            contentDescription = "Zoom Out",
-            onClick = onZoomOutClick,
-            containerColor = Color.White.copy(alpha = 0.9f),
-            iconTint = Color(0xFF333333)
-        )
-        
-        // 3. Compass (Visible only when bearing > 0.01)
+        Spacer(modifier = Modifier.height(12.dp)) // "-" Spacing (1 space)
+
+        // [Item 3] Attached Zoom Group
+        Column(
+            modifier = Modifier
+                .width(48.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(AllToDoGreen.copy(alpha = 0.8f))
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clickable { onZoomInClick() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Zoom In", tint = Color(0xFF333333), modifier = Modifier.size(24.dp))
+            }
+            // Thin divider
+            Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(Color(0xFF333333).copy(alpha = 0.3f)))
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clickable { onZoomOutClick() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Remove, contentDescription = "Zoom Out", tint = Color(0xFF333333), modifier = Modifier.size(24.dp))
+            }
+        }
+
         if (abs(compassRotation) > 0.01f) {
+            Spacer(modifier = Modifier.height(12.dp)) // "-" Spacing (1 space)
+            
+            // [Item 4] Compass
             Box(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White.copy(alpha = 0.9f))
+                    .background(AllToDoGreen.copy(alpha = 0.8f))
                     .clickable { onCompassClick() },
                 contentAlignment = Alignment.Center
             ) {
                 Canvas(
                     modifier = Modifier
-                        .width(12.dp)
-                        .height(36.dp)
+                        .width(10.dp)
+                        .height(30.dp)
                         .rotate(-compassRotation)
                 ) {
                     val widthMid = size.width / 2
@@ -149,7 +164,7 @@ fun RightSideControls(
                         lineTo(0f, heightMid)
                         close()
                     }
-                    drawPath(outlinePath, Color(0xFF333333), style = Stroke(width = 2f)) 
+                    drawPath(outlinePath, Color.White.copy(alpha = 0.5f), style = Stroke(width = 1f)) 
                 }
             }
         }

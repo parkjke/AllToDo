@@ -1,6 +1,7 @@
 package kr.alltodo.ui.components
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -28,7 +29,8 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun GoogleMapContent(
     modifier: Modifier = Modifier,
-    clusteredItems: List<kr.alltodo.ui.TodoViewModel.PinClusterItem>, // [FIX] Use Clustered Items
+    clusteredItems: List<kr.alltodo.ui.TodoViewModel.PinClusterItem>,
+    beforeLocation: android.location.Location,
     currentLocation: android.location.Location?,
     cameraPositionState: CameraPositionState,
     onMapClick: (com.kakao.vectormap.LatLng) -> Unit,
@@ -41,9 +43,12 @@ fun GoogleMapContent(
     onMapLoaded: () -> Unit,
     showHistoryMode: Boolean,
     initialAnimationDone: Boolean,
-
     onInitialAnimationDone: () -> Unit,
-    onFarItemsDetected: (Int) -> Unit = {} // [NEW] Callback for Far Items
+    onResetAnimationDone: () -> Unit, // [NEW]
+    onEnableClustering: () -> Unit,
+    onFarItemsDetected: (Int) -> Unit = {},
+    creatingTodoLocation: com.google.android.gms.maps.model.LatLng? = null,
+    contentPaddingBottom: Int = 0 // px
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     // 1. UI Settings (Disable Toolbar & Zoom)
@@ -65,6 +70,11 @@ fun GoogleMapContent(
     // [FIX] Dynamic Filter State
     var isDistanceFilterEnabled by remember { mutableStateOf(true) }
     
+    // [FIX] State needed for MapBeginSequence
+    var googleMapInstance by remember { mutableStateOf<com.google.android.gms.maps.GoogleMap?>(null) }
+    var mapProjection by remember { mutableStateOf<com.google.android.gms.maps.Projection?>(null) }
+    var currentSpanLon by remember { mutableStateOf(0) }
+    
     // [FIX] Filter Items
     val filteredItems = remember(clusteredItems, currentLocation, isDistanceFilterEnabled) {
          val items = clusteredItems
@@ -83,27 +93,54 @@ fun GoogleMapContent(
     
     // [FIX] Removed internal farItemMessage handling. Handled by MainScreen via callback.
 
-    // [Item 4] Initial Animation: Start at 15 -> Animate to 17
-    LaunchedEffect(isMapReady, initialAnimationDone) {
-        if (initialAnimationDone || !isMapReady) return@LaunchedEffect
-        
-        val loc = currentLocation
-        if (loc == null || (loc.latitude == 0.0 && loc.longitude == 0.0)) {
-            // Start at Gwanghwamun at 15
-            cameraPositionState.move(CameraUpdateFactory.newLatLngZoom(LatLng(37.5759, 126.9768), 15f))
-        } else {
-            // Start at 15
-            cameraPositionState.move(CameraUpdateFactory.newLatLngZoom(LatLng(loc.latitude, loc.longitude), 15f))
-            delay(100)
-            // Animate to 17
-            cameraPositionState.animate(CameraUpdateFactory.zoomTo(17f), 1000)
+    // [NEW] Unified Map Begin Logic (Centralized in MapBegin.kt)
+    MapBeginSequence(
+        isMapReady = isMapReady,
+        initialAnimationDone = initialAnimationDone,
+        beforeLocation = beforeLocation,
+        currentLocation = currentLocation,
+        clusteredItems = clusteredItems,
+        onInitialAnimationDone = onInitialAnimationDone,
+        onResetAnimationDone = onResetAnimationDone, // [NEW]
+        onEnableClustering = onEnableClustering,
+        onMove = { lat, lon, zoom, animate ->
+            val update = CameraUpdateFactory.newLatLngZoom(LatLng(lat, lon), zoom)
+            // [FIX] Release Stage 2 constraint if targeting higher zoom
+            if (zoom > 15f) googleMapInstance?.resetMinMaxZoomPreference()
             
-            onInitialAnimationDone()
+            if (animate) {
+                cameraPositionState.animate(update, 1200)
+            } else {
+                cameraPositionState.move(update)
+            }
+        },
+        onFitBounds = { points, padding, _ ->
+            if (points.size == 1) {
+                val p = points.first()
+                cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(LatLng(p.first, p.second), 15f), 1000)
+            } else if (points.isNotEmpty()) {
+                val map = googleMapInstance
+                val builder = LatLngBounds.Builder()
+                points.forEach { builder.include(LatLng(it.first, it.second)) }
+                val bounds = builder.build()
+                
+                // [FIX] Lock max zoom to 15.0 for Stage 2. 
+                // Released in Stage 3 (onMove) or interaction.
+                map?.setMaxZoomPreference(15.0f)
+                cameraPositionState.animate(CameraUpdateFactory.newLatLngBounds(bounds, padding), 1000)
+            }
+        },
+        onStop = {
+            // Google Map animate can be interrupted by new move/animate calls
+        }
+    )
+
+    // [NEW] Dynamic Padding & Re-centering Reaction
+    LaunchedEffect(contentPaddingBottom, creatingTodoLocation) {
+        if (contentPaddingBottom > 0 && creatingTodoLocation != null) {
+            cameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLng(creatingTodoLocation), 500)
         }
     }
-
-    // [FIX] Projection State
-    var mapProjection by remember { mutableStateOf<com.google.android.gms.maps.Projection?>(null) }
 
     Box(modifier = modifier) {
     GoogleMap(
@@ -117,7 +154,8 @@ fun GoogleMapContent(
         onMapLongClick = { latLng ->
              onMapLongClick(com.kakao.vectormap.LatLng.from(latLng.latitude, latLng.longitude))
         },
-        onMapLoaded = onMapLoaded
+        onMapLoaded = onMapLoaded,
+        contentPadding = PaddingValues(bottom = (contentPaddingBottom / context.resources.displayMetrics.density).dp)
     ) {
         // [FIX] Use SideEffect/LaunchedEffect to track projection/rotation without breaking internal listeners
         LaunchedEffect(cameraPositionState.isMoving, cameraPositionState.position) {
@@ -132,16 +170,12 @@ fun GoogleMapContent(
         // We can set projection in OnMapLoaded or use a snapshotFlow on the map object if exposed?
         // Actually, we can use `cameraPositionState.projection`? No, it doesn't expose projection.
         
-        // Alternative: Use `MapEffect` to capture `map` instance into a state variable.
-        var googleMapInstance by remember { mutableStateOf<com.google.android.gms.maps.GoogleMap?>(null) }
-        
         MapEffect(Unit) { map ->
             googleMapInstance = map
         }
-        
+
         // Now observe state changes and update projection from instance
         // [NEW] Tethering State
-        var currentSpanLon by remember { mutableStateOf(0) }
         
         LaunchedEffect(cameraPositionState.isMoving) {
             val map = googleMapInstance ?: return@LaunchedEffect
@@ -186,6 +220,16 @@ fun GoogleMapContent(
              }
         }
         */
+        
+        // [NEW] Show Creating Todo Pin (Green)
+        if (creatingTodoLocation != null) {
+            val icon = bitmapDescriptorFromVector(context, kr.alltodo.R.drawable.pin_todo_ready, 40)
+            Marker(
+                state = MarkerState(position = creatingTodoLocation),
+                icon = icon,
+                anchor = Offset(0.5f, 1.0f)
+            )
+        }
         
         // [FIX] Render Clustered Items (Filtered)
         filteredItems.forEach { cluster ->

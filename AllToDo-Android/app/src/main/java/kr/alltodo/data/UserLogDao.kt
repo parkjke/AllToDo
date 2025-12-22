@@ -1,14 +1,11 @@
 package kr.alltodo.data
 
-import androidx.room.Dao
-import androidx.room.Delete
-import androidx.room.Insert
-import androidx.room.Query
+import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface UserLogDao {
-    @Query("SELECT * FROM user_logs ORDER BY startTime DESC")
+    @Query("SELECT * FROM user_logs ORDER BY start_time DESC")
     fun getAllLogs(): Flow<List<UserLog>>
 
     @Insert
@@ -17,6 +14,6 @@ interface UserLogDao {
     @Delete
     suspend fun deleteLog(log: UserLog)
     
-    @Query("SELECT * FROM user_logs WHERE startTime >= :startOfDay AND endTime <= :endOfDay")
+    @Query("SELECT * FROM user_logs WHERE start_time >= :startOfDay AND end_time <= :endOfDay")
     fun getLogsForDay(startOfDay: Long, endOfDay: Long): Flow<List<UserLog>>
 }

@@ -11,7 +11,7 @@ val PurpleGrey40 = Color(0xFF625b71)
 val Pink40 = Color(0xFF7D5260)
 
 // AllToDo Custom Colors
-val AllToDoGreen = Color(0xFF00E676) // Fresh Summer Green
+val AllToDoGreen = Color(0xFF28CD41) // iOS-Style Fresh Summer Green
 val AllToDoRed = Color(0xFFD32F2F) // Red for external
 val AllToDoBlue = Color(0xFF1976D2) // Blue for local
 val AllToDoBlack = Color(0xFF000000)

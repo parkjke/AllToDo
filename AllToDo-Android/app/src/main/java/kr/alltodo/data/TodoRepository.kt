@@ -17,4 +17,12 @@ class TodoRepository @Inject constructor(private val todoDao: TodoDao) {
     suspend fun delete(todo: TodoItem) {
         todoDao.delete(todo)
     }
+
+    suspend fun insertPaths(paths: List<PathItem>) {
+        todoDao.insertPaths(paths)
+    }
+
+    fun getPathsForTodo(todoId: String): Flow<List<PathItem>> {
+        return todoDao.getPathsForTodo(todoId)
+    }
 }

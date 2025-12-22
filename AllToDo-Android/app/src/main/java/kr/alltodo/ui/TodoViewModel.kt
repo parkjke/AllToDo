@@ -18,13 +18,15 @@ import kotlinx.coroutines.Job // [FIX] Added
 import kotlinx.coroutines.delay // [FIX] Added
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable // [FIX] Import
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
 
 @HiltViewModel
 class TodoViewModel @Inject constructor(
     private val todoRepository: TodoRepository,
     private val locationRepository: LocationRepository,
-    private val userLogDao: kr.alltodo.data.UserLogDao,
     private val wasmManager: kr.alltodo.wasm.WasmManager // [FIX] Hilt Injected
 ) : ViewModel() {
 
@@ -37,9 +39,9 @@ class TodoViewModel @Inject constructor(
     private val _todayLocations = MutableStateFlow<List<LocationEntity>>(emptyList())
     val todayLocations: StateFlow<List<LocationEntity>> = _todayLocations.asStateFlow()
     
-    // Session Management
-    private val _userLogs = MutableStateFlow<List<kr.alltodo.data.UserLog>>(emptyList())
-    val userLogs: StateFlow<List<kr.alltodo.data.UserLog>> = _userLogs.asStateFlow()
+    // [NEW] Path Viewer State (Now using TodoItem)
+    private val _selectedHistoryPath = MutableStateFlow<List<kr.alltodo.data.PathItem>>(emptyList())
+    val selectedHistoryPath: StateFlow<List<kr.alltodo.data.PathItem>> = _selectedHistoryPath.asStateFlow()
     
     // [NEW] Debug Status for Overlay
     private val _debugStatus = MutableStateFlow("Initializing...")
@@ -76,6 +78,12 @@ class TodoViewModel @Inject constructor(
     private val _clusteredItems = MutableStateFlow<List<PinClusterItem>>(emptyList())
     val clusteredItems: StateFlow<List<PinClusterItem>> = _clusteredItems.asStateFlow()
 
+    private val _recentNames = MutableStateFlow<List<String>>(emptyList())
+    val recentNames: StateFlow<List<String>> = _recentNames.asStateFlow()
+
+    private val _recentMemos = MutableStateFlow<List<String>>(emptyList())
+    val recentMemos: StateFlow<List<String>> = _recentMemos.asStateFlow()
+
     private val _currentZoom = MutableStateFlow(15f)
     private val _showHistoryMode = MutableStateFlow(false)
     val showHistoryMode: StateFlow<Boolean> = _showHistoryMode.asStateFlow()
@@ -89,8 +97,12 @@ class TodoViewModel @Inject constructor(
     
     fun toggleHistoryMode() {
         _showHistoryMode.value = !_showHistoryMode.value
-        updateFilteredItems()
+        updateFilteredItems(immediate = true)
     }
+
+    private var lastFilteredTodoCount = -1
+    private var lastFilteredLogCount = -1
+    private var lastTotalTodoCount = -1
     
     private val _currentLocation = MutableStateFlow<UnifiedItem.CurrentLocation?>(null)
     private var filterJob: Job? = null
@@ -104,18 +116,21 @@ class TodoViewModel @Inject constructor(
         updateFilteredItems()
     }
 
-    private fun updateFilteredItems() {
-        // [FIX] Debounce logic to prevent UI freeze on high-frequency location updates (0.9s)
+    private fun updateFilteredItems(immediate: Boolean = false) {
+        // [FIX] Debounce logic for location updates, but bypass for manual actions
         filterJob?.cancel()
         filterJob = viewModelScope.launch(Dispatchers.Default) {
-             delay(500) // Wait 500ms for settlement
+             if (!immediate) {
+                 delay(200)
+             }
              
              val todos = _todoItems.value
-             val logs = _userLogs.value
+             val historyItems = todos.filter { it.type == "00" }
+             val normalTodos = todos.filter { it.type == "10" }
+
              val isHistory = _showHistoryMode.value
              val currentLoc = _currentLocation.value
 
-             
              val now = System.currentTimeMillis()
              val oneDay = 24 * 60 * 60 * 1000L
              // If History Mode: Show items from Yesterday
@@ -124,18 +139,34 @@ class TodoViewModel @Inject constructor(
              val minTime = targetTime - oneDay
              val maxTime = targetTime + oneDay
 
-             // [DEBUG] Log Raw Counts
+             val filteredLogItems = historyItems.filter { (it.begin_time ?: it.created_at) in minTime .. maxTime }
+                 .map { kr.alltodo.ui.UnifiedItem.History(it) }
+             
+             // [RESTORED] Apply 24h filter to Todos as requested
+             val filteredTodoItems = normalTodos.filter { it.created_at in minTime .. maxTime }
+                 .map { kr.alltodo.ui.UnifiedItem.Todo(it) }
+             
+             // [DEBUG LOGGING] Log only if counts changed or immediate
+             val timeStr = SimpleDateFormat("HH:mm:ss", Locale.KOREA).format(Date())
+             val currentFilteredTodoCount = filteredTodoItems.size
+             val currentFilteredLogCount = filteredLogItems.size
+             val rawTodoCount = normalTodos.size
+             val rawLogCount = historyItems.size
 
-             val filteredLogItems = logs.filter { it.startTime in minTime..maxTime }.map { kr.alltodo.ui.UnifiedItem.History(it) }
-             
-             // [FIX] Temporarily Disable Time Filter for Todos to show ALL pins
-             val filteredTodoItems = if (isHistory) {
-                 emptyList()
-             } else {
-                 // Show ALL Todos regardless of time to debug "Missing Pins"
-                 todos.map { kr.alltodo.ui.UnifiedItem.Todo(it) }
+             if (immediate || currentFilteredTodoCount != lastFilteredTodoCount || currentFilteredLogCount != lastFilteredLogCount || rawTodoCount != lastTotalTodoCount) {
+                 println("$timeStr >>> [Map Display] Raw DB Counts: Todos=$rawTodoCount, Logs=$rawLogCount")
+                 println("$timeStr >>> [Map Display] Filter Window: $minTime ~ $maxTime")
+                 println("$timeStr >>> [Map Display] Filtered Counts: Todos=$currentFilteredTodoCount, History=$currentFilteredLogCount")
+                 
+                 if (rawTodoCount > 0 && currentFilteredTodoCount == 0) {
+                     println("$timeStr >>> [ALERT] $rawTodoCount Todos exist in DB but 0 passed the 24h filter window!")
+                 }
+                 
+                 lastFilteredTodoCount = currentFilteredTodoCount
+                 lastFilteredLogCount = currentFilteredLogCount
+                 lastTotalTodoCount = rawTodoCount
              }
-             
+
              val combined = filteredLogItems + filteredTodoItems
 
              // [NEW] 500km Filter Logic
@@ -211,11 +242,8 @@ class TodoViewModel @Inject constructor(
              // 1. Prepare Points for WASM
              // [lat, lng, lat, lng...] * 100000
              val flatPoints = items.flatMap { item ->
-                 val (lat, lng) = when(item) {
-                     is kr.alltodo.ui.UnifiedItem.Todo -> item.item.latitude to item.item.longitude
-                     is kr.alltodo.ui.UnifiedItem.History -> item.log.latitude to item.log.longitude
-                     is kr.alltodo.ui.UnifiedItem.CurrentLocation -> item.lat to item.lon
-                 }
+                 val lat = item.latitude
+                 val lng = item.longitude
                  // [DEBUG] Check individual item coordinates
 
                  if (lat != null && lng != null && lat != 0.0) {
@@ -237,11 +265,8 @@ class TodoViewModel @Inject constructor(
              if (!_isClusteringEnabled.value) {
                  val rawClusters = mutableListOf<PinClusterItem>()
                  items.forEach { item ->
-                     val (lat, lng) = when(item) {
-                         is kr.alltodo.ui.UnifiedItem.Todo -> item.item.latitude to item.item.longitude
-                         is kr.alltodo.ui.UnifiedItem.History -> item.log.latitude to item.log.longitude
-                         is kr.alltodo.ui.UnifiedItem.CurrentLocation -> item.lat to item.lon
-                     }
+                     val lat = item.latitude
+                     val lng = item.longitude
                      if (lat != null && lng != null && lng != 0.0) {
                          val list = ArrayList<UnifiedItem>()
                          list.add(item)
@@ -277,11 +302,8 @@ class TodoViewModel @Inject constructor(
                  // Fallback: Create 1 item per valid point
                  val fallbackClusters = mutableListOf<PinClusterItem>()
                  items.forEach { item ->
-                     val (lat, lng) = when(item) {
-                         is kr.alltodo.ui.UnifiedItem.Todo -> item.item.latitude to item.item.longitude
-                         is kr.alltodo.ui.UnifiedItem.History -> item.log.latitude to item.log.longitude
-                         is kr.alltodo.ui.UnifiedItem.CurrentLocation -> item.lat to item.lon
-                     }
+                     val lat = item.latitude
+                     val lng = item.longitude
                      if (lat != null && lng != null && lng != 0.0) { // Should match validation logic
                          val list = ArrayList<UnifiedItem>()
                          list.add(item)
@@ -317,11 +339,8 @@ class TodoViewModel @Inject constructor(
              // Optimization: Prepare cluster centers list first?
              if (newClusters.isNotEmpty()) {
                  items.forEach { item ->
-                     val (lat, lng) = when(item) {
-                         is kr.alltodo.ui.UnifiedItem.Todo -> item.item.latitude to item.item.longitude
-                         is kr.alltodo.ui.UnifiedItem.History -> item.log.latitude to item.log.longitude
-                         is kr.alltodo.ui.UnifiedItem.CurrentLocation -> item.lat to item.lon
-                     }
+                     val lat = item.latitude
+                     val lng = item.longitude
                      if (lat != null && lng != null) {
                          // Find nearest cluster
                          var minDist = Double.MAX_VALUE
@@ -377,9 +396,7 @@ class TodoViewModel @Inject constructor(
         
         loadTodos()
         loadTodayLocations()
-        loadUserLogs()
-        startSession() // Start session on init
-        
+        toggleTracking() // [FIX] Use toggleTracking to ensure _isTracking flag is also set
     }
     
 
@@ -394,7 +411,7 @@ class TodoViewModel @Inject constructor(
         _debugStatus.value = "Recording... (0 pts)"
     }
     
-    fun endSession() {
+    fun endSession(scope: kotlinx.coroutines.CoroutineScope = viewModelScope) {
         try {
             val start = sessionStartTime
             // [FIX] Guard: If session not started or empty, skip
@@ -425,7 +442,7 @@ class TodoViewModel @Inject constructor(
 
             // [ROBUST] Launch with NonCancellable to survive ViewModel clearing during save
             // Using IO Dispatcher for DB operations
-            viewModelScope.launch(Dispatchers.IO + NonCancellable) {
+            scope.launch(Dispatchers.IO + NonCancellable) {
                 try {
                     // 1. Calculate Midpoint
                     var sumLat: Double = 0.0
@@ -437,31 +454,37 @@ class TodoViewModel @Inject constructor(
                     val avgLat = sumLat / pointCount
                     val avgLon = sumLng / pointCount
                     
-                    // 2. Encode Path
-                    val pathJson = StringBuilder("[")
-                    for (i in finalPoints.indices) {
-                        if (i > 0) pathJson.append(",")
-                        val p = finalPoints[i]
-                        pathJson.append("{\"lat\":${p.latitude},\"lon\":${p.longitude}}")
-                    }
-                    pathJson.append("]")
-                    
-                    val log = kr.alltodo.data.UserLog(
+                    // 2. Create TodoItem (Type: 00 - History)
+                    val todoId = java.util.UUID.randomUUID().toString()
+                    val historyTodo = TodoItem(
+                        todo_id = todoId,
+                        todo_name = "이동 히스토리",
+                        type = "00", // History
+                        is_exist_location_path = true,
                         latitude = avgLat,
                         longitude = avgLon,
-                        startTime = start,
-                        endTime = endTime,
-                        pathData = pathJson.toString()
+                        begin_time = start,
+                        end_time = endTime,
+                        created_at = System.currentTimeMillis()
                     )
                     
-                    // 3. Save to DB
-                    userLogDao.insertLog(log)
+                    // 3. Save Todo & Paths to DB
+                    todoRepository.insert(historyTodo)
                     
-                    kr.alltodo.services.RemoteLogger.info(">>> Session Saved Successfully to DB.")
+                    val pathItems = finalPoints.map { p ->
+                        kr.alltodo.data.PathItem(
+                            todo_id = todoId,
+                            int_long = (p.longitude * 100_000).toInt(),
+                            int_lat = (p.latitude * 100_000).toInt()
+                        )
+                    }
+                    todoRepository.insertPaths(pathItems)
                     
-                    // Refresh logs on Main Thread
+                    kr.alltodo.services.RemoteLogger.info(">>> History Saved Successfully to Todo & Path tables.")
+                    
+                    // Refresh data on Main Thread
                     withContext(Dispatchers.Main) {
-                        loadUserLogs()
+                        loadTodos()
                         _debugStatus.value = "Saved $pointCount pts"
                     }
 
@@ -521,8 +544,14 @@ class TodoViewModel @Inject constructor(
     private fun loadTodos() {
         viewModelScope.launch {
             todoRepository.allTodos.collect { items: List<TodoItem> ->
+                val timeStr = SimpleDateFormat("HH:mm:ss", Locale.KOREA).format(Date())
+                println("$timeStr >>> [App Start] Total DB Todos: ${items.size}")
                 _todoItems.value = items
-                updateFilteredItems()
+                _recentNames.value = items.map { it.todo_name }.distinct().take(3)
+                _recentMemos.value = items.mapNotNull { it.memo }.distinct().take(3)
+
+                // [NEW] Use immediate refresh when todos change to feel 'instant'
+                updateFilteredItems(immediate = true)
             }
         }
     }
@@ -535,30 +564,32 @@ class TodoViewModel @Inject constructor(
         }
     }
     
-    private fun loadUserLogs() {
+    fun fetchPathForHistory(todo: TodoItem) {
         viewModelScope.launch {
-            userLogDao.getAllLogs().collect { logs ->
-                _userLogs.value = logs
-                updateFilteredItems()
+            todoRepository.getPathsForTodo(todo.todo_id).collect { paths ->
+                _selectedHistoryPath.value = paths
             }
         }
     }
 
-    fun addTodo(text: String) {
+    fun addTodo(text: String, latitude: Double, longitude: Double, person: String? = null, date: String? = null, time: String? = null, memo: String? = null) {
+        val timeStr = SimpleDateFormat("HH:mm:ss", Locale.KOREA).format(Date())
+        println("$timeStr >>> [Add Todo] Intent: $text at ($latitude, $longitude)")
+        
         viewModelScope.launch {
-            todoRepository.insert(TodoItem(text = text, source = "local"))
-        }
-    }
-
-    fun addTodo(text: String, latitude: Double, longitude: Double) {
-        viewModelScope.launch {
-            todoRepository.insert(TodoItem(
-                text = text, 
+            val todo = TodoItem(
+                todo_name = text, 
                 source = "local",
                 latitude = latitude,
                 longitude = longitude,
-                createdAt = System.currentTimeMillis()
-            ))
+                person = person,
+                date_time = if (date != null && time != null) "$date $time" else date ?: time,
+                memo = memo,
+                created_at = System.currentTimeMillis()
+            )
+            todoRepository.insert(todo)
+            val finishTimeStr = SimpleDateFormat("HH:mm:ss", Locale.KOREA).format(Date())
+            println("$finishTimeStr >>> [Add Todo] Saved OK: id=${todo.todo_id}")
         }
     }
 
@@ -574,13 +605,6 @@ class TodoViewModel @Inject constructor(
         }
     }
     
-    fun deleteUserLog(log: kr.alltodo.data.UserLog) {
-        viewModelScope.launch {
-            userLogDao.deleteLog(log)
-            loadUserLogs()
-        }
-    }
-
     fun deleteLocation(location: LocationEntity) {
         viewModelScope.launch {
             locationRepository.delete(location)
@@ -591,12 +615,12 @@ class TodoViewModel @Inject constructor(
     fun convertLocationToTodo(location: LocationEntity) {
         viewModelScope.launch {
             val newTodo = TodoItem(
-                text = "위치 할 일",
+                todo_name = "위치 할 일",
                 completed = false,
                 source = "local",
                 latitude = location.latitude,
                 longitude = location.longitude,
-                createdAt = System.currentTimeMillis()
+                created_at = System.currentTimeMillis()
             )
             todoRepository.insert(newTodo)
             locationRepository.delete(location)
@@ -626,7 +650,12 @@ class TodoViewModel @Inject constructor(
             timestamp = now
         )
         
-        // Add to Buffer
+        // [FIX] Proactively save to DB to survive crashes/termination
+        viewModelScope.launch(Dispatchers.IO) {
+            locationRepository.saveLocation(latitude, longitude)
+        }
+
+        // Add to Buffer for live visualization/WASM compression
         pendingBuffer.add(entity)
         
         // Update Status
@@ -638,5 +667,13 @@ class TodoViewModel @Inject constructor(
                 processBuffer()
             }
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        // [ROBUST] When app is terminated/swiped away, end current session and save path to History
+        // Using a new scope because viewModelScope is already cancelled here
+        val deathScope = kotlinx.coroutines.CoroutineScope(Dispatchers.IO)
+        endSession(deathScope)
     }
 }

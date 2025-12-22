@@ -14,13 +14,13 @@ sealed class UnifiedItem {
     data class Todo(val item: TodoItem) : UnifiedItem() {
         override val latitude get() = item.latitude ?: 0.0
         override val longitude get() = item.longitude ?: 0.0
-        override val timestamp get() = item.createdAt
+        override val timestamp get() = item.created_at
     }
 
-    data class History(val log: UserLog) : UnifiedItem() {
-        override val latitude get() = log.latitude
-        override val longitude get() = log.longitude
-        override val timestamp get() = log.startTime
+    data class History(val item: TodoItem) : UnifiedItem() {
+        override val latitude get() = item.latitude ?: 0.0
+        override val longitude get() = item.longitude ?: 0.0
+        override val timestamp get() = item.begin_time ?: item.created_at
     }
 
     data class CurrentLocation(val lat: Double, val lon: Double) : UnifiedItem() {
@@ -148,5 +148,11 @@ fun createKakaoPinBitmap(context: android.content.Context, count: Int, baseResId
     // val scale = 0.85f // [ROLLBACK INFO] Old value
     val scale = 0.7f // [NEW] Adjusted to 0.7 as requested
     
+    return PinImageManager.createClusterPin(context, baseResId, count, badgeColor, scale) ?: createRedDotBitmap()
+}
+
+// [NEW] Naver Pin (Current: 1.0f for user scaling)
+fun createNaverPinBitmap(context: android.content.Context, count: Int, baseResId: Int, badgeColor: Int): Bitmap {
+    val scale = 1.0f // [NEW] Set to 1.0 as requested
     return PinImageManager.createClusterPin(context, baseResId, count, badgeColor, scale) ?: createRedDotBitmap()
 }

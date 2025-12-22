@@ -54,7 +54,7 @@ fun UserProfileView(
             .fillMaxHeight()
             .fillMaxWidth(0.85f), // Leave 15% for right controls
         shape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFE0E0E0)), // Opaque Gray 2
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
         Column(
@@ -86,7 +86,7 @@ fun UserProfileView(
                     text = "My Info",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
-                    color = AllToDoGreen,
+                    color = Color(0xFF333333),
                     modifier = Modifier.clickable { tapCount++ } // Triple tap logic
                 )
 
@@ -109,7 +109,7 @@ fun UserProfileView(
                         Icon(
                             imageVector = Icons.Default.DirectionsWalk,
                             contentDescription = "GPS Tracker",
-                            tint = if (isTracking) kr.alltodo.ui.theme.AllToDoRed else AllToDoGreen,
+                            tint = if (isTracking) kr.alltodo.ui.theme.AllToDoRed else Color(0xFF333333),
                             modifier = Modifier.size(32.dp)
                         )
                     }
@@ -117,12 +117,12 @@ fun UserProfileView(
                     Spacer(modifier = Modifier.width(8.dp))
 
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", modifier = Modifier.size(32.dp))
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color(0xFF333333), modifier = Modifier.size(32.dp))
                     }
                 }
             }
             
-            Divider(modifier = Modifier.padding(vertical = 16.dp))
+            Divider(color = Color(0xFF333333).copy(alpha = 0.3f), modifier = Modifier.padding(vertical = 16.dp))
             
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -134,7 +134,7 @@ fun UserProfileView(
                     .size(80.dp)
                     .background(Color.LightGray.copy(alpha = 0.2f), RoundedCornerShape(40.dp))
                     .padding(16.dp),
-                tint = Color.Gray
+                tint = Color(0xFF333333)
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -143,31 +143,49 @@ fun UserProfileView(
             OutlinedTextField(
                 value = "User 1234",
                 onValueChange = {},
-                label = { Text("Nickname") },
-                readOnly = true,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedLabelColor = Color(0xFF333333),
+                    unfocusedLabelColor = Color(0xFF333333).copy(alpha = 0.7f),
+                    focusedBorderColor = Color(0xFF333333),
+                    unfocusedBorderColor = Color(0xFF333333).copy(alpha = 0.5f),
+                    focusedTextColor = Color(0xFF333333),
+                    unfocusedTextColor = Color(0xFF333333)
+                )
             )
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
                 value = "010-1234-5678",
                 onValueChange = {},
-                label = { Text("Phone Number") },
-                readOnly = true,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedLabelColor = Color(0xFF333333),
+                    unfocusedLabelColor = Color(0xFF333333).copy(alpha = 0.7f),
+                    focusedBorderColor = Color(0xFF333333),
+                    unfocusedBorderColor = Color(0xFF333333).copy(alpha = 0.5f),
+                    focusedTextColor = Color(0xFF333333),
+                    unfocusedTextColor = Color(0xFF333333)
+                )
             )
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
                 value = "Seoul, Gangnam-gu, ...",
                 onValueChange = {},
-                label = { Text("Address") },
-                readOnly = true,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedLabelColor = Color(0xFF333333),
+                    unfocusedLabelColor = Color(0xFF333333).copy(alpha = 0.7f),
+                    focusedBorderColor = Color(0xFF333333),
+                    unfocusedBorderColor = Color(0xFF333333).copy(alpha = 0.5f),
+                    focusedTextColor = Color(0xFF333333),
+                    unfocusedTextColor = Color(0xFF333333)
+                )
             )
 
             Divider(modifier = Modifier.padding(vertical = 16.dp))
 
             // Settings
-            Text("Settings", fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
+            Text("Settings", color = Color(0xFF333333), fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
             Spacer(modifier = Modifier.height(8.dp))
 
             // Max Items Stepper
@@ -176,13 +194,13 @@ fun UserProfileView(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Max Popup Items: $maxPopupItems")
+                Text("Max Popup Items: $maxPopupItems", color = Color(0xFF333333))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { if (maxPopupItems > 1) onMaxItemsChange(maxPopupItems - 1) }) {
-                        Icon(Icons.Default.Remove, contentDescription = "Decrease")
+                        Icon(Icons.Default.Remove, contentDescription = "Decrease", tint = Color(0xFF333333))
                     }
                     IconButton(onClick = { if (maxPopupItems < 10) onMaxItemsChange(maxPopupItems + 1) }) {
-                        Icon(Icons.Default.Add, contentDescription = "Increase")
+                        Icon(Icons.Default.Add, contentDescription = "Increase", tint = Color(0xFF333333))
                     }
                 }
             }
@@ -190,27 +208,27 @@ fun UserProfileView(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Font Size
-            Text("Font Size", modifier = Modifier.align(Alignment.Start))
+            Text("Font Size", color = Color(0xFF333333), modifier = Modifier.align(Alignment.Start))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 FilterChip(
                     selected = popupFontSize == 0,
                     onClick = { onFontSizeChange(0) },
-                    label = { Text("Small") }
+                    label = { Text("Small", color = Color(0xFF333333)) }
                 )
                 FilterChip(
                     selected = popupFontSize == 1,
                     onClick = { onFontSizeChange(1) },
-                    label = { Text("Medium") }
+                    label = { Text("Medium", color = Color(0xFF333333)) }
                 )
                 FilterChip(
                     selected = popupFontSize == 2,
                     onClick = { onFontSizeChange(2) },
-                    label = { Text("Large") }
+                    label = { Text("Large", color = Color(0xFF333333)) }
                 )
             }
             // Map Provider Settings
-            Divider(modifier = Modifier.padding(vertical = 8.dp))
-            Text("Map Provider", fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
+            Divider(color = Color(0xFF333333).copy(alpha = 0.3f), modifier = Modifier.padding(vertical = 8.dp))
+            Text("Map Provider", color = Color(0xFF333333), fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
             Column {
                 MapProvider.values().forEach { provider ->
                     Row(
@@ -221,13 +239,18 @@ fun UserProfileView(
                     ) {
                         RadioButton(
                             selected = (provider == currentMapProvider),
-                            onClick = { onMapProviderChange(provider) }
+                            onClick = { onMapProviderChange(provider) },
+                            colors = RadioButtonDefaults.colors(selectedColor = kr.alltodo.ui.theme.AllToDoGreen, unselectedColor = Color(0xFF333333).copy(alpha = 0.7f))
                         )
                         Text(
                             text = provider.name,
                             style = MaterialTheme.typography.bodyLarge,
+                            color = Color(0xFF333333),
                             modifier = Modifier.padding(start = 8.dp)
                         )
+                    }
+                    if (provider != MapProvider.values().last()) { // Add divider between items, but not after the last one
+                        Divider(color = Color(0xFF333333).copy(alpha = 0.3f))
                     }
                 }
             }

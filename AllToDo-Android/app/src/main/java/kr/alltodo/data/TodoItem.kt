@@ -2,15 +2,55 @@ package kr.alltodo.data
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import androidx.room.ColumnInfo
 import java.util.UUID
 
 @Entity(tableName = "todo_items")
 data class TodoItem(
-    @PrimaryKey val id: String = UUID.randomUUID().toString(),
-    val text: String,
+    @PrimaryKey 
+    @ColumnInfo(name = "todo_id")
+    val todo_id: String = UUID.randomUUID().toString(),
+    
+    @ColumnInfo(name = "todo_name")
+    val todo_name: String,
+    
+    @ColumnInfo(name = "is_exist_person")
+    val is_exist_person: Boolean = false,
+    
+    @ColumnInfo(name = "date_time")
+    val date_time: String? = null, // Combining date and time for now as per schema
+    
+    @ColumnInfo(name = "memo")
+    val memo: String? = null,
+    
+    @ColumnInfo(name = "is_exist_location_path")
+    val is_exist_location_path: Boolean = false,
+    
+    @ColumnInfo(name = "begin_time")
+    val begin_time: Long? = null,
+    
+    @ColumnInfo(name = "end_time")
+    val end_time: Long? = null,
+    
+    @ColumnInfo(name = "type")
+    val type: String = "10", // 00: History, 10: To-do, 20: Server
+    
+    @ColumnInfo(name = "created_at")
+    val created_at: Long = System.currentTimeMillis(),
+    
+    // Additional fields for app logic
+    @ColumnInfo(name = "completed")
     val completed: Boolean = false,
-    val createdAt: Long = System.currentTimeMillis(),
-    val source: String = "local", // "local" or "external"
+    
+    @ColumnInfo(name = "latitude")
     val latitude: Double? = null,
-    val longitude: Double? = null
+    
+    @ColumnInfo(name = "longitude")
+    val longitude: Double? = null,
+    
+    @ColumnInfo(name = "person")
+    val person: String? = null,
+    
+    @ColumnInfo(name = "source")
+    val source: String = "local"
 )

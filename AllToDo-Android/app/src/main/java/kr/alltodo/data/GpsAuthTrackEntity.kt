@@ -1,23 +1,28 @@
 package kr.alltodo.data
 
-import androidx.room.Entity
-import androidx.room.PrimaryKey
-import androidx.room.TypeConverters
-import androidx.room.TypeConverter
+import androidx.room.*
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
 @Entity(tableName = "gps_auth_tracks")
 data class GpsAuthTrackEntity(
-    @PrimaryKey val id: String,
-    val startTime: Long,
-    val endTime: Long,
-    val pointsJson: String // Serialized List<GpsAuthPoint>
+    @PrimaryKey 
+    @ColumnInfo(name = "id")
+    val id: String,
+    
+    @ColumnInfo(name = "start_time")
+    val start_time: Long,
+    
+    @ColumnInfo(name = "end_time")
+    val end_time: Long,
+    
+    @ColumnInfo(name = "points_json")
+    val points_json: String // Serialized List<GpsAuthPoint>
 ) {
     fun toDomain(): GpsAuthTrack {
         val type = object : TypeToken<List<GpsAuthPoint>>() {}.type
-        val points: List<GpsAuthPoint> = Gson().fromJson(pointsJson, type)
-        return GpsAuthTrack(id, startTime, endTime, points)
+        val points: List<GpsAuthPoint> = Gson().fromJson(points_json, type)
+        return GpsAuthTrack(id, start_time, end_time, points)
     }
 
     companion object {

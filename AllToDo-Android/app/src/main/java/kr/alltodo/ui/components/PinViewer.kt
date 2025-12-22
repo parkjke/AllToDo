@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kr.alltodo.ui.PinImageManager
+import kr.alltodo.ui.theme.AllToDoGreen
 
 @Composable
 fun PinViewer(onDismiss: () -> Unit) {
@@ -49,7 +50,7 @@ fun PinViewer(onDismiss: () -> Unit) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.White)
+                .background(AllToDoGreen.copy(alpha = 0.8f))
                 .padding(16.dp)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
@@ -59,7 +60,7 @@ fun PinViewer(onDismiss: () -> Unit) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Pin Gallery & Debugger", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                    Text("Pin Gallery & Debugger", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF333333))
                     
                     Row {
                         // Rebuild Button
@@ -67,15 +68,15 @@ fun PinViewer(onDismiss: () -> Unit) {
                             PinImageManager.clearCacheAndRebuild(context)
                             refreshTrigger++
                         }) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Rebuild", tint = Color.Black)
+                            Icon(Icons.Default.Refresh, contentDescription = "Rebuild", tint = Color(0xFF333333))
                         }
                         IconButton(onClick = onDismiss) {
-                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Black)
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color(0xFF333333))
                         }
                     }
                 }
                 
-                Divider(color = Color.LightGray)
+                Divider(color = Color(0xFF333333).copy(alpha = 0.3f))
                 
                 // Content Split (Top/Bottom)
                 Column(modifier = Modifier.fillMaxSize().padding(top = 16.dp)) {
@@ -84,14 +85,14 @@ fun PinViewer(onDismiss: () -> Unit) {
                         modifier = Modifier
                             .weight(0.4f)
                             .fillMaxWidth()
-                            .border(1.dp, Color.Gray, RoundedCornerShape(8.dp))
+                            .border(1.dp, Color(0xFF333333).copy(alpha = 0.5f), RoundedCornerShape(8.dp))
                     ) {
                         items(pins) { pin ->
                             val isSelected = selectedPin == pin
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(if (isSelected) Color(0xFFE0F7FA) else Color.White)
+                                    .background(if (isSelected) Color.White.copy(alpha = 0.2f) else Color.Transparent)
                                     .clickable { selectedPin = pin }
                                     .padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -116,10 +117,10 @@ fun PinViewer(onDismiss: () -> Unit) {
                                     text = pin.second.replace("pin_", "").replace("_v1", "").replace("_v2", ""),
                                     fontSize = 16.sp, // Increased font size
                                     fontWeight = FontWeight.Medium,
-                                    color = Color.Black
+                                    color = Color(0xFF333333)
                                 )
                             }
-                            Divider(color = Color.LightGray)
+                            Divider(color = Color(0xFF333333).copy(alpha = 0.1f))
                         }
                     }
                     
@@ -130,7 +131,7 @@ fun PinViewer(onDismiss: () -> Unit) {
                         modifier = Modifier
                             .weight(0.6f)
                             .fillMaxWidth()
-                            .border(1.dp, Color.Gray, RoundedCornerShape(8.dp))
+                            .border(1.dp, Color(0xFF333333).copy(alpha = 0.5f), RoundedCornerShape(8.dp))
                             .padding(16.dp)
                     ) {
                         if (selectedPin != null) {
@@ -141,7 +142,7 @@ fun PinViewer(onDismiss: () -> Unit) {
                                     .verticalScroll(rememberScrollState()),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Text("Original SVG (Vector)", fontWeight = FontWeight.Bold, color = Color.Black)
+                                Text("Original SVG (Vector)", fontWeight = FontWeight.Bold, color = Color(0xFF333333))
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Image(
                                     painter = painterResource(pin.first),
@@ -153,7 +154,7 @@ fun PinViewer(onDismiss: () -> Unit) {
                                 Divider()
                                 Spacer(modifier = Modifier.height(24.dp))
                                 
-                                Text("Bitmap Simulations (Parity Check)", fontWeight = FontWeight.Bold, color = Color.Black)
+                                Text("Bitmap Simulations (Parity Check)", fontWeight = FontWeight.Bold, color = Color(0xFF333333))
                                 Spacer(modifier = Modifier.height(16.dp))
                                 
                                 // Density Variations
@@ -183,10 +184,10 @@ fun PinViewer(onDismiss: () -> Unit) {
                                                     contentDescription = label
                                                 ) // Intrinsic size
                                                 Spacer(modifier = Modifier.height(4.dp))
-                                                Text(label, fontSize = 12.sp, color = Color.Gray)
+                                                Text(label, fontSize = 12.sp, color = Color(0xFF333333).copy(alpha = 0.7f))
                                                 Text(
                                                     "${simulatedBitmap.width}x${simulatedBitmap.height}px", 
-                                                    fontSize = 10.sp, color = Color.Gray
+                                                    fontSize = 10.sp, color = Color(0xFF333333).copy(alpha = 0.5f)
                                                 )
                                             } else {
                                                 Text("Err", color = Color.Red)
@@ -196,7 +197,7 @@ fun PinViewer(onDismiss: () -> Unit) {
                                 }
                                 
                                 Spacer(modifier = Modifier.height(24.dp))
-                                Text("Currently Cached File", fontWeight = FontWeight.Bold, color = Color.Black)
+                                Text("Currently Cached File", fontWeight = FontWeight.Bold, color = Color(0xFF333333))
                                 val currentCached = PinImageManager.getPinBitmap(pin.first)
                                 if (currentCached != null) {
                                     Text(

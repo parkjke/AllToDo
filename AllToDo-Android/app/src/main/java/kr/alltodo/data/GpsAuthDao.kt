@@ -1,14 +1,11 @@
 package kr.alltodo.data
 
-import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
-import androidx.room.Query
+import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface GpsAuthDao {
-    @Query("SELECT * FROM gps_auth_tracks ORDER BY startTime DESC")
+    @Query("SELECT * FROM gps_auth_tracks ORDER BY start_time DESC")
     fun getAllTracks(): Flow<List<GpsAuthTrackEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

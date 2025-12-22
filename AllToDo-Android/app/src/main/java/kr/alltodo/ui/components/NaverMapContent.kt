@@ -16,6 +16,7 @@ import kr.alltodo.ui.UnifiedItem
 import com.naver.maps.geometry.LatLng
 import com.naver.maps.geometry.LatLngBounds
 import com.naver.maps.map.CameraAnimation
+import com.naver.maps.map.CameraPosition
 import com.naver.maps.map.CameraUpdate
 import com.naver.maps.map.MapView
 import com.naver.maps.map.NaverMap
@@ -23,11 +24,14 @@ import com.naver.maps.map.overlay.Marker
 import com.naver.maps.map.overlay.OverlayImage
 import com.naver.maps.map.overlay.PathOverlay
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 
 @Composable
 fun NaverMapContent(
     modifier: Modifier = Modifier,
     clusteredItems: List<kr.alltodo.ui.TodoViewModel.PinClusterItem>,
+    beforeLocation: android.location.Location,
     currentLocation: android.location.Location?,
     onMapReady: (NaverMap) -> Unit,
     onClusterClickWithCoords: (List<UnifiedItem>, Float, Float) -> Unit,
@@ -35,9 +39,13 @@ fun NaverMapContent(
     onCameraRotate: (Float) -> Unit,
     initialAnimationDone: Boolean,
     onInitialAnimationDone: () -> Unit,
+    onResetAnimationDone: () -> Unit, // [NEW]
     onFarItemsDetected: (Int) -> Unit = {},
     onZoomChange: (Float) -> Unit,
-    onEnableClustering: () -> Unit
+    onEnableClustering: () -> Unit,
+    onMapLongClick: (LatLng) -> Unit = {},
+    creatingTodoLocation: LatLng? = null,
+    contentPaddingBottom: Int = 0 
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -105,9 +113,8 @@ fun NaverMapContent(
             // Icon Generation
             val (bitmap, anchorX, anchorY) = if (isSingle && firstItem != null) {
                 val resId = firstItem.getPinResId()
-                // Use createKakaoPinBitmap logic but adapted for Naver (or generic)
-                // We'll reuse createKakaoPinBitmap as it returns a scaled Bitmap (Count=0 for single)
-                val b = kr.alltodo.ui.createKakaoPinBitmap(context, 0, resId, android.graphics.Color.TRANSPARENT)
+                // Use createNaverPinBitmap (Scale 1.0)
+                val b = kr.alltodo.ui.createNaverPinBitmap(context, 0, resId, android.graphics.Color.TRANSPARENT)
                 Triple(b, 0.5f, 1.0f)
             } else {
                  var hasUserLocation = false
@@ -131,7 +138,7 @@ fun NaverMapContent(
                      else -> kr.alltodo.R.drawable.pin_todo_ready to android.graphics.Color.parseColor("#00AA00")
                  }
                  // Count > 0 renders badge
-                 val b = kr.alltodo.ui.createKakaoPinBitmap(context, cluster.count, resId, badgeColor)
+                 val b = kr.alltodo.ui.createNaverPinBitmap(context, cluster.count, resId, badgeColor)
                  // [FIX] Anchor for Cluster (matches Kakao/Google logic)
                  Triple(b, 0.33f, 1.0f)
             }
@@ -144,7 +151,7 @@ fun NaverMapContent(
                 // Cluster: Pin is drawn at (0, padding) with size (pinW, pinH) inside (pinW+padding, pinH+padding)
                 val finalAnchorX = if (isSingle) 0.5f else {
                     val density = context.resources.displayMetrics.density
-                    val scale = 0.7f // Matches calling logic (createKakaoPinBitmap uses 0.7)
+                    val scale = 1.0f // [FIX] Matches createNaverPinBitmap (1.0)
                     val pinW = (40 * density * scale)
                     val badgeRadius = 10f * density * scale
                     val padding = (badgeRadius * 1.2f)
@@ -170,6 +177,19 @@ fun NaverMapContent(
                 currentMarkers.add(marker)
             }
         }
+        
+        // [NEW] Show Creating Todo Pin (Green)
+        if (creatingTodoLocation != null) {
+            val marker = Marker()
+            marker.position = creatingTodoLocation
+            val b = kr.alltodo.ui.createNaverPinBitmap(context, 0, kr.alltodo.R.drawable.pin_todo_ready, android.graphics.Color.TRANSPARENT)
+            if (b != null) {
+                marker.icon = OverlayImage.fromBitmap(b)
+                marker.anchor = android.graphics.PointF(0.5f, 1.0f)
+                marker.map = map
+                currentMarkers.add(marker)
+            }
+        }
     }
 
     // Zoom Polling
@@ -186,65 +206,61 @@ fun NaverMapContent(
         }
     }
 
-    // Camera Init Logic
-    val currentLocState = rememberUpdatedState(currentLocation)
-    LaunchedEffect(isMapReady) {
-        if (isMapReady) {
-             // Force Enable Clustering after delay (Safety net)
-             delay(3000)
-             onEnableClustering()
+    // [NEW] Unified Map Begin Logic (Centralized in MapBegin.kt)
+    MapBeginSequence(
+        isMapReady = isMapReady,
+        initialAnimationDone = initialAnimationDone,
+        beforeLocation = beforeLocation,
+        currentLocation = currentLocation,
+        clusteredItems = clusteredItems,
+        onInitialAnimationDone = onInitialAnimationDone,
+        onResetAnimationDone = onResetAnimationDone, // [NEW]
+        onEnableClustering = onEnableClustering,
+        onMove = { lat, lon, zoom, animate ->
+            naverMap?.let { map ->
+                // [FIX] Release Stage 2 constraint if we are targeting a higher zoom (Stage 3)
+                if (zoom > 15f) map.maxZoom = 21.0
+                
+                val update = CameraUpdate.scrollAndZoomTo(LatLng(lat, lon), zoom.toDouble())
+                if (animate) {
+                    map.moveCamera(update.animate(CameraAnimation.Easing, 1200))
+                } else {
+                    map.moveCamera(update)
+                }
+            }
+        },
+        onFitBounds = { points, padding, _ ->
+            if (points.isNotEmpty()) {
+                naverMap?.let { map ->
+                    if (points.size == 1) {
+                        val p = points.first()
+                        map.moveCamera(CameraUpdate.scrollAndZoomTo(LatLng(p.first, p.second), 15.0))
+                    } else {
+                        val boundsBuilder = LatLngBounds.Builder()
+                        points.forEach { boundsBuilder.include(LatLng(it.first, it.second)) }
+                        val bounds = boundsBuilder.build()
+                        
+                        // [FIX] Lock max zoom to 15.0 for Stage 2. 
+                        // It will be released in Stage 3 (onMove) or when user interacts.
+                        map.maxZoom = 15.0
+                        map.moveCamera(CameraUpdate.fitBounds(bounds, padding))
+                    }
+                }
+            }
+        },
+        onStop = {
+            naverMap?.cancelTransitions()
         }
-    }
-    
-    // [NEW] 3-Stage Sequence Implementation
-    LaunchedEffect(isMapReady, currentLocation, clusteredItems) {
-        if (!isMapReady || initialAnimationDone) return@LaunchedEffect
+    )
+
+    // [NEW] Dynamic Padding & Re-centering Reaction
+    LaunchedEffect(contentPaddingBottom, creatingTodoLocation) {
         val map = naverMap ?: return@LaunchedEffect
-        
-        val userLoc = currentLocation
-        val pins = clusteredItems
-
-        // [Stage 1] Fast Display (Gwanghwamun or Current Loc Zoom 15)
-        if (userLoc == null || (userLoc.latitude == 0.0 && userLoc.longitude == 0.0)) {
-            // Initial jump to Gwanghwamun to show map immediately
-            map.moveCamera(CameraUpdate.scrollAndZoomTo(LatLng(37.5759, 126.9768), 15.0))
-        } else {
-            // Jump to current location zoom 15 as soon as detected
-            map.moveCamera(CameraUpdate.scrollAndZoomTo(LatLng(userLoc.latitude, userLoc.longitude), 15.0))
+        map.setContentPadding(0, 0, 0, contentPaddingBottom)
+        if (contentPaddingBottom > 0 && creatingTodoLocation != null) {
+            // Re-center on the new creation point when padding is applied
+            map.moveCamera(com.naver.maps.map.CameraUpdate.scrollTo(creatingTodoLocation).animate(com.naver.maps.map.CameraAnimation.Easing))
         }
-
-        // Wait for pins to be calculated
-        if (pins.isEmpty()) return@LaunchedEffect
-
-        // [Stage 2] All Pins View (Fit Bounds)
-        val boundsBuilder = LatLngBounds.Builder()
-        pins.forEach { 
-            boundsBuilder.include(LatLng(it.latitude, it.longitude))
-        }
-        
-        val bounds = boundsBuilder.build()
-        // Fit bounds with padding (100px)
-        val cameraUpdate = CameraUpdate.fitBounds(bounds, 100)
-        map.moveCamera(cameraUpdate)
-        
-        // [UX] Max Zoom 15 Limit: If pins are too clustered, don't zoom in past 15
-        if (map.cameraPosition.zoom > 15.0) {
-            map.moveCamera(CameraUpdate.zoomTo(15.0))
-        }
-
-        // [Stage 3] High-Detail Transition (3s Delay)
-        delay(3000)
-        
-        // 1. Enable Clustering
-        onEnableClustering()
-        
-        // 2. Animate to Current Location Zoom 18
-        if (userLoc != null) {
-            map.moveCamera(CameraUpdate.scrollAndZoomTo(LatLng(userLoc.latitude, userLoc.longitude), 18.0)
-                .animate(CameraAnimation.Easing, 1200))
-        }
-        
-        onInitialAnimationDone()
     }
 
     AndroidView(
@@ -254,6 +270,10 @@ fun NaverMapContent(
                 mapView = this
                 getMapAsync { nMap ->
                     naverMap = nMap
+                    
+                    // [Stage 1] Set initial camera immediately to beforeLocation/Zoom 15
+                    nMap.cameraPosition = CameraPosition(LatLng(beforeLocation.latitude, beforeLocation.longitude), 15.0)
+                    
                     isMapReady = true
                     onMapReady(nMap)
                     
@@ -261,6 +281,9 @@ fun NaverMapContent(
                     nMap.uiSettings.isZoomControlEnabled = false
                     nMap.uiSettings.isLocationButtonEnabled = false
                     
+                    // [NEW] Set Content Padding
+                    nMap.setContentPadding(0, 0, 0, contentPaddingBottom)
+
                     // Rotation Listener
                     nMap.addOnCameraChangeListener { reason, animated ->
                          onCameraRotate(nMap.cameraPosition.bearing.toFloat())
@@ -269,6 +292,11 @@ fun NaverMapContent(
                     // Map Click
                     nMap.setOnMapClickListener { _, coord ->
                          // Clear selection handled by parent if needed, but Naver consumes click if marker handled it
+                    }
+
+                    // [NEW] Map Long Click
+                    nMap.setOnMapLongClickListener { _, coord ->
+                        onMapLongClick(coord)
                     }
                 }
             }

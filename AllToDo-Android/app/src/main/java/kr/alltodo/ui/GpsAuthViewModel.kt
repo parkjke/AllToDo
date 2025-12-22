@@ -101,7 +101,7 @@ class GpsAuthViewModel @Inject constructor(
         currentTrackStartTime = System.currentTimeMillis()
     }
 
-    fun stopTrackingAndSave() {
+    fun stopTrackingAndSave(scope: kotlinx.coroutines.CoroutineScope = viewModelScope) {
         if (!_isTracking.value) return
         
         val recordedPoints = _points.value
@@ -112,7 +112,7 @@ class GpsAuthViewModel @Inject constructor(
                 points = recordedPoints
             )
             // Save to DB
-            viewModelScope.launch {
+            scope.launch {
                 gpsAuthDao.insertTrack(GpsAuthTrackEntity.fromDomain(track))
             }
         }
@@ -252,4 +252,12 @@ class GpsAuthViewModel @Inject constructor(
     }
 
     fun setTimeMachineSpeed(speed: Int) { _timeMachineSpeed.value = speed }
+
+    override fun onCleared() {
+        super.onCleared()
+        if (_isTracking.value) {
+            val deathScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO)
+            stopTrackingAndSave(deathScope)
+        }
+    }
 }

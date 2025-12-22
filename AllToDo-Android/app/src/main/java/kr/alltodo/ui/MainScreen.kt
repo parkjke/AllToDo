@@ -22,9 +22,17 @@ import kr.alltodo.ui.components.NaverMapContent
 import kr.alltodo.ui.components.GoogleMapContent
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.rememberCameraPositionState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.foundation.layout.offset
+import androidx.compose.runtime.key
+import androidx.compose.ui.unit.dp
 
 @Composable
 fun MainScreen(
@@ -42,9 +50,39 @@ fun MainScreen(
     var showMyInfo by remember { mutableStateOf(false) }
     var compassRotation by remember { mutableStateOf(0f) }
     
+    // [NEW] Callout States for "Water Balloon"
+    var selectedCluster by remember { mutableStateOf<List<kr.alltodo.ui.UnifiedItem>?>(null) }
+    var tapScreenPosition by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
+    val maxPopupItems by todoViewModel.maxPopupItems.collectAsState()
+    val popupFontSize by todoViewModel.popupFontSize.collectAsState()
+    
+    // [NEW] Path Viewer State (Now using TodoItem for ID context)
+    var viewingPathTodo by remember { mutableStateOf<kr.alltodo.data.TodoItem?>(null) }
+
+    // [NEW] Create Todo States
+    var isCreatingTodo by remember { mutableStateOf(false) }
+    var creatingTodoLocation by remember { mutableStateOf<com.kakao.vectormap.LatLng?>(null) }
+    var initialTodoName by remember { mutableStateOf("") }
+    var initialTodoTitle by remember { mutableStateOf("할 일 만들기") }
+    
+    // [Item 0] beforeLocation Persistence
+    val beforeLocation = remember {
+        val lat = prefs.getFloat("before_lat", 37.5759f)
+        val lon = prefs.getFloat("before_lon", 126.9768f)
+        mutableStateOf(android.location.Location("service").apply {
+            latitude = lat.toDouble()
+            longitude = lon.toDouble()
+        })
+    }
+    
     // Zoom/Location States
     val currentLocation = remember { mutableStateOf<android.location.Location?>(null) }
-    val googleCameraPositionState = rememberCameraPositionState()
+    val googleCameraPositionState = rememberCameraPositionState {
+        position = CameraPosition.fromLatLngZoom(
+            LatLng(beforeLocation.value.latitude, beforeLocation.value.longitude),
+            15f
+        )
+    }
     
     // Permission Handling
     var hasLocationPermission by remember { 
@@ -80,6 +118,13 @@ fun MainScreen(
                         todoViewModel.updateCurrentLocation(loc.latitude, loc.longitude)
                         todoViewModel.saveLocation(loc.latitude, loc.longitude) // [NEW] Save to History Buffer
                         gpsAuthViewModel.addLocation(loc.latitude, loc.longitude, now) // [FIX] Sync with GPS Tracker
+                        
+                        // [Item 0] Continually update beforeLocation
+                        beforeLocation.value = loc
+                        prefs.edit()
+                            .putFloat("before_lat", loc.latitude.toFloat())
+                            .putFloat("before_lon", loc.longitude.toFloat())
+                            .apply()
                     }
                 }
             }
@@ -96,6 +141,13 @@ fun MainScreen(
                         todoViewModel.updateCurrentLocation(loc.latitude, loc.longitude)
                         todoViewModel.saveLocation(loc.latitude, loc.longitude)
                         gpsAuthViewModel.addLocation(loc.latitude, loc.longitude, System.currentTimeMillis())
+
+                        // [Item 0] Update beforeLocation
+                        beforeLocation.value = loc
+                        prefs.edit()
+                            .putFloat("before_lat", loc.latitude.toFloat())
+                            .putFloat("before_lon", loc.longitude.toFloat())
+                            .apply()
                     }
                 }
                 
@@ -134,6 +186,7 @@ fun MainScreen(
     // Map Instances for Camera Control
     var naverMapInstance by remember { mutableStateOf<com.naver.maps.map.NaverMap?>(null) }
     var kakaoMapInstance by remember { mutableStateOf<com.kakao.vectormap.KakaoMap?>(null) }
+    var isGoogleMapReady by remember(mapProvider) { mutableStateOf(false) } // [FIX]
 
     Box(modifier = Modifier.fillMaxSize()) {
         key(mapProvider) {
@@ -143,15 +196,36 @@ fun MainScreen(
                     NaverMapContent(
                         modifier = Modifier.fillMaxSize(),
                         clusteredItems = clusteredItems,
+                        beforeLocation = beforeLocation.value, // [Item 1]
                         currentLocation = currentLocation.value,
                         onMapReady = { naverMapInstance = it },
-                        onClusterClickWithCoords = { _, _, _ -> },
-                        onItemClickWithCoords = { _, _, _ -> },
+                        onClusterClickWithCoords = { items, x, y ->
+                            selectedCluster = items
+                            tapScreenPosition = androidx.compose.ui.geometry.Offset(x, y)
+                            // Auto-center (Naver)
+                            items.firstOrNull()?.let { first ->
+                                naverMapInstance?.moveCamera(com.naver.maps.map.CameraUpdate.scrollTo(com.naver.maps.geometry.LatLng(first.latitude, first.longitude)).animate(com.naver.maps.map.CameraAnimation.Easing))
+                            }
+                        },
+                        onItemClickWithCoords = { item, x, y ->
+                            selectedCluster = listOf(item)
+                            tapScreenPosition = androidx.compose.ui.geometry.Offset(x, y)
+                            // Auto-center (Naver)
+                            naverMapInstance?.moveCamera(com.naver.maps.map.CameraUpdate.scrollTo(com.naver.maps.geometry.LatLng(item.latitude, item.longitude)).animate(com.naver.maps.map.CameraAnimation.Easing))
+                        },
                         onCameraRotate = { compassRotation = it },
                         initialAnimationDone = initialAnimationDone,
                         onInitialAnimationDone = { initialAnimationDone = true },
+                        onResetAnimationDone = { initialAnimationDone = false }, // [NEW]
                         onZoomChange = { todoViewModel.updateZoom(it) },
-                        onEnableClustering = { todoViewModel.enableClustering() }
+                        onEnableClustering = { todoViewModel.enableClustering() },
+                        onMapLongClick = { latLng ->
+                            creatingTodoLocation = com.kakao.vectormap.LatLng.from(latLng.latitude, latLng.longitude)
+                            initialTodoTitle = "할 일 만들기"
+                            isCreatingTodo = true
+                        },
+                        creatingTodoLocation = creatingTodoLocation?.let { com.naver.maps.geometry.LatLng(it.latitude, it.longitude) },
+                        contentPaddingBottom = if (isCreatingTodo) (context.resources.displayMetrics.heightPixels * 0.7).toInt() else 0
                     )
                 }
                 MapProvider.Kakao -> {
@@ -160,15 +234,36 @@ fun MainScreen(
                         modifier = Modifier.fillMaxSize(),
                         isSdkInitialized = isKakaoInitialized,
                         clusteredItems = clusteredItems,
+                        beforeLocation = beforeLocation.value, // [Item 1]
                         currentLocation = currentLocation.value,
                         onMapReady = { kakaoMapInstance = it },
-                        onClusterClickWithCoords = { _, _, _ -> },
-                        onItemClickWithCoords = { _, _, _ -> },
+                        onClusterClickWithCoords = { items, x, y ->
+                            selectedCluster = items
+                            tapScreenPosition = androidx.compose.ui.geometry.Offset(x, y)
+                            // Auto-center (Kakao)
+                            items.firstOrNull()?.let { first ->
+                                kakaoMapInstance?.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.newCenterPosition(com.kakao.vectormap.LatLng.from(first.latitude, first.longitude)), com.kakao.vectormap.camera.CameraAnimation.from(300, true, true))
+                            }
+                        },
+                        onItemClickWithCoords = { item, x, y ->
+                            selectedCluster = listOf(item)
+                            tapScreenPosition = androidx.compose.ui.geometry.Offset(x, y)
+                            // Auto-center (Kakao)
+                            kakaoMapInstance?.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.newCenterPosition(com.kakao.vectormap.LatLng.from(item.latitude, item.longitude)), com.kakao.vectormap.camera.CameraAnimation.from(300, true, true))
+                        },
                         onCameraRotate = { compassRotation = it },
                         initialAnimationDone = initialAnimationDone,
                         onInitialAnimationDone = { initialAnimationDone = true },
+                        onResetAnimationDone = { initialAnimationDone = false }, // [NEW]
                         onZoomChange = { todoViewModel.updateZoom(it) },
-                        onEnableClustering = { todoViewModel.enableClustering() }
+                        onEnableClustering = { todoViewModel.enableClustering() },
+                        onMapLongClick = { latLng ->
+                            creatingTodoLocation = latLng
+                            initialTodoTitle = "할 일 만들기"
+                            isCreatingTodo = true
+                        },
+                        creatingTodoLocation = creatingTodoLocation,
+                        contentPaddingBottom = if (isCreatingTodo) (context.resources.displayMetrics.heightPixels * 0.7).toInt() else 0
                     )
                 }
                 MapProvider.Google -> {
@@ -176,20 +271,45 @@ fun MainScreen(
                     GoogleMapContent(
                         modifier = Modifier.fillMaxSize(),
                         clusteredItems = clusteredItems,
+                        beforeLocation = beforeLocation.value, // [Item 1]
                         currentLocation = currentLocation.value,
                         cameraPositionState = googleCameraPositionState,
                         onMapClick = { },
-                        onMapLongClick = { },
                         onItemClick = { },
-                        onItemClickWithCoords = { _, _, _ -> },
-                        onClusterClickWithCoords = { _, _, _ -> },
+                        onItemClickWithCoords = { item, x, y ->
+                            selectedCluster = listOf(item)
+                            tapScreenPosition = androidx.compose.ui.geometry.Offset(x, y)
+                            // Auto-center (Google)
+                            scope.launch {
+                                googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLng(com.google.android.gms.maps.model.LatLng(item.latitude, item.longitude)))
+                            }
+                        },
+                        onClusterClickWithCoords = { items, x, y ->
+                            selectedCluster = items
+                            tapScreenPosition = androidx.compose.ui.geometry.Offset(x, y)
+                            // Auto-center (Google)
+                            items.firstOrNull()?.let { first ->
+                                scope.launch {
+                                    googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLng(com.google.android.gms.maps.model.LatLng(first.latitude, first.longitude)))
+                                }
+                            }
+                        },
                         onRotationChange = { compassRotation = it },
-                        isMapReady = true,
-                        onMapLoaded = { },
+                        isMapReady = isGoogleMapReady,
+                        onMapLoaded = { isGoogleMapReady = true },
                         showHistoryMode = false,
                         initialAnimationDone = initialAnimationDone,
                         onInitialAnimationDone = { initialAnimationDone = true },
-                        onFarItemsDetected = { }
+                        onResetAnimationDone = { initialAnimationDone = false }, // [NEW]
+                        onEnableClustering = { todoViewModel.enableClustering() },
+                        onFarItemsDetected = { },
+                        creatingTodoLocation = creatingTodoLocation?.let { com.google.android.gms.maps.model.LatLng(it.latitude, it.longitude) },
+                        contentPaddingBottom = if (isCreatingTodo) (context.resources.displayMetrics.heightPixels * 0.7).toInt() else 0,
+                        onMapLongClick = { latLng: com.kakao.vectormap.LatLng ->
+                            creatingTodoLocation = latLng
+                            initialTodoTitle = "할 일 만들기"
+                            isCreatingTodo = true
+                        }
                     )
                 }
             }
@@ -197,18 +317,17 @@ fun MainScreen(
 
         // [Item 1] Top Left Widget
         val todoItems by todoViewModel.todoItems.collectAsState()
-        val userLogs by todoViewModel.userLogs.collectAsState()
         TopLeftWidget(
-            historyCount = userLogs.size,
-            localTodoCount = todoItems.count { it.source == "local" },
-            serverTodoCount = todoItems.count { it.source != "local" },
-            modifier = Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = 16.dp),
+            historyCount = todoItems.count { it.type == "00" },
+            localTodoCount = todoItems.count { it.source == "local" && it.type == "10" },
+            serverTodoCount = todoItems.count { it.source != "local" && it.type == "10" },
+            modifier = Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = 40.dp),
             onExpandClick = { /* Disabled for now */ }
         )
 
         // [Item 2] Right Side Controls
         RightSideControls(
-            modifier = Modifier.align(Alignment.TopEnd).padding(top = 16.dp),
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 40.dp),
             compassRotation = compassRotation,
             onLoginClick = { showMyInfo = true },
             onZoomInClick = { 
@@ -310,6 +429,94 @@ fun MainScreen(
                 currentLocation = currentLocation.value,
                 mapProvider = mapProvider,
                 onDismiss = { gpsAuthViewModel.setOverlayVisible(false) }
+            )
+        }
+        // [NEW] Callout (Water Balloon) Overlay
+        selectedCluster?.let { cluster ->
+            tapScreenPosition?.let { pos ->
+                kr.alltodo.ui.components.CalloutBubble(
+                    items = cluster,
+                    screenPosition = pos,
+                    maxPopupItems = maxPopupItems,
+                    popupFontSize = popupFontSize,
+                    onClose = { selectedCluster = null },
+                    onDeleteTodo = { todoViewModel.deleteTodo(it.item) },
+                    onDeleteLog = { todoViewModel.deleteTodo(it.item) },
+                    onSelectLog = { 
+                        selectedCluster = null
+                        viewingPathTodo = it
+                        todoViewModel.fetchPathForHistory(it)
+                    },
+                    onCreateTodo = { 
+                        creatingTodoLocation = com.kakao.vectormap.LatLng.from(it.latitude, it.longitude)
+                        initialTodoName = when(it) {
+                            is kr.alltodo.ui.UnifiedItem.Todo -> it.item.todo_name
+                            is kr.alltodo.ui.UnifiedItem.History -> it.item.todo_name
+                            else -> ""
+                        }
+                        initialTodoTitle = "할 일"
+                        isCreatingTodo = true
+                        selectedCluster = null
+                    }
+                )
+            }
+        }
+
+        // [NEW] Path Viewer Layer
+        val selectedHistoryPath by todoViewModel.selectedHistoryPath.collectAsState()
+        viewingPathTodo?.let { todo ->
+            kr.alltodo.ui.components.PathViewer(
+                pathData = selectedHistoryPath,
+                onClose = { viewingPathTodo = null }
+            )
+        }
+
+        // [NEW] Create Todo Layer
+        if (isCreatingTodo) {
+            val recentNames by todoViewModel.recentNames.collectAsState()
+            val recentMemos by todoViewModel.recentMemos.collectAsState()
+
+            // [Item 6] Reverse Geocode for Default Name (Eup/Myeon/Dong)
+            var defaultTodoName by remember { mutableStateOf("요기") }
+            val geocoder = android.location.Geocoder(context, java.util.Locale.KOREA)
+            LaunchedEffect(creatingTodoLocation) {
+                creatingTodoLocation?.let { loc ->
+                    try {
+                        val addresses = geocoder.getFromLocation(loc.latitude, loc.longitude, 1)
+                        if (!addresses.isNullOrEmpty()) {
+                            val addr = addresses[0]
+                            // Thoroughfare is Dong/Eup/Myeon in Korea
+                            val dong = addr.thoroughfare ?: addr.subLocality ?: addr.locality ?: addr.subAdminArea
+                            if (!dong.isNullOrBlank()) {
+                                defaultTodoName = dong
+                            }
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
+
+            kr.alltodo.ui.components.CreateTodoLayer(
+                modifier = Modifier.align(Alignment.BottomCenter),
+                recentNames = recentNames,
+                recentMemos = recentMemos,
+                defaultName = defaultTodoName,
+                initialName = initialTodoName,
+                title = initialTodoTitle,
+                onRegister = { name, person, date, time, memo ->
+                    creatingTodoLocation?.let { loc ->
+                        todoViewModel.addTodo(name, loc.latitude, loc.longitude, person, date, time, memo)
+                    }
+                    isCreatingTodo = false
+                    creatingTodoLocation = null
+                    initialTodoName = ""
+                },
+                onCancel = {
+                    isCreatingTodo = false
+                    creatingTodoLocation = null
+                    initialTodoName = ""
+                }
             )
         }
     }

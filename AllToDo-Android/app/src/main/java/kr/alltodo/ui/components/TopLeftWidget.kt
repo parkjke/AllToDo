@@ -41,7 +41,7 @@ fun TopLeftWidget(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
-            .background(AllToDoGreen.copy(alpha = 0.7f))
+            .background(AllToDoGreen.copy(alpha = 0.8f))
             .clickable { onExpandClick() }
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
@@ -52,12 +52,12 @@ fun TopLeftWidget(
             Icon(
                 imageVector = Icons.Filled.Checklist,
                 contentDescription = null,
-                tint = Color.White,
+                tint = Color(0xFF333333),
                 modifier = Modifier.size(24.dp)
             )
             Text(
                 text = "할 일",
-                color = Color.White,
+                color = Color(0xFF333333),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Black
             )
@@ -86,7 +86,7 @@ fun StatBadge(color: Color, count: Int) {
     ) {
         Text(
             text = count.toString(), // Natural number representation
-            color = Color.White,
+            color = if (color == AllToDoGreen) Color(0xFF333333) else Color.White,
             fontSize = 12.sp, // Clear and readable
             fontWeight = FontWeight.Bold,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center

@@ -22,7 +22,7 @@ fun GoogleMapMarkers(
             is UnifiedItem.Todo -> {
                 Marker(
                     state = MarkerState(position = position),
-                    title = uiItem.item.text,
+                    title = uiItem.item.todo_name,
                     onClick = {
                         onItemClick(uiItem)
                         true

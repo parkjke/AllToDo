@@ -106,7 +106,7 @@ fun TodoListContent(
                             isAdding = false
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AllToDoGreen)
+                    colors = ButtonDefaults.buttonColors(containerColor = AllToDoGreen, contentColor = Color(0xFF333333))
                 ) {
                     Text("Add")
                 }
@@ -154,7 +154,7 @@ fun TodoItemRow(
         
         Column {
             Text(
-                text = item.text,
+                text = item.todo_name,
                 fontSize = 16.sp,
                 color = if (item.completed) Color.Gray else AllToDoBlack,
                 textDecoration = if (item.completed) TextDecoration.LineThrough else null

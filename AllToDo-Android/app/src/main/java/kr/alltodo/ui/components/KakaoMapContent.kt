@@ -1,6 +1,7 @@
 package kr.alltodo.ui.components
 
 import android.graphics.Bitmap
+import android.graphics.PointF
 import android.widget.TextView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -30,6 +31,7 @@ fun KakaoMapContent(
     modifier: Modifier = Modifier,
     isSdkInitialized: Boolean,
     clusteredItems: List<kr.alltodo.ui.TodoViewModel.PinClusterItem>,
+    beforeLocation: android.location.Location,
     currentLocation: android.location.Location?,
     onMapReady: (KakaoMap) -> Unit,
     onClusterClickWithCoords: (List<UnifiedItem>, Float, Float) -> Unit,
@@ -37,9 +39,13 @@ fun KakaoMapContent(
     onCameraRotate: (Float) -> Unit,
     initialAnimationDone: Boolean,
     onInitialAnimationDone: () -> Unit,
+    onResetAnimationDone: () -> Unit, // [NEW]
     onFarItemsDetected: (Int) -> Unit = {},
-    onZoomChange: (Float) -> Unit, // [NEW] Zoom Callback
-    onEnableClustering: () -> Unit // [NEW] Delayed Clustering Trigger
+    onZoomChange: (Float) -> Unit,
+    onEnableClustering: () -> Unit,
+    onMapLongClick: (LatLng) -> Unit = {},
+    creatingTodoLocation: LatLng? = null,
+    contentPaddingBottom: Int = 0 
 ) {
     // [FIX] Capture callback to avoid name shadowing in KakaoMapReadyCallback
     val activeOnMapReady = onMapReady
@@ -81,103 +87,56 @@ fun KakaoMapContent(
          // Log removed
     }
 
-    // [FIX] Initial Animation & Clustering Trigger
-    // Runs when map is ready AND initialAnimationDone is false (Launch, Switch, Resume)
-    LaunchedEffect(isMapReady, initialAnimationDone) {
-        if (!isMapReady || initialAnimationDone) return@LaunchedEffect
-        
-        val map = kakaoMap ?: return@LaunchedEffect
-        
-        // 1. Move to roughly current location (Stage 1: Fast Display)
-        val knownLoc = currentLocState.value
-        if (knownLoc == null || (knownLoc.latitude == 0.0 && knownLoc.longitude == 0.0)) {
-            // Initial jump to Gwanghwamun
-            map.moveCamera(CameraUpdateFactory.newCenterPosition(LatLng.from(37.5759, 126.9768), 15))
-        } else {
-             try {
-                 map.moveCamera(CameraUpdateFactory.newCenterPosition(
-                     com.kakao.vectormap.LatLng.from(knownLoc.latitude, knownLoc.longitude), 15
-                 ))
-             } catch(e: Exception) {}
-        }
-        
-        // 2. Wait for Data (Max 3s)
-        val start = System.currentTimeMillis()
-        var hasValidData = false
-        while (System.currentTimeMillis() - start < 3000) {
-             if (latestVisibleClusters.value.isNotEmpty()) {
-                 hasValidData = true
-                 break
-             }
-             delay(200)
-        }
-        
-        // 3. Fit Bounds (All Pins)
-        try {
-            val visibleClusters = latestVisibleClusters.value
-            var minLat = 90.0; var maxLat = -90.0
-            var minLon = 180.0; var maxLon = -180.0
-            var validPoints = 0
-            
-            visibleClusters.forEach {
-                if (it.latitude != 0.0) {
-                    if (it.latitude < minLat) minLat = it.latitude
-                    if (it.latitude > maxLat) maxLat = it.latitude
-                    if (it.longitude < minLon) minLon = it.longitude
-                    if (it.longitude > maxLon) maxLon = it.longitude
-                    validPoints++
+    // [NEW] Unified Map Begin Logic (Centralized in MapBegin.kt)
+    MapBeginSequence(
+        isMapReady = isMapReady,
+        initialAnimationDone = initialAnimationDone,
+        beforeLocation = beforeLocation,
+        currentLocation = currentLocation,
+        clusteredItems = clusteredItems,
+        onInitialAnimationDone = onInitialAnimationDone,
+        onResetAnimationDone = onResetAnimationDone, // [NEW]
+        onEnableClustering = onEnableClustering,
+        onMove = { lat, lon, zoom, animate ->
+            kakaoMap?.let { map ->
+                // [FIX] Release Stage 2 constraint for Stage 3 Focus
+                if (zoom > 15f) {
+                    map.setCameraMinLevel(1)
+                    map.setCameraMaxLevel(21)
+                }
+                
+                val update = CameraUpdateFactory.newCenterPosition(LatLng.from(lat, lon), zoom.toInt())
+                if (animate) {
+                    map.moveCamera(update, com.kakao.vectormap.camera.CameraAnimation.from(1200, true, true))
+                } else {
+                    map.moveCamera(update)
                 }
             }
-            // Include User
-            val loc = currentLocState.value
-            if (loc != null && loc.latitude != 0.0) {
-                 if (loc.latitude < minLat) minLat = loc.latitude
-                 if (loc.latitude > maxLat) maxLat = loc.latitude
-                 if (loc.longitude < minLon) minLon = loc.longitude
-                 if (loc.longitude > maxLon) maxLon = loc.longitude
-                 validPoints++
+        },
+        onFitBounds = { points, padding, _ ->
+            kakaoMap?.let { map ->
+                if (points.size == 1) {
+                    val p = points.first()
+                    map.moveCamera(CameraUpdateFactory.newCenterPosition(LatLng.from(p.first, p.second), 15))
+                } else if (points.isNotEmpty()) {
+                    val kakaoPoints = points.map { LatLng.from(it.first, it.second) }.toTypedArray()
+                    
+                    // [FIX] Lock max zoom to 15.0 for Stage 2. 
+                    // Use correct SDK methods: setCameraMinLevel/setCameraMaxLevel
+                    map.setCameraMinLevel(1)
+                    map.setCameraMaxLevel(15)
+                    
+                    map.moveCamera(
+                        CameraUpdateFactory.fitMapPoints(kakaoPoints, padding),
+                        com.kakao.vectormap.camera.CameraAnimation.from(1000, true, true)
+                    )
+                }
             }
-            
-            if (validPoints > 0) {
-                 val safeBounds = kr.alltodo.utils.SmartLocationManager.ensureMinSpan(
-                    com.google.android.gms.maps.model.LatLngBounds(
-                        com.google.android.gms.maps.model.LatLng(minLat, minLon),
-                        com.google.android.gms.maps.model.LatLng(maxLat, maxLon)
-                    ), 0.05
-                 )
-                 
-                 // Show All Pins
-                 try {
-                     val sw = LatLng.from(safeBounds.southwest.latitude, safeBounds.southwest.longitude)
-                     val ne = LatLng.from(safeBounds.northeast.latitude, safeBounds.northeast.longitude)
-                     map.moveCamera(CameraUpdateFactory.fitMapPoints(arrayOf(sw, ne), 150), CameraAnimation.from(1000, true, true))
-                 } catch (e: Exception) {
-                     map.moveCamera(CameraUpdateFactory.newCenterPosition(LatLng.from(safeBounds.center.latitude, safeBounds.center.longitude), 14))
-                 }
-            }
-            
-            // [Item 4] Start at 15, immediately animate to 17
-            val latestLoc = currentLocState.value
-            if (latestLoc != null && latestLoc.latitude != 0.0) {
-                 map.moveCamera(CameraUpdateFactory.newCenterPosition(LatLng.from(latestLoc.latitude, latestLoc.longitude), 15))
-                 delay(100)
-                 map.moveCamera(CameraUpdateFactory.zoomTo(17), CameraAnimation.from(800, true, true))
-            }
-            
-            // [FIX 4] Ensure Clustering Enabled
-            onInitialAnimationDone()
-            onEnableClustering()
-            
-        } catch (e: Exception) { e.printStackTrace() }
-    }
-    
-    // Independent Clustering Trigger (Backup)
-    LaunchedEffect(isMapReady) {
-        if (isMapReady) {
-            delay(3000)
-            onEnableClustering() // Should match the primary flow timing roughly
+        },
+        onStop = {
+            // Kakao doesn't have an explicit cancel, but moving camera again stops previous.
         }
-    }
+    )
     
     
     // Rendering Logic
@@ -241,22 +200,49 @@ fun KakaoMapContent(
                  val label = layer?.addLabel(options)
             }
         }
+
+        // [NEW] Show Creating Todo Pin (Green)
+        if (creatingTodoLocation != null) {
+            val styleId = "creating_todo"
+            var styles = labelManager.getLabelStyles(styleId)
+            if (styles == null) {
+                val b = kr.alltodo.ui.createKakaoPinBitmap(context, 0, kr.alltodo.R.drawable.pin_todo_ready, android.graphics.Color.TRANSPARENT)
+                if (b != null) {
+                    styles = labelManager.addLabelStyles(LabelStyles.from(styleId, LabelStyle.from(b).setAnchorPoint(0.5f, 1.0f)))
+                }
+            }
+            if (styles != null) {
+                layer?.addLabel(LabelOptions.from(creatingTodoLocation).setStyles(styles))
+            }
+        }
     }
 
 
 
-    // [FIX] Fallback Zoom Polling (Since Listeners cause compilation issues)
+    // [FIX] Fallback Zoom & Rotation Polling
     LaunchedEffect(kakaoMap) {
         val map = kakaoMap
         if (map != null) {
             var lastZoom = 0
+            var lastRotate = 0f
             while (true) {
+                // 1. Zoom Change
                 val z = map.zoomLevel
                 if (z != lastZoom) {
                     lastZoom = z
                     onZoomChange(z.toFloat())
                 }
-                delay(300) // Poll every 300ms
+                
+                // 2. Rotation Change (Kakao rotate is in Radians, CW from North)
+                // Convert to Degrees for our UI
+                val rotateRad = map.cameraPosition?.rotationAngle ?: 0f
+                val rotateDeg = Math.toDegrees(rotateRad.toDouble()).toFloat()
+                if (Math.abs(rotateDeg - lastRotate) > 1.0f) { // 1 degree threshold
+                    lastRotate = rotateDeg
+                    onCameraRotate(rotateDeg)
+                }
+                
+                delay(200) // Poll every 200ms for better responsiveness
             }
         }
     }
@@ -286,6 +272,15 @@ fun KakaoMapContent(
         }
     }
     
+    // [NEW] Dynamic Padding & Re-centering Reaction
+    LaunchedEffect(contentPaddingBottom, creatingTodoLocation) {
+        val map = kakaoMap ?: return@LaunchedEffect
+        map.setPadding(0, 0, 0, contentPaddingBottom)
+        if (contentPaddingBottom > 0 && creatingTodoLocation != null) {
+            map.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.newCenterPosition(creatingTodoLocation), com.kakao.vectormap.camera.CameraAnimation.from(500))
+        }
+    }
+
     if (isSdkInitialized) {
         AndroidView(
             factory = { ctx ->
@@ -300,6 +295,16 @@ fun KakaoMapContent(
                             kakaoMap = kMap
                             isMapReady = true
                             activeOnMapReady(kMap) // Call captured parent callback with Map instance
+                            
+                            // [NEW] Apply Padding
+                            kMap.setPadding(0, 0, 0, contentPaddingBottom)
+
+                            // [NEW] Map Long Click (Terrain)
+                            kMap.setOnTerrainLongClickListener(object : KakaoMap.OnTerrainLongClickListener {
+                                override fun onTerrainLongClicked(kakaoMap: KakaoMap, latLng: LatLng, screenPoint: PointF) {
+                                    onMapLongClick(latLng)
+                                }
+                            })
 
                             // [FIX] Polling for Zoom Change (since Listener API is uncertain/failed)
                             // This ensures we catch Zoom changes even if listeners are tricky
@@ -329,11 +334,11 @@ fun KakaoMapContent(
                         }
 
                         override fun getPosition(): LatLng {
-                             return LatLng.from(37.5665, 126.9780)
+                             return LatLng.from(beforeLocation.latitude, beforeLocation.longitude)
                         }
 
                         override fun getZoomLevel(): Int {
-                             return 18
+                             return 15
                         }
                     })
                     
