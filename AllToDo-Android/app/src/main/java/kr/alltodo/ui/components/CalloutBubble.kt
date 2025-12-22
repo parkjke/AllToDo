@@ -161,7 +161,8 @@ fun CalloutRow(
     onSelectLog: (kr.alltodo.data.TodoItem) -> Unit,
     onCreateTodo: (UnifiedItem) -> Unit
 ) {
-    val timeFormat = SimpleDateFormat("MM/dd HH:mm", Locale.getDefault())
+    val dateFormat = SimpleDateFormat("MM.dd", Locale.getDefault())
+    val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
 
     Row(
         modifier = Modifier
@@ -194,31 +195,26 @@ fun CalloutRow(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             when (item) {
-                is UnifiedItem.Todo -> {
-                    Text(
-                        text = item.item.todo_name,
-                        color = Color(0xFF333333),
-                        fontSize = fontSize,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                        maxLines = 1
-                    )
-                    Text(
-                        text = timeFormat.format(Date(item.item.created_at)),
-                        color = Color(0xFF333333).copy(alpha = 0.6f),
-                        fontSize = fontSize * 0.8f
-                    )
-                }
-                is UnifiedItem.History -> {
-                    Text(
-                        text = timeFormat.format(Date(item.item.begin_time ?: item.item.created_at)),
-                        color = Color(0xFF333333),
-                        fontSize = fontSize
-                    )
+                is UnifiedItem.Todo, is UnifiedItem.History -> {
+                    val timestamp = if (item is UnifiedItem.Todo) item.item.created_at else (item as UnifiedItem.History).item.begin_time ?: (item as UnifiedItem.History).item.created_at
+                    val name = if (item is UnifiedItem.Todo) item.item.todo_name else (item as UnifiedItem.History).item.todo_name ?: "히스토리"
+                    
+                    val dateStr = dateFormat.format(Date(timestamp))
+                    val timeStr = timeFormat.format(Date(timestamp))
+                    val shortName = name.let { if (it.length > 3) it.take(3) + "..." else it }
+                    
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = dateStr, color = Color(0xFF333333).copy(alpha = 0.6f), fontSize = fontSize)
+                        Spacer(Modifier.width(4.dp))
+                        Text(text = timeStr, color = Color(0xFF333333), fontSize = fontSize, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                        Spacer(Modifier.width(8.dp))
+                        Text(text = shortName, color = Color(0xFF333333), fontSize = fontSize)
+                    }
                 }
                 is UnifiedItem.CurrentLocation -> {
                     Text(
                         text = timeFormat.format(Date()),
-                        color = Color.Red, // Keep Me red for visibility
+                        color = Color.Red,
                         fontSize = fontSize,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                     )

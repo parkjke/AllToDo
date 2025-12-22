@@ -5,12 +5,14 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -188,7 +190,11 @@ fun MainScreen(
     var kakaoMapInstance by remember { mutableStateOf<com.kakao.vectormap.KakaoMap?>(null) }
     var isGoogleMapReady by remember(mapProvider) { mutableStateOf(false) } // [FIX]
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val density = LocalDensity.current
+        val centerX = with(density) { (maxWidth / 2).toPx() }
+        val centerY = with(density) { (maxHeight / 2).toPx() }
+
         key(mapProvider) {
             when (mapProvider) {
                 MapProvider.Naver -> {
@@ -201,7 +207,8 @@ fun MainScreen(
                         onMapReady = { naverMapInstance = it },
                         onClusterClickWithCoords = { items, x, y ->
                             selectedCluster = items
-                            tapScreenPosition = androidx.compose.ui.geometry.Offset(x, y)
+                            // Set to screen center since pin will be auto-centered
+                            tapScreenPosition = androidx.compose.ui.geometry.Offset(centerX, centerY)
                             // Auto-center (Naver)
                             items.firstOrNull()?.let { first ->
                                 naverMapInstance?.moveCamera(com.naver.maps.map.CameraUpdate.scrollTo(com.naver.maps.geometry.LatLng(first.latitude, first.longitude)).animate(com.naver.maps.map.CameraAnimation.Easing))
@@ -209,7 +216,8 @@ fun MainScreen(
                         },
                         onItemClickWithCoords = { item, x, y ->
                             selectedCluster = listOf(item)
-                            tapScreenPosition = androidx.compose.ui.geometry.Offset(x, y)
+                            // Set to screen center since pin will be auto-centered
+                            tapScreenPosition = androidx.compose.ui.geometry.Offset(centerX, centerY)
                             // Auto-center (Naver)
                             naverMapInstance?.moveCamera(com.naver.maps.map.CameraUpdate.scrollTo(com.naver.maps.geometry.LatLng(item.latitude, item.longitude)).animate(com.naver.maps.map.CameraAnimation.Easing))
                         },
@@ -239,7 +247,8 @@ fun MainScreen(
                         onMapReady = { kakaoMapInstance = it },
                         onClusterClickWithCoords = { items, x, y ->
                             selectedCluster = items
-                            tapScreenPosition = androidx.compose.ui.geometry.Offset(x, y)
+                            // Set to screen center since pin will be auto-centered
+                            tapScreenPosition = androidx.compose.ui.geometry.Offset(centerX, centerY)
                             // Auto-center (Kakao)
                             items.firstOrNull()?.let { first ->
                                 kakaoMapInstance?.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.newCenterPosition(com.kakao.vectormap.LatLng.from(first.latitude, first.longitude)), com.kakao.vectormap.camera.CameraAnimation.from(300, true, true))
@@ -247,7 +256,8 @@ fun MainScreen(
                         },
                         onItemClickWithCoords = { item, x, y ->
                             selectedCluster = listOf(item)
-                            tapScreenPosition = androidx.compose.ui.geometry.Offset(x, y)
+                            // Set to screen center since pin will be auto-centered
+                            tapScreenPosition = androidx.compose.ui.geometry.Offset(centerX, centerY)
                             // Auto-center (Kakao)
                             kakaoMapInstance?.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.newCenterPosition(com.kakao.vectormap.LatLng.from(item.latitude, item.longitude)), com.kakao.vectormap.camera.CameraAnimation.from(300, true, true))
                         },
@@ -278,7 +288,8 @@ fun MainScreen(
                         onItemClick = { },
                         onItemClickWithCoords = { item, x, y ->
                             selectedCluster = listOf(item)
-                            tapScreenPosition = androidx.compose.ui.geometry.Offset(x, y)
+                            // Set to screen center since pin will be auto-centered
+                            tapScreenPosition = androidx.compose.ui.geometry.Offset(centerX, centerY)
                             // Auto-center (Google)
                             scope.launch {
                                 googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLng(com.google.android.gms.maps.model.LatLng(item.latitude, item.longitude)))
@@ -286,7 +297,8 @@ fun MainScreen(
                         },
                         onClusterClickWithCoords = { items, x, y ->
                             selectedCluster = items
-                            tapScreenPosition = androidx.compose.ui.geometry.Offset(x, y)
+                            // Set to screen center since pin will be auto-centered
+                            tapScreenPosition = androidx.compose.ui.geometry.Offset(centerX, centerY)
                             // Auto-center (Google)
                             items.firstOrNull()?.let { first ->
                                 scope.launch {
@@ -497,6 +509,22 @@ fun MainScreen(
                 }
             }
 
+            fun centerMapOn(loc: com.kakao.vectormap.LatLng) {
+                when (mapProvider) {
+                    MapProvider.Naver -> {
+                        naverMapInstance?.moveCamera(com.naver.maps.map.CameraUpdate.scrollTo(com.naver.maps.geometry.LatLng(loc.latitude, loc.longitude)).animate(com.naver.maps.map.CameraAnimation.Easing))
+                    }
+                    MapProvider.Kakao -> {
+                        kakaoMapInstance?.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.newCenterPosition(loc), com.kakao.vectormap.camera.CameraAnimation.from(300, true, true))
+                    }
+                    MapProvider.Google -> {
+                        scope.launch {
+                            googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLng(com.google.android.gms.maps.model.LatLng(loc.latitude, loc.longitude)))
+                        }
+                    }
+                }
+            }
+
             kr.alltodo.ui.components.CreateTodoLayer(
                 modifier = Modifier.align(Alignment.BottomCenter),
                 recentNames = recentNames,
@@ -507,12 +535,22 @@ fun MainScreen(
                 onRegister = { name, person, date, time, memo ->
                     creatingTodoLocation?.let { loc ->
                         todoViewModel.addTodo(name, loc.latitude, loc.longitude, person, date, time, memo)
+                        scope.launch {
+                            delay(300) // Wait for padding removal animation
+                            centerMapOn(loc)
+                        }
                     }
                     isCreatingTodo = false
                     creatingTodoLocation = null
                     initialTodoName = ""
                 },
                 onCancel = {
+                    creatingTodoLocation?.let { loc ->
+                        scope.launch {
+                            delay(300) // Wait for padding removal animation
+                            centerMapOn(loc)
+                        }
+                    }
                     isCreatingTodo = false
                     creatingTodoLocation = null
                     initialTodoName = ""
