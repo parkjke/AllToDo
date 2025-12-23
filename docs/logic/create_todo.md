@@ -12,7 +12,11 @@
     - `isCreatingTodo = true`
     - `initialTodoTitle = "할 일 만들기"`
     - `initialTodoName = ""` (초기화)
-- **자동 기능**: `Geocoder`를 통해 해당 좌표의 법정동(동/읍/면) 정보를 파악하여 `defaultName`("요기" 대신 "삼성동" 등)으로 설정합니다.
+- **iOS 전용 시각적 피드백 (v1.1)**:
+    - **할일핀(Creation Pin)**: 롱터치한 위치에 전용 자산(`PinTodoReady`)을 사용한 핀이 즉시 생성됩니다.
+    - **Vertical Offset Centering**: 사용자가 손가락으로 가림을 방지하기 위해, 지도를 이동시켜 핀의 위치를 화면 중앙에서 **상단으로 100pt** 오프셋 정렬합니다.
+- **Android 현황**: 현재 롱터치 시 텍스트 레이어만 표시되며, 전용 핀 렌더링 및 오프셋 정렬 로직은 **작업 전**입니다.
+- **자동 기능**: `Geocoder`를 통해 해당 좌표의 법정동(동/읍/면) 정보를 파악하여 `defaultName`으로 설정합니다.
 
 ### B. 컨텍스트 기반 생성 (Callout Center Click)
 - **동작**: 지도상의 기존 핀(할 일 또는 히스토리)을 클릭하여 나타난 **물풍선(CalloutRow)**의 중앙 정보 영역을 터치합니다.

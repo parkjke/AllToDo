@@ -8,13 +8,14 @@
 
 물풍선은 단순한 정보 창을 넘어, 앱의 브랜드 아이덴티티를 나타내는 시각적 요소입니다.
 
-<img src="water_balloon_callout_mockup.png" width="400" alt="물풍선 디자인 가이드">
+<img src="water_balloon_callout_mockup.png" style="width: 300px;" alt="물풍선 디자인 가이드">
 
 ### 🟢 Color & Material
 - **Background**: `AllToDoGreen` (#28CD41)
 - **Transparency**: **80% Alpha** (Glassmorphism 효과)
 - **Border**: White with 20% opacity (Subtle Divider)
 - **Shadow**: Elevation 8dp (지도 면으로부터 떠 있는 느낌 부여)
+
 
 ### 📏 Sizing & Layout
 - **Bubble Width**: Fixed 260dp
@@ -69,6 +70,26 @@ y = tapY - BubbleHeight - TailHeight - MarkerOffset
 - **Font Scale**: `popupFontSize` 설정에 따라 텍스트 크기가 실시간으로 변동됩니다.
 - **Real-time Deletion**: 물풍선 내에서 삭제 버튼을 누르면 DB 반영과 동시에 리스트에서 즉시 사라지는 애니메이션이 동기화됩니다.
 - **Contextual Action (New)**: 물풍선의 정보를 담고 있는 중앙 영역은 `clickable` 속성을 가지며, 클릭 시 `onCreateTodo` 콜백을 호출하여 현재 핀의 정보를 `CreateTodoLayer`로 전달합니다.
+
+---
+
+## ⚠️ 5. iOS Kakao Map Interaction Troubleshooting (v1.1)
+
+iOS 카카오 맵 SDK v2 환경에서 핀(POI) 터치 이벤트가 유실되거나 지연되는 현상을 해결하기 위한 기술적 표준입니다.
+
+### 🧩 Objective-C Bridge Signature
+카카오 SDK는 내부적으로 Objective-C 델리게이트 시스템을 사용하므로, Swift에서 정확한 시그니처 매칭이 필수적입니다.
+- **Verified Working (Case 1)**: `poiDidTapped(kakaoMap:layerID:poiID:position:)` (Labelled Version)
+- **주의**: 언더바(`_`)를 포함한 시그니처나 포지션이 누락된 시그니처는 시스템 환경에 따라 이벤트가 전달되지 않을 수 있으므로, 검증된 시그니처를 최상단에 배치합니다.
+
+### 🚫 Gesture Interference Elimination
+커스텀 `UITapGestureRecognizer`가 `KMViewContainer`에 추가될 경우, 네이티브 엔진의 터치 이벤트 처리를 가로채거나 지연시킬 수 있습니다.
+- **해결책**: 핀 터치가 필수인 화면에서는 `KMViewContainer`에 직접적인 `UITapGestureRecognizer`를 추가하지 않거나, `cancelsTouchesInView = false`를 매우 신중하게 사용해야 합니다. 
+- AllToDo iOS v1.1에서는 모든 커스텀 제스처를 제거하여 카카오 맵 순정 터치 엔진의 반응성을 100% 회복했습니다.
+
+###  LAYER zOrder & Hit-Testing
+- **zOrder**: 핀 레이어의 `zOrder`가 너무 높으면(예: 10000) 맵 엔진이 이를 무시할 수 있고, 너무 낮으면 지형 아래로 깔립니다. **2000**이 시각적 노출과 터치 정확도의 최적점입니다.
+- **CompetitionType**: 이벤트 수신을 위해 반드시 `LabelLayerOptions`의 `competitionType`을 `.same`으로 설정해야 합니다.
 
 ---
 
