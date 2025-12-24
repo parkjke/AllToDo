@@ -138,9 +138,9 @@ fun NaverMapContent(
                  }
                  val (resId, badgeColor) = when {
                      hasUserLocation -> kr.alltodo.R.drawable.pin_current to android.graphics.Color.RED
-                     hasHistory -> kr.alltodo.R.drawable.pin_history to android.graphics.Color.RED
+                     hasUserTodo -> kr.alltodo.R.drawable.pin_todo_ready to android.graphics.Color.parseColor("#00AA00")
                      hasServerTodo -> kr.alltodo.R.drawable.pin_receive_ready to android.graphics.Color.BLUE
-                     else -> kr.alltodo.R.drawable.pin_todo_ready to android.graphics.Color.parseColor("#00AA00")
+                     else -> kr.alltodo.R.drawable.pin_history to android.graphics.Color.RED
                  }
                  // Count > 0 renders badge
                  val b = kr.alltodo.ui.createNaverPinBitmap(context, cluster.count, resId, badgeColor)

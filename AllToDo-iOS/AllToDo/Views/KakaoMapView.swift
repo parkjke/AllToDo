@@ -303,7 +303,8 @@ struct KakaoMapView: UIViewRepresentable {
                  let styleID = "RawStyle_\(baseName)"
                  
                  if !registeredStyleIDs.contains(styleID) {
-                     if let baseImage = UIImage(named: baseName)?.resized(to: CGSize(width: 32, height: 40)),
+                     // [FIX] iOS Style: Use 40x50 base size to match Apple Map standard
+                     if let baseImage = UIImage(named: baseName)?.resized(to: CGSize(width: 40, height: 50)),
                         let finalImage = PinImageHelper.shared.createShieldPin(color: color, count: nil, baseImage: baseImage).rasterized() {
                          labelManager.addPoiStyle(PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: PoiIconStyle(symbol: finalImage, anchorPoint: CGPoint(x: 0.5, y: 1.0)), level: 0)]))
                          registeredStyleIDs.insert(styleID)
@@ -374,7 +375,8 @@ struct KakaoMapView: UIViewRepresentable {
                 let styleID = "Style_\(baseName)_\(count)_\(colorHex)"
                 
                 if !registeredStyleIDs.contains(styleID) {
-                    if let baseImage = UIImage(named: baseName)?.resized(to: CGSize(width: 32, height: 40)),
+                    // [FIX] iOS Style: Use 40x50 base size for consistent scaling
+                    if let baseImage = UIImage(named: baseName)?.resized(to: CGSize(width: 40, height: 50)),
                        let finalImage = PinImageHelper.shared.createShieldPin(color: color, count: count > 1 ? count : nil, baseImage: baseImage).rasterized() {
                         labelManager.addPoiStyle(PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: PoiIconStyle(symbol: finalImage, anchorPoint: CGPoint(x: 0.5, y: 1.0)), level: 0)]))
                         registeredStyleIDs.insert(styleID) // [FIX] Must insert to avoid repeated adds
@@ -420,25 +422,17 @@ struct KakaoMapView: UIViewRepresentable {
 
         // MARK: - KakaoMapEventDelegate
         @objc func poiDidTapped(kakaoMap: KakaoMap, layerID: String, poiID: String, position: MapPoint) {
-            print(">>> PIN TAP: Layer[\(layerID)] ID[\(poiID)]")
-            
             if poiID == "cre_pin" || poiID == "creation_pin" { return }
             
             if let items = labelIdToClusterItems[poiID] {
-                // [FIX] Instant center for callout visibility
-                kakaoMap.moveCamera(CameraUpdate.make(target: position, mapView: kakaoMap))
+                // [FIX] Faster Animation (200ms) for snappy "Apple-like" response
+                kakaoMap.moveCamera(CameraUpdate.make(target: position, mapView: kakaoMap), options: CameraAnimationOptions(autoElevation: false, consecutive: true, durationInMillis: 200))
                 
                 Task { @MainActor in
-                    // [FIX] Tiny delay before updating selection to force SwiftUI redraw
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        let center = CGPoint(x: kakaoMap.viewRect.size.width / 2, y: kakaoMap.viewRect.size.height / 2)
-                        self.parent.tapPosition = center
-                        self.parent.selectedClusterItems = items
-                    }
-                    
-                    if items.count == 1 {
-                        print(">>> PIN TAP: Single Selection -> \(items[0].name)")
-                    }
+                    // [FIX] Instant response: No delay for SwiftUI redraw
+                    let center = CGPoint(x: kakaoMap.viewRect.size.width / 2, y: kakaoMap.viewRect.size.height / 2)
+                    self.parent.tapPosition = center
+                    self.parent.selectedClusterItems = items
                 }
             }
         }

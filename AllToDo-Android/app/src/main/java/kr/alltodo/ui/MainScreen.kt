@@ -136,30 +136,25 @@ fun MainScreen(
     LaunchedEffect(hasLocationPermission) {
         if (hasLocationPermission) {
             try {
-                // Initial jump to last known location
+                // [FIX] Priority HIGH_ACCURACY + Persistent request
                 fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
                     if (loc != null && (loc.latitude != 0.0 || loc.longitude != 0.0)) {
                         currentLocation.value = loc
                         todoViewModel.updateCurrentLocation(loc.latitude, loc.longitude)
                         todoViewModel.saveLocation(loc.latitude, loc.longitude)
                         gpsAuthViewModel.addLocation(loc.latitude, loc.longitude, System.currentTimeMillis())
-
-                        // [Item 0] Update beforeLocation
                         beforeLocation.value = loc
-                        prefs.edit()
-                            .putFloat("before_lat", loc.latitude.toFloat())
-                            .putFloat("before_lon", loc.longitude.toFloat())
-                            .apply()
                     }
                 }
                 
-                // Start continuous updates
                 fusedLocationClient.requestLocationUpdates(
                     locationRequest,
                     locationCallback,
                     android.os.Looper.getMainLooper()
                 )
-            } catch (e: SecurityException) { }
+            } catch (e: SecurityException) { 
+                e.printStackTrace()
+            }
         }
     }
 
@@ -357,17 +352,26 @@ fun MainScreen(
                 }
             },
             onLocationClick = { 
+                // [FIX] Force update to current location with Zoom 18
                 currentLocation.value?.let { loc ->
                     val latLng = com.naver.maps.geometry.LatLng(loc.latitude, loc.longitude)
                     when (mapProvider) {
                         MapProvider.Naver -> {
-                            naverMapInstance?.moveCamera(com.naver.maps.map.CameraUpdate.scrollAndZoomTo(latLng, 18.0).animate(com.naver.maps.map.CameraAnimation.Easing, 800))
+                            naverMapInstance?.let { map ->
+                                initialAnimationDone = true // [FIX] Break sequence lock
+                                map.moveCamera(com.naver.maps.map.CameraUpdate.scrollAndZoomTo(latLng, 18.0).animate(com.naver.maps.map.CameraAnimation.Easing, 800))
+                            }
                         }
                         MapProvider.Kakao -> {
-                            kakaoMapInstance?.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.newCenterPosition(com.kakao.vectormap.LatLng.from(loc.latitude, loc.longitude), 18), com.kakao.vectormap.camera.CameraAnimation.from(800, true, true))
+                            kakaoMapInstance?.let { map ->
+                                initialAnimationDone = true // [FIX] Break sequence lock
+                                map.setCameraMaxLevel(21) // Force release max level lock
+                                map.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.newCenterPosition(com.kakao.vectormap.LatLng.from(loc.latitude, loc.longitude), 18), com.kakao.vectormap.camera.CameraAnimation.from(800, true, true))
+                            }
                         }
                         MapProvider.Google -> {
                             scope.launch { 
+                                initialAnimationDone = true
                                 googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(com.google.android.gms.maps.model.LatLng(loc.latitude, loc.longitude), 18f))
                             }
                         }

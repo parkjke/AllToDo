@@ -261,9 +261,9 @@ fun GoogleMapContent(
                 
                 val (resId, badgeColor) = when {
                     hasUserLocation -> kr.alltodo.R.drawable.pin_current to android.graphics.Color.RED
-                    hasHistory -> kr.alltodo.R.drawable.pin_history to android.graphics.Color.RED
+                    hasUserTodo -> kr.alltodo.R.drawable.pin_todo_ready to android.graphics.Color.parseColor("#00AA00")
                     hasServerTodo -> kr.alltodo.R.drawable.pin_receive_ready to android.graphics.Color.BLUE 
-                    else -> kr.alltodo.R.drawable.pin_todo_ready to android.graphics.Color.parseColor("#00AA00") 
+                    else -> kr.alltodo.R.drawable.pin_history to android.graphics.Color.RED 
                 }
                 // [FIX] Use Cached Cluster Bitmap to prevent flickering & show Badge
                 kr.alltodo.ui.getCachedClusterBitmap(context, cluster.count, resId, badgeColor)

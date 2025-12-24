@@ -109,10 +109,8 @@ fun KakaoMapContent(
         onMove = { lat, lon, zoom, animate ->
             kakaoMap?.let { map ->
                 // [FIX] Release Stage 2 constraint for Stage 3 Focus
-                if (zoom > 15f) {
-                    map.setCameraMinLevel(1)
-                    map.setCameraMaxLevel(21)
-                }
+                map.setCameraMinLevel(1)
+                map.setCameraMaxLevel(21)
                 
                 val update = CameraUpdateFactory.newCenterPosition(LatLng.from(lat, lon), zoom.toInt())
                 if (animate) {
@@ -187,9 +185,9 @@ fun KakaoMapContent(
                     }
                     val (resId, badgeColor) = when {
                         hasUserLocation -> kr.alltodo.R.drawable.pin_current to android.graphics.Color.RED
-                        hasHistory -> kr.alltodo.R.drawable.pin_history to android.graphics.Color.RED
+                        hasUserTodo -> kr.alltodo.R.drawable.pin_todo_ready to android.graphics.Color.parseColor("#00AA00")
                         hasServerTodo -> kr.alltodo.R.drawable.pin_receive_ready to android.graphics.Color.BLUE
-                        else -> kr.alltodo.R.drawable.pin_todo_ready to android.graphics.Color.parseColor("#00AA00")
+                        else -> kr.alltodo.R.drawable.pin_history to android.graphics.Color.RED
                     }
                     val b = kr.alltodo.ui.createKakaoPinBitmap(context, cluster.count, resId, badgeColor) // Scale handled internally
                     // [FIX] Adjusted Anchor X from 0.4 to 0.33 to match new padding ratio (16 / 48)
