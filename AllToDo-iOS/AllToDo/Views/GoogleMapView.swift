@@ -16,6 +16,7 @@ struct GoogleMapView: UIViewRepresentable {
     @Binding var selectedClusterItems: [UnifiedMapItem]?
     @Binding var tapPosition: CGPoint? // [NEW]
     @Binding var clusterRadius: Double? // [NEW]
+    @Binding var creatingTodoLocation: CLLocationCoordinate2D? // [NEW]
     var hasItems: Bool
     
     // Actions
@@ -87,11 +88,12 @@ struct GoogleMapView: UIViewRepresentable {
         // [FIX] Ensure clusters are refreshed when SwiftUI state changes, BUT avoid redundant calls at init
         // Only refresh if not in first render sequence (Launch Animation handles the first refresh)
         // 2. Refresh WASM Clusters (if needed) - Logic inside
+        context.coordinator.creatingTodoLocationBinding = $creatingTodoLocation // [NEW]
         context.coordinator.refreshWasmClusters(mapView: uiView)
         
         // [NEW] Check Tethering (Conditional)
         // Only if NOT animating and NOT first render
-        if let u = locationManager.currentLocation, !context.coordinator.firstRender, !context.coordinator.isAnimating {
+        if let u = locationManager.currentLocation, !context.coordinator.firstRender, !context.coordinator.isLaunchAnimating {
             context.coordinator.checkTethering(mapView: uiView, userLocation: u)
         }
         
@@ -111,7 +113,8 @@ struct GoogleMapView: UIViewRepresentable {
     class Coordinator: NSObject, GMSMapViewDelegate {
         var parent: GoogleMapView
         var firstRender = true
-        var isAnimating = false
+        var isLaunchAnimating = false
+        var creatingTodoLocationBinding: Binding<CLLocationCoordinate2D?>? // [NEW]
         
         init(_ parent: GoogleMapView) {
             self.parent = parent
@@ -251,7 +254,7 @@ struct GoogleMapView: UIViewRepresentable {
         
         // [NEW] Check Tethering (Restored)
         func checkTethering(mapView: GMSMapView, userLocation: CLLocation) {
-            if firstRender || isAnimating { return }
+            if firstRender || isLaunchAnimating { return }
             
             let uInt = SmartLocationManager.shared.toIntLocation(userLocation)
             
@@ -298,9 +301,28 @@ struct GoogleMapView: UIViewRepresentable {
         }
         
         func mapView(_ mapView: GMSMapView, didLongPressAt coordinate: CLLocationCoordinate2D) {
+            // [FIX] Target: 100pt above Screen Center (2x Pin Height)
+            let screenHeight = mapView.bounds.height
+            let targetY = (screenHeight / 2) - 100
+            
+            // Calculate Offset Ratio
+            let targetRatio = targetY / screenHeight
+            let offsetRatio = 0.5 - targetRatio
+            
+            let region = mapView.projection.visibleRegion()
+            let bounds = GMSCoordinateBounds(region: region)
+            let spanLat = abs(bounds.northEast.latitude - bounds.southWest.latitude)
+            let offsetLat = spanLat * offsetRatio
+            
+            let cameraCenter = CLLocationCoordinate2D(latitude: coordinate.latitude - offsetLat, longitude: coordinate.longitude)
+            mapView.animate(with: GMSCameraUpdate.setTarget(cameraCenter))
+            
             let generator = UIImpactFeedbackGenerator(style: .medium)
             generator.impactOccurred()
-            parent.onLongTap?(coordinate)
+            
+            DispatchQueue.main.async {
+                self.parent.onLongTap?(coordinate)
+            }
         }
         
         func mapView(_ mapView: GMSMapView, didTap marker: GMSMarker) -> Bool {
@@ -323,7 +345,7 @@ struct GoogleMapView: UIViewRepresentable {
         // MARK: - WASM Clustering
         func refreshWasmClusters(mapView: GMSMapView) {
             // Avoid calc if not ready
-            if firstRender && isAnimating { return } 
+            if firstRender && isLaunchAnimating { return } 
             
             let region = mapView.projection.visibleRegion()
             let bounds = GMSCoordinateBounds(region: region)
@@ -376,6 +398,12 @@ struct GoogleMapView: UIViewRepresentable {
                       }
                      allItems.append(.history(log))
                  }
+                 
+                 // [NEW] Add Creating Todo Location
+                 if let target = creatingTodoLocationBinding?.wrappedValue {
+                     allItems.append(.todo(ToDoItem(todo_name: "New Entry", latitude: target.latitude, longitude: target.longitude)))
+                 }
+                 
                  if let u = parent.locationManager.currentLocation { allItems.append(.userLocation) }
                  
                  // Notify
@@ -444,6 +472,13 @@ struct GoogleMapView: UIViewRepresentable {
                 allItems.append(.userLocation)
                 rawPoints.append(Int32(userLoc.coordinate.latitude * 100_000))
                 rawPoints.append(Int32(userLoc.coordinate.longitude * 100_000))
+            }
+            
+            // [NEW] Add Creating Todo Location if active
+            if let target = creatingTodoLocationBinding?.wrappedValue {
+                allItems.append(.todo(ToDoItem(todo_name: "New Entry", latitude: target.latitude, longitude: target.longitude)))
+                rawPoints.append(Int32(target.latitude * 100_000))
+                rawPoints.append(Int32(target.longitude * 100_000))
             }
             
             Task {
@@ -583,9 +618,7 @@ struct GoogleMapView: UIViewRepresentable {
         // MARK: - Animation
         func performLaunchAnimation(mapView: GMSMapView, userLocation: CLLocation?) {
              guard let userLoc = userLocation else { return }
-             // [FIX] Keep firstRender = true during animation
-             // firstRender = false
-             isAnimating = true
+             isLaunchAnimating = true
             
             // [FIX] Ensure Data is Fresh on Launch/Resume
             refreshWasmClusters(mapView: mapView)
@@ -628,17 +661,18 @@ struct GoogleMapView: UIViewRepresentable {
                     guard let self = self else { return }
                   let midCam = GMSCameraUpdate.setTarget(userLoc.coordinate, zoom: 18)
                   CATransaction.begin()
-                  CATransaction.setValue(1.0, forKey: kCATransactionAnimationDuration) // Slower 1.0s
+                  CATransaction.setAnimationDuration(1.0)
                   mapView.animate(with: midCam)
                   CATransaction.commit()
-                  self.isAnimating = false
+                  self.isLaunchAnimating = false
                   
                   OptimizationLogger.shared.log(type: .launchStep, value: ">>> Current Location: \(userLoc.coordinate)")
                   
-                  // Trigger Cluster (WASM ON)
+                  // [FIX] End Launch Phase
                   self.firstRender = false
+                  self.moveLocation = SmartLocationManager.shared.toIntLocation(userLoc) // [NEW] Set Initial Anchor
                   self.refreshWasmClusters(mapView: mapView)
-              }
+               }
         }
         
         // MARK: - Path

@@ -74,6 +74,8 @@ fun GoogleMapContent(
     var googleMapInstance by remember { mutableStateOf<com.google.android.gms.maps.GoogleMap?>(null) }
     var mapProjection by remember { mutableStateOf<com.google.android.gms.maps.Projection?>(null) }
     var currentSpanLon by remember { mutableStateOf(0) }
+    var currentSpanLat by remember { mutableStateOf(0) }
+    var moveLocationAlias by remember { mutableStateOf<kr.alltodo.utils.SmartLocationManager.IntLocation?>(null) }
     
     // [FIX] Filter Items
     val filteredItems = remember(clusteredItems, currentLocation, isDistanceFilterEnabled) {
@@ -100,7 +102,11 @@ fun GoogleMapContent(
         beforeLocation = beforeLocation,
         currentLocation = currentLocation,
         clusteredItems = clusteredItems,
-        onInitialAnimationDone = onInitialAnimationDone,
+        onInitialAnimationDone = {
+            // Set Initial Tethering Anchor
+            currentLocation?.let { moveLocationAlias = kr.alltodo.utils.SmartLocationManager.toIntLocation(it) }
+            onInitialAnimationDone()
+        },
         onResetAnimationDone = onResetAnimationDone, // [NEW]
         onEnableClustering = onEnableClustering,
         onMove = { lat, lon, zoom, animate ->
@@ -174,8 +180,6 @@ fun GoogleMapContent(
             googleMapInstance = map
         }
 
-        // Now observe state changes and update projection from instance
-        // [NEW] Tethering State
         
         LaunchedEffect(cameraPositionState.isMoving) {
             val map = googleMapInstance ?: return@LaunchedEffect
@@ -184,42 +188,37 @@ fun GoogleMapContent(
                     mapProjection = map.projection
                     onRotationChange(it.bearing)
                     
-                    // [NEW] Update Span (hDistance)
+                    // [NEW] Update Span (Distance) using Projection
                     val visibleRegion = map.projection.visibleRegion
-                    val bounds = calculateVisibleBounds(visibleRegion)
-                    val span = bounds.northeast.longitude - bounds.southwest.longitude
-                    currentSpanLon = (Math.abs(span) * 100000).toInt()
+                    val bounds = visibleRegion.latLngBounds
+                    val dLon = bounds.northeast.longitude - bounds.southwest.longitude
+                    val dLat = bounds.northeast.latitude - bounds.southwest.latitude
+                    currentSpanLon = (Math.abs(dLon) * 100000).toInt()
+                    currentSpanLat = (Math.abs(dLat) * 100000).toInt()
                 }
         }
         
-        // [NEW] Check Tethering on Location Update
-        // [DISABLED] User requested to disable tethering and rely on "Current Location" button
-        /*
-        LaunchedEffect(currentLocation, initialAnimationDone) {
+        // [NEW] Smart Tethering Logic
+        LaunchedEffect(currentLocation, currentSpanLon, currentSpanLat, initialAnimationDone) {
              if (!initialAnimationDone) return@LaunchedEffect
              val loc = currentLocation ?: return@LaunchedEffect
-             val map = googleMapInstance ?: return@LaunchedEffect
              
-             // Current Camera Check
-             val target = cameraPositionState.position.target
-             
-             // Convert to Int
              val userInt = kr.alltodo.utils.SmartLocationManager.toIntLocation(loc)
-             val mapCenter = kr.alltodo.utils.SmartLocationManager.toIntLocation(
-                 android.location.Location("center").apply { 
-                     latitude = target.latitude
-                     longitude = target.longitude 
-                 }
-             )
              
-             if (kr.alltodo.utils.SmartLocationManager.needsCentering(userInt, mapCenter, currentSpanLon)) {
+             // [NEW] Use persistent anchor instead of map center for Exploration Friendliness
+             val anchor = moveLocationAlias ?: run {
+                 moveLocationAlias = userInt
+                 return@LaunchedEffect
+             }
+             
+             if (kr.alltodo.utils.SmartLocationManager.needsCentering(userInt, anchor, currentSpanLon, currentSpanLat)) {
                  cameraPositionState.animate(
                      CameraUpdateFactory.newLatLng(LatLng(loc.latitude, loc.longitude)),
-                     500
+                     500 
                  )
+                 moveLocationAlias = userInt // Update Anchor
              }
         }
-        */
         
         // [NEW] Show Creating Todo Pin (Green)
         if (creatingTodoLocation != null) {

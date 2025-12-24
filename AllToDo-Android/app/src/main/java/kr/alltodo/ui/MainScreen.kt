@@ -69,8 +69,8 @@ fun MainScreen(
     
     // [Item 0] beforeLocation Persistence
     val beforeLocation = remember {
-        val lat = prefs.getFloat("before_lat", 37.5759f)
-        val lon = prefs.getFloat("before_lon", 126.9768f)
+        val lat = prefs.getFloat("before_lat", kr.alltodo.utils.SmartLocationManager.GWANGHWAMUN_LAT.toFloat())
+        val lon = prefs.getFloat("before_lon", kr.alltodo.utils.SmartLocationManager.GWANGHWAMUN_LON.toFloat())
         mutableStateOf(android.location.Location("service").apply {
             latitude = lat.toDouble()
             longitude = lon.toDouble()

@@ -32,30 +32,27 @@ struct CreateTodoLayer: View {
                     HStack {
                         Text(existingItem != nil ? "할 일 상세" : title)
                             .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(.gray8)
+                            .foregroundColor(.primary)
                         
                         Spacer()
                         
                         HStack(spacing: 16) {
                             Button(action: {
                                 let finalName = todoName.isEmpty ? defaultName : todoName
-                                
-                                // Default Date/Time
                                 let now = Date()
                                 let finalDate = date.isEmpty ? now.formatted(.dateTime.year().month(.twoDigits).day(.twoDigits)) : date
                                 let finalTime = time.isEmpty ? now.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits)) : time
-                                
                                 onRegister(finalName, person, finalDate, finalTime, memo)
                             }) {
                                 Image(systemName: "checkmark")
                                     .font(.system(size: 20, weight: .bold))
-                                    .foregroundColor(.gray7)
+                                    .foregroundColor(.primary)
                             }
                             
                             Button(action: onCancel) {
                                 Image(systemName: "xmark")
                                     .font(.system(size: 20, weight: .bold))
-                                    .foregroundColor(.gray7)
+                                    .foregroundColor(.primary)
                             }
                         }
                     }
@@ -107,37 +104,38 @@ struct CreateTodoLayer: View {
                 }
                 .padding(24)
                 .frame(maxWidth: .infinity)
-                .frame(height: 550) // More stable height than UIScreen
-                .background(Color.gray2)
+                .frame(height: 550) 
+                .background(Color(UIColor.systemBackground))
                 .cornerRadius(24, corners: [.topLeft, .topRight])
+                .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: -5)
             }
             .ignoresSafeArea(edges: .bottom)
             
             // Sub-views overlays
             if activeInputMode != .none {
                 ZStack {
-                    Color.white.ignoresSafeArea()
+                    Color(UIColor.systemBackground).ignoresSafeArea()
                     
                     VStack(spacing: 24) {
                         HStack {
                             Button(action: { activeInputMode = .none }) {
                                 Image(systemName: "xmark")
                                     .font(.system(size: 20, weight: .bold))
-                                    .foregroundColor(.gray7)
+                                    .foregroundColor(.primary)
                             }
                             
                             Spacer()
                             
                             Text(overlayTitle)
                                 .font(.system(size: 18, weight: .bold))
-                                .foregroundColor(.gray7)
+                                .foregroundColor(.primary)
                             
                             Spacer()
                             
                             Button(action: { activeInputMode = .none }) {
                                 Image(systemName: "checkmark")
                                     .font(.system(size: 20, weight: .bold))
-                                    .foregroundColor(.gray7)
+                                    .foregroundColor(.primary)
                             }
                         }
                         .padding(.top, 16)
@@ -202,10 +200,10 @@ struct InputField: View {
             Button(action: onClick) {
                 Text(value)
                     .font(.system(size: 16))
-                    .foregroundColor(isPlaceholder ? .gray : .black)
+                    .foregroundColor(isPlaceholder ? .gray : .primary)
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.white)
+                    .background(Color(UIColor.secondarySystemBackground))
                     .cornerRadius(8)
             }
             .buttonStyle(PlainButtonStyle())

@@ -1,3 +1,15 @@
+## 2025-12-24
+### iOS Map UI & Clustering Policy Optimization
+- **지도 물풍선(Callout) UI 테마 일관성 확보**:
+  - `ContentView.swift` 내의 모든 지도 오버레이(클러스터 목록, 할 일 상세, 사이드 메뉴 등)와 하단 시트(`.sheet`)에 `.preferredColorScheme(.light)`를 강제 적용했습니다.
+  - 이를 통해 사용 중인 휴대폰의 다크 모드 설정과 관계없이 지도 관련 인터페이스는 항상 깨끗한 **화이트 테마**를 유지하도록 하여 가독성과 시각적 일관성을 확보했습니다.
+- **클러스터링 우선순위 및 녹색[할일] 핀 가시성 강화**:
+  - `UnifiedMapItem.resolveClusterStyle` 로직을 수정하여, 여러 성격의 핀(할 일, 히스토리, 서버 메시지 등)이 한곳에 겹칠 때 **녹색 [할 일] 핀이 최우선적으로 대표 이미지로 표시**되도록 변경했습니다. (기존: 파랑 > 초록 > 빨강 순에서 **초록 > 파랑 > 빨강** 순으로 변경)
+  - 녹색 핀의 색상을 앱 표준 테마인 `allToDoGreen`으로 정확하게 매칭하여 디자인 통일성을 높였습니다.
+- **카카오맵 안정화 시퀀스 유지 및 검증**:
+  - 앱 런칭 및 백그라운드 복귀 시 3초간 모든 핀을 개별(Raw) 상태로 노출한 후, 현재 위치로 줌인하며 클러스터링을 활성화하는 'Raw First' 전략이 흔들림 없이 작동하도록 유지했습니다.
+  - 엔진 활성화(`checkEngineActivation`) 및 이벤트 델리게이트 재연결 로직을 점검하여 백그라운드 복귀 시 핀 사라짐 현상을 방지했습니다.
+
 ## 2025-12-21
 ### Android Map Reconstruction & GPS Path Tracking
 - **Naver Map SDK Integration (Android Fixes)**:

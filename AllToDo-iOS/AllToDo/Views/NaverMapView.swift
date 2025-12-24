@@ -14,6 +14,7 @@ struct NaverMapView: UIViewRepresentable {
     @Binding var selectedClusterItems: [UnifiedMapItem]?
     @Binding var tapPosition: CGPoint? // [NEW]
     @Binding var clusterRadius: Double? // [NEW]
+    @Binding var creatingTodoLocation: CLLocationCoordinate2D? // [NEW]
     var onLongTap: ((CLLocationCoordinate2D) -> Void)?
     var onUserLocationTap: (() -> Void)?
     
@@ -80,6 +81,7 @@ struct NaverMapView: UIViewRepresentable {
         context.coordinator.parent = self
         context.coordinator.mapView = uiView.mapView
         context.coordinator.onFarItemsDetected = onFarItemsDetected
+        context.coordinator.creatingTodoLocationBinding = $creatingTodoLocation // [NEW]
         
         // 1. Handle Actions
         if action != .none {
@@ -98,7 +100,7 @@ struct NaverMapView: UIViewRepresentable {
             }
             
             // [NEW] Check Tethering (Conditional)
-            if let u = locationManager.currentLocation, !context.coordinator.firstRender {
+            if let u = locationManager.currentLocation, !context.coordinator.firstRender, !context.coordinator.isLaunchAnimating {
                 context.coordinator.checkTethering(mapView: uiView.mapView, userLocation: u)
             }
         }
@@ -119,6 +121,7 @@ struct NaverMapView: UIViewRepresentable {
         var firstRender = true
         var lastDataSummary: String = "" // For Smart Refresh
         var onFarItemsDetected: ((Int) -> Void)?
+        var creatingTodoLocationBinding: Binding<CLLocationCoordinate2D?>? // [NEW]
         
         var markers: [NMFMarker] = []
         var pathOverlay: NMFPath? 
@@ -159,6 +162,12 @@ struct NaverMapView: UIViewRepresentable {
                     name = "PinCurrent" // Red
                 case .serverMessage:
                     name = "PinReceiveReady" // Blue
+                }
+                
+                // [NEW] Check if it's the creating todo pin
+                if let target = parent.creatingTodoLocation, 
+                   abs(marker.position.lat - target.latitude) < 0.00001 && abs(marker.position.lng - target.longitude) < 0.00001 {
+                    name = "PinTodoReady" // Green for new entry
                 }
                 
                 let img = UIImage(named: name)?.resized(to: CGSize(width: 48, height: 60))
@@ -264,7 +273,7 @@ struct NaverMapView: UIViewRepresentable {
             // [FIX] Fallback to Screen Width to prevent initial render failure
             var widthPixels = map.frame.width
             if widthPixels <= 0 {
-                widthPixels = UIScreen.main.bounds.width
+                widthPixels = 375
             }
             // [OPTIMIZATION] Fast Path
             let total = parent.todoItems.count + parent.userLogs.count
@@ -302,6 +311,11 @@ struct NaverMapView: UIViewRepresentable {
                      allItems.append(.history(log))
                  }
                  if let u = parent.locationManager.currentLocation { allItems.append(.userLocation) }
+                 
+                 // [NEW] Add Creating Todo Location
+                 if let target = creatingTodoLocationBinding?.wrappedValue {
+                     allItems.append(.todo(ToDoItem(todo_name: "New Entry", latitude: target.latitude, longitude: target.longitude)))
+                 }
                  
                  // Notify
                  if farCount > 0 {
@@ -370,6 +384,13 @@ struct NaverMapView: UIViewRepresentable {
                 allItems.append(.userLocation)
                 rawPoints.append(Int32(userLoc.coordinate.latitude * 100_000))
                 rawPoints.append(Int32(userLoc.coordinate.longitude * 100_000))
+            }
+            
+            // [NEW] Add Creating Todo Location if active
+            if let target = creatingTodoLocationBinding?.wrappedValue {
+                allItems.append(.todo(ToDoItem(todo_name: "New Entry", latitude: target.latitude, longitude: target.longitude)))
+                rawPoints.append(Int32(target.latitude * 100_000))
+                rawPoints.append(Int32(target.longitude * 100_000))
             }
             
             Task {
@@ -498,14 +519,15 @@ struct NaverMapView: UIViewRepresentable {
 
 
         // [NEW] Animation State
-        var isAnimating = false
+        var isLaunchAnimating = false
         
         func performLaunchAnimation(userLocation: CLLocation?) {
              guard let map = mapView, let u = userLocation else { return }
-             if isAnimating { return }
-             // [FIX] Disable subsequent launch animations
-             firstRender = false
-             isAnimating = true
+             if isLaunchAnimating { return }
+             
+             // [FIX] Keep firstRender = true until Stage 3 is complete 
+             // to preserve Fast Path (Raw Pins) during Fit Bounds phase.
+             isLaunchAnimating = true
              
              // [FIX] Ensure Data is Fresh
              refreshWasmClusters()
@@ -556,10 +578,16 @@ struct NaverMapView: UIViewRepresentable {
                          update.animation = .fly
                          update.animationDuration = 1.5
                          self.mapView?.moveCamera(update) { _ in
-                             self.isAnimating = false
+                             self.isLaunchAnimating = false
+                             self.firstRender = false
+                             self.moveLocation = SmartLocationManager.shared.toIntLocation(loc)
+                             self.refreshWasmClusters()
                          }
                      } else {
-                        self.isAnimating = false
+                         self.isLaunchAnimating = false
+                         self.firstRender = false
+                         self.moveLocation = nil
+                         self.refreshWasmClusters()
                      }
                  }
              } else {
@@ -568,7 +596,10 @@ struct NaverMapView: UIViewRepresentable {
                  update.animation = .fly
                  update.animationDuration = 1.0
                  map.moveCamera(update) { _ in
-                     self.isAnimating = false
+                     self.isLaunchAnimating = false
+                     self.firstRender = false
+                     self.moveLocation = SmartLocationManager.shared.toIntLocation(u) // [NEW] Set Initial Anchor
+                     self.refreshWasmClusters()
                  }
              }
         }
@@ -613,8 +644,27 @@ struct NaverMapView: UIViewRepresentable {
         
         func mapView(_ mapView: NMFMapView, didLongTapMap latlng: NMGLatLng, point: CGPoint) {
             let coord = CLLocationCoordinate2D(latitude: latlng.lat, longitude: latlng.lng)
+            
+            // [FIX] Target: 100pt above Screen Center (2x Pin Height)
+            let screenHeight = mapView.bounds.height
+            let targetY = (screenHeight / 2) - 100
+            
+            // Calculate Offset Ratio
+            let targetRatio = targetY / screenHeight
+            let offsetRatio = 0.5 - targetRatio
+            
+            let bounds = mapView.contentBounds
+            let spanLat = abs(bounds.northEastLat - bounds.southWestLat)
+            let offsetLat = spanLat * offsetRatio
+            
+            let cameraUpdate = NMFCameraUpdate(scrollTo: NMGLatLng(lat: latlng.lat - offsetLat, lng: latlng.lng))
+            cameraUpdate.animation = .fly
+            cameraUpdate.animationDuration = 0.5
+            mapView.moveCamera(cameraUpdate)
+            
             let generator = UIImpactFeedbackGenerator(style: .medium)
             generator.impactOccurred()
+            
             DispatchQueue.main.async {
                 self.parent.onLongTap?(coord)
             }
@@ -650,7 +700,7 @@ struct NaverMapView: UIViewRepresentable {
         // [NEW] Check Tethering (Restored)
         func checkTethering(mapView: NMFMapView, userLocation: CLLocation) {
             // Guard: Launching
-            if firstRender { return }
+            if firstRender || isLaunchAnimating { return }
             
             let uInt = SmartLocationManager.shared.toIntLocation(userLocation)
             

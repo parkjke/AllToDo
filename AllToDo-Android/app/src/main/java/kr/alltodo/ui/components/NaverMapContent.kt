@@ -52,6 +52,11 @@ fun NaverMapContent(
     var mapView by remember { mutableStateOf<MapView?>(null) }
     var naverMap by remember { mutableStateOf<NaverMap?>(null) }
     var isMapReady by remember { mutableStateOf(false) }
+    
+    // [NEW] Smart Tethering State
+    var currentSpanLon by remember { mutableStateOf(0) }
+    var currentSpanLat by remember { mutableStateOf(0) }
+    var moveLocation by remember { mutableStateOf<kr.alltodo.utils.SmartLocationManager.IntLocation?>(null) }
 
     // [FIX] Lifecycle Management for Fast Resume (Avoid Zombie State)
     DisposableEffect(lifecycleOwner) {
@@ -192,7 +197,8 @@ fun NaverMapContent(
         }
     }
 
-    // Zoom Polling
+
+    // Zoom & Span Polling
     LaunchedEffect(naverMap) {
         val map = naverMap ?: return@LaunchedEffect
         var lastZoom = 0.0
@@ -202,7 +208,35 @@ fun NaverMapContent(
                 lastZoom = z
                 onZoomChange(z.toFloat())
             }
+            
+            // [NEW] Update Span
+            val bounds = map.contentBounds
+            val dLon = bounds.eastLongitude - bounds.westLongitude
+            val dLat = bounds.northLatitude - bounds.southLatitude
+            currentSpanLon = (Math.abs(dLon) * 100000).toInt()
+            currentSpanLat = (Math.abs(dLat) * 100000).toInt()
+            
             delay(300)
+        }
+    }
+
+    // [NEW] Smart Tethering Reaction
+    LaunchedEffect(currentLocation, currentSpanLon, currentSpanLat, initialAnimationDone) {
+        if (!initialAnimationDone) return@LaunchedEffect
+        val map = naverMap ?: return@LaunchedEffect
+        val loc = currentLocation ?: return@LaunchedEffect
+        
+        val userInt = kr.alltodo.utils.SmartLocationManager.toIntLocation(loc)
+        
+        // Use persistent anchor instead of map center for Exploration Friendliness
+        val anchor = moveLocation ?: run {
+            moveLocation = userInt
+            return@LaunchedEffect
+        }
+        
+        if (kr.alltodo.utils.SmartLocationManager.needsCentering(userInt, anchor, currentSpanLon, currentSpanLat)) {
+            map.moveCamera(com.naver.maps.map.CameraUpdate.scrollTo(LatLng(loc.latitude, loc.longitude)).animate(com.naver.maps.map.CameraAnimation.Easing, 500))
+            moveLocation = userInt // Update Anchor
         }
     }
 
@@ -213,7 +247,11 @@ fun NaverMapContent(
         beforeLocation = beforeLocation,
         currentLocation = currentLocation,
         clusteredItems = clusteredItems,
-        onInitialAnimationDone = onInitialAnimationDone,
+        onInitialAnimationDone = { 
+            // Set Initial Tethering Anchor
+            currentLocation?.let { moveLocation = kr.alltodo.utils.SmartLocationManager.toIntLocation(it) }
+            onInitialAnimationDone() 
+        },
         onResetAnimationDone = onResetAnimationDone, // [NEW]
         onEnableClustering = onEnableClustering,
         onMove = { lat, lon, zoom, animate ->

@@ -14,6 +14,7 @@ struct AppleMapView: UIViewRepresentable {
     @Binding var selectedClusterItems: [UnifiedMapItem]?
     @Binding var tapPosition: CGPoint?
     @Binding var clusterRadius: Double?
+    @Binding var creatingTodoLocation: CLLocationCoordinate2D? // [NEW]
     var onLongTap: ((CLLocationCoordinate2D) -> Void)?
     var onUserLocationTap: (() -> Void)?
     var onDelete: ((ToDoItem) -> Void)?
@@ -103,8 +104,10 @@ struct AppleMapView: UIViewRepresentable {
         // Update Annotations
         context.coordinator.updateAnnotations(mapView: uiView, items: todoItems, userLocation: locationManager.currentLocation)
         
-        // [NEW] Check Tethering on Location Update
-        if let u = locationManager.currentLocation {
+        // Guard against launch animation
+        context.coordinator.creatingTodoLocationBinding = $creatingTodoLocation // [NEW]
+        
+        if let u = locationManager.currentLocation, !context.coordinator.isLaunchAnimating, !context.coordinator.firstRender {
             context.coordinator.checkTethering(mapView: uiView, userLocation: u)
         }
         
@@ -118,8 +121,8 @@ struct AppleMapView: UIViewRepresentable {
         
         // [SMART REFRESH] Only trigger if data changed
         let currentSummary = "\(todoItems.count)-\(todoItems.first?.todo_id.uuidString ?? "")-\(userLogs.count)-\(userLogs.first?.todo_id.uuidString ?? "")"
-        if context.coordinator.lastItemsSummary != currentSummary {
-            context.coordinator.lastItemsSummary = currentSummary
+        if context.coordinator.lastDataSummary != currentSummary {
+            context.coordinator.lastDataSummary = currentSummary
             context.coordinator.refreshWasmClusters(mapView: uiView)
         }
     }
@@ -132,9 +135,10 @@ struct AppleMapView: UIViewRepresentable {
         var parent: AppleMapView
         var firstRender = true
         var userAnnotation: UnifiedAnnotation?
-        var lastItemsSummary: String = "" // For Smart Refresh
+        var lastDataSummary: String = "" // For Smart Refresh
         var lastItemIDs: Set<UUID> = []
         var lastLogIDs: Set<UUID> = []
+        var creatingTodoLocationBinding: Binding<CLLocationCoordinate2D?>? // [NEW]
         
         weak var currentMapView: MKMapView? // [NEW] Store Reference
         
@@ -321,11 +325,29 @@ struct AppleMapView: UIViewRepresentable {
                 let point = gesture.location(in: mapView)
                 let coord = mapView.convert(point, toCoordinateFrom: mapView)
                 
+                // [FIX] Target: 100pt above Screen Center (2x Pin Height)
+                let screenHeight = mapView.bounds.height
+                let targetY = (screenHeight / 2) - 100
+                
+                // Calculate Offset: Distance from center (0.5) to target (targetY/screenHeight)
+                let targetRatio = targetY / screenHeight
+                let offsetRatio = 0.5 - targetRatio
+                
+                let spanLat = mapView.region.span.latitudeDelta
+                let offsetLat = spanLat * offsetRatio
+                
+                let cameraCenter = CLLocationCoordinate2D(latitude: coord.latitude - offsetLat, longitude: coord.longitude)
+                
+                let region = MKCoordinateRegion(center: cameraCenter, span: mapView.region.span)
+                mapView.setRegion(region, animated: true)
+                
                 // Feedback
                 let generator = UIImpactFeedbackGenerator(style: .medium)
                 generator.impactOccurred()
                 
-                parent.onLongTap?(coord)
+                DispatchQueue.main.async {
+                    self.parent.onLongTap?(coord)
+                }
             }
         }
         
@@ -335,8 +357,10 @@ struct AppleMapView: UIViewRepresentable {
             // [FIX] Fallback to Screen Width if Map View is not yet laid out (Width=0)
             // This prevents "No pins on launch" bug.
             var widthPixels = mapView.bounds.width
+            var heightPixels: CGFloat = 0.0 // Declare heightPixels
             if widthPixels <= 0 {
-                widthPixels = UIScreen.main.bounds.width
+                widthPixels = 375
+                heightPixels = 812
             }
             // guard widthPixels > 0 else { return } // Removed guard
             
@@ -463,6 +487,13 @@ struct AppleMapView: UIViewRepresentable {
                 allItems.append(.userLocation)
                 rawPoints.append(Int32(userLoc.coordinate.latitude * 100_000))
                 rawPoints.append(Int32(userLoc.coordinate.longitude * 100_000))
+            }
+            
+            // [NEW] Add Creating Todo Location if active
+            if let target = creatingTodoLocationBinding?.wrappedValue {
+                allItems.append(.todo(ToDoItem(todo_name: "New Entry", latitude: target.latitude, longitude: target.longitude)))
+                rawPoints.append(Int32(target.latitude * 100_000))
+                rawPoints.append(Int32(target.longitude * 100_000))
             }
             
             // 2. WASM Clustering
@@ -626,6 +657,7 @@ struct AppleMapView: UIViewRepresentable {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                         self.isLaunchAnimating = false
                         self.firstRender = false 
+                        self.moveLocation = SmartLocationManager.shared.toIntLocation(freshLoc) // [NEW] Set Initial Anchor
                         self.refreshWasmClusters(mapView: mapView)
                     }
                     
@@ -928,24 +960,17 @@ struct ClusterListCallout: View {
             
             // [List Contents]
             VStack(spacing: 0) {
-                if displayItems.count <= 3 {
-                    ForEach(displayItems) { item in
-                        itemRow(item)
-                        if item.id != displayItems.last?.id {
-                            Divider()
-                        }
-                    }
-                } else {
-                    ScrollView {
-                        VStack(spacing: 0) {
-                            ForEach(displayItems) { item in
-                                itemRow(item)
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(items) { item in
+                            itemRow(item)
+                            if item.id != items.last?.id {
                                 Divider()
                             }
                         }
                     }
-                    .frame(maxHeight: 250)
                 }
+                .frame(maxHeight: 250)
             }
         }
         .fixedSize(horizontal: false, vertical: true) // [FIX] Zero-height frame 대응

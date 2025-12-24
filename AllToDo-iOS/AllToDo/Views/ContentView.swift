@@ -90,11 +90,14 @@ struct ContentView: View {
                         selectedClusterItems: $selectedClusterItems,
                         tapPosition: $tapPosition,
                         clusterRadius: $clusterRadius,
+                        creatingTodoLocation: $creatingTodoLocation,
                         onLongTap: { coord in
                             self.creatingTodoLocation = coord
                             self.initialTodoName = ""
                             self.initialTodoTitle = "할 일 만들기"
-                            self.isCreatingTodo = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                self.isCreatingTodo = true
+                            }
                         },
                         onUserLocationTap: {},
                         onDelete: { deleteItem($0) },
@@ -116,11 +119,14 @@ struct ContentView: View {
                          selectedClusterItems: $selectedClusterItems,
                          tapPosition: $tapPosition,
                          clusterRadius: $clusterRadius,
+                         creatingTodoLocation: $creatingTodoLocation, // [NEW]
                          onLongTap: { coord in
                             self.creatingTodoLocation = coord
                             self.initialTodoName = ""
                             self.initialTodoTitle = "할 일 만들기"
-                            self.isCreatingTodo = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                self.isCreatingTodo = true
+                            }
                          },
                          onDelete: { deleteItem($0) },
                          onDeleteLog: { deleteItem($0) },
@@ -142,11 +148,14 @@ struct ContentView: View {
                         selectedClusterItems: $selectedClusterItems,
                         tapPosition: $tapPosition,
                         clusterRadius: $clusterRadius,
+                        creatingTodoLocation: $creatingTodoLocation,
                         onLongTap: { coord in
                             self.creatingTodoLocation = coord
                             self.initialTodoName = ""
                             self.initialTodoTitle = "할 일 만들기"
-                            self.isCreatingTodo = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                self.isCreatingTodo = true
+                            }
                         },
                         onUserLocationTap: {},
                         onDelete: { deleteItem($0) },
@@ -168,12 +177,15 @@ struct ContentView: View {
                         selectedClusterItems: $selectedClusterItems,
                         tapPosition: $tapPosition,
                         clusterRadius: $clusterRadius,
+                        creatingTodoLocation: $creatingTodoLocation, // [NEW]
                         hasItems: !filteredTodos.isEmpty || !filteredLogs.isEmpty,
                         onLongTap: { coord in
                             self.creatingTodoLocation = coord
                             self.initialTodoName = ""
                             self.initialTodoTitle = "할 일 만들기"
-                            self.isCreatingTodo = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                self.isCreatingTodo = true
+                            }
                         },
                         onUserLocationTap: {},
                         onDelete: { deleteItem($0) },
@@ -187,10 +199,6 @@ struct ContentView: View {
                 }
             }
             .ignoresSafeArea()
-            .onTapGesture {
-                if selectedClusterItems != nil { selectedClusterItems = nil }
-                if viewingHistoryItem != nil { viewingHistoryItem = nil }
-            }
             
             // UI Layer
             VStack {
@@ -256,12 +264,14 @@ struct ContentView: View {
                         initialTodoName = ""
                     }
                 )
+                .preferredColorScheme(.light)
                 .transition(.move(edge: .bottom))
                 .animation(.spring(), value: isCreatingTodo)
             }
         }
         .sheet(item: $viewingHistoryItem) { item in
             PathHistoryView(item: item, onClose: { viewingHistoryItem = nil })
+                .preferredColorScheme(.light)
         }
         .sheet(isPresented: $showCalendar) {
              VStack {
@@ -304,6 +314,7 @@ struct ContentView: View {
                  .padding()
              }
              .presentationDetents([.medium, .large])
+             .preferredColorScheme(.light)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("MapRotationChanged"))) { notification in
             if let rotation = notification.userInfo?["rotation"] as? Double {
@@ -417,6 +428,7 @@ struct ContentView: View {
                         .frame(width: 320)
                         .background(Color.white)
                         .cornerRadius(12)
+                        .preferredColorScheme(.light)
                         
                         CalloutTriangle()
                             .fill(Color.white)
@@ -457,7 +469,7 @@ struct ContentView: View {
                         .onTapGesture { withAnimation { showProfile = false } }
                     
                     HStack {
-                        UserProfileView(isPresented: $showProfile)
+                        UserProfileView(isPresented: $showProfile, locationManager: locationManager)
                             .frame(width: 300)
                             .background(Color.white)
                             .shadow(radius: 5)
@@ -465,6 +477,7 @@ struct ContentView: View {
                     }
                     .transition(.move(edge: .leading))
                 }
+                .preferredColorScheme(.light)
                 .zIndex(300)
             }
         }
@@ -490,6 +503,7 @@ struct ContentView: View {
                         onCancel: { selectedItem = nil }
                     )
                 }
+                .preferredColorScheme(.light)
                 .transition(.move(edge: .bottom))
                 .zIndex(400)
             }
@@ -549,6 +563,7 @@ extension ContentView {
                     }
                     .background(Color.white)
                     .cornerRadius(16)
+                    .preferredColorScheme(.light)
                     .transition(.move(edge: .bottom))
                 }
                 .zIndex(500)

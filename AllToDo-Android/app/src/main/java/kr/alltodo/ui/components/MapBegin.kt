@@ -76,45 +76,34 @@ fun MapBeginSequence(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // [FIX] Removed initialAnimationDone from keys to prevent cancellation when flag is set
-    LaunchedEffect(isMapReady) {
-        if (!isMapReady || initialAnimationDone) return@LaunchedEffect
-        
-        // [Stage 1] Fast Display : Use beforeLocation at Zoom 15
-        currentOnMove(currentBeforeLocation.latitude, currentBeforeLocation.longitude, 15.0f, false)
+    // [FIX] Use SmartLocationManager constants for extreme fallback
+    val defaultLat = kr.alltodo.utils.SmartLocationManager.GWANGHWAMUN_LAT
+    val defaultLon = kr.alltodo.utils.SmartLocationManager.GWANGHWAMUN_LON
 
-        // [Stage 2] Fit-Bounds Display
-        currentOnStop() // Stop Stage 1 movements
-        
-        // [Item 5] Fast Resume: Use cached points if available, otherwise wait for flow
-        val pinPoints = if (lastKnownBoundsPoints.isNotEmpty()) {
-            lastKnownBoundsPoints.toMutableList()
-        } else if (clusteredItems.isNotEmpty()) {
-            clusteredItems.map { it.latitude to it.longitude }.toMutableList()
-        } else {
-            // Cold Start case: Wait for first data emission
-            snapshotFlow { clusteredItems }
-                .filter { it.isNotEmpty() }
-                .first()
-                .map { it.latitude to it.longitude }.toMutableList()
+    // [Stage 1] Fast Display : Jump immediately when map is ready
+    LaunchedEffect(isMapReady) {
+        if (isMapReady && !initialAnimationDone) {
+            currentOnMove(currentBeforeLocation.latitude, currentBeforeLocation.longitude, 15.0f, false)
         }
+    }
+
+    // [Stage 2 & 3] Data-Driven Fit Bounds & Final Focus
+    LaunchedEffect(isMapReady, clusteredItems, initialAnimationDone) {
+        if (!isMapReady || initialAnimationDone || clusteredItems.isEmpty()) return@LaunchedEffect
         
-        // 2.3 Include current location if available
+        // [Interruption] Stop any ongoing Stage 1 or previous animations
+        currentOnStop()
+        
+        // 1. Prepare Points (Integer-based for speed)
+        val pinPoints = clusteredItems.map { it.latitude to it.longitude }.toMutableList()
         currentMyLocation?.let { 
-            if (it.latitude != 0.0 || it.longitude != 0.0) {
-                pinPoints.add(it.latitude to it.longitude)
-            }
+            if (it.latitude != 0.0 || it.longitude != 0.0) pinPoints.add(it.latitude to it.longitude)
         }
 
         if (pinPoints.isNotEmpty()) {
-            // [Item 3] Integer-based Fast Bounds Calculation
-            // Precision: 100,000 (as requested)
             val precision = 100000.0
-            
-            var minLatInt = Int.MAX_VALUE
-            var maxLatInt = Int.MIN_VALUE
-            var minLonInt = Int.MAX_VALUE
-            var maxLonInt = Int.MIN_VALUE
+            var minLatInt = Int.MAX_VALUE; var maxLatInt = Int.MIN_VALUE
+            var minLonInt = Int.MAX_VALUE; var maxLonInt = Int.MIN_VALUE
             
             pinPoints.forEach { (lat, lon) ->
                 val latI = (lat * precision).toInt()
@@ -128,44 +117,31 @@ fun MapBeginSequence(
             val width = maxLonInt - minLonInt
             val height = maxLatInt - minLatInt
             
-            // Add 1/4 (25%) margin to each side
-            val padLon = width / 4
-            val padLat = height / 4
-            
-            val finalMinLat = (minLatInt - padLat) / precision
-            val finalMaxLat = (maxLatInt + padLat) / precision
-            val finalMinLon = (minLonInt - padLon) / precision
-            val finalMaxLon = (maxLonInt + padLon) / precision
-            
-            // Zoom 15 Span Threshold: ~1500 units (approx 1.5km at 100,000 scale)
+            // Zoom 15 Span Threshold: ~1500 units (~1.5km)
             val zoom15Threshold = 1500
-            val totalWidthWithPad = width + (2 * padLon)
-            val totalHeightWithPad = height + (2 * padLat)
             
-            if (totalWidthWithPad < zoom15Threshold && totalHeightWithPad < zoom15Threshold) {
-                // Step 2.5: If area is small, just jump to Zoom 15 at center
+            if (width < zoom15Threshold && height < zoom15Threshold) {
                 val centerLat = ((minLatInt + maxLatInt) / 2.0) / precision
                 val centerLon = ((minLonInt + maxLonInt) / 2.0) / precision
                 currentOnMove(centerLat, centerLon, 15.0f, true)
             } else {
-                // Step 2.4: Fit bounds with calculated padding points
+                // Fit bounds with 1/4 padding logic built into SDK animate (usually) or manual points
                 val boundsPoints = listOf(
-                    finalMinLat to finalMinLon,
-                    finalMaxLat to finalMaxLon
+                    minLatInt / precision to minLonInt / precision,
+                    maxLatInt / precision to maxLonInt / precision
                 )
-                currentOnFitBounds(boundsPoints, 20, 15.0f)
+                currentOnFitBounds(boundsPoints, 60, 15.0f)
             }
         }
 
-        // [Stage 3] Final Focus : After 3 seconds (as requested)
+        // [Stage 3] Final Focus After 3 Seconds
         delay(3000)
         
+        // Re-check if we are still the active effect (interruption check)
         currentOnEnableClustering()
-        
         val targetLoc = currentMyLocation ?: currentBeforeLocation
         currentOnMove(targetLoc.latitude, targetLoc.longitude, 18.0f, true)
         
-        // Flag completion only after Stage 3 is safely initiated or done
-        currentOnInitialAnimationDone()
+        onInitialAnimationDone()
     }
 }

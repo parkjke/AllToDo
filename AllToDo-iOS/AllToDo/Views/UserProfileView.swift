@@ -1,7 +1,9 @@
 import SwiftUI
+import CoreLocation
 
 struct UserProfileView: View {
     @Binding var isPresented: Bool
+    @ObservedObject var locationManager: AppLocationManager
     @State private var name: String = ""
     @State private var nickname: String = ""
     @State private var phoneNumber: String = ""
@@ -11,6 +13,7 @@ struct UserProfileView: View {
     @AppStorage("popupFontSize") private var popupFontSize = 1
     @AppStorage("selectedMapProvider") private var mapProvider: MapProvider = .apple
     @State private var showPinGallery = false
+    @State private var showMapTest = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -36,7 +39,17 @@ struct UserProfileView: View {
             Form {
                 Section {
                     HStack {
+                        // Blue Pin Icon (Left)
+                        Button(action: { showPinGallery = true }) {
+                            Image("PinReceiveReady")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 44, height: 44)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
                         Spacer()
+                        
                         VStack {
                             Image(systemName: "person.circle.fill")
                                 .resizable()
@@ -44,8 +57,19 @@ struct UserProfileView: View {
                                 .foregroundColor(.gray)
                             Text("Profile Photo").font(.caption).foregroundColor(.gray)
                         }
+                        
                         Spacer()
+                        
+                        // Map Icon (Right)
+                        Button(action: { showMapTest = true }) {
+                            Image(systemName: "map.circle.fill")
+                                .resizable()
+                                .frame(width: 44, height: 44)
+                                .foregroundColor(.blue)
+                        }
+                        .buttonStyle(PlainButtonStyle())
                     }
+                    .padding(.vertical, 10)
                     .listRowBackground(Color.clear)
                 }
                 
@@ -80,19 +104,12 @@ struct UserProfileView: View {
                     }
                 }
                 
-                Section(header: Text("Developer")) {
-                    Button("Open Pin Gallery") {
-                        showPinGallery = true
-                    }
-                }
-                
                 if !message.isEmpty {
                     Section {
                         Text(message)
                             .foregroundColor(.secondary)
                             .font(.caption)
                     }
-
                 }
             }
         }
@@ -100,6 +117,9 @@ struct UserProfileView: View {
         .onDisappear(perform: saveUserInfo)
         .sheet(isPresented: $showPinGallery) {
             PinGalleryView()
+        }
+        .fullScreenCover(isPresented: $showMapTest) {
+            KakaoMapTEST(locationManager: locationManager)
         }
     }
     
@@ -127,17 +147,6 @@ struct UserProfileView: View {
         isLoading = true
         Task {
             do {
-                // Note: APIManager updateUserInfo currently takes name and password. 
-                // I should update APIManager to accept nickname and phone number if I want to save them.
-                // For now, I'll just send name.
-                // Wait, the guide said: "Implement UI for User Info (Get/Update)".
-                // And APIManager implementation has:
-                // func updateUserInfo(uuid: String, name: String?, password: String?) async throws
-                // It seems I missed nickname and phone in updateUserInfo arguments in APIManager.swift
-                // I should fix APIManager.swift to support more fields or just stick to name for now.
-                // Let's stick to name for now to avoid changing too many files, or I can update APIManager.
-                // The UserInfoUpdate struct has nickname.
-                
                 try await APIManager.shared.updateUserInfo(uuid: uuid, name: name, password: nil)
                 message = "Info updated successfully!"
                 isLoading = false
@@ -148,14 +157,12 @@ struct UserProfileView: View {
         }
     }
     
-    // [NEW] Upload Logs
     private func uploadLogs() {
         guard let jsonString = OptimizationLogger.shared.readLogs() else {
              message = "No logs found"
              return
         }
         
-        // Parse
         let lines = jsonString.components(separatedBy: "\n").filter { !$0.isEmpty }
         var logs: [[String: Any]] = []
         let deviceName = UIDevice.current.name 
@@ -215,8 +222,4 @@ struct UserProfileView: View {
             isLoading = false
         }
     }
-}
-
-#Preview {
-    UserProfileView(isPresented: .constant(true))
 }

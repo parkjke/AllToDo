@@ -14,6 +14,9 @@ object SmartLocationManager {
     // In Integer units (x 100,000) => 9 units.
     private const val BASE_THRESHOLD_UNITS = 9 
 
+    val GWANGHWAMUN_LAT = 37.5759
+    val GWANGHWAMUN_LON = 126.9768
+
     data class IntLocation(val lat: Int, val lon: Int)
 
     fun toIntLocation(loc: Location): IntLocation {
@@ -21,6 +24,10 @@ object SmartLocationManager {
             (loc.latitude * PRECISION).toInt(),
             (loc.longitude * PRECISION).toInt()
         )
+    }
+
+    fun toDoubleLocation(intLoc: IntLocation): Pair<Double, Double> {
+        return Pair(intLoc.lat / PRECISION, intLoc.lon / PRECISION)
     }
 
     /**
@@ -69,15 +76,20 @@ object SmartLocationManager {
     }
 
     /**
-     * Checks if user has moved beyond 1/4 of the screen width from the map center.
+     * Checks if user has moved beyond 1/4 of the screen width or height from the map center.
      * @param user User's location (Int)
      * @param center Map center location (Int)
      * @param spanLon Map's longitude span (width) in Int units (deg * 100,000)
+     * @param spanLat Map's latitude span (height) in Int units (deg * 100,000)
      */
-    fun needsCentering(user: IntLocation, center: IntLocation, spanLon: Int): Boolean {
+    fun needsCentering(user: IntLocation, center: IntLocation, spanLon: Int, spanLat: Int): Boolean {
+        val deltaLat = abs(user.lat - center.lat)
         val deltaLon = abs(user.lon - center.lon)
-        val threshold = spanLon / 4
-        return deltaLon > threshold
+        
+        val thresholdH = spanLon / 4
+        val thresholdV = spanLat / 4
+        
+        return deltaLat > thresholdV || deltaLon > thresholdH
     }
 
     // [NEW] Ensure Min Span for Bounds (Prevent Max Zoom on Single Point)

@@ -85,8 +85,8 @@ enum UnifiedMapItem: Identifiable {
             // [Rule 2 & 3] Majority Vote with Tie-Breaker (Blue > Green > Red)
             // Array order determines priority for ties
             let counts = [
-                ("PinReceiveReady", blueCount),
                 ("PinTodoReady", greenCount),
+                ("PinReceiveReady", blueCount),
                 ("PinHistory", redCount)
             ]
             
@@ -114,7 +114,7 @@ enum UnifiedMapItem: Identifiable {
         if baseName == "PinHistory" { color = .red }
         else if baseName == "PinReceiveReady" { color = .blue }
         else if baseName == "PinCurrent" { color = .red } // User Location is Red Badge (Wait, Android says Red? Doc says Red)
-        else { color = UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0) } // Green
+        else { color = .allToDoGreen } // Green
         
         return (baseName, color, items.count)
     }
@@ -125,6 +125,17 @@ enum UnifiedMapItem: Identifiable {
         formatter.dateFormat = "MM/dd HH:mm"
         return formatter
     }()
+}
+
+// MARK: - Map Action Enum
+enum MapAction {
+    case none
+    case zoomIn
+    case zoomOut
+    case currentLocation
+    case rotateNorth
+    case zoomToFit
+    case launchSequence
 }
 
 // Custom Annotation Class

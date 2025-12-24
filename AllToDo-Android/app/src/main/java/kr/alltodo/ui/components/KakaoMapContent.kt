@@ -47,21 +47,26 @@ fun KakaoMapContent(
     creatingTodoLocation: LatLng? = null,
     contentPaddingBottom: Int = 0 
 ) {
+    val context = LocalContext.current
+    
+    // --- State Variables (Unified at top) ---
+    var kakaoMap by remember { mutableStateOf<KakaoMap?>(null) }
+    var isMapReady by remember { mutableStateOf(false) }
+    var mapView by remember { mutableStateOf<MapView?>(null) }
+    var hasLocalAnimationRun by remember { mutableStateOf(false) }
+    var isDistanceFilterEnabled by remember { mutableStateOf(true) }
+    
+    // Smart Tethering State
+    var currentSpanLon by remember { mutableStateOf(0) }
+    var currentSpanLat by remember { mutableStateOf(0) }
+    var moveLocation by remember { mutableStateOf<kr.alltodo.utils.SmartLocationManager.IntLocation?>(null) }
+
     // [FIX] Capture callback to avoid name shadowing in KakaoMapReadyCallback
     val activeOnMapReady = onMapReady
     
-    // [FIX] Capture latest location for Animation Coroutine
     val currentLocState = rememberUpdatedState(currentLocation)
     
-    val context = LocalContext.current
-    var kakaoMap by remember { mutableStateOf<KakaoMap?>(null) }
-    var isMapReady by remember { mutableStateOf(false) }
-    
-    // [FIX] Local Guard: Ensure animation runs at least once for THIS composition
-    var hasLocalAnimationRun by remember { mutableStateOf(false) }
-
     // 500km Filter Logic
-    var isDistanceFilterEnabled by remember { mutableStateOf(true) } // [FIX] Dynamic Filter State
     val farThreshold = 500000f
     
     val visibleClusters = remember(clusteredItems, currentLocation, isDistanceFilterEnabled) {
@@ -94,7 +99,11 @@ fun KakaoMapContent(
         beforeLocation = beforeLocation,
         currentLocation = currentLocation,
         clusteredItems = clusteredItems,
-        onInitialAnimationDone = onInitialAnimationDone,
+        onInitialAnimationDone = {
+            // Set Initial Tethering Anchor
+            currentLocation?.let { moveLocation = kr.alltodo.utils.SmartLocationManager.toIntLocation(it) }
+            onInitialAnimationDone()
+        },
         onResetAnimationDone = onResetAnimationDone, // [NEW]
         onEnableClustering = onEnableClustering,
         onMove = { lat, lon, zoom, animate ->
@@ -219,6 +228,7 @@ fun KakaoMapContent(
 
 
 
+
     // [FIX] Fallback Zoom & Rotation Polling
     LaunchedEffect(kakaoMap) {
         val map = kakaoMap
@@ -233,17 +243,55 @@ fun KakaoMapContent(
                     onZoomChange(z.toFloat())
                 }
                 
-                // 2. Rotation Change (Kakao rotate is in Radians, CW from North)
-                // Convert to Degrees for our UI
+                // 2. Rotation Change
                 val rotateRad = map.cameraPosition?.rotationAngle ?: 0f
                 val rotateDeg = Math.toDegrees(rotateRad.toDouble()).toFloat()
-                if (Math.abs(rotateDeg - lastRotate) > 1.0f) { // 1 degree threshold
+                if (Math.abs(rotateDeg - lastRotate) > 1.0f) {
                     lastRotate = rotateDeg
                     onCameraRotate(rotateDeg)
                 }
                 
-                delay(200) // Poll every 200ms for better responsiveness
+                // [NEW] 3. Span Calculation via Projection
+                val width = mapView?.width ?: 0
+                val height = mapView?.height ?: 0
+                if (width > 0 && height > 0) {
+                    val center = map.cameraPosition?.getPosition()
+                    
+                    if (center != null) {
+                        val left = map.fromScreenPoint(0, height / 2)
+                        val top = map.fromScreenPoint(width / 2, 0)
+                        
+                        if (left != null && top != null) {
+                            val dLon = Math.abs(center.longitude - left.longitude) * 2
+                            val dLat = Math.abs(center.latitude - top.latitude) * 2
+                            currentSpanLon = (dLon * 100000).toInt()
+                            currentSpanLat = (dLat * 100000).toInt()
+                        }
+                    }
+                }
+                
+                delay(300) 
             }
+        }
+    }
+
+    // [NEW] Smart Tethering Reaction
+    LaunchedEffect(currentLocation, currentSpanLon, currentSpanLat, initialAnimationDone) {
+        if (!initialAnimationDone) return@LaunchedEffect
+        val map = kakaoMap ?: return@LaunchedEffect
+        val loc = currentLocation ?: return@LaunchedEffect
+        
+        val userInt = kr.alltodo.utils.SmartLocationManager.toIntLocation(loc)
+        
+        // Use persistent anchor instead of map center for Exploration Friendliness
+        val anchor = moveLocation ?: run {
+            moveLocation = userInt
+            return@LaunchedEffect
+        }
+        
+        if (kr.alltodo.utils.SmartLocationManager.needsCentering(userInt, anchor, currentSpanLon, currentSpanLat)) {
+            map.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.newCenterPosition(LatLng.from(loc.latitude, loc.longitude)), com.kakao.vectormap.camera.CameraAnimation.from(500, true, true))
+            moveLocation = userInt // Update Anchor
         }
     }
 
@@ -256,7 +304,6 @@ fun KakaoMapContent(
     
     // [FIX] Lifecycle Management for Fast Resume (Avoid Zombie State)
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
-    var mapView by remember { mutableStateOf<MapView?>(null) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->

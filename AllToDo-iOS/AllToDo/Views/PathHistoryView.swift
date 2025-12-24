@@ -328,13 +328,13 @@ struct KakaoPathMapView: UIViewRepresentable {
     var coordinates: [CLLocationCoordinate2D]
     
     func makeUIView(context: Context) -> KMViewContainer {
-        let view = KMViewContainer()
-        view.sizeToFit()
+        let view = KMViewContainer(frame: UIScreen.main.bounds)
         context.coordinator.createController(view)
         return view
     }
     
     func updateUIView(_ uiView: KMViewContainer, context: Context) {
+        context.coordinator.checkEngineActivation()
         context.coordinator.drawPath(coordinates)
     }
     
@@ -350,54 +350,62 @@ struct KakaoPathMapView: UIViewRepresentable {
             controller?.delegate = self
             controller?.prepareEngine()
         }
+
+        func checkEngineActivation() {
+            guard let controller = controller else { return }
+            if controller.isEnginePrepared && !controller.isEngineActive {
+                controller.activateEngine()
+            }
+        }
         
         func drawPath(_ coords: [CLLocationCoordinate2D]) {
              self.coordinates = coords
              if hasDrawn {
-                 // Update Logic if needed
+                 if let mapView = controller?.getView("pathmap") as? KakaoMap {
+                     renderPath(mapView: mapView)
+                 }
              }
         }
         
         // Delegate
         func addViews() {
-            let defaultPosition = MapPoint(longitude: 126.978365, latitude: 37.566691)
-            let mapviewInfo = MapviewInfo(viewName: "pathmap", viewInfoName: "map", defaultPosition: defaultPosition, defaultLevel: 12)
+            // [FIX] Default position: Start from path's first point to avoid Gwanghwamun flicker
+            let startCoord = coordinates.first ?? CLLocationCoordinate2D(latitude: 37.566691, longitude: 126.978365)
+            let defaultPosition = MapPoint(longitude: startCoord.longitude, latitude: startCoord.latitude)
+            let mapviewInfo = MapviewInfo(viewName: "pathmap", viewInfoName: "map", defaultPosition: defaultPosition, defaultLevel: 14)
             controller?.addView(mapviewInfo)
         }
         
         func addViewSucceeded(_ viewName: String, viewInfoName: String) {
-            guard let mapView = controller?.getView("mapview") as? KakaoMap else { return }
+            guard let mapView = controller?.getView("pathmap") as? KakaoMap else { return }
+            controller?.activateEngine()
             hasDrawn = true
+            mapView.isEnabled = true
             
+            renderPath(mapView: mapView)
+        }
+        
+        private func renderPath(mapView: KakaoMap) {
             guard !coordinates.isEmpty, coordinates.count >= 2 else { return }
             
             let manager = mapView.getShapeManager()
-            
-            // Layer
-            // Note: addShapeLayer(layerID:zOrder:) might act as creator directly if Options struct is hidden/different.
             let layer = manager.getShapeLayer(layerID: "pathLayer") ?? manager.addShapeLayer(layerID: "pathLayer", zOrder: 0)
-            
             guard let shapeLayer = layer else { return }
+            
+            // Clean up old
+            shapeLayer.removeMapPolylineShape(shapeID: "historyLine")
+            mapView.getLabelManager().removeLabelLayer(layerID: "pathPins")
             
             // Style
             let style = PolylineStyle(styles: [
                 PerLevelPolylineStyle(bodyColor: UIColor.red, bodyWidth: 16, strokeColor: UIColor.clear, strokeWidth: 0, level: 0)
             ])
-            // Fix param: styleSetID
-            let styleSet = PolylineStyleSet(styleSetID: "redPolyline", styles: [style])
-            manager.addPolylineStyleSet(styleSet)
+            manager.addPolylineStyleSet(PolylineStyleSet(styleSetID: "redPolyline", styles: [style]))
             
-            // Points
             let points = coordinates.map { MapPoint(longitude: $0.longitude, latitude: $0.latitude) }
-            
-            // Create Polyline Shape Options
             let options = MapPolylineShapeOptions(shapeID: "historyLine", styleID: "redPolyline", zOrder: 0)
+            options.polylines.append(MapPolyline(line: points, styleIndex: 0))
             
-            // Add Line to Options
-            let line = MapPolyline(line: points, styleIndex: 0)
-            options.polylines.append(line)
-            
-            // Add Shape to Layer
             if let shape = shapeLayer.addMapPolylineShape(options) {
                  shape.show()
             }
@@ -408,42 +416,18 @@ struct KakaoPathMapView: UIViewRepresentable {
             let minLon = coordinates.map{$0.longitude}.min()!
             let maxLon = coordinates.map{$0.longitude}.max()!
             
-            let sw = MapPoint(longitude: minLon, latitude: minLat)
-            let ne = MapPoint(longitude: maxLon, latitude: maxLat)
+            let finalMinLat = (maxLat - minLat < 0.003) ? ((maxLat + minLat)/2 - 0.0015) : minLat
+            let finalMaxLat = (maxLat - minLat < 0.003) ? ((maxLat + minLat)/2 + 0.0015) : maxLat
+            let finalMinLon = (maxLon - minLon < 0.003) ? ((maxLon + minLon)/2 - 0.0015) : minLon
+            let finalMaxLon = (maxLon - minLon < 0.003) ? ((maxLon + minLon)/2 + 0.0015) : maxLon
             
-            // [FIX] Zoom Logic: Ensure min span (Level 17 ~ 0.003)
-            var rect = AreaRect(southWest: sw, northEast: ne)
-            let latDiff = maxLat - minLat
-            let lonDiff = maxLon - minLon
+            let rect = AreaRect(southWest: MapPoint(longitude: finalMinLon, latitude: finalMinLat), 
+                                northEast: MapPoint(longitude: finalMaxLon, latitude: finalMaxLat))
             
-            if latDiff < 0.003 {
-                let center = (maxLat + minLat) / 2
-                let newMin = center - 0.0015
-                let newMax = center + 0.0015
-                rect = AreaRect(southWest: MapPoint(longitude: minLon, latitude: newMin), northEast: MapPoint(longitude: maxLon, latitude: newMax))
+            // [FIX] Ensure camera move happens after a tiny delay to override default Gwanghwamun centering
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                mapView.moveCamera(CameraUpdate.make(area: rect))
             }
-            if lonDiff < 0.003 {
-                // If both small, apply to both
-                let centerLon = (maxLon + minLon) / 2
-                let newMinLon = centerLon - 0.0015
-                let newMaxLon = centerLon + 0.0015
-                // Re-create rect with new Lat/Lon
-                // Note: AreaRect structure is immutable usually?
-                // Just recreate using updated values.
-            }
-            
-            // Simplify: Just recalculate bounds
-            let finalMinLat = (latDiff < 0.003) ? ((maxLat + minLat)/2 - 0.0015) : minLat
-            let finalMaxLat = (latDiff < 0.003) ? ((maxLat + minLat)/2 + 0.0015) : maxLat
-            let finalMinLon = (lonDiff < 0.003) ? ((maxLon + minLon)/2 - 0.0015) : minLon
-            let finalMaxLon = (lonDiff < 0.003) ? ((maxLon + minLon)/2 + 0.0015) : maxLon
-            
-            let finalSW = MapPoint(longitude: finalMinLon, latitude: finalMinLat)
-            let finalNE = MapPoint(longitude: finalMaxLon, latitude: finalMaxLat)
-            rect = AreaRect(southWest: finalSW, northEast: finalNE)
-            
-            let update = CameraUpdate.make(area: rect)
-            mapView.moveCamera(update)
             
             // Add Pins
             addPins(mapView: mapView, coordinates: coordinates)
@@ -459,14 +443,17 @@ struct KakaoPathMapView: UIViewRepresentable {
             // Re-register if needed or check existence. 
             // Since this is a separate view usage, we register style.
             
-            // [FIX] Prioritize Asset
+            // [FIX] Prioritize Asset with Rasterization
             var image: UIImage
-            if let asset = UIImage(named: "PinHistory")?.withRenderingMode(.alwaysOriginal) { 
-                // [FIX] Resize to 40x50 AND Rasterize
-                let targetSize = CGSize(width: 40, height: 50)
-                image = asset.resized(to: targetSize)?.rasterized() ?? asset 
+            if let asset = UIImage(named: "PinHistory"), 
+               let resized = asset.resized(to: CGSize(width: 40, height: 50)),
+               let rasterized = resized.rasterized() { 
+                image = rasterized
             }
-            else { image = PinImageHelper.shared.createShieldPin(color: .red, iconName: "star.fill") }
+            else { 
+                let shield = PinImageHelper.shared.createShieldPin(color: .red, iconName: "star.fill")
+                image = shield.resized(to: CGSize(width: 40, height: 50))?.rasterized() ?? shield
+            }
             
             let iconStyle = PoiIconStyle(symbol: image, anchorPoint: CGPoint(x: 0.5, y: 1.0))
             let style = PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: iconStyle, level: 0)])
