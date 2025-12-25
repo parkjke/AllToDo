@@ -1,3 +1,4 @@
+
 package kr.alltodo.ui
 
 import androidx.lifecycle.ViewModel
@@ -20,6 +21,7 @@ import javax.inject.Inject
 import kotlin.math.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import androidx.compose.ui.graphics.Color
 
 @HiltViewModel
 class GpsAuthViewModel @Inject constructor(
@@ -59,8 +61,9 @@ class GpsAuthViewModel @Inject constructor(
     private val _selectedTrack = MutableStateFlow<GpsAuthTrack?>(null)
     val selectedTrack = _selectedTrack.asStateFlow()
 
-    private val _showActivePath = MutableStateFlow(true)
+    private val _showActivePath = MutableStateFlow(false) // [FIX] Default to OFF as requested
     val showActivePath = _showActivePath.asStateFlow()
+
 
     private val MAX_POINTS = 10000
     private var timeMachineJob: Job? = null
@@ -114,6 +117,7 @@ class GpsAuthViewModel @Inject constructor(
                 endTime = System.currentTimeMillis(),
                 points = recordedPoints
             )
+
             // Save to DB
             scope.launch {
                 withContext(kotlinx.coroutines.NonCancellable + kotlinx.coroutines.Dispatchers.IO) {

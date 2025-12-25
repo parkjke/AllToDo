@@ -53,7 +53,8 @@ struct StatBadge: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(color.opacity(0.8))
+                .fill(color)
+
                 .frame(width: 32, height: 32) // +2pt (30 -> 32)
             
             // Border Gradient: 5 o'clock (gray5) to 12 o'clock (white)

@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+
 import androidx.compose.ui.geometry.Offset
 import kr.alltodo.ui.UnifiedItem
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -306,10 +308,14 @@ fun GoogleMapContent(
         // [NEW] Active Recording Path Polyline
         if (showActivePath && activePoints.size >= 2) {
             val polylinePoints = activePoints.map { LatLng(it.latitude, it.longitude) }
+            val density = LocalDensity.current.density
             Polyline(
                 points = polylinePoints,
                 color = Color(0xFFFF5722), // Orange Red for active trail
-                width = 12f,
+                width = 2.5f * density, // Thinned to 2.5dp
+
+
+
                 jointType = com.google.android.gms.maps.model.JointType.ROUND,
                 startCap = com.google.android.gms.maps.model.RoundCap(),
                 endCap = com.google.android.gms.maps.model.RoundCap()

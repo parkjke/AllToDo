@@ -12,6 +12,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.platform.LocalDensity
+import java.util.Arrays
 import kr.alltodo.ui.UnifiedItem
 import com.kakao.vectormap.KakaoMap
 import com.kakao.vectormap.KakaoMapReadyCallback
@@ -25,10 +27,12 @@ import com.kakao.vectormap.label.LabelOptions
 import com.kakao.vectormap.label.LabelStyle
 import com.kakao.vectormap.label.LabelStyles
 import kotlinx.coroutines.delay
-// import com.kakao.vectormap.shape.MapPolylineOptions
-// import com.kakao.vectormap.shape.PolylineStyle
-// import com.kakao.vectormap.shape.PolylineStyles
-// import com.kakao.vectormap.shape.MapShapeLayerOptions
+import com.kakao.vectormap.route.RouteLineOptions
+import com.kakao.vectormap.route.RouteLineSegment
+import com.kakao.vectormap.route.RouteLineStyle
+import com.kakao.vectormap.route.RouteLineStyles
+
+
 
 @Composable
 fun KakaoMapContent(
@@ -152,14 +156,32 @@ fun KakaoMapContent(
     )
     
     
-    // [FIXME] Active Path Rendering (Temporarily disabled due to Kakao SDK ref mismatch)
-    /*
-    LaunchedEffect(kakaoMap, activePoints, showActivePath) {
+    val density = LocalDensity.current.density
+    
+    // [NEW] Active Path Rendering
+    LaunchedEffect(kakaoMap, activePoints, showActivePath, density) {
         val map = kakaoMap ?: return@LaunchedEffect
-        val shapeManager = map.shapeManager
-        // ...
+        val manager = map.routeLineManager ?: return@LaunchedEffect
+        val layer = manager.getLayer("activePathLayer") ?: manager.addLayer("activePathLayer", 2000)
+        
+        // Remove old trail
+        layer.removeAll()
+        
+        if (showActivePath && activePoints.size >= 2) {
+            val points = activePoints.map { LatLng.from(it.latitude, it.longitude) }
+            val style = RouteLineStyles.from(
+                RouteLineStyle.from(2.5f * density, android.graphics.Color.parseColor("#FF5722"))
+            )
+
+
+
+            val segment = RouteLineSegment.from(points, style)
+            layer.addRouteLine(RouteLineOptions.from(Arrays.asList(segment)))
+        }
+
     }
-    */
+
+
 
     // Rendering Logic
     LaunchedEffect(kakaoMap, visibleClusters) {

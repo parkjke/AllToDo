@@ -11,7 +11,9 @@ struct NaverMapView: UIViewRepresentable {
     var todoItems: [ToDoItem]
     var userLogs: [ToDoItem]
     @Binding var selectedItem: ToDoItem?
+    @Binding var viewingHistoryItem: ToDoItem? // [NEW]
     @Binding var selectedClusterItems: [UnifiedMapItem]?
+
     @Binding var tapPosition: CGPoint? // [NEW]
     @Binding var clusterRadius: Double? // [NEW]
     @Binding var creatingTodoLocation: CLLocationCoordinate2D? // [NEW]
@@ -108,8 +110,9 @@ struct NaverMapView: UIViewRepresentable {
                 context.coordinator.checkTethering(mapView: uiView.mapView, userLocation: u)
             }
             
-            // [NEW] Update Path Visualization
-            context.coordinator.updatePath(historyItem: selectedItem)
+            // [NEW] Update Path Visualization (Selected Item or Viewing History)
+            context.coordinator.updatePath(historyItem: selectedItem ?? viewingHistoryItem)
+
             
             // [NEW] Active Path Rendering
             context.coordinator.updateActiveRecordingPath(points: activePoints, visible: showActivePath)
@@ -258,11 +261,19 @@ struct NaverMapView: UIViewRepresentable {
                      let path = NMFPath()
                      path.path = NMGLineString(points: coords)
                      path.color = .red
-                     path.width = 4
+                     path.width = 2.5 // Thinned from 4
                      path.outlineWidth = 0
                      path.mapView = map
                      self.pathOverlay = path
+                     
+                     // [NEW] Auto-zoom to history path
+                     let bounds = NMGLatLngBounds(southWest: NMGLatLng(lat: coords.map{$0.lat}.min()!, lng: coords.map{$0.lng}.min()!), 
+                                                 northEast: NMGLatLng(lat: coords.map{$0.lat}.max()!, lng: coords.map{$0.lng}.max()!))
+                     let update = NMFCameraUpdate(fit: bounds, padding: 80)
+                     update.animation = .easeIn
+                     map.moveCamera(update)
                  }
+
              }
         }
         
@@ -281,8 +292,10 @@ struct NaverMapView: UIViewRepresentable {
             let path = NMFPath()
             path.path = NMGLineString(points: coords)
             path.color = UIColor(red: 1.0, green: 0.34, blue: 0.13, alpha: 1.0) // Orange Red
-            path.width = 6
+            path.width = 2.5 // Thinned from 4
             path.outlineWidth = 0
+
+
             path.mapView = map
             self.activePathOverlay = path
         }
@@ -511,14 +524,20 @@ struct NaverMapView: UIViewRepresentable {
                 // [FIX] Centralized Logic
                 let (baseName, color, _) = UnifiedMapItem.resolveClusterStyle(items: items)
                 
-                // [FIX] Resize Base Image FIRST to 48x60 (Naver Special)
-                let baseImage = UIImage(named: baseName)?.resized(to: CGSize(width: 36, height: 45))
-                
-                // [FIX] Overlay Badge ONLY if count > 1
-                let displayCount: Int? = items.count > 1 ? items.count : nil
-                let finalImage = PinImageHelper.shared.createShieldPin(color: color, count: displayCount, baseImage: baseImage)
-                
-                marker.iconImage = NMFOverlayImage(image: finalImage)
+                // [FIX] PinCurrent rendering: Avoid shield, use 32x32 circle
+                if baseName == "PinCurrent" {
+                    marker.iconImage = NMFOverlayImage(name: "PinCurrent")
+                    marker.width = 30
+                    marker.height = 30
+                } else {
+                    // [FIX] Resize Base Image
+                    let baseImage = UIImage(named: baseName)?.resized(to: CGSize(width: 36, height: 45))
+                    // [FIX] Overlay Badge ONLY if count > 1
+                    let displayCount: Int? = items.count > 1 ? items.count : nil
+                    let finalImage = PinImageHelper.shared.createShieldPin(color: color, count: displayCount, baseImage: baseImage)
+                    marker.iconImage = NMFOverlayImage(image: finalImage)
+                }
+
                 marker.anchor = CGPoint(x: 0.5, y: 1.0) 
                 
                 // Interaction

@@ -11,7 +11,9 @@ struct AppleMapView: UIViewRepresentable {
     var todoItems: [ToDoItem]
     var userLogs: [ToDoItem]
     @Binding var selectedItem: ToDoItem?
+    @Binding var viewingHistoryItem: ToDoItem? // [NEW]
     @Binding var selectedClusterItems: [UnifiedMapItem]?
+
     @Binding var tapPosition: CGPoint?
     @Binding var clusterRadius: Double?
     @Binding var creatingTodoLocation: CLLocationCoordinate2D? // [NEW]
@@ -114,8 +116,9 @@ struct AppleMapView: UIViewRepresentable {
             context.coordinator.checkTethering(mapView: uiView, userLocation: u)
         }
         
-        // Update Path Visualization
-        context.coordinator.updatePath(mapView: uiView, historyItem: selectedItem)
+        // Update Path Visualization (Selected Item or Viewing History)
+        context.coordinator.updatePath(mapView: uiView, historyItem: selectedItem ?? viewingHistoryItem)
+
         
         // [NEW] Active Path Rendering
         context.coordinator.updateActiveRecordingPath(mapView: uiView, points: activePoints, visible: showActivePath)
@@ -882,9 +885,10 @@ struct AppleMapView: UIViewRepresentable {
                 } else {
                     renderer.strokeColor = .red
                 }
-                renderer.lineWidth = 6
+                renderer.lineWidth = 2.5 // Thinned from 4
                 renderer.lineCap = .round
                 renderer.lineJoin = .round
+
                 return renderer
             }
             return MKOverlayRenderer(overlay: overlay)
@@ -909,9 +913,14 @@ struct AppleMapView: UIViewRepresentable {
                 if coords.count >= 2 {
                     let polyline = HistoryPolyline(coordinates: &coords, count: coords.count)
                     mapView.addOverlay(polyline)
+                    
+                    // [NEW] Auto-zoom to history path if it's new
+                    let rect = polyline.boundingMapRect
+                    mapView.setVisibleMapRect(rect, edgePadding: UIEdgeInsets(top: 80, left: 50, bottom: 50, right: 50), animated: true)
                 }
             }
         }
+
         
         func updateActiveRecordingPath(mapView: MKMapView, points: [PathPoint], visible: Bool) {
             // 1. Remove existing active trail
@@ -1025,36 +1034,43 @@ struct ClusterListCallout: View {
                 Button(action: { onSelectLog(t) }) {
                     Image(systemName: "map.fill")
                         .font(.system(size: fontSize))
-                        .foregroundColor(.black)
+                        .foregroundColor(Color(.label)) // Adaptive to Dark Mode
                         .frame(width: 30)
                 }
                 .buttonStyle(.plain)
             } else {
                 Image(systemName: "map.fill")
                     .font(.system(size: fontSize))
-                    .foregroundColor(.gray4)
+                    .foregroundColor(.gray) // Use standard gray for better adaptivity
                     .frame(width: 30)
             }
+
             
             // [Col 2] Content (Icon, Date, Time, Title)
             HStack(spacing: 8) {
-                // Date (Gray 7, MM/dd)
+                // Date (Adaptive)
                 let dateStr = item.date.formatted(.dateTime.month(.twoDigits).day(.twoDigits))
                 Text(dateStr)
                     .font(.system(size: fontSize - 1))
-                    .foregroundColor(.gray7)
+                    .foregroundColor(.secondary)
                 
-                // Time (Bold Gray 8)
-                let timeStr = item.date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
+                // Time (Forced 24h)
+                let timeStr = {
+                    let df = DateFormatter()
+                    df.dateFormat = "HH:mm"
+                    return df.string(from: item.date)
+                }()
                 Text(timeStr)
                     .font(.system(size: fontSize - 1, weight: .bold))
-                    .foregroundColor(.gray8)
+                    .foregroundColor(.primary)
+
                 
-                // Title (Gray 8)
+                // Title (Adaptive)
                 Text(item.name)
                     .font(.system(size: fontSize))
-                    .foregroundColor(.gray8)
+                    .foregroundColor(.primary)
                     .lineLimit(1)
+
                 
                 Spacer()
             }
@@ -1062,10 +1078,11 @@ struct ClusterListCallout: View {
             .onTapGesture {
                 switch item {
                 case .todo(let t): onSelectItem(t)
-                case .history(let t): onSelectItem(t) 
+                case .history(let t): onSelectLog(t) // [FIX] Show path directly on row tap
                 default: break
                 }
             }
+
             
             // [Col 3] Trash Icon
             Button(action: {

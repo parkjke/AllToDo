@@ -108,8 +108,10 @@ fun NaverMapContent(
         val map = naverMap ?: return@LaunchedEffect
         if (showActivePath && activePoints.size >= 2) {
             activePathOverlay.coords = activePoints.map { LatLng(it.latitude, it.longitude) }
-            activePathOverlay.width = (6 * context.resources.displayMetrics.density).toInt()
+            activePathOverlay.width = (2.5 * context.resources.displayMetrics.density).toInt() // Thinned from 4
+
             activePathOverlay.color = android.graphics.Color.parseColor("#FF5722") // Orange Red
+
             activePathOverlay.outlineWidth = 0
             activePathOverlay.map = map
         } else {

@@ -25,6 +25,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kr.alltodo.ui.theme.AllToDoBlue
@@ -83,14 +87,26 @@ fun TopLeftWidget(
 fun StatBadge(color: Color, count: Int) {
     Box(
         modifier = Modifier
-            .size(28.dp) // Increased +4dp (24 -> 28)
+            .size(28.dp)
             .background(color, shape = CircleShape)
-            .border(
-                width = 1.dp,
-                color = Color.White,
-                shape = CircleShape
-            ),
 
+            .drawWithCache {
+                val brush = Brush.sweepGradient(
+                    0.0f to Color.White,
+                    0.416f to Color(0xFF9E9E9E), // Gray 5
+                    1.0f to Color.White
+                )
+                onDrawWithContent {
+                    drawContent()
+                    rotate(degrees = -90f) {
+                        drawCircle(
+                            brush = brush,
+                            radius = (size.minDimension - 1.dp.toPx()) / 2,
+                            style = Stroke(width = 1.dp.toPx())
+                        )
+                    }
+                }
+            },
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -102,4 +118,5 @@ fun StatBadge(color: Color, count: Int) {
         )
     }
 }
+
 

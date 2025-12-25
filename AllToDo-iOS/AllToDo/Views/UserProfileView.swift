@@ -90,7 +90,9 @@ struct UserProfileView: View {
                 
                 Section(header: Text("팝업 설정")) {
                     Stepper("최대 항목 수: \(maxPopupItems)", value: $maxPopupItems, in: 3...5)
+                        .padding(.vertical, 4)
                     Picker("글꼴 크기", selection: $popupFontSize) {
+
                         Text("작게").tag(0)
                         Text("보통").tag(1)
                         Text("크게").tag(2)

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Map, CustomOverlayMap } from 'react-kakao-maps-sdk';
+import { Map, CustomOverlayMap, useKakaoLoader } from 'react-kakao-maps-sdk';
 import { useTodos } from '../context/TodoContext';
+
 import { MapControls } from './MapControls';
 import { CustomLocationMarker } from './CustomLocationMarker';
 import { MapPin } from 'lucide-react';
@@ -73,6 +74,28 @@ export const MapContainer: React.FC<MapContainerProps> = ({ onOpenMyInfo }) => {
     // Default center (Seoul)
     const defaultCenter = { lat: 37.5665, lng: 126.9780 };
     const [map, setMap] = useState<kakao.maps.Map>();
+
+    // [NEW] Load Kakao Maps SDK dynamically
+    const [loading, error] = useKakaoLoader({
+        appkey: import.meta.env.VITE_KAKAO_MAP_KEY,
+        libraries: ["services", "clusterer"],
+    })
+
+    if (loading) return <div className="w-full h-screen flex items-center justify-center bg-gray-100">Loading Map...</div>
+    if (loading) return <div className="w-full h-screen flex items-center justify-center bg-gray-100">Loading Map...</div>
+    if (error) return (
+        <div className="w-full h-screen flex flex-col items-center justify-center bg-red-50 text-red-600 gap-4">
+            <h2 className="text-xl font-bold">Failed to load map</h2>
+            <p className="p-4 bg-white rounded shadow text-sm font-mono max-w-lg break-all border border-red-200">
+                {error?.message || JSON.stringify(error)}
+            </p>
+            <p className="text-gray-600 text-sm">
+                Check console for more details. Verify VITE_KAKAO_MAP_KEY in .env and Domain settings.
+            </p>
+        </div>
+    )
+
+
 
     return (
         <div className="w-full h-screen absolute top-0 left-0 z-0">

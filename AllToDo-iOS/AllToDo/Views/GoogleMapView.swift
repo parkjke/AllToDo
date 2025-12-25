@@ -13,7 +13,9 @@ struct GoogleMapView: UIViewRepresentable {
     var userLogs: [ToDoItem]
     
     @Binding var selectedItem: ToDoItem?
+    @Binding var viewingHistoryItem: ToDoItem? // [NEW]
     @Binding var selectedClusterItems: [UnifiedMapItem]?
+
     @Binding var tapPosition: CGPoint? // [NEW]
     @Binding var clusterRadius: Double? // [NEW]
     @Binding var creatingTodoLocation: CLLocationCoordinate2D? // [NEW]
@@ -101,8 +103,9 @@ struct GoogleMapView: UIViewRepresentable {
             context.coordinator.checkTethering(mapView: uiView, userLocation: u)
         }
         
-        // Update Path Visualization
-        context.coordinator.updatePath(mapView: uiView, historyItem: selectedItem)
+        // Update Path Visualization (Selected Item or Viewing History)
+        context.coordinator.updatePath(mapView: uiView, historyItem: selectedItem ?? viewingHistoryItem)
+
         
         // [NEW] Active Path Rendering
         context.coordinator.updateActiveRecordingPath(mapView: uiView, points: activePoints, visible: showActivePath)
@@ -715,10 +718,16 @@ struct GoogleMapView: UIViewRepresentable {
                  if path.count() >= 2 {
                      let polyline = GMSPolyline(path: path)
                      polyline.strokeColor = .red
-                     polyline.strokeWidth = 4
+                     polyline.strokeWidth = 2.5 // Thinned from 4
                      polyline.map = mapView
                      self.pathOverlay = polyline
+                     
+                     // [NEW] Auto-zoom to history path
+                     let bounds = GMSCoordinateBounds(path: path)
+                     let update = GMSCameraUpdate.fit(bounds, withPadding: 80)
+                     mapView.animate(with: update)
                  }
+
              }
         }
         
@@ -738,8 +747,10 @@ struct GoogleMapView: UIViewRepresentable {
             
             let polyline = GMSPolyline(path: path)
             polyline.strokeColor = UIColor(red: 1.0, green: 0.34, blue: 0.13, alpha: 1.0) // Orange Red
-            polyline.strokeWidth = 6
+            polyline.strokeWidth = 2.5 // Thinned from 4
             polyline.map = mapView
+
+
             self.activePathOverlay = polyline
         }
     }

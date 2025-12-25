@@ -14,7 +14,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.viewinterop.AndroidView
+import java.util.Arrays
+
 import com.kakao.vectormap.KakaoMap
 import com.kakao.vectormap.KakaoMapReadyCallback
 import com.kakao.vectormap.MapLifeCycleCallback
@@ -44,7 +47,10 @@ fun PathViewer(
     onClose: () -> Unit
 ) {
     var lineColor by remember { mutableStateOf(Color.Red) }
-    var lineThickness by remember { mutableStateOf(8.dp) }
+    var lineThickness by remember { mutableStateOf(2.5.dp) }
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+
+
 
     val pathPoints = remember(pathData) {
         pathData.map { LatLng(it.int_lat / 100_000.0, it.int_long / 100_000.0) }
@@ -78,6 +84,7 @@ fun PathViewer(
                         MapProvider.Naver -> NaverPathMap(pathPoints, lineColor, lineThickness)
                         MapProvider.Google -> GooglePathMap(pathPoints, lineColor, lineThickness)
                         MapProvider.Kakao -> KakaoPathMap(pathPoints, lineColor, lineThickness)
+
                     }
                 }
                 
@@ -171,8 +178,11 @@ fun GooglePathMap(points: List<LatLng>, color: Color, width: androidx.compose.ui
         uiSettings = com.google.maps.android.compose.MapUiSettings(zoomControlsEnabled = false)
     ) {
         if (gPoints.size >= 2) {
-            com.google.maps.android.compose.Polyline(points = gPoints, color = color, width = width.value * 2.5f, zIndex = 5f)
+            val px = width.value * androidx.compose.ui.platform.LocalDensity.current.density
+            com.google.maps.android.compose.Polyline(points = gPoints, color = color, width = px, zIndex = 5f)
         }
+
+
     }
 }
 
@@ -181,17 +191,21 @@ fun KakaoPathMap(points: List<LatLng>, color: Color, width: androidx.compose.ui.
     val kPoints = remember(points) { points.map { com.kakao.vectormap.LatLng.from(it.latitude, it.longitude) } }
     var kakaoMap by remember { mutableStateOf<KakaoMap?>(null) }
     val colorInt = android.graphics.Color.argb((color.alpha * 255).toInt(), (color.red * 255).toInt(), (color.green * 255).toInt(), (color.blue * 255).toInt())
+    val density = LocalDensity.current.density
 
-    LaunchedEffect(kakaoMap, kPoints, colorInt, width) {
+    LaunchedEffect(kakaoMap, kPoints, colorInt, width, density) {
         val map = kakaoMap ?: return@LaunchedEffect
         if (kPoints.isEmpty()) return@LaunchedEffect
         map.routeLineManager?.getLayer("pathLayer")?.removeAll()
         if (kPoints.size >= 2) {
             val manager = map.routeLineManager
             val layer = manager?.getLayer("pathLayer") ?: manager?.addLayer("pathLayer", 1000)
-            val segment = RouteLineSegment.from(kPoints, RouteLineStyles.from(RouteLineStyle.from(width.value * 4f, colorInt)))
-            layer?.addRouteLine(RouteLineOptions.from(segment))
+            val px = width.value * density
+            val segment = RouteLineSegment.from(kPoints, RouteLineStyles.from(RouteLineStyle.from(px, colorInt)))
+            layer?.addRouteLine(RouteLineOptions.from(Arrays.asList(segment)))
+
             map.moveCamera(CameraUpdateFactory.fitMapPoints(kPoints.toTypedArray(), 100))
+
         } else {
             map.moveCamera(CameraUpdateFactory.newCenterPosition(kPoints.first(), 15))
         }

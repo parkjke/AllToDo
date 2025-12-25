@@ -87,7 +87,9 @@ struct ContentView: View {
                         todoItems: filteredTodos,
                         userLogs: filteredLogs,
                         selectedItem: $selectedItem,
+                        viewingHistoryItem: $viewingHistoryItem, // [NEW]
                         selectedClusterItems: $selectedClusterItems,
+
                         tapPosition: $tapPosition,
                         clusterRadius: $clusterRadius,
                         creatingTodoLocation: $creatingTodoLocation,
@@ -118,7 +120,9 @@ struct ContentView: View {
                          todoItems: filteredTodos,
                          userLogs: filteredLogs,
                          selectedItem: $selectedItem,
+                         viewingHistoryItem: $viewingHistoryItem, // [NEW]
                          selectedClusterItems: $selectedClusterItems,
+
                          tapPosition: $tapPosition,
                          clusterRadius: $clusterRadius,
                          creatingTodoLocation: $creatingTodoLocation, // [NEW]
@@ -149,7 +153,9 @@ struct ContentView: View {
                         todoItems: filteredTodos,
                         userLogs: filteredLogs,
                         selectedItem: $selectedItem,
+                        viewingHistoryItem: $viewingHistoryItem, // [NEW]
                         selectedClusterItems: $selectedClusterItems,
+
                         tapPosition: $tapPosition,
                         clusterRadius: $clusterRadius,
                         creatingTodoLocation: $creatingTodoLocation,
@@ -180,7 +186,9 @@ struct ContentView: View {
                         todoItems: filteredTodos,
                         userLogs: filteredLogs,
                         selectedItem: $selectedItem,
+                        viewingHistoryItem: $viewingHistoryItem, // [NEW]
                         selectedClusterItems: $selectedClusterItems,
+
                         tapPosition: $tapPosition,
                         clusterRadius: $clusterRadius,
                         creatingTodoLocation: $creatingTodoLocation, // [NEW]

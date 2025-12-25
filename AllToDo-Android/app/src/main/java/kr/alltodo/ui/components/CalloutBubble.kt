@@ -86,14 +86,15 @@ fun CalloutBubble(
                 .clickable(enabled = false) { }
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Card(
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(bubbleHeight),
                     shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFE0E0E0).copy(alpha = 0.9f)),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                    shadowElevation = 8.dp
                 ) {
+
                     Column {
                         Box(
                             modifier = Modifier
@@ -111,9 +112,10 @@ fun CalloutBubble(
                                 Icon(
                                     imageVector = Icons.Default.Close,
                                     contentDescription = "닫기",
-                                    tint = Color(0xFF333333).copy(alpha = 0.6f),
+                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                                     modifier = Modifier.size(24.dp)
                                 )
+
                             }
                         }
 
@@ -135,6 +137,9 @@ fun CalloutBubble(
                     }
                 }
 
+                val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+                val bubbleColor = if (isDark) Color(0xFF333333).copy(alpha = 0.95f) else Color(0xFFE0E0E0).copy(alpha = 0.95f)
+
                 Canvas(
                     modifier = Modifier
                         .width(20.dp)
@@ -146,8 +151,10 @@ fun CalloutBubble(
                         lineTo(size.width / 2f, size.height)
                         close()
                     }
-                    drawPath(path, color = Color(0xFFE0E0E0).copy(alpha = 0.9f), style = Fill)
+                    drawPath(path, color = bubbleColor, style = Fill)
                 }
+
+
             }
         }
     }
@@ -204,12 +211,13 @@ fun CalloutRow(
                     val shortName = name.let { if (it.length > 3) it.take(3) + "..." else it }
                     
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = dateStr, color = Color(0xFF333333).copy(alpha = 0.6f), fontSize = fontSize)
+                        Text(text = dateStr, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), fontSize = fontSize)
                         Spacer(Modifier.width(4.dp))
-                        Text(text = timeStr, color = Color(0xFF333333), fontSize = fontSize, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                        Text(text = timeStr, color = MaterialTheme.colorScheme.onSurface, fontSize = fontSize, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
                         Spacer(Modifier.width(8.dp))
-                        Text(text = shortName, color = Color(0xFF333333), fontSize = fontSize)
+                        Text(text = shortName, color = MaterialTheme.colorScheme.onSurface, fontSize = fontSize)
                     }
+
                 }
                 is UnifiedItem.CurrentLocation -> {
                     Text(

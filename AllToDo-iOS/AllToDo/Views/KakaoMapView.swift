@@ -12,7 +12,9 @@ struct KakaoMapView: UIViewRepresentable {
     var todoItems: [ToDoItem]
     var userLogs: [ToDoItem]
     @Binding var selectedItem: ToDoItem?
+    @Binding var viewingHistoryItem: ToDoItem? // [NEW]
     @Binding var selectedClusterItems: [UnifiedMapItem]?
+
     @Binding var tapPosition: CGPoint?
     @Binding var clusterRadius: Double?
     @Binding var creatingTodoLocation: CLLocationCoordinate2D?
@@ -69,13 +71,25 @@ struct KakaoMapView: UIViewRepresentable {
         
         // [NEW] Path Visualization for selected History Item
         if let mapView = context.coordinator.controller?.getView("mapview") as? KakaoMap {
-            // Update Path Visualization
-            context.coordinator.updatePath(mapView: mapView, historyItem: selectedItem)
+            // Update Path Visualization (Selected Item or Viewing History)
+            let pathToShow = selectedItem ?? viewingHistoryItem
+            context.coordinator.updatePath(mapView: mapView, historyItem: pathToShow)
+            
+            // [NEW] Auto-zoom to history path if it's new
+            if let item = pathToShow, context.coordinator.lastHistoryID != item.todo_id {
+                context.coordinator.lastHistoryID = item.todo_id
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 300_000_000)
+                    context.coordinator.zoomToHistoryPath(mapView: mapView, item: item)
+                }
+            }
+
             
             // [NEW] Active Path Rendering
             context.coordinator.updateActiveRecordingPath(mapView: mapView, points: activePoints, visible: showActivePath)
         }
     }
+
 
     class Coordinator: NSObject, MapControllerDelegate, KakaoMapEventDelegate {
         var parent: KakaoMapView
@@ -94,6 +108,8 @@ struct KakaoMapView: UIViewRepresentable {
         var moveLocation: (lat: Int, lon: Int)? = nil
         var currentSpanLon: Int = 0
         var currentSpanLat: Int = 0
+        var lastHistoryID: UUID? = nil
+
         
         init(_ parent: KakaoMapView) {
             self.parent = parent
@@ -249,7 +265,8 @@ struct KakaoMapView: UIViewRepresentable {
                 print(">>> MAIN MAP [STEP 4]: Data Changed -> Refreshing (InitiPhase: \(isInitialPhase))")
                 Task { @MainActor in
                     refreshWasmClusters()
-                    syncCreatingTodoPin()
+                    refreshWasmClusters()
+                    // syncCreatingTodoPin() // [FIX] Removed as it is now handled in WASM logic
                 }
             }
         }
@@ -279,6 +296,14 @@ struct KakaoMapView: UIViewRepresentable {
                 allItems.append(.history(log))
                 rawPoints.append(Int32(log.latitude * 100_000))
                 rawPoints.append(Int32(log.longitude * 100_000))
+            }
+
+            // [FIX] Match Apple Map: Add creatingTodoLocation to WASM points
+            // This ensures the "New Entry" pin is clustered and shown
+            if let target = parent.creatingTodoLocation {
+                allItems.append(.todo(ToDoItem(todo_name: "New Entry", latitude: target.latitude, longitude: target.longitude)))
+                rawPoints.append(Int32(target.latitude * 100_000))
+                rawPoints.append(Int32(target.longitude * 100_000))
             }
             
             // [FIX] Add User Location to Kakao Map
@@ -397,13 +422,44 @@ struct KakaoMapView: UIViewRepresentable {
                 let styleID = "Style_\(baseName)_\(count)_\(colorHex)"
                 
                 if !registeredStyleIDs.contains(styleID) {
-                    // [FIX] iOS Style: Use 40x50 base size for consistent scaling
-                    if let baseImage = UIImage(named: baseName)?.resized(to: CGSize(width: 28, height: 35)),
-                       let finalImage = PinImageHelper.shared.createShieldPin(color: color, count: count > 1 ? count : nil, baseImage: baseImage).rasterized() {
-                        labelManager.addPoiStyle(PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: PoiIconStyle(symbol: finalImage, anchorPoint: CGPoint(x: 0.5, y: 1.0)), level: 0)]))
-                        registeredStyleIDs.insert(styleID) // [FIX] Must insert to avoid repeated adds
+                    var finalImage: UIImage?
+                    
+                    // [FIX] Align with Apple Map Logic: Try load image -> Fallback to Shield
+                    // Kakao Scale: 0.7x (28x35)
+                    let targetSize = CGSize(width: 28, height: 35)
+                    
+                    if let preloaded = UIImage(named: baseName) {
+                        // Case A: Image exists (e.g. PinCurrent, PinRed) -> Resize & Add Badge/Shield Logic
+                        if let resizedBase = preloaded.resized(to: targetSize) {
+                             finalImage = PinImageHelper.shared.createShieldPin(color: color, count: count > 1 ? count : nil, baseImage: resizedBase).rasterized()
+                        }
+                    } else {
+                        // Case B: No image -> Create programmatic shield with symbol (using baseName as fallback symbol name if needed)
+                         if let baseImage = UIImage(named: baseName)?.resized(to: targetSize) {
+                             finalImage = PinImageHelper.shared.createShieldPin(color: color, count: count > 1 ? count : nil, baseImage: baseImage).rasterized()
+                         } else {
+                             // Fallback if even base symbol is missing (unlikely)
+                             finalImage = PinImageHelper.shared.createShieldPin(color: color, count: count > 1 ? count : nil, baseImage: nil).rasterized()
+                         }
+                    }
+                    
+                    if let img = finalImage {
+                        // [FIX] Calculate Anchor based on PinImageHelper geometry
+                        // Helper creates image of size: (W + 8, H + 8)
+                        // Pin is drawn at (0, 8). Tip is at (W/2, H+8).
+                        // Anchor X = (W/2) / (W+8)
+                        // Anchor Y = 1.0
+                        
+                        // W=28, Overhang=8 => Total W=36. Tip X=14. Anchor X = 14/36 (~0.388)
+                        let anchorX = 14.0 / 36.0
+                        let anchor = CGPoint(x: anchorX, y: 1.0)
+                        
+                        labelManager.addPoiStyle(PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: PoiIconStyle(symbol: img, anchorPoint: anchor), level: 0)]))
+                        registeredStyleIDs.insert(styleID)
                     }
                 }
+
+
                 
                 let poiID = "poi_\(idx)"
                 labelIdToClusterItems[poiID] = items
@@ -428,30 +484,31 @@ struct KakaoMapView: UIViewRepresentable {
         }
 
         @MainActor
-        func syncCreatingTodoPin() {
-            guard let mapView = controller?.getView("mapview") as? KakaoMap else { return }
-            let labelManager = mapView.getLabelManager()
-            labelManager.removeLabelLayer(layerID: "creLayer")
-            
-            guard let loc = parent.creatingTodoLocation else { return }
-            let layer = labelManager.addLabelLayer(option: LabelLayerOptions(layerID: "creLayer", competitionType: .none, competitionUnit: .poi, orderType: .rank, zOrder: 10000))
-            
-            let styleID = "creStyle"
-            if !registeredStyleIDs.contains(styleID) {
-                if let img = UIImage(named: "PinTodoReady")?.resized(to: CGSize(width: 28, height: 35)),
-                   let rasterized = img.rasterized() {
-                    labelManager.addPoiStyle(PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: PoiIconStyle(symbol: rasterized, anchorPoint: CGPoint(x: 0.5, y: 1.0)), level: 0)]))
-                    registeredStyleIDs.insert(styleID)
-                }
-            }
-            
-            let options = PoiOptions(styleID: styleID, poiID: "cre_pin")
-            options.clickable = true
-            if let poi = layer?.addPoi(option: options, at: MapPoint(longitude: loc.longitude, latitude: loc.latitude)) {
-                poi.clickable = true
-                poi.show()
-            }
-        }
+        // [FIX] Redundant Logic Removed: Merged into refreshWasmClusters
+//        func syncCreatingTodoPin() {
+//            guard let mapView = controller?.getView("mapview") as? KakaoMap else { return }
+//            let labelManager = mapView.getLabelManager()
+//            labelManager.removeLabelLayer(layerID: "creLayer")
+//            
+//            guard let loc = parent.creatingTodoLocation else { return }
+//            let layer = labelManager.addLabelLayer(option: LabelLayerOptions(layerID: "creLayer", competitionType: .none, competitionUnit: .poi, orderType: .rank, zOrder: 10000))
+//            
+//            let styleID = "creStyle"
+//            if !registeredStyleIDs.contains(styleID) {
+//                if let img = UIImage(named: "PinTodoReady")?.resized(to: CGSize(width: 28, height: 35)),
+//                   let rasterized = img.rasterized() {
+//                    labelManager.addPoiStyle(PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: PoiIconStyle(symbol: rasterized, anchorPoint: CGPoint(x: 0.5, y: 1.0)), level: 0)]))
+//                    registeredStyleIDs.insert(styleID)
+//                }
+//            }
+//            
+//            let options = PoiOptions(styleID: styleID, poiID: "cre_pin")
+//            options.clickable = true
+//            if let poi = layer?.addPoi(option: options, at: MapPoint(longitude: loc.longitude, latitude: loc.latitude)) {
+//                poi.clickable = true
+//                poi.show()
+//            }
+//        }
 
         // MARK: - KakaoMapEventDelegate
         @objc func poiDidTapped(kakaoMap: KakaoMap, layerID: String, poiID: String, position: MapPoint) {
@@ -490,18 +547,35 @@ struct KakaoMapView: UIViewRepresentable {
             if by != .notUserAction { isUserInteracting = false }
             let rot = kakaoMap.rotationAngle * 180.0 / .pi
             NotificationCenter.default.post(name: NSNotification.Name("MapRotationChanged"), object: nil, userInfo: ["rotation": rot])
+            
+            // [FIX] Update Spans to enable Smart Tethering
+            let size = kakaoMap.viewRect.size
+            if size.width > 0 && size.height > 0 {
+                let center = CGPoint(x: size.width / 2, y: size.height / 2)
+                let target = kakaoMap.getPosition(center)
+                let metersPerPixel = 156543.03392 * cos(target.wgsCoord.latitude * .pi / 180.0) / pow(2, Double(kakaoMap.zoomLevel))
+                currentSpanLon = Int((metersPerPixel * Double(size.width)) / 111320.0 * 100_000.0)
+                currentSpanLat = Int((metersPerPixel * Double(size.height)) / 111320.0 * 100_000.0)
+            }
         }
+
 
         func checkTethering(mapView: KakaoMap, userLocation: CLLocation) {
             if isLaunchAnimating || firstRender || isUserInteracting { return }
             let uInt = SmartLocationManager.shared.toIntLocation(userLocation)
             if moveLocation == nil { moveLocation = uInt; return }
             
+            if moveLocation == nil {
+                moveLocation = uInt
+                return
+            }
+            
             if SmartLocationManager.shared.shouldRecenter(user: uInt, moveLoc: moveLocation!, hLen: currentSpanLon, vLen: currentSpanLat) {
                 let pos = MapPoint(longitude: userLocation.coordinate.longitude, latitude: userLocation.coordinate.latitude)
                 mapView.animateCamera(cameraUpdate: CameraUpdate.make(target: pos, zoomLevel: mapView.zoomLevel, mapView: mapView), options: CameraAnimationOptions(autoElevation: false, consecutive: true, durationInMillis: 600))
                 moveLocation = uInt
             }
+
         }
 
         func handleAction(_ action: MapAction) {
@@ -546,9 +620,11 @@ struct KakaoMapView: UIViewRepresentable {
                     // Unique style for the path
                     let styleID = "MainPathStyle_\(item.todo_id.uuidString.prefix(8))"
                     let style = PolylineStyle(styles: [
-                        PerLevelPolylineStyle(bodyColor: .red, bodyWidth: 16, strokeColor: .clear, strokeWidth: 0, level: 0)
+                        PerLevelPolylineStyle(bodyColor: .red, bodyWidth: 4, strokeColor: .clear, strokeWidth: 0, level: 0)
                     ])
                     manager.addPolylineStyleSet(PolylineStyleSet(styleSetID: styleID, styles: [style]))
+
+
                     
                     shapeLayer.removeMapPolylineShape(shapeID: "historyLine")
                     let options = MapPolylineShapeOptions(shapeID: "historyLine", styleID: styleID, zOrder: 0)
@@ -576,9 +652,12 @@ struct KakaoMapView: UIViewRepresentable {
             let coords = points.map { MapPoint(longitude: $0.longitude, latitude: $0.latitude) }
             let styleID = "ActiveTrailStyle"
             let style = PolylineStyle(styles: [
-                PerLevelPolylineStyle(bodyColor: UIColor(red: 1.0, green: 0.34, blue: 0.13, alpha: 1.0), bodyWidth: 16, strokeColor: .clear, strokeWidth: 0, level: 0)
+                // Thinned to 4pt as requested
+                PerLevelPolylineStyle(bodyColor: UIColor(red: 1.0, green: 0.34, blue: 0.13, alpha: 1.0), bodyWidth: 4, strokeColor: .clear, strokeWidth: 0, level: 0)
             ])
             manager.addPolylineStyleSet(PolylineStyleSet(styleSetID: styleID, styles: [style]))
+
+
             
             let options = MapPolylineShapeOptions(shapeID: "activeTrail", styleID: styleID, zOrder: 0)
             options.polylines.append(MapPolyline(line: coords, styleIndex: 0))
@@ -587,7 +666,35 @@ struct KakaoMapView: UIViewRepresentable {
                 shape.show()
             }
         }
+        
+        func zoomToHistoryPath(mapView: KakaoMap, item: ToDoItem?) {
+            guard let item = item else { return }
+            let searchID = item.todo_id
+            let descriptor = FetchDescriptor<PathItem>(
+                predicate: #Predicate<PathItem> { $0.todo_id == searchID },
+                sortBy: [SortDescriptor(\.timestamp)]
+            )
+            if let paths = try? parent.modelContext.fetch(descriptor), !paths.isEmpty {
+                let lats = paths.map { $0.coordinate.latitude }
+                let lons = paths.map { $0.coordinate.longitude }
+
+                let minLat = lats.min()!
+                let maxLat = lats.max()!
+                let minLon = lons.min()!
+                let maxLon = lons.max()!
+                
+                let finalMinLat = (maxLat - minLat < 0.003) ? ((maxLat + minLat)/2 - 0.0015) : minLat
+                let finalMaxLat = (maxLat - minLat < 0.003) ? ((maxLat + minLat)/2 + 0.0015) : maxLat
+                let finalMinLon = (maxLon - minLon < 0.003) ? ((maxLon + minLon)/2 - 0.0015) : minLon
+                let finalMaxLon = (maxLon - minLon < 0.003) ? ((maxLon + minLon)/2 + 0.0015) : maxLon
+                
+                let rect = AreaRect(southWest: MapPoint(longitude: finalMinLon, latitude: finalMinLat), 
+                                    northEast: MapPoint(longitude: finalMaxLon, latitude: finalMaxLat))
+                mapView.animateCamera(cameraUpdate: CameraUpdate.make(area: rect), options: CameraAnimationOptions(autoElevation: false, consecutive: false, durationInMillis: 800))
+            }
+        }
     }
+
 
     static func dismantleUIView(_ uiView: KMViewContainer, coordinator: Coordinator) {
         coordinator.controller?.pauseEngine()

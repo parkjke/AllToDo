@@ -25,3 +25,18 @@
 - **Documentation**: Updated root `README.md` with:
     - New table entry for the Landing Page.
     - Instructions on how to run (`npm install`, `npm run dev`).
+
+## 2025-12-25
+
+### 1. Background Enhancement (Scattered Slideshow)
+- **Goal**: Create a dynamic, premium feeling background using actual app screenshots.
+- **Implementation**:
+    - **Assets**: Processed 7 layout screenshots (Mobile & Dashboard), optimized/resized to 800px width (`bg_mobile_1` ~ `6`, `bg_dashboard`).
+    - **Logic (`main.js`)**:
+        - **Sequential Spawning**: Images appear every **3 seconds** (previously 4s) to keep visual interest.
+        - **Instant Start**: Pre-spawns 5 images on load to prevent initial emptiness.
+        - **Randomization**: Random position (0-90%), rotation, scale (0.4-1.0), and blur.
+        - **Animation**: Images rotate very slowly (**60-120s duration**) using Web Animations API.
+    - **Styling**: 
+        - Z-Index layering fixed: Background (`0`) vs Content (`1`).
+        - Dark overlay (`#0a0a0a`) mixed with radial gradient for text readability.

@@ -31,8 +31,25 @@ export default function Login() {
     };
 
     return (
-        <div className="auth-container">
-            <div className="auth-card card">
+        <div className="auth-container" style={{
+            backgroundImage: `url(/bg_dashboard.png)`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            position: 'relative'
+        }}>
+            {/* Overlay for blur and dimming */}
+            <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.4)', // Dark overlay
+                backdropFilter: 'blur(8px)', // Blur effect
+                zIndex: 0
+            }} />
+
+            <div className="auth-card card" style={{ position: 'relative', zIndex: 1 }}>
                 <div className="auth-logo-wrapper">
                     <img src={LogoIcon} alt="Logo" className="auth-logo-icon" />
                     <img src={LogoTextEn} alt="AllToDo" className="auth-logo-text" />
