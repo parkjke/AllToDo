@@ -40,7 +40,8 @@ fun CalloutBubble(
     onDeleteTodo: (UnifiedItem.Todo) -> Unit,
     onDeleteLog: (UnifiedItem.History) -> Unit,
     onSelectLog: (kr.alltodo.data.TodoItem) -> Unit,
-    onCreateTodo: (UnifiedItem) -> Unit
+    onCreateTodo: (UnifiedItem) -> Unit,
+    mapProvider: kr.alltodo.ui.MapProvider = kr.alltodo.ui.MapProvider.Naver
 ) {
     val fontSize = when (popupFontSize) {
         0 -> 12.sp
@@ -50,7 +51,6 @@ fun CalloutBubble(
     }
 
     val bubbleWidth = 260.dp
-    // iOS height calculation logic roughly translated to dp
     val rowHeight = when (popupFontSize) {
         0 -> 38.dp
         1 -> 42.dp
@@ -61,32 +61,31 @@ fun CalloutBubble(
     val headerHeight = 40.dp
     val maxListItems = maxPopupItems.coerceAtLeast(1)
     val displayCount = items.size.coerceAtMost(maxListItems)
-    val bubbleHeight = (rowHeight * displayCount) + headerHeight + 8.dp // 8dp padding
+    val bubbleHeight = (rowHeight * displayCount) + headerHeight + 8.dp
 
-    // Position calculation (iOS style)
-    // We want the tip of the triangle to be at screenPosition.
-    // The bubble is centered horizontally on screenPosition.x
-    // The bubble is placed above screenPosition.y
-    
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .clickable(onClick = onClose) // Dismiss on background click
+            .clickable(onClick = onClose)
     ) {
         Box(
             modifier = Modifier
                 .offset {
+                    val totalOffset = when(mapProvider) {
+                        kr.alltodo.ui.MapProvider.Google -> 120.dp
+                        kr.alltodo.ui.MapProvider.Kakao, kr.alltodo.ui.MapProvider.Naver -> 130.dp
+                    }.toPx()
+
                     IntOffset(
                         x = (screenPosition.x - (bubbleWidth.toPx() / 2)).toInt(),
-                        y = (screenPosition.y - bubbleHeight.toPx() - 10.dp.toPx()).toInt() // 10dp for triangle
+                        y = (screenPosition.y - bubbleHeight.toPx() - totalOffset).toInt()
                     )
                 }
                 .width(bubbleWidth)
-                .height(bubbleHeight + 10.dp) // Include triangle
-                .clickable(enabled = false) { } // Prevent closing when clicking bubble
+                .height(bubbleHeight + 10.dp)
+                .clickable(enabled = false) { }
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                // Content Container
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -96,25 +95,28 @@ fun CalloutBubble(
                     elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
                 ) {
                     Column {
-                        // Header
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(headerHeight)
                         ) {
-                            IconButton(
-                                onClick = onClose,
-                                modifier = Modifier.align(Alignment.Center)
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.Center)
+                                    .fillMaxHeight()
+                                    .width(60.dp)
+                                    .clickable(onClick = onClose),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Close,
-                                    contentDescription = "Close",
-                                    tint = Color(0xFF333333).copy(alpha = 0.6f)
+                                    contentDescription = "닫기",
+                                    tint = Color(0xFF333333).copy(alpha = 0.6f),
+                                    modifier = Modifier.size(24.dp)
                                 )
                             }
                         }
 
-                        // List
                         LazyColumn(
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -133,7 +135,6 @@ fun CalloutBubble(
                     }
                 }
 
-                // Triangle
                 Canvas(
                     modifier = Modifier
                         .width(20.dp)
@@ -180,7 +181,7 @@ fun CalloutRow(
             ) {
                 Icon(
                     imageVector = Icons.Default.Map,
-                    contentDescription = "Show Path",
+                    contentDescription = "경로 보기",
                     tint = if (hasPath) Color(0xFF1B5E20) else Color(0xFF333333).copy(alpha = 0.1f),
                     modifier = Modifier.size(24.dp)
                 )
@@ -189,7 +190,6 @@ fun CalloutRow(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // [Col 2] Content
         Column(
             modifier = Modifier.clickable { onCreateTodo(item) },
             horizontalAlignment = Alignment.CenterHorizontally
@@ -224,7 +224,6 @@ fun CalloutRow(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // [Col 3] Action Icon
         IconButton(
             onClick = {
                 when (item) {
@@ -238,14 +237,14 @@ fun CalloutRow(
             if (item is UnifiedItem.CurrentLocation) {
                 Icon(
                     imageVector = Icons.Default.Person,
-                    contentDescription = "Me",
+                    contentDescription = "나",
                     tint = Color.Red,
                     modifier = Modifier.size(24.dp)
                 )
             } else {
                 Icon(
                     imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete",
+                    contentDescription = "삭제",
                     tint = Color.Red,
                     modifier = Modifier.size(24.dp)
                 )

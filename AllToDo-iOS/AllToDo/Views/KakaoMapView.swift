@@ -5,6 +5,7 @@ import SwiftData
 
 // MARK: - KakaoMapView REBUILD (REVERT TO ATTEMPT 1 - TOUCH SUCCESS STATE)
 struct KakaoMapView: UIViewRepresentable {
+    @Environment(\.modelContext) var modelContext
     @Binding var action: MapAction
     @Binding var rotation: Double
     @ObservedObject var locationManager: AppLocationManager
@@ -21,6 +22,10 @@ struct KakaoMapView: UIViewRepresentable {
     var onSelectLog: ((ToDoItem) -> Void)?
     var onSelectItem: ((ToDoItem) -> Void)?
     var onFarItemsDetected: ((Int) -> Void)?
+    
+    // [NEW] Active Path Rendering
+    var activePoints: [PathPoint] = []
+    var showActivePath: Bool = true
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -60,6 +65,15 @@ struct KakaoMapView: UIViewRepresentable {
         if let mapView = context.coordinator.controller?.getView("mapview") as? KakaoMap,
            let loc = locationManager.currentLocation {
             context.coordinator.checkTethering(mapView: mapView, userLocation: loc)
+        }
+        
+        // [NEW] Path Visualization for selected History Item
+        if let mapView = context.coordinator.controller?.getView("mapview") as? KakaoMap {
+            // Update Path Visualization
+            context.coordinator.updatePath(mapView: mapView, historyItem: selectedItem)
+            
+            // [NEW] Active Path Rendering
+            context.coordinator.updateActiveRecordingPath(mapView: mapView, points: activePoints, visible: showActivePath)
         }
     }
 
@@ -267,6 +281,13 @@ struct KakaoMapView: UIViewRepresentable {
                 rawPoints.append(Int32(log.longitude * 100_000))
             }
             
+            // [FIX] Add User Location to Kakao Map
+            if let u = parent.locationManager.currentLocation {
+                allItems.append(.userLocation(u.coordinate))
+                rawPoints.append(Int32(u.coordinate.latitude * 100_000))
+                rawPoints.append(Int32(u.coordinate.longitude * 100_000))
+            }
+            
             // 3. Request WASM Clustering
             Task {
                 if self.isInitialPhase {
@@ -304,7 +325,7 @@ struct KakaoMapView: UIViewRepresentable {
                  
                  if !registeredStyleIDs.contains(styleID) {
                      // [FIX] iOS Style: Use 40x50 base size to match Apple Map standard
-                     if let baseImage = UIImage(named: baseName)?.resized(to: CGSize(width: 40, height: 50)),
+                      if let baseImage = UIImage(named: baseName)?.resized(to: CGSize(width: 28, height: 35)),
                         let finalImage = PinImageHelper.shared.createShieldPin(color: color, count: nil, baseImage: baseImage).rasterized() {
                          labelManager.addPoiStyle(PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: PoiIconStyle(symbol: finalImage, anchorPoint: CGPoint(x: 0.5, y: 1.0)), level: 0)]))
                          registeredStyleIDs.insert(styleID)
@@ -350,6 +371,7 @@ struct KakaoMapView: UIViewRepresentable {
                 switch item {
                 case .todo(let t): if let l = t.location { itemLat = l.latitude; itemLon = l.longitude }
                 case .history(let l): itemLat = l.latitude; itemLon = l.longitude
+                case .userLocation(let coord): itemLat = coord.latitude; itemLon = coord.longitude
                 default: continue
                 }
                 
@@ -376,7 +398,7 @@ struct KakaoMapView: UIViewRepresentable {
                 
                 if !registeredStyleIDs.contains(styleID) {
                     // [FIX] iOS Style: Use 40x50 base size for consistent scaling
-                    if let baseImage = UIImage(named: baseName)?.resized(to: CGSize(width: 40, height: 50)),
+                    if let baseImage = UIImage(named: baseName)?.resized(to: CGSize(width: 28, height: 35)),
                        let finalImage = PinImageHelper.shared.createShieldPin(color: color, count: count > 1 ? count : nil, baseImage: baseImage).rasterized() {
                         labelManager.addPoiStyle(PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: PoiIconStyle(symbol: finalImage, anchorPoint: CGPoint(x: 0.5, y: 1.0)), level: 0)]))
                         registeredStyleIDs.insert(styleID) // [FIX] Must insert to avoid repeated adds
@@ -385,9 +407,20 @@ struct KakaoMapView: UIViewRepresentable {
                 
                 let poiID = "poi_\(idx)"
                 labelIdToClusterItems[poiID] = items
+                
+                var finalLon = c.lon
+                var finalLat = c.lat
+                
+                // [FIX] Cluster Anchoring: If user is in cluster, force cluster to user position
+                if let userItem = items.first(where: { if case .userLocation = $0 { return true }; return false }),
+                   let userCoord = userItem.location {
+                    finalLon = userCoord.longitude
+                    finalLat = userCoord.latitude
+                }
+                
                 let options = PoiOptions(styleID: styleID, poiID: poiID)
                 options.clickable = true
-                if let poi = layer.addPoi(option: options, at: MapPoint(longitude: c.lon, latitude: c.lat)) {
+                if let poi = layer.addPoi(option: options, at: MapPoint(longitude: finalLon, latitude: finalLat)) {
                     poi.clickable = true
                     poi.show()
                 }
@@ -405,7 +438,7 @@ struct KakaoMapView: UIViewRepresentable {
             
             let styleID = "creStyle"
             if !registeredStyleIDs.contains(styleID) {
-                if let img = UIImage(named: "PinTodoReady")?.resized(to: CGSize(width: 40, height: 50)),
+                if let img = UIImage(named: "PinTodoReady")?.resized(to: CGSize(width: 28, height: 35)),
                    let rasterized = img.rasterized() {
                     labelManager.addPoiStyle(PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: PoiIconStyle(symbol: rasterized, anchorPoint: CGPoint(x: 0.5, y: 1.0)), level: 0)]))
                     registeredStyleIDs.insert(styleID)
@@ -426,7 +459,7 @@ struct KakaoMapView: UIViewRepresentable {
             
             if let items = labelIdToClusterItems[poiID] {
                 // [FIX] Faster Animation (200ms) for snappy "Apple-like" response
-                kakaoMap.moveCamera(CameraUpdate.make(target: position, mapView: kakaoMap), options: CameraAnimationOptions(autoElevation: false, consecutive: true, durationInMillis: 200))
+                kakaoMap.animateCamera(cameraUpdate: CameraUpdate.make(target: position, mapView: kakaoMap), options: CameraAnimationOptions(autoElevation: false, consecutive: true, durationInMillis: 200))
                 
                 Task { @MainActor in
                     // [FIX] Instant response: No delay for SwiftUI redraw
@@ -487,6 +520,71 @@ struct KakaoMapView: UIViewRepresentable {
             case .rotateNorth:
                 mapView.moveCamera(CameraUpdate.make(rotation: 0, tilt: 0, mapView: mapView))
             default: break
+            }
+        }
+        
+        func updatePath(mapView: KakaoMap, historyItem: ToDoItem?) {
+            let manager = mapView.getShapeManager()
+            let layer = manager.getShapeLayer(layerID: "pathLayer") ?? manager.addShapeLayer(layerID: "pathLayer", zOrder: 1000)
+            guard let shapeLayer = layer else { return }
+            
+            guard let item = historyItem, item.type == "00" else {
+                shapeLayer.removeMapPolylineShape(shapeID: "historyLine")
+                return
+            }
+            
+            // Query PathItems
+            let searchID = item.todo_id
+            let descriptor = FetchDescriptor<PathItem>(
+                predicate: #Predicate<PathItem> { $0.todo_id == searchID },
+                sortBy: [SortDescriptor<PathItem>(\.timestamp, order: .forward)]
+            )
+            
+            if let paths = try? parent.modelContext.fetch(descriptor), !paths.isEmpty {
+                let coords = paths.map { MapPoint(longitude: $0.coordinate.longitude, latitude: $0.coordinate.latitude) }
+                if coords.count >= 2 {
+                    // Unique style for the path
+                    let styleID = "MainPathStyle_\(item.todo_id.uuidString.prefix(8))"
+                    let style = PolylineStyle(styles: [
+                        PerLevelPolylineStyle(bodyColor: .red, bodyWidth: 16, strokeColor: .clear, strokeWidth: 0, level: 0)
+                    ])
+                    manager.addPolylineStyleSet(PolylineStyleSet(styleSetID: styleID, styles: [style]))
+                    
+                    shapeLayer.removeMapPolylineShape(shapeID: "historyLine")
+                    let options = MapPolylineShapeOptions(shapeID: "historyLine", styleID: styleID, zOrder: 0)
+                    options.polylines.append(MapPolyline(line: coords, styleIndex: 0))
+                    
+                    if let shape = shapeLayer.addMapPolylineShape(options) {
+                        shape.show()
+                        print(">>> MAIN KAKAO: Path Rendered (\(coords.count) pts)")
+                    }
+                }
+            } else {
+                shapeLayer.removeMapPolylineShape(shapeID: "historyLine")
+            }
+        }
+        
+        func updateActiveRecordingPath(mapView: KakaoMap, points: [PathPoint], visible: Bool) {
+            let manager = mapView.getShapeManager()
+            let layer = manager.getShapeLayer(layerID: "activePathLayer") ?? manager.addShapeLayer(layerID: "activePathLayer", zOrder: 1100)
+            guard let shapeLayer = layer else { return }
+            
+            shapeLayer.removeMapPolylineShape(shapeID: "activeTrail")
+            
+            guard visible && points.count >= 2 else { return }
+            
+            let coords = points.map { MapPoint(longitude: $0.longitude, latitude: $0.latitude) }
+            let styleID = "ActiveTrailStyle"
+            let style = PolylineStyle(styles: [
+                PerLevelPolylineStyle(bodyColor: UIColor(red: 1.0, green: 0.34, blue: 0.13, alpha: 1.0), bodyWidth: 16, strokeColor: .clear, strokeWidth: 0, level: 0)
+            ])
+            manager.addPolylineStyleSet(PolylineStyleSet(styleSetID: styleID, styles: [style]))
+            
+            let options = MapPolylineShapeOptions(shapeID: "activeTrail", styleID: styleID, zOrder: 0)
+            options.polylines.append(MapPolyline(line: coords, styleIndex: 0))
+            
+            if let shape = shapeLayer.addMapPolylineShape(options) {
+                shape.show()
             }
         }
     }

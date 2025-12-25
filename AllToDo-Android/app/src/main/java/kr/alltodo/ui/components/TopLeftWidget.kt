@@ -6,7 +6,9 @@ import androidx.compose.material3.Icon
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -64,14 +66,15 @@ fun TopLeftWidget(
             
             Spacer(modifier = Modifier.width(6.dp))
 
-            // 1. Red Badge (History)
-            StatBadge(color = AllToDoRed, count = historyCount)
+            // 1. Blue Badge (Server)
+            StatBadge(color = AllToDoBlue, count = serverTodoCount)
 
             // 2. Green Badge (Local)
             StatBadge(color = AllToDoGreen, count = localTodoCount)
 
-            // 3. Blue Badge (Server)
-            StatBadge(color = AllToDoBlue, count = serverTodoCount)
+            // 3. Red Badge (History)
+            StatBadge(color = AllToDoRed, count = historyCount)
+
         }
     }
 }
@@ -80,16 +83,23 @@ fun TopLeftWidget(
 fun StatBadge(color: Color, count: Int) {
     Box(
         modifier = Modifier
-            .size(24.dp) // Space for 2 digits
-            .background(color, shape = CircleShape),
+            .size(28.dp) // Increased +4dp (24 -> 28)
+            .background(color, shape = CircleShape)
+            .border(
+                width = 1.dp,
+                color = Color.White,
+                shape = CircleShape
+            ),
+
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = count.toString(), // Natural number representation
-            color = if (color == AllToDoGreen) Color(0xFF333333) else Color.White,
-            fontSize = 12.sp, // Clear and readable
+            text = count.toString(),
+            color = Color.White,
+            fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
     }
 }
+

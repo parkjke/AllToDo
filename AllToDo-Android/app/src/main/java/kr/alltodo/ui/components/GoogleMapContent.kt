@@ -48,7 +48,9 @@ fun GoogleMapContent(
     onEnableClustering: () -> Unit,
     onFarItemsDetected: (Int) -> Unit = {},
     creatingTodoLocation: com.google.android.gms.maps.model.LatLng? = null,
-    contentPaddingBottom: Int = 0 // px
+    contentPaddingBottom: Int = 0, // px
+    activePoints: List<kr.alltodo.data.GpsAuthPoint> = emptyList(),
+    showActivePath: Boolean = true
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     // 1. UI Settings (Disable Toolbar & Zoom)
@@ -110,10 +112,13 @@ fun GoogleMapContent(
         onResetAnimationDone = onResetAnimationDone, // [NEW]
         onEnableClustering = onEnableClustering,
         onMove = { lat, lon, zoom, animate ->
+            val map = googleMapInstance
+            if (zoom > 15f) {
+                // [FIX] Explicitly reset both min and max to ensure Stage 3 (Zoom 18) isn't capped at 15
+                map?.setMinZoomPreference(1f)
+                map?.setMaxZoomPreference(21f)
+            }
             val update = CameraUpdateFactory.newLatLngZoom(LatLng(lat, lon), zoom)
-            // [FIX] Release Stage 2 constraint if targeting higher zoom
-            if (zoom > 15f) googleMapInstance?.resetMinMaxZoomPreference()
-            
             if (animate) {
                 cameraPositionState.animate(update, 1200)
             } else {
@@ -123,6 +128,10 @@ fun GoogleMapContent(
         onFitBounds = { points, padding, _ ->
             if (points.size == 1) {
                 val p = points.first()
+                googleMapInstance?.let { map ->
+                    map.setMinZoomPreference(1f)
+                    map.setMaxZoomPreference(21f)
+                }
                 cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(LatLng(p.first, p.second), 15f), 1000)
             } else if (points.isNotEmpty()) {
                 val map = googleMapInstance
@@ -130,8 +139,7 @@ fun GoogleMapContent(
                 points.forEach { builder.include(LatLng(it.first, it.second)) }
                 val bounds = builder.build()
                 
-                // [FIX] Lock max zoom to 15.0 for Stage 2. 
-                // Released in Stage 3 (onMove) or interaction.
+                // [FIX] Lock max zoom to 15.0 for Stage 2 (Fit Bounds) to prevent over-zooming on single cluster
                 map?.setMaxZoomPreference(15.0f)
                 cameraPositionState.animate(CameraUpdateFactory.newLatLngBounds(bounds, padding), 1000)
             }
@@ -181,7 +189,7 @@ fun GoogleMapContent(
         }
 
         
-        LaunchedEffect(cameraPositionState.isMoving) {
+        LaunchedEffect(googleMapInstance, cameraPositionState.isMoving) {
             val map = googleMapInstance ?: return@LaunchedEffect
             snapshotFlow { cameraPositionState.position }
                 .collectLatest { 
@@ -193,8 +201,13 @@ fun GoogleMapContent(
                     val bounds = visibleRegion.latLngBounds
                     val dLon = bounds.northeast.longitude - bounds.southwest.longitude
                     val dLat = bounds.northeast.latitude - bounds.southwest.latitude
-                    currentSpanLon = (Math.abs(dLon) * 100000).toInt()
-                    currentSpanLat = (Math.abs(dLat) * 100000).toInt()
+                    
+                    val newSpanLon = (Math.abs(dLon) * 100000).toInt()
+                    val newSpanLat = (Math.abs(dLat) * 100000).toInt()
+                    
+                    // [FIX] Ensure we never use 0 to avoid jittery re-centers
+                    if (newSpanLon > 0) currentSpanLon = newSpanLon
+                    if (newSpanLat > 0) currentSpanLat = newSpanLat
                 }
         }
         
@@ -290,6 +303,19 @@ fun GoogleMapContent(
         }
 
         
+        // [NEW] Active Recording Path Polyline
+        if (showActivePath && activePoints.size >= 2) {
+            val polylinePoints = activePoints.map { LatLng(it.latitude, it.longitude) }
+            Polyline(
+                points = polylinePoints,
+                color = Color(0xFFFF5722), // Orange Red for active trail
+                width = 12f,
+                jointType = com.google.android.gms.maps.model.JointType.ROUND,
+                startCap = com.google.android.gms.maps.model.RoundCap(),
+                endCap = com.google.android.gms.maps.model.RoundCap()
+            )
+        }
+
         // [REMOVED] Standalone Current Location Marker (Now handled in clusters)
     }
 

@@ -355,18 +355,23 @@ class TodoViewModel @Inject constructor(
                                  bestCluster = cluster
                              }
                          }
-                         
-                         // Cast to MutableList to add (dirty but works if we recreated PinClusterItem or held generic list)
-                         // Actually PinClusterItem items is List val. We need a helper DTO or modify list.
-                         // Let's assume we can somehow mutate or we rebuild.
-                         // Rebuilding map is cleaner.
-                         (bestCluster?.items as? MutableList)?.add(item)
-                     }
-                 }
-             }
+                                                  (bestCluster?.items as? MutableList)?.add(item)
+                      }
+                  }
+              }
+
+              // [FIX] Cluster Anchoring: If user is in cluster, force cluster to user position
+              val finalClusters = newClusters.map { cluster ->
+                  val userLoc = cluster.items.find { it is UnifiedItem.CurrentLocation }
+                  if (userLoc != null) {
+                      cluster.copy(latitude = userLoc.latitude, longitude = userLoc.longitude)
+                  } else {
+                      cluster
+                  }
+              }
 
              withContext(Dispatchers.Main) {
-                 _clusteredItems.value = newClusters
+                 _clusteredItems.value = finalClusters
              }
          }
     }

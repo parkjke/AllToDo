@@ -106,7 +106,9 @@ struct ContentView: View {
                         onFarItemsDetected: { count in
                             self.farItemsCount = count
                             self.showFarNotification = true
-                        }
+                        },
+                        activePoints: locationManager.processedSessionPoints,
+                        showActivePath: locationManager.showActivePath
                     )
                 case .kakao:
                      KakaoMapView(
@@ -135,7 +137,9 @@ struct ContentView: View {
                          onFarItemsDetected: { count in
                              self.farItemsCount = count
                              self.showFarNotification = true
-                         }
+                         },
+                         activePoints: locationManager.processedSessionPoints,
+                         showActivePath: locationManager.showActivePath
                      )
                 case .naver:
                     NaverMapView(
@@ -164,7 +168,9 @@ struct ContentView: View {
                         onFarItemsDetected: { count in
                             self.farItemsCount = count
                             self.showFarNotification = true
-                        }
+                        },
+                        activePoints: locationManager.processedSessionPoints,
+                        showActivePath: locationManager.showActivePath
                     )
                 case .google:
                     GoogleMapView(
@@ -194,7 +200,9 @@ struct ContentView: View {
                         onFarItemsDetected: { count in
                             self.farItemsCount = count
                             self.showFarNotification = true
-                        }
+                        },
+                        activePoints: locationManager.processedSessionPoints,
+                        showActivePath: locationManager.showActivePath
                     )
                 }
             }
@@ -264,15 +272,17 @@ struct ContentView: View {
                         initialTodoName = ""
                     }
                 )
-                .preferredColorScheme(.light)
+                .preferredColorScheme((mapProvider == .apple || mapProvider == .google) ? nil : .light)
                 .transition(.move(edge: .bottom))
+
                 .animation(.spring(), value: isCreatingTodo)
             }
         }
         .sheet(item: $viewingHistoryItem) { item in
             PathHistoryView(item: item, onClose: { viewingHistoryItem = nil })
-                .preferredColorScheme(.light)
+                .preferredColorScheme((mapProvider == .apple || mapProvider == .google) ? nil : .light)
         }
+
         .sheet(isPresented: $showCalendar) {
              VStack {
                  Text("Time Travel")
@@ -314,7 +324,8 @@ struct ContentView: View {
                  .padding()
              }
              .presentationDetents([.medium, .large])
-             .preferredColorScheme(.light)
+             .preferredColorScheme((mapProvider == .apple || mapProvider == .google) ? nil : .light)
+
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("MapRotationChanged"))) { notification in
             if let rotation = notification.userInfo?["rotation"] as? Double {
@@ -325,6 +336,12 @@ struct ContentView: View {
             switch newPhase {
             case .background, .inactive:
                 backgroundStartTime = Date()
+                
+                // [FIX] Use Background Task to ensure saving finishes
+                let taskId = UIApplication.shared.beginBackgroundTask {
+                    // Expiration handler
+                }
+                
                 Task {
                     if let session = await locationManager.endSession() {
                         let log = ToDoItem(
@@ -346,8 +363,10 @@ struct ContentView: View {
                             modelContext.insert(path)
                         }
                         try? modelContext.save()
+                        print(">>> BG SAVE SUCCESS: \(session.points.count) pts saved")
                         locationManager.startSession()
                     }
+                    UIApplication.shared.endBackgroundTask(taskId)
                 }
             case .active:
                 if let start = backgroundStartTime {
@@ -393,7 +412,10 @@ struct ContentView: View {
             onZoomInClick: { mapAction = .zoomIn },
             onZoomOutClick: { mapAction = .zoomOut },
             onCompassClick: { mapAction = .rotateNorth },
-            onExpandClick: { withAnimation { showListView = true } }
+            onExpandClick: { withAnimation { showListView = true } },
+            isRecording: locationManager.isRecording,
+            showActivePath: locationManager.showActivePath,
+            onToggleActivePath: { locationManager.showActivePath.toggle() }
         )
     }
 
@@ -426,12 +448,12 @@ struct ContentView: View {
                             .padding(.bottom, 8)
                         }
                         .frame(width: 320)
-                        .background(Color.white)
+                        .background(Color(.systemBackground))
                         .cornerRadius(12)
-                        .preferredColorScheme(.light)
+                        .preferredColorScheme((mapProvider == .apple || mapProvider == .google) ? nil : .light)
                         
                         CalloutTriangle()
-                            .fill(Color.white)
+                            .fill(Color(.systemBackground))
                             .frame(width: 20, height: 10)
                             .padding(.top, -1)
                     }
@@ -471,13 +493,15 @@ struct ContentView: View {
                     HStack {
                         UserProfileView(isPresented: $showProfile, locationManager: locationManager)
                             .frame(width: 300)
-                            .background(Color.white)
+                            .background(Color(.systemBackground)) // Dynamic background
                             .shadow(radius: 5)
                         Spacer()
                     }
                     .transition(.move(edge: .leading))
                 }
-                .preferredColorScheme(.light)
+                // [FIX] Apple/Google: Dynamic Mode, Kakao/Naver: Force Light Mode
+                .preferredColorScheme((mapProvider == .apple || mapProvider == .google) ? nil : .light)
+
                 .zIndex(300)
             }
         }
@@ -503,8 +527,9 @@ struct ContentView: View {
                         onCancel: { selectedItem = nil }
                     )
                 }
-                .preferredColorScheme(.light)
+                .preferredColorScheme((mapProvider == .apple || mapProvider == .google) ? nil : .light)
                 .transition(.move(edge: .bottom))
+
                 .zIndex(400)
             }
         }
@@ -561,10 +586,12 @@ extension ContentView {
                             .frame(maxHeight: 400)
                         }
                     }
-                    .background(Color.white)
+                    .background(Color(.systemBackground))
                     .cornerRadius(16)
-                    .preferredColorScheme(.light)
+
+                    .preferredColorScheme((mapProvider == .apple || mapProvider == .google) ? nil : .light)
                     .transition(.move(edge: .bottom))
+
                 }
                 .zIndex(500)
             }

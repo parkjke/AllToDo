@@ -24,6 +24,10 @@ struct NaverMapView: UIViewRepresentable {
     var onSelectLog: ((ToDoItem) -> Void)?
     var onSelectItem: ((ToDoItem) -> Void)?
     var onFarItemsDetected: ((Int) -> Void)? // [NEW] Callback
+    
+    // [NEW] Active Path Rendering
+    var activePoints: [PathPoint] = []
+    var showActivePath: Bool = true
 
     func makeUIView(context: Context) -> NMFNaverMapView {
         let view = NMFNaverMapView()
@@ -103,6 +107,12 @@ struct NaverMapView: UIViewRepresentable {
             if let u = locationManager.currentLocation, !context.coordinator.firstRender, !context.coordinator.isLaunchAnimating {
                 context.coordinator.checkTethering(mapView: uiView.mapView, userLocation: u)
             }
+            
+            // [NEW] Update Path Visualization
+            context.coordinator.updatePath(historyItem: selectedItem)
+            
+            // [NEW] Active Path Rendering
+            context.coordinator.updateActiveRecordingPath(points: activePoints, visible: showActivePath)
         }
         
         // 3. Launch Animation
@@ -125,6 +135,7 @@ struct NaverMapView: UIViewRepresentable {
         
         var markers: [NMFMarker] = []
         var pathOverlay: NMFPath? 
+        var activePathOverlay: NMFPath? 
         
         init(_ parent: NaverMapView) {
             self.parent = parent
@@ -143,7 +154,7 @@ struct NaverMapView: UIViewRepresentable {
                 switch item {
                 case .todo(let t): if let l = t.location { marker.position = NMGLatLng(lat: l.latitude, lng: l.longitude) }
                 case .history(let l): marker.position = NMGLatLng(lat: l.latitude, lng: l.longitude)
-                case .userLocation: if let u = parent.locationManager.currentLocation { marker.position = NMGLatLng(lat: u.coordinate.latitude, lng: u.coordinate.longitude) }
+                case .userLocation(let coord): marker.position = NMGLatLng(lat: coord.latitude, lng: coord.longitude)
                 default: break
                 }
                 
@@ -170,7 +181,7 @@ struct NaverMapView: UIViewRepresentable {
                     name = "PinTodoReady" // Green for new entry
                 }
                 
-                let img = UIImage(named: name)?.resized(to: CGSize(width: 48, height: 60))
+                let img = UIImage(named: name)?.resized(to: CGSize(width: 36, height: 45))
                 if let i = img { 
                     marker.iconImage = NMFOverlayImage(image: i) 
                     marker.anchor = CGPoint(x: 0.5, y: 1.0)
@@ -225,21 +236,15 @@ struct NaverMapView: UIViewRepresentable {
         func updateAnnotations(items: [ToDoItem]) {
             refreshWasmClusters()
         }
-        func updatePath(selectedItems: [UnifiedMapItem]?) {
-             guard let map = mapView, let items = selectedItems else { return }
+        func updatePath(historyItem: ToDoItem?) {
+             guard let map = mapView else { return }
              
              // 1. Remove existing
              pathOverlay?.mapView = nil
              pathOverlay = nil
              
              // 2. Filter history items (Using ToDoItem)
-             guard let items = selectedItems else { return }
-             let historyItems = items.compactMap { item -> ToDoItem? in
-                 if case .history(let log) = item { return log }
-                 return nil
-             }
-             
-             guard let log = historyItems.first else { return }
+             guard let log = historyItem, log.type == "00" else { return }
              
              // 3. Query PathItems
              let idString = log.todo_id.uuidString
@@ -261,6 +266,27 @@ struct NaverMapView: UIViewRepresentable {
              }
         }
         
+        func updateActiveRecordingPath(points: [PathPoint], visible: Bool) {
+            guard let map = mapView else { return }
+            
+            // 1. Remove existing
+            activePathOverlay?.mapView = nil
+            activePathOverlay = nil
+            
+            // 2. Check visibility
+            guard visible && points.count >= 2 else { return }
+            
+            // 3. Render new trail
+            let coords = points.map { NMGLatLng(lat: $0.latitude, lng: $0.longitude) }
+            let path = NMFPath()
+            path.path = NMGLineString(points: coords)
+            path.color = UIColor(red: 1.0, green: 0.34, blue: 0.13, alpha: 1.0) // Orange Red
+            path.width = 6
+            path.outlineWidth = 0
+            path.mapView = map
+            self.activePathOverlay = path
+        }
+
         func updateUserLocation(_ location: CLLocation) {
             // Handled by WASM now
             refreshWasmClusters()
@@ -310,7 +336,7 @@ struct NaverMapView: UIViewRepresentable {
                       }
                      allItems.append(.history(log))
                  }
-                 if let u = parent.locationManager.currentLocation { allItems.append(.userLocation) }
+                 if let u = parent.locationManager.currentLocation { allItems.append(.userLocation(u.coordinate)) }
                  
                  // [NEW] Add Creating Todo Location
                  if let target = creatingTodoLocationBinding?.wrappedValue {
@@ -379,9 +405,8 @@ struct NaverMapView: UIViewRepresentable {
                 }
             }
             
-            // [FIX] Include User Location in Clustering
             if let userLoc = userLocation {
-                allItems.append(.userLocation)
+                allItems.append(.userLocation(userLoc.coordinate))
                 rawPoints.append(Int32(userLoc.coordinate.latitude * 100_000))
                 rawPoints.append(Int32(userLoc.coordinate.longitude * 100_000))
             }
@@ -434,8 +459,8 @@ struct NaverMapView: UIViewRepresentable {
                 switch item {
                 case .todo(let t): if let l = t.location { itemLat = l.latitude; itemLon = l.longitude }
                 case .history(let l): itemLat = l.latitude; itemLon = l.longitude
-                case .userLocation: 
-                    if let u = parent.locationManager.currentLocation { itemLat = u.coordinate.latitude; itemLon = u.coordinate.longitude }
+                case .userLocation(let coord): 
+                    itemLat = coord.latitude; itemLon = coord.longitude
                 default: break
                 }
                 
@@ -469,11 +494,17 @@ struct NaverMapView: UIViewRepresentable {
                     switch item {
                     case .todo(let t): if let l = t.location { marker.position = NMGLatLng(lat: l.latitude, lng: l.longitude) }
                     case .history(let l): marker.position = NMGLatLng(lat: l.latitude, lng: l.longitude)
-                    case .userLocation: if let u = parent.locationManager.currentLocation { marker.position = NMGLatLng(lat: u.coordinate.latitude, lng: u.coordinate.longitude) }
+                    case .userLocation(let coord): marker.position = NMGLatLng(lat: coord.latitude, lng: coord.longitude)
                     default: marker.position = NMGLatLng(lat: centroid.lat, lng: centroid.lon)
                     }
                 } else {
-                    marker.position = NMGLatLng(lat: centroid.lat, lng: centroid.lon)
+                    var finalCoord = NMGLatLng(lat: centroid.lat, lng: centroid.lon)
+                    // [FIX] Cluster Anchoring: If user is in cluster, force cluster to user position
+                    if let userItem = items.first(where: { if case .userLocation = $0 { return true }; return false }),
+                       let userCoord = userItem.location {
+                        finalCoord = NMGLatLng(lat: userCoord.latitude, lng: userCoord.longitude)
+                    }
+                    marker.position = finalCoord
                 }
                 
                 
@@ -481,7 +512,7 @@ struct NaverMapView: UIViewRepresentable {
                 let (baseName, color, _) = UnifiedMapItem.resolveClusterStyle(items: items)
                 
                 // [FIX] Resize Base Image FIRST to 48x60 (Naver Special)
-                let baseImage = UIImage(named: baseName)?.resized(to: CGSize(width: 48, height: 60))
+                let baseImage = UIImage(named: baseName)?.resized(to: CGSize(width: 36, height: 45))
                 
                 // [FIX] Overlay Badge ONLY if count > 1
                 let displayCount: Int? = items.count > 1 ? items.count : nil
@@ -504,7 +535,7 @@ struct NaverMapView: UIViewRepresentable {
                     // 2. Animate to Center
                     let update = NMFCameraUpdate(scrollTo: marker.position)
                     update.animation = .fly
-                    update.animationDuration = 0.3
+                     update.animationDuration = 0.3
                     self.mapView?.moveCamera(update)
                     
                     return true
@@ -512,11 +543,9 @@ struct NaverMapView: UIViewRepresentable {
                 
                 marker.mapView = mapView
                 markers.append(marker)
-                markers.append(marker)
             }
         }
         
-
 
         // [NEW] Animation State
         var isLaunchAnimating = false

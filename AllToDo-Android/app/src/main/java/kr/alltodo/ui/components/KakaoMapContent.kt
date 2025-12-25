@@ -25,6 +25,10 @@ import com.kakao.vectormap.label.LabelOptions
 import com.kakao.vectormap.label.LabelStyle
 import com.kakao.vectormap.label.LabelStyles
 import kotlinx.coroutines.delay
+// import com.kakao.vectormap.shape.MapPolylineOptions
+// import com.kakao.vectormap.shape.PolylineStyle
+// import com.kakao.vectormap.shape.PolylineStyles
+// import com.kakao.vectormap.shape.MapShapeLayerOptions
 
 @Composable
 fun KakaoMapContent(
@@ -45,7 +49,9 @@ fun KakaoMapContent(
     onEnableClustering: () -> Unit,
     onMapLongClick: (LatLng) -> Unit = {},
     creatingTodoLocation: LatLng? = null,
-    contentPaddingBottom: Int = 0 
+    contentPaddingBottom: Int = 0,
+    activePoints: List<kr.alltodo.data.GpsAuthPoint> = emptyList(),
+    showActivePath: Boolean = true
 ) {
     val context = LocalContext.current
     
@@ -146,6 +152,15 @@ fun KakaoMapContent(
     )
     
     
+    // [FIXME] Active Path Rendering (Temporarily disabled due to Kakao SDK ref mismatch)
+    /*
+    LaunchedEffect(kakaoMap, activePoints, showActivePath) {
+        val map = kakaoMap ?: return@LaunchedEffect
+        val shapeManager = map.shapeManager
+        // ...
+    }
+    */
+
     // Rendering Logic
     LaunchedEffect(kakaoMap, visibleClusters) {
         val map = kakaoMap ?: return@LaunchedEffect
@@ -205,6 +220,7 @@ fun KakaoMapContent(
                         .setClickable(true)
                  
                  val label = layer?.addLabel(options)
+                 label?.tag = cluster // [FIX] Store cluster in tag for reliable click handling
             }
         }
 
@@ -262,8 +278,11 @@ fun KakaoMapContent(
                         if (left != null && top != null) {
                             val dLon = Math.abs(center.longitude - left.longitude) * 2
                             val dLat = Math.abs(center.latitude - top.latitude) * 2
-                            currentSpanLon = (dLon * 100000).toInt()
-                            currentSpanLat = (dLat * 100000).toInt()
+                            val newSpanLon = (dLon * 100000).toInt()
+                            val newSpanLat = (dLat * 100000).toInt()
+                            
+                            if (newSpanLon > 0) currentSpanLon = newSpanLon
+                            if (newSpanLat > 0) currentSpanLat = newSpanLat
                         }
                     }
                 }
@@ -357,16 +376,14 @@ fun KakaoMapContent(
                             // LaunchedEffect is better.
                             
                             kMap.setOnLabelClickListener { _, _, label ->
-                                val pos = label.position
-                                // Find Cluster by Position (Approx)
-                                val clicked = visibleClusters.find { 
-                                    Math.abs(it.latitude - pos.latitude) < 0.0001 && Math.abs(it.longitude - pos.longitude) < 0.0001
-                                }
+                                // [FIX] Use tag for 100% reliable identification
+                                val clicked = label.tag as? kr.alltodo.ui.TodoViewModel.PinClusterItem
                                 
                                 if (clicked != null) {
+                                    val pos = label.position
                                     val screenPt = kMap.toScreenPoint(pos)
-                                    val scrollX = if (screenPt != null) screenPt.x.toFloat() else 0f
-                                    val scrollY = if (screenPt != null) screenPt.y.toFloat() else 0f
+                                    val scrollX = screenPt?.x?.toFloat() ?: 0f
+                                    val scrollY = screenPt?.y?.toFloat() ?: 0f
                                     
                                     if (clicked.count == 1 && clicked.items.isNotEmpty()) {
                                          onItemClickWithCoords(clicked.items.first(), scrollX, scrollY)

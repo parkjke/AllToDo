@@ -57,6 +57,11 @@ fun MainScreen(
     var tapScreenPosition by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
     val maxPopupItems by todoViewModel.maxPopupItems.collectAsState()
     val popupFontSize by todoViewModel.popupFontSize.collectAsState()
+
+    // [MOVED UP] GPS Auth State
+    val isTracking by gpsAuthViewModel.isTracking.collectAsState()
+    val showActivePath by gpsAuthViewModel.showActivePath.collectAsState()
+    val activePoints by gpsAuthViewModel.points.collectAsState()
     
     // [NEW] Path Viewer State (Now using TodoItem for ID context)
     var viewingPathTodo by remember { mutableStateOf<kr.alltodo.data.TodoItem?>(null) }
@@ -228,7 +233,9 @@ fun MainScreen(
                             isCreatingTodo = true
                         },
                         creatingTodoLocation = creatingTodoLocation?.let { com.naver.maps.geometry.LatLng(it.latitude, it.longitude) },
-                        contentPaddingBottom = if (isCreatingTodo) (context.resources.displayMetrics.heightPixels * 0.7).toInt() else 0
+                        contentPaddingBottom = if (isCreatingTodo) (context.resources.displayMetrics.heightPixels * 0.7).toInt() else 0,
+                        activePoints = activePoints,
+                        showActivePath = showActivePath
                     )
                 }
                 MapProvider.Kakao -> {
@@ -268,7 +275,9 @@ fun MainScreen(
                             isCreatingTodo = true
                         },
                         creatingTodoLocation = creatingTodoLocation,
-                        contentPaddingBottom = if (isCreatingTodo) (context.resources.displayMetrics.heightPixels * 0.7).toInt() else 0
+                        contentPaddingBottom = if (isCreatingTodo) (context.resources.displayMetrics.heightPixels * 0.7).toInt() else 0,
+                        activePoints = activePoints,
+                        showActivePath = showActivePath
                     )
                 }
                 MapProvider.Google -> {
@@ -316,7 +325,9 @@ fun MainScreen(
                             creatingTodoLocation = latLng
                             initialTodoTitle = "할 일 만들기"
                             isCreatingTodo = true
-                        }
+                        },
+                        activePoints = activePoints,
+                        showActivePath = showActivePath
                     )
                 }
             }
@@ -333,9 +344,14 @@ fun MainScreen(
         )
 
         // [Item 2] Right Side Controls
+        // State is now at the top of MainScreen
+
         RightSideControls(
             modifier = Modifier.align(Alignment.TopEnd).padding(top = 40.dp),
             compassRotation = compassRotation,
+            isTracking = isTracking,
+            showActivePath = showActivePath,
+            onToggleActivePath = { gpsAuthViewModel.toggleActivePath() },
             onLoginClick = { showMyInfo = true },
             onZoomInClick = { 
                 when (mapProvider) {
@@ -359,6 +375,7 @@ fun MainScreen(
                         MapProvider.Naver -> {
                             naverMapInstance?.let { map ->
                                 initialAnimationDone = true // [FIX] Break sequence lock
+                                map.maxZoom = 21.0 // [FIX] Release max level lock (previously 15.0)
                                 map.moveCamera(com.naver.maps.map.CameraUpdate.scrollAndZoomTo(latLng, 18.0).animate(com.naver.maps.map.CameraAnimation.Easing, 800))
                             }
                         }
@@ -473,7 +490,8 @@ fun MainScreen(
                         initialTodoTitle = "할 일"
                         isCreatingTodo = true
                         selectedCluster = null
-                    }
+                    },
+                    mapProvider = mapProvider
                 )
             }
         }
@@ -483,7 +501,11 @@ fun MainScreen(
         viewingPathTodo?.let { todo ->
             kr.alltodo.ui.components.PathViewer(
                 pathData = selectedHistoryPath,
-                onClose = { viewingPathTodo = null }
+                mapProvider = mapProvider,
+                onClose = { 
+                    android.util.Log.d("MainScreen", ">>> PathViewer onClose called (Setting null)")
+                    viewingPathTodo = null 
+                }
             )
         }
 

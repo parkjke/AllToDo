@@ -59,6 +59,9 @@ class GpsAuthViewModel @Inject constructor(
     private val _selectedTrack = MutableStateFlow<GpsAuthTrack?>(null)
     val selectedTrack = _selectedTrack.asStateFlow()
 
+    private val _showActivePath = MutableStateFlow(true)
+    val showActivePath = _showActivePath.asStateFlow()
+
     private val MAX_POINTS = 10000
     private var timeMachineJob: Job? = null
     private var currentTrackStartTime: Long = 0
@@ -113,7 +116,9 @@ class GpsAuthViewModel @Inject constructor(
             )
             // Save to DB
             scope.launch {
-                gpsAuthDao.insertTrack(GpsAuthTrackEntity.fromDomain(track))
+                withContext(kotlinx.coroutines.NonCancellable + kotlinx.coroutines.Dispatchers.IO) {
+                    gpsAuthDao.insertTrack(GpsAuthTrackEntity.fromDomain(track))
+                }
             }
         }
         
@@ -252,6 +257,10 @@ class GpsAuthViewModel @Inject constructor(
     }
 
     fun setTimeMachineSpeed(speed: Int) { _timeMachineSpeed.value = speed }
+
+    fun toggleActivePath() {
+        _showActivePath.value = !_showActivePath.value
+    }
 
     override fun onCleared() {
         super.onCleared()

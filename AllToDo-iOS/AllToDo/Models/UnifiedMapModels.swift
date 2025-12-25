@@ -6,7 +6,7 @@ enum UnifiedMapItem: Identifiable {
     case todo(ToDoItem)
     case history(ToDoItem)
     case serverMessage(String)
-    case userLocation
+    case userLocation(CLLocationCoordinate2D)
     
     var id: UUID {
         switch self {
@@ -33,7 +33,7 @@ enum UnifiedMapItem: Identifiable {
         case .history(let item):
             return item.coordinate
         case .serverMessage: return nil
-        case .userLocation: return nil // dynamic
+        case .userLocation(let coord): return coord
         }
     }
     

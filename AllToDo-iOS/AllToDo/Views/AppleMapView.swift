@@ -23,6 +23,10 @@ struct AppleMapView: UIViewRepresentable {
     var onSelectItem: ((ToDoItem) -> Void)?
     var onFarItemsDetected: ((Int) -> Void)?
     
+    // [NEW] Active Path Rendering
+    var activePoints: [PathPoint] = []
+    var showActivePath: Bool = true
+    
     func makeUIView(context: Context) -> MKMapView {
         let mapView = MKMapView()
         mapView.delegate = context.coordinator
@@ -101,7 +105,6 @@ struct AppleMapView: UIViewRepresentable {
         }
         
         // Update Annotations
-        // Update Annotations
         context.coordinator.updateAnnotations(mapView: uiView, items: todoItems, userLocation: locationManager.currentLocation)
         
         // Guard against launch animation
@@ -111,8 +114,11 @@ struct AppleMapView: UIViewRepresentable {
             context.coordinator.checkTethering(mapView: uiView, userLocation: u)
         }
         
-        // Update Path Visualization -> REMOVED
-        // context.coordinator.updatePath(mapView: uiView, selectedItems: selectedClusterItems)
+        // Update Path Visualization
+        context.coordinator.updatePath(mapView: uiView, historyItem: selectedItem)
+        
+        // [NEW] Active Path Rendering
+        context.coordinator.updateActiveRecordingPath(mapView: uiView, points: activePoints, visible: showActivePath)
         
         // Launch Animation
         if context.coordinator.firstRender, let u = locationManager.currentLocation {
@@ -282,7 +288,8 @@ struct AppleMapView: UIViewRepresentable {
             case .currentLocation:
                 if let loc = parent.locationManager.currentLocation {
                     OptimizationLogger.shared.log(type: .locationResume, value: ">>> Current Location Button Pressed: \(loc.coordinate)")
-                    let region = MKCoordinateRegion(center: loc.coordinate, span: MKCoordinateSpan(latitudeDelta: 0.0025, longitudeDelta: 0.0025))
+                    // [FIX] Standard Zoom 18 (Span ~0.0013 for exact match)
+                    let region = MKCoordinateRegion(center: loc.coordinate, span: MKCoordinateSpan(latitudeDelta: 0.0013, longitudeDelta: 0.0013))
                     mapView.setRegion(region, animated: true)
                 } else {
                     parent.locationManager.requestPermission()
@@ -403,8 +410,8 @@ struct AppleMapView: UIViewRepresentable {
                       }
                      allItems.append(.history(log))
                  }
-                 // User Location
-                 if parent.locationManager.currentLocation != nil { allItems.append(.userLocation) }
+                  // User Location
+                  if let u = parent.locationManager.currentLocation { allItems.append(.userLocation(u.coordinate)) }
                  
                  // Notify Far Items
                  if farCount > 0 {
@@ -448,7 +455,7 @@ struct AppleMapView: UIViewRepresentable {
                       }
                      allItems.append(.history(log))
                  }
-                 if parent.locationManager.currentLocation != nil { allItems.append(.userLocation) }
+                 if let loc = parent.locationManager.currentLocation { allItems.append(.userLocation(loc.coordinate)) }
                  
                  // Notify Far Items
                  if farCount > 0 {
@@ -484,7 +491,7 @@ struct AppleMapView: UIViewRepresentable {
             }
             
             if let userLoc = userLocation {
-                allItems.append(.userLocation)
+                allItems.append(.userLocation(userLoc.coordinate))
                 rawPoints.append(Int32(userLoc.coordinate.latitude * 100_000))
                 rawPoints.append(Int32(userLoc.coordinate.longitude * 100_000))
             }
@@ -537,8 +544,8 @@ struct AppleMapView: UIViewRepresentable {
                 switch item {
                 case .todo(let t): itemLat = t.latitude; itemLon = t.longitude
                 case .history(let t): itemLat = t.latitude; itemLon = t.longitude
-                case .userLocation: 
-                     if let userLoc = userLocation { itemLat = userLoc.coordinate.latitude; itemLon = userLoc.coordinate.longitude }
+                case .userLocation(let coord): 
+                     itemLat = coord.latitude; itemLon = coord.longitude
                 default: break
                 }
                 
@@ -559,14 +566,21 @@ struct AppleMapView: UIViewRepresentable {
                 let centroid = centroids[idx]
                 let coordinate = CLLocationCoordinate2D(latitude: centroid.lat, longitude: centroid.lon)
                 
+                var finalCoordinate = coordinate
+                // [FIX] Cluster Anchoring: If user is in cluster, force cluster to user position
+                if let userItem = items.first(where: { if case .userLocation = $0 { return true }; return false }),
+                   let userCoord = userItem.location {
+                    finalCoordinate = userCoord
+                }
+
                 if items.count == 1 {
                     let ann = UnifiedAnnotation()
                     ann.item = items[0]
-                    ann.coordinate = items[0].location ?? coordinate
+                    ann.coordinate = items[0].location ?? finalCoordinate
                     newAnnotations.append(ann)
                 } else {
                     let clusterAnn = WasmClusterAnnotation()
-                    clusterAnn.coordinate = coordinate
+                    clusterAnn.coordinate = finalCoordinate
                     clusterAnn.items = items
                     newAnnotations.append(clusterAnn)
                 }
@@ -649,7 +663,7 @@ struct AppleMapView: UIViewRepresentable {
             // Step 3: Wait 3s -> Zoom 18 at Current Location
             DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
                 if let freshLoc = self.parent.locationManager.currentLocation {
-                    let zoom18Span = 0.0025 // Approx Zoom 18
+                    let zoom18Span = 0.0013 // [FIX] Approx Zoom 18 (was 0.0025)
                     let finalRegion = MKCoordinateRegion(center: freshLoc.coordinate, span: MKCoordinateSpan(latitudeDelta: zoom18Span, longitudeDelta: zoom18Span))
                     
                     mapView.setRegion(finalRegion, animated: true)
@@ -857,34 +871,59 @@ struct AppleMapView: UIViewRepresentable {
         }
 
         // MARK: - Overlays
+        class HistoryPolyline: MKPolyline {}
+        class ActiveRecordingPolyline: MKPolyline {}
+
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             if let polyline = overlay as? MKPolyline {
                 let renderer = MKPolylineRenderer(polyline: polyline)
-                renderer.strokeColor = .red
-                renderer.lineWidth = 4
+                if overlay is ActiveRecordingPolyline {
+                    renderer.strokeColor = UIColor(red: 1.0, green: 0.34, blue: 0.13, alpha: 1.0) // Orange Red
+                } else {
+                    renderer.strokeColor = .red
+                }
+                renderer.lineWidth = 6
+                renderer.lineCap = .round
+                renderer.lineJoin = .round
                 return renderer
             }
             return MKOverlayRenderer(overlay: overlay)
         }
-        
+
         func updatePath(mapView: MKMapView, historyItem: ToDoItem?) {
-            // 1. Remove existing polylines
-            let oldOverlays = mapView.overlays.filter { $0 is MKPolyline }
-            mapView.removeOverlays(oldOverlays)
+            // 1. Remove only history polylines
+            let oldHistory = mapView.overlays.filter { $0 is HistoryPolyline }
+            mapView.removeOverlays(oldHistory)
             
             guard let item = historyItem else { return }
             
-            // 2. Filter history items with pathData
-            // Query paths for this todo_id
+            // 2. Query paths for this todo_id
             let searchID = item.todo_id
-            let descriptor = FetchDescriptor<PathItem>(predicate: #Predicate<PathItem> { $0.todo_id == searchID })
+            let descriptor = FetchDescriptor<PathItem>(
+                predicate: #Predicate<PathItem> { $0.todo_id == searchID },
+                sortBy: [SortDescriptor(\.timestamp)]
+            )
+            
             if let paths = try? parent.modelContext.fetch(descriptor) {
                 var coords = paths.map { $0.coordinate }
                 if coords.count >= 2 {
-                    let polyline = MKPolyline(coordinates: &coords, count: coords.count)
+                    let polyline = HistoryPolyline(coordinates: &coords, count: coords.count)
                     mapView.addOverlay(polyline)
                 }
             }
+        }
+        
+        func updateActiveRecordingPath(mapView: MKMapView, points: [PathPoint], visible: Bool) {
+            // 1. Remove existing active trail
+            let oldActive = mapView.overlays.filter { $0 is ActiveRecordingPolyline }
+            mapView.removeOverlays(oldActive)
+            
+            guard visible && points.count >= 2 else { return }
+            
+            // 2. Render new trail
+            var coords = points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+            let polyline = ActiveRecordingPolyline(coordinates: &coords, count: coords.count)
+            mapView.addOverlay(polyline)
         }
         
         func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, calloutAccessoryControlTapped control: UIControl) {
@@ -1033,7 +1072,7 @@ struct ClusterListCallout: View {
                 switch item {
                 case .todo(let todo): onDeleteToDo(todo)
                 case .history(let log): onDeleteLog(log)
-                case .serverMessage(_): break
+                case .serverMessage: break
                 case .userLocation: break
                 }
             }) {

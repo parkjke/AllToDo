@@ -45,7 +45,9 @@ fun NaverMapContent(
     onEnableClustering: () -> Unit,
     onMapLongClick: (LatLng) -> Unit = {},
     creatingTodoLocation: LatLng? = null,
-    contentPaddingBottom: Int = 0 
+    contentPaddingBottom: Int = 0,
+    activePoints: List<kr.alltodo.data.GpsAuthPoint> = emptyList(),
+    showActivePath: Boolean = true
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -99,6 +101,21 @@ fun NaverMapContent(
     // [FIX] Manage Markers (Recomposition Optimization)
     // We must manually manage Marker objects on the NaverMap instance
     val currentMarkers = remember { mutableListOf<Marker>() }
+
+    // [NEW] Active Path Rendering
+    val activePathOverlay = remember { PathOverlay() }
+    LaunchedEffect(naverMap, activePoints, showActivePath) {
+        val map = naverMap ?: return@LaunchedEffect
+        if (showActivePath && activePoints.size >= 2) {
+            activePathOverlay.coords = activePoints.map { LatLng(it.latitude, it.longitude) }
+            activePathOverlay.width = (6 * context.resources.displayMetrics.density).toInt()
+            activePathOverlay.color = android.graphics.Color.parseColor("#FF5722") // Orange Red
+            activePathOverlay.outlineWidth = 0
+            activePathOverlay.map = map
+        } else {
+            activePathOverlay.map = null
+        }
+    }
 
     LaunchedEffect(naverMap, visibleClusters) {
         val map = naverMap ?: return@LaunchedEffect
@@ -213,8 +230,10 @@ fun NaverMapContent(
             val bounds = map.contentBounds
             val dLon = bounds.eastLongitude - bounds.westLongitude
             val dLat = bounds.northLatitude - bounds.southLatitude
-            currentSpanLon = (Math.abs(dLon) * 100000).toInt()
-            currentSpanLat = (Math.abs(dLat) * 100000).toInt()
+            val newSpanLon = (Math.abs(dLon) * 100000).toInt()
+            val newSpanLat = (Math.abs(dLat) * 100000).toInt()
+            if (newSpanLon > 0) currentSpanLon = newSpanLon
+            if (newSpanLat > 0) currentSpanLat = newSpanLat
             
             delay(300)
         }

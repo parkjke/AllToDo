@@ -16,19 +16,29 @@ struct PathHistoryView: View {
     // For Apple Maps
     @State private var region: MKCoordinateRegion = MKCoordinateRegion()
     
+    // [NEW] Styling State (Standardized across all providers)
+    @State private var selectedColor: Color = .red
+    @State private var selectedWidth: CGFloat = 8.0
+    
+    // [NEW] RGB Names for UI
+    private let colors: [(name: String, color: Color)] = [
+        ("R", .red), ("G", .allToDoGreen), ("B", .blue)
+    ]
+    private let widths: [CGFloat] = [4, 8, 16]
+    
     var body: some View {
         ZStack(alignment: .topTrailing) {
             Group {
                 if !pathCoordinates.isEmpty {
                     switch mapProvider {
                     case .apple:
-                        ApplePathMapView(coordinates: pathCoordinates, region: $region)
+                        ApplePathMapView(coordinates: pathCoordinates, region: region, color: selectedColor, width: selectedWidth)
                     case .google:
-                        GooglePathMapView(coordinates: pathCoordinates)
+                        GooglePathMapView(coordinates: pathCoordinates, color: selectedColor, width: selectedWidth)
                     case .kakao:
-                         KakaoPathMapView(coordinates: pathCoordinates)
+                         KakaoPathMapView(coordinates: pathCoordinates, color: selectedColor, width: selectedWidth)
                     case .naver:
-                         NaverPathMapView(coordinates: pathCoordinates)
+                         NaverPathMapView(coordinates: pathCoordinates, color: selectedColor, width: selectedWidth)
                     }
                 } else {
                      ProgressView("Loading Path...")
@@ -37,14 +47,75 @@ struct PathHistoryView: View {
             .ignoresSafeArea()
             
             // Close Button
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(Color(red: 0.2, green: 0.2, blue: 0.2))
-                    .frame(width: 48, height: 48)
-                    .background(Color(red: 0.2, green: 0.8, blue: 0.2).opacity(0.7))
-                    .cornerRadius(12)
-                    .padding()
+            VStack {
+                HStack {
+                    Spacer()
+                    Button(action: onClose) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(Color(red: 0.2, green: 0.2, blue: 0.2))
+                            .frame(width: 44, height: 44)
+                            .background(Color.white.opacity(0.8))
+                            .cornerRadius(22)
+                            .shadow(radius: 4)
+                            .padding()
+                    }
+                }
+                Spacer()
+                
+                // [NEW] Styling Controls (Android Style)
+                VStack(spacing: 12) {
+                    // Color Selection [R | G | B]
+                    HStack(spacing: 16) {
+                        Text("Color")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.gray.opacity(0.8))
+                        
+                        HStack(spacing: 0) {
+                            ForEach(colors, id: \.name) { item in
+                                Button(action: { selectedColor = item.color }) {
+                                    Text(item.name)
+                                        .font(.system(size: 12, weight: .bold))
+                                        .frame(width: 40, height: 32)
+                                        .background(selectedColor == item.color ? item.color : Color.gray.opacity(0.1))
+                                        .foregroundColor(selectedColor == item.color ? .white : .gray)
+                                }
+                                if item.name != colors.last?.name {
+                                    Divider().frame(height: 20)
+                                }
+                            }
+                        }
+                        .background(Color.white.opacity(0.9))
+                        .cornerRadius(8)
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.2), lineWidth: 1))
+                    }
+                    
+                    // Width Selection [...]
+                    HStack(spacing: 16) {
+                        Text("Width")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.gray.opacity(0.8))
+                        
+                        HStack(spacing: 12) {
+                            ForEach(widths, id: \.self) { w in
+                                Button(action: { selectedWidth = w }) {
+                                    Circle()
+                                        .fill(selectedWidth == w ? Color.black : Color.gray.opacity(0.3))
+                                        .frame(width: w, height: w)
+                                        .padding(8)
+                                        .background(selectedWidth == w ? Color.gray.opacity(0.1) : Color.clear)
+                                        .cornerRadius(4)
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding()
+                .background(Color.white.opacity(0.9))
+                .cornerRadius(16)
+                .shadow(radius: 5)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 40)
             }
         }
         .onAppear {
@@ -82,7 +153,9 @@ struct PathHistoryView: View {
 // MARK: - Apple Maps Implementation
 struct ApplePathMapView: UIViewRepresentable {
     var coordinates: [CLLocationCoordinate2D]
-    @Binding var region: MKCoordinateRegion
+    var region: MKCoordinateRegion
+    var color: Color
+    var width: CGFloat
     
     func makeUIView(context: Context) -> MKMapView {
         let mapView = MKMapView()
@@ -92,28 +165,36 @@ struct ApplePathMapView: UIViewRepresentable {
     }
     
     func updateUIView(_ uiView: MKMapView, context: Context) {
-        uiView.setRegion(region, animated: true)
+        // [FIX] Avoid infinite region loops by only setting once or using a flag
+        // uiView.setRegion(region, animated: true) 
+        
         uiView.removeOverlays(uiView.overlays)
         uiView.removeAnnotations(uiView.annotations)
         
-        if !coordinates.isEmpty {
-            let polyline = MKPolyline(coordinates: coordinates, count: coordinates.count)
+        if !self.coordinates.isEmpty {
+            var coords = self.coordinates
+            let polyline = MKPolyline(coordinates: &coords, count: coords.count)
             uiView.addOverlay(polyline)
             
-            let start = MKPointAnnotation(); start.coordinate = coordinates.first!; start.title = "Start"
-            let end = MKPointAnnotation(); end.coordinate = coordinates.last!; end.title = "End"
+            let start = MKPointAnnotation(); start.coordinate = self.coordinates.first!; start.title = "Start"
+            let end = MKPointAnnotation(); end.coordinate = self.coordinates.last!; end.title = "End"
             uiView.addAnnotations([start, end])
         }
     }
     
-    func makeCoordinator() -> Coordinator { Coordinator() }
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
     
     class Coordinator: NSObject, MKMapViewDelegate {
+        var parent: ApplePathMapView
+        
+        init(_ parent: ApplePathMapView) {
+            self.parent = parent
+        }
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             if let polyline = overlay as? MKPolyline {
                 let renderer = MKPolylineRenderer(polyline: polyline)
-                renderer.strokeColor = .red
-                renderer.lineWidth = 4
+                renderer.strokeColor = (parent.color == .red ? .red : (parent.color == .allToDoGreen ? .allToDoGreen : .blue))
+                renderer.lineWidth = parent.width
                 return renderer
             }
             return MKOverlayRenderer(overlay: overlay)
@@ -168,6 +249,8 @@ struct ApplePathMapView: UIViewRepresentable {
 // MARK: - Google Maps Implementation
 struct GooglePathMapView: UIViewRepresentable {
     var coordinates: [CLLocationCoordinate2D]
+    var color: Color
+    var width: CGFloat
     
     func makeUIView(context: Context) -> GMSMapView {
         let options = GMSMapViewOptions()
@@ -185,8 +268,8 @@ struct GooglePathMapView: UIViewRepresentable {
         let path = GMSMutablePath()
         coordinates.forEach { path.add($0) }
         let polyline = GMSPolyline(path: path)
-        polyline.strokeColor = .red
-        polyline.strokeWidth = 4
+        polyline.strokeColor = (color == .red ? .red : (color == .allToDoGreen ? .allToDoGreen : .blue))
+        polyline.strokeWidth = width
         polyline.map = uiView
         
         // Markers
@@ -243,6 +326,8 @@ struct GooglePathMapView: UIViewRepresentable {
 // MARK: - Naver Maps Implementation
 struct NaverPathMapView: UIViewRepresentable {
     var coordinates: [CLLocationCoordinate2D]
+    var color: Color
+    var width: CGFloat
     
     func makeUIView(context: Context) -> NMFNaverMapView {
         let view = NMFNaverMapView()
@@ -260,8 +345,8 @@ struct NaverPathMapView: UIViewRepresentable {
         let points = coordinates.map { NMGLatLng(lat: $0.latitude, lng: $0.longitude) }
         if points.count >= 2 {
             path.path = NMGLineString(points: points)
-            path.color = .red
-            path.width = 10
+            path.color = (color == .red ? .red : (color == .allToDoGreen ? .allToDoGreen : .blue))
+            path.width = width
             path.mapView = map
         }
         
@@ -326,6 +411,8 @@ struct NaverPathMapView: UIViewRepresentable {
 // If this fails, consider falling back to Apple Map for this view.
 struct KakaoPathMapView: UIViewRepresentable {
     var coordinates: [CLLocationCoordinate2D]
+    var color: Color
+    var width: CGFloat
     
     func makeUIView(context: Context) -> KMViewContainer {
         let view = KMViewContainer(frame: UIScreen.main.bounds)
@@ -335,7 +422,7 @@ struct KakaoPathMapView: UIViewRepresentable {
     
     func updateUIView(_ uiView: KMViewContainer, context: Context) {
         context.coordinator.checkEngineActivation()
-        context.coordinator.drawPath(coordinates)
+        context.coordinator.drawPath(coordinates, color: color, width: width)
     }
     
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -343,6 +430,8 @@ struct KakaoPathMapView: UIViewRepresentable {
     class Coordinator: NSObject, MapControllerDelegate {
         var controller: KMController?
         var coordinates: [CLLocationCoordinate2D] = []
+        var selectedColor: Color = .red
+        var selectedWidth: CGFloat = 8.0
         var hasDrawn = false
         
         func createController(_ view: KMViewContainer) {
@@ -358,8 +447,11 @@ struct KakaoPathMapView: UIViewRepresentable {
             }
         }
         
-        func drawPath(_ coords: [CLLocationCoordinate2D]) {
+        func drawPath(_ coords: [CLLocationCoordinate2D], color: Color, width: CGFloat) {
              self.coordinates = coords
+             self.selectedColor = color
+             self.selectedWidth = width
+             
              if hasDrawn {
                  if let mapView = controller?.getView("pathmap") as? KakaoMap {
                      renderPath(mapView: mapView)
@@ -397,13 +489,17 @@ struct KakaoPathMapView: UIViewRepresentable {
             mapView.getLabelManager().removeLabelLayer(layerID: "pathPins")
             
             // Style
+            let uiColor = (selectedColor == .red ? UIColor.red : (selectedColor == .allToDoGreen ? UIColor.allToDoGreen : UIColor.blue))
+            let colorHex = uiColor.cgColor.components?.map { String(format: "%02X", Int($0 * 255)) }.joined() ?? "FF0000"
+            let styleID = "redPolyline_\(colorHex)_\(selectedWidth)"
+            
             let style = PolylineStyle(styles: [
-                PerLevelPolylineStyle(bodyColor: UIColor.red, bodyWidth: 16, strokeColor: UIColor.clear, strokeWidth: 0, level: 0)
+                PerLevelPolylineStyle(bodyColor: uiColor, bodyWidth: UInt(selectedWidth * 2), strokeColor: UIColor.clear, strokeWidth: 0, level: 0)
             ])
-            manager.addPolylineStyleSet(PolylineStyleSet(styleSetID: "redPolyline", styles: [style]))
+            manager.addPolylineStyleSet(PolylineStyleSet(styleSetID: styleID, styles: [style]))
             
             let points = coordinates.map { MapPoint(longitude: $0.longitude, latitude: $0.latitude) }
-            let options = MapPolylineShapeOptions(shapeID: "historyLine", styleID: "redPolyline", zOrder: 0)
+            let options = MapPolylineShapeOptions(shapeID: "historyLine", styleID: styleID, zOrder: 1000)
             options.polylines.append(MapPolyline(line: points, styleIndex: 0))
             
             if let shape = shapeLayer.addMapPolylineShape(options) {

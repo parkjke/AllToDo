@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Refresh // [FIX] Core Icon
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -62,7 +63,10 @@ fun RightSideControls(
     onLocationClick: () -> Unit = {},
     onZoomInClick: () -> Unit = {},
     onZoomOutClick: () -> Unit = {},
-    onCompassClick: () -> Unit = {}
+    onCompassClick: () -> Unit = {},
+    isTracking: Boolean = false,
+    showActivePath: Boolean = true,
+    onToggleActivePath: () -> Unit = {}
 ) {
     Column(
         modifier = modifier.padding(end = 16.dp),
@@ -117,6 +121,8 @@ fun RightSideControls(
             }
         }
 
+
+
         if (abs(compassRotation) > 0.01f) {
             Spacer(modifier = Modifier.height(12.dp)) // "-" Spacing (1 space)
             
@@ -168,6 +174,26 @@ fun RightSideControls(
                 }
             }
         }
+
+        // [NEW] Active Path Toggle Button
+        Spacer(modifier = Modifier.height(12.dp))
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(if (showActivePath) AllToDoGreen.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.5f))
+                .clickable { onToggleActivePath() },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                painter = androidx.compose.ui.res.painterResource(id = kr.alltodo.R.drawable.ic_path_toggle),
+                contentDescription = "Toggle Path",
+                tint = if (showActivePath) Color(0xFF333333) else Color.Gray,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+
+
     }
 }
 

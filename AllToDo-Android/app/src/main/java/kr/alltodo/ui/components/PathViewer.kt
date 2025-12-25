@@ -1,5 +1,6 @@
 package kr.alltodo.ui.components
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -12,120 +13,201 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import kr.alltodo.data.UserLog
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.viewinterop.AndroidView
+import com.kakao.vectormap.KakaoMap
+import com.kakao.vectormap.KakaoMapReadyCallback
+import com.kakao.vectormap.MapLifeCycleCallback
+import com.kakao.vectormap.MapView
+import com.kakao.vectormap.camera.CameraUpdateFactory
+import com.kakao.vectormap.LatLng as KakaoLatLng
+import com.kakao.vectormap.label.LabelLayerOptions
+import com.kakao.vectormap.label.LabelOptions
+import com.kakao.vectormap.label.LabelStyle
+import com.kakao.vectormap.label.LabelStyles
+import com.kakao.vectormap.route.RouteLineOptions
+import com.kakao.vectormap.route.RouteLineSegment
+import com.kakao.vectormap.route.RouteLineStyle
+import com.kakao.vectormap.route.RouteLineStyles
 import com.naver.maps.geometry.LatLng
 import com.naver.maps.map.CameraUpdate
-import com.naver.maps.map.compose.*
+import com.naver.maps.map.compose.ExperimentalNaverMapApi
+import kr.alltodo.ui.MapProvider
 import kr.alltodo.ui.theme.AllToDoGreen
+import com.google.android.gms.maps.model.LatLng as GoogleLatLng
+import com.google.android.gms.maps.model.LatLngBounds as GoogleLatLngBounds
 
-@OptIn(ExperimentalNaverMapApi::class)
 @Composable
 fun PathViewer(
     pathData: List<kr.alltodo.data.PathItem>,
+    mapProvider: MapProvider,
     onClose: () -> Unit
 ) {
     var lineColor by remember { mutableStateOf(Color.Red) }
-    var lineThickness by remember { mutableStateOf(5.dp) }
-    
+    var lineThickness by remember { mutableStateOf(8.dp) }
+
     val pathPoints = remember(pathData) {
         pathData.map { LatLng(it.int_lat / 100_000.0, it.int_long / 100_000.0) }
     }
 
-    val cameraPositionState = rememberCameraPositionState {
-        if (pathPoints.isNotEmpty()) {
-            position = com.naver.maps.map.CameraPosition(pathPoints.first(), 15.0)
-        }
-    }
+    // [ABSOLUTE ROOT] zIndex 9999
+    Box(modifier = Modifier.fillMaxSize().zIndex(9999f)) {
+        
+        // 1. Scrim Layer (Click to close)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.5f))
+                .clickable { 
+                    Log.d("PathViewer", ">>> Background Scrim Clicked")
+                    Log.e("PathViewer", ">>> Background Scrim Clicked (ERROR LEVEL)")
+                    onClose() 
+                }
+        )
 
-    // Auto-center on path
-    LaunchedEffect(pathPoints) {
-        if (pathPoints.size >= 2) {
-            val bounds = com.naver.maps.geometry.LatLngBounds.from(pathPoints)
-            cameraPositionState.animate(CameraUpdate.fitBounds(bounds, 100))
-        }
-    }
-
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)).clickable {  }) {
+        // 2. Main Map Container
         Card(
-            modifier = Modifier.fillMaxSize().padding(16.dp),
+            modifier = Modifier.fillMaxSize().padding(32.dp),
             shape = MaterialTheme.shapes.large,
             colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
-                // Map
-                NaverMap(
-                    modifier = Modifier.fillMaxSize(),
-                    cameraPositionState = cameraPositionState,
-                    uiSettings = MapUiSettings(isZoomControlEnabled = false)
-                ) {
-                    if (pathPoints.size >= 2) {
-                        PathOverlay(
-                            coords = pathPoints,
-                            color = lineColor,
-                            width = lineThickness,
-                            outlineWidth = 0.dp
-                        )
-                        
-                        // Start Marker
-                        Marker(
-                            state = MarkerState(pathPoints.first()),
-                            icon = com.naver.maps.map.overlay.OverlayImage.fromResource(kr.alltodo.R.drawable.pin_history),
-                            width = 30.dp,
-                            height = 36.dp
-                        )
-                        
-                        // End Marker
-                        Marker(
-                            state = MarkerState(pathPoints.last()),
-                            icon = com.naver.maps.map.overlay.OverlayImage.fromResource(kr.alltodo.R.drawable.pin_history),
-                            width = 30.dp,
-                            height = 36.dp
-                        )
+                // Map View
+                Box(modifier = Modifier.fillMaxSize().zIndex(1f)) {
+                    when (mapProvider) {
+                        MapProvider.Naver -> NaverPathMap(pathPoints, lineColor, lineThickness)
+                        MapProvider.Google -> GooglePathMap(pathPoints, lineColor, lineThickness)
+                        MapProvider.Kakao -> KakaoPathMap(pathPoints, lineColor, lineThickness)
                     }
                 }
-
-                // Close Button
-                IconButton(
-                    onClick = onClose,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).background(Color.White.copy(alpha = 0.7f), CircleShape)
+                
+                // Bottom Settings
+                Card(
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp).zIndex(10f),
+                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f))
                 ) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Black)
-                }
-
-                // Controls
-                Column(
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp).background(Color.White.copy(alpha = 0.9f), MaterialTheme.shapes.medium).padding(12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // Color Selection
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Color: ", style = MaterialTheme.typography.bodySmall)
-                        listOf(Color.Red, Color.Blue, AllToDoGreen).forEach { color ->
-                            Box(
-                                modifier = Modifier.size(32.dp).padding(4.dp).background(color, CircleShape).clickable { lineColor = color }
-                                    .let { if (lineColor == color) it.background(color.copy(alpha = 0.3f), CircleShape) else it }
-                            )
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    // Thickness Selection
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Thickness: ", style = MaterialTheme.typography.bodySmall)
-                        listOf(3.dp, 6.dp, 10.dp).forEach { thickness ->
-                            Box(
-                                modifier = Modifier.height(32.dp).width(48.dp).padding(4.dp).background(Color.LightGray, MaterialTheme.shapes.small).clickable { lineThickness = thickness }.padding(horizontal = 4.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Box(modifier = Modifier.fillMaxWidth().height(thickness / 2).background(lineColor))
+                    Column(modifier = Modifier.padding(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("색상", style = MaterialTheme.typography.labelSmall)
+                            listOf(Color.Red, AllToDoGreen, Color.Blue).forEach { color ->
+                                Box(modifier = Modifier.size(32.dp).padding(4.dp).background(color, CircleShape).clickable { lineColor = color })
                             }
                         }
                     }
                 }
             }
         }
+
+        // 3. [최종 병기] 닫기 버튼 - 무조건 클릭되는 48dp 터치 영역
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(24.dp)
+                .size(48.dp) // 표준 터치 타겟 크기
+                .zIndex(999999f) // 최상위 zIndex
+                .background(Color.White.copy(alpha = 0.9f), androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                .clickable {
+                    Log.d("PathViewer", ">>> [TOUCH] 경로 닫기 클릭됨")
+                    onClose()
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "닫기",
+                tint = Color.Black,
+                modifier = Modifier.size(30.dp)
+            )
+        }
     }
+}
+
+@OptIn(ExperimentalNaverMapApi::class)
+@Composable
+fun NaverPathMap(points: List<LatLng>, color: Color, width: androidx.compose.ui.unit.Dp) {
+    val cameraPositionState = com.naver.maps.map.compose.rememberCameraPositionState()
+    LaunchedEffect(points) {
+        if (points.isNotEmpty()) {
+            if (points.size >= 2) {
+                cameraPositionState.animate(CameraUpdate.fitBounds(com.naver.maps.geometry.LatLngBounds.from(points), 100))
+            } else {
+                cameraPositionState.animate(CameraUpdate.scrollAndZoomTo(points.first(), 15.0))
+            }
+        }
+    }
+    com.naver.maps.map.compose.NaverMap(
+        modifier = Modifier.fillMaxSize(),
+        cameraPositionState = cameraPositionState,
+        uiSettings = com.naver.maps.map.compose.MapUiSettings(isZoomControlEnabled = false)
+    ) {
+        if (points.size >= 2) {
+            com.naver.maps.map.compose.PathOverlay(coords = points, color = color, width = width, outlineWidth = 0.dp)
+        }
+    }
+}
+
+@Composable
+fun GooglePathMap(points: List<LatLng>, color: Color, width: androidx.compose.ui.unit.Dp) {
+    val gPoints = remember(points) { points.map { GoogleLatLng(it.latitude, it.longitude) } }
+    val cameraPositionState = com.google.maps.android.compose.rememberCameraPositionState()
+    LaunchedEffect(gPoints) {
+        if (gPoints.isNotEmpty()) {
+            try {
+                if (gPoints.size >= 2) {
+                    val builder = GoogleLatLngBounds.builder()
+                    gPoints.forEach { builder.include(it) }
+                    cameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLngBounds(builder.build(), 100))
+                } else {
+                    cameraPositionState.move(com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(gPoints.first(), 15f))
+                }
+            } catch (e: Exception) {
+                cameraPositionState.move(com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(gPoints.first(), 15f))
+            }
+        }
+    }
+    com.google.maps.android.compose.GoogleMap(
+        modifier = Modifier.fillMaxSize(),
+        cameraPositionState = cameraPositionState,
+        uiSettings = com.google.maps.android.compose.MapUiSettings(zoomControlsEnabled = false)
+    ) {
+        if (gPoints.size >= 2) {
+            com.google.maps.android.compose.Polyline(points = gPoints, color = color, width = width.value * 2.5f, zIndex = 5f)
+        }
+    }
+}
+
+@Composable
+fun KakaoPathMap(points: List<LatLng>, color: Color, width: androidx.compose.ui.unit.Dp) {
+    val kPoints = remember(points) { points.map { com.kakao.vectormap.LatLng.from(it.latitude, it.longitude) } }
+    var kakaoMap by remember { mutableStateOf<KakaoMap?>(null) }
+    val colorInt = android.graphics.Color.argb((color.alpha * 255).toInt(), (color.red * 255).toInt(), (color.green * 255).toInt(), (color.blue * 255).toInt())
+
+    LaunchedEffect(kakaoMap, kPoints, colorInt, width) {
+        val map = kakaoMap ?: return@LaunchedEffect
+        if (kPoints.isEmpty()) return@LaunchedEffect
+        map.routeLineManager?.getLayer("pathLayer")?.removeAll()
+        if (kPoints.size >= 2) {
+            val manager = map.routeLineManager
+            val layer = manager?.getLayer("pathLayer") ?: manager?.addLayer("pathLayer", 1000)
+            val segment = RouteLineSegment.from(kPoints, RouteLineStyles.from(RouteLineStyle.from(width.value * 4f, colorInt)))
+            layer?.addRouteLine(RouteLineOptions.from(segment))
+            map.moveCamera(CameraUpdateFactory.fitMapPoints(kPoints.toTypedArray(), 100))
+        } else {
+            map.moveCamera(CameraUpdateFactory.newCenterPosition(kPoints.first(), 15))
+        }
+    }
+
+    AndroidView(
+        factory = { ctx ->
+            MapView(ctx).apply {
+                start(object : MapLifeCycleCallback() {
+                    override fun onMapDestroy() {}
+                    override fun onMapError(e: Exception?) {}
+                }, object : KakaoMapReadyCallback() {
+                    override fun onMapReady(map: KakaoMap) { kakaoMap = map }
+                })
+            }
+        },
+        modifier = Modifier.fillMaxSize()
+    )
 }

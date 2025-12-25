@@ -28,6 +28,10 @@ struct GoogleMapView: UIViewRepresentable {
     var onSelectItem: ((ToDoItem) -> Void)?
     var onFarItemsDetected: ((Int) -> Void)? // [NEW] Callback for hidden items
     
+    // [NEW] Active Path Rendering
+    var activePoints: [PathPoint] = []
+    var showActivePath: Bool = true
+    
     func makeUIView(context: Context) -> GMSMapView {
         let options = GMSMapViewOptions()
         options.frame = .zero
@@ -97,8 +101,11 @@ struct GoogleMapView: UIViewRepresentable {
             context.coordinator.checkTethering(mapView: uiView, userLocation: u)
         }
         
-        // [FIX] Update Path Visualization -> REMOVED per user request
-        // context.coordinator.updatePath(mapView: uiView, selectedItems: selectedClusterItems)
+        // Update Path Visualization
+        context.coordinator.updatePath(mapView: uiView, historyItem: selectedItem)
+        
+        // [NEW] Active Path Rendering
+        context.coordinator.updateActiveRecordingPath(mapView: uiView, points: activePoints, visible: showActivePath)
         
         // 3. Launch Animation
         if context.coordinator.firstRender, let u = locationManager.currentLocation {
@@ -115,6 +122,9 @@ struct GoogleMapView: UIViewRepresentable {
         var firstRender = true
         var isLaunchAnimating = false
         var creatingTodoLocationBinding: Binding<CLLocationCoordinate2D?>? // [NEW]
+        
+        var pathOverlay: GMSPolyline?
+        var activePathOverlay: GMSPolyline?
         
         init(_ parent: GoogleMapView) {
             self.parent = parent
@@ -135,7 +145,7 @@ struct GoogleMapView: UIViewRepresentable {
                 switch item {
                  case .todo(let t): if let l = t.location { marker.position = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude) }
                  case .history(let l): marker.position = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)
-                 case .userLocation: if let u = parent.locationManager.currentLocation { marker.position = u.coordinate }
+                 case .userLocation(let coord): marker.position = coord
                  default: break
                 }
                 
@@ -404,7 +414,7 @@ struct GoogleMapView: UIViewRepresentable {
                      allItems.append(.todo(ToDoItem(todo_name: "New Entry", latitude: target.latitude, longitude: target.longitude)))
                  }
                  
-                 if let u = parent.locationManager.currentLocation { allItems.append(.userLocation) }
+                 if let u = parent.locationManager.currentLocation { allItems.append(.userLocation(u.coordinate)) }
                  
                  // Notify
                  if farCount > 0 {
@@ -467,9 +477,8 @@ struct GoogleMapView: UIViewRepresentable {
                 }
             }
             
-            // [FIX] Add User Location to Clustering Data
             if let userLoc = parent.locationManager.currentLocation {
-                allItems.append(.userLocation)
+                allItems.append(.userLocation(userLoc.coordinate))
                 rawPoints.append(Int32(userLoc.coordinate.latitude * 100_000))
                 rawPoints.append(Int32(userLoc.coordinate.longitude * 100_000))
             }
@@ -526,8 +535,8 @@ struct GoogleMapView: UIViewRepresentable {
                  switch item {
                  case .todo(let t): if let l = t.location { itemLat = l.latitude; itemLon = l.longitude }
                  case .history(let l): itemLat = l.latitude; itemLon = l.longitude
-                 case .userLocation:
-                     if let userLoc = parent.locationManager.currentLocation { itemLat = userLoc.coordinate.latitude; itemLon = userLoc.coordinate.longitude }
+                 case .userLocation(let coord):
+                     itemLat = coord.latitude; itemLon = coord.longitude
                  default: break
                  }
                  
@@ -552,7 +561,15 @@ struct GoogleMapView: UIViewRepresentable {
                  if items.isEmpty { continue }
                  let centroid = centroids[idx]
                  let marker = WasmClusterMarker()
-                 marker.position = CLLocationCoordinate2D(latitude: centroid.lat, longitude: centroid.lon)
+                 var finalCoordinate = CLLocationCoordinate2D(latitude: centroid.lat, longitude: centroid.lon)
+                 
+                 // [FIX] Cluster Anchoring: If user is in cluster, force cluster to user position
+                 if let userItem = items.first(where: { if case .userLocation = $0 { return true }; return false }),
+                    case .userLocation(let userCoord) = userItem {
+                     finalCoordinate = userCoord
+                 }
+                 
+                 marker.position = finalCoordinate
                  marker.items = items
                  
                  // Single Logic
@@ -561,6 +578,7 @@ struct GoogleMapView: UIViewRepresentable {
                      switch item {
                      case .todo(let t): if let l = t.location { marker.position = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude) }
                      case .history(let l): marker.position = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)
+                     case .userLocation(let coord): marker.position = coord
                      default: break
                      }
                      
@@ -676,21 +694,19 @@ struct GoogleMapView: UIViewRepresentable {
         }
         
         // MARK: - Path
-        func updatePath(mapView: GMSMapView, selectedItems: [UnifiedMapItem]?) {
-             mapView.clear() // Google Maps clear actually removes polylines too
+        func updatePath(mapView: GMSMapView, historyItem: ToDoItem?) {
+             // 1. Remove existing
+             pathOverlay?.map = nil
+             pathOverlay = nil
              
-             // 2. Filter history items
-             guard let items = selectedItems else { return }
-             let historyLogs = items.compactMap { item -> ToDoItem? in
-                  if case .history(let log) = item { return log }
-                  return nil
-             }
-             
-             guard let log = historyLogs.first else { return }
+             guard let log = historyItem, log.type == "00" else { return }
              
              // 3. Query PathItems
              let searchID = log.todo_id
-             let descriptor = FetchDescriptor<PathItem>(predicate: #Predicate<PathItem> { $0.todo_id == searchID })
+             let descriptor = FetchDescriptor<PathItem>(
+                 predicate: #Predicate<PathItem> { $0.todo_id == searchID },
+                 sortBy: [SortDescriptor<PathItem>(\.timestamp, order: .forward)]
+             )
              if let paths = try? parent.modelContext.fetch(descriptor) {
                  let path = GMSMutablePath()
                  for p in paths {
@@ -701,8 +717,30 @@ struct GoogleMapView: UIViewRepresentable {
                      polyline.strokeColor = .red
                      polyline.strokeWidth = 4
                      polyline.map = mapView
+                     self.pathOverlay = polyline
                  }
              }
+        }
+        
+        func updateActiveRecordingPath(mapView: GMSMapView, points: [PathPoint], visible: Bool) {
+            // 1. Remove existing
+            activePathOverlay?.map = nil
+            activePathOverlay = nil
+            
+            // 2. Check visibility
+            guard visible && points.count >= 2 else { return }
+            
+            // 3. Render new trail
+            let path = GMSMutablePath()
+            for p in points {
+                path.add(CLLocationCoordinate2D(latitude: p.latitude, longitude: p.longitude))
+            }
+            
+            let polyline = GMSPolyline(path: path)
+            polyline.strokeColor = UIColor(red: 1.0, green: 0.34, blue: 0.13, alpha: 1.0) // Orange Red
+            polyline.strokeWidth = 6
+            polyline.map = mapView
+            self.activePathOverlay = polyline
         }
     }
 }

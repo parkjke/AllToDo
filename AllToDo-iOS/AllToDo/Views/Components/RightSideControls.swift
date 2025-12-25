@@ -12,6 +12,11 @@ struct RightSideControls: View {
     var onCompassClick: () -> Void
     var onExpandClick: () -> Void
     
+    // [NEW] Active Path Toggle
+    var isRecording: Bool = false
+    var showActivePath: Bool = true
+    var onToggleActivePath: () -> Void = {}
+    
     var body: some View {
         Column(horizontalAlignment: .trailing) {
             // Top Group: Notification & Login
@@ -99,6 +104,26 @@ struct RightSideControls: View {
                     }
                     .buttonStyle(.plain)
                 }
+                
+                // [NEW] Active Path Toggle Button
+                Button(action: onToggleActivePath) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(showActivePath ? Color.allToDoGreen : Color.white)
+                            .opacity(0.8)
+                            .frame(width: 48, height: 48)
+                        
+                        Image("ic_path_toggle")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 24, height: 24)
+                            .foregroundColor(Color(white: 0.2))
+                    }
+                }
+                .buttonStyle(.plain)
+                .opacity(showActivePath ? 1.0 : 0.8)
+
+
             }
         }
     }
@@ -109,12 +134,13 @@ struct ControlIcon: View {
     var iconName: String
     var onClick: () -> Void
     var rotation: Double = 0
+    var bgColor: Color = Color.allToDoGreen
     
     var body: some View {
         Button(action: onClick) {
             ZStack {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.allToDoGreen.opacity(0.8))
+                    .fill(bgColor.opacity(0.8))
                     .frame(width: 48, height: 48)
                 
                 Image(systemName: iconName)

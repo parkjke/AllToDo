@@ -22,6 +22,7 @@
     *   [**개체 관계도 (ERD)**](logic/erd.md): 테이블 간의 관계 시각화.
 *   [**한글 초성 검색 로직 (Korean Search)**](logic/korean_search.md)
     *   유니코드 기반 초성 추출 및 매칭 알고리즘.
+*   **[지식 베이스: 핵심 비즈니스 로직 (KI Core Logic)](/Users/thinking/.gemini/antigravity/knowledge/comprehensive_map_system_guide/artifacts/logic/core_logic.md)** (내부 참조용)
 
 ## 🎨 디자인 및 리소스 (Design & Resources)
 *   [**맵 핀 디자인 명세서 (MAP_PIN_DESIGN)**](logic/MAP_PIN_DESIGN.md)

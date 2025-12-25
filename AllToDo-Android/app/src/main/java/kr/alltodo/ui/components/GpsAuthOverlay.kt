@@ -72,6 +72,21 @@ fun GpsAuthOverlay(
     
     val scope = rememberCoroutineScope()
     
+    // [FIX] Incremental Path Logic: Grow path as playback moves
+    val displayPath = remember(simplifiedPoints, tmIndex, points) {
+        if (tmIndex >= 0 && points.isNotEmpty()) {
+            val head = if (tmIndex < points.size) points[tmIndex] else points.last()
+            val list = simplifiedPoints.filter { it.timestamp <= head.timestamp }.toMutableList()
+            // Always append current head to close the gap between simplified segments
+            if (list.isEmpty() || list.last().timestamp < head.timestamp) {
+                list.add(head)
+            }
+            list
+        } else {
+            simplifiedPoints
+        }
+    }
+    
     // 1. Google Camera State
     val googleCameraState = rememberCameraPositionState {
         currentLocation?.let {
@@ -121,17 +136,22 @@ fun GpsAuthOverlay(
                     cameraPositionState = googleCameraState,
                     uiSettings = MapUiSettings(zoomControlsEnabled = false, compassEnabled = false)
                 ) {
+                    // [OPTIMIZATION] Past Points (Sparse)
                     val displayPoints = if (tmIndex >= 0) points.take(tmIndex + 1) else points
-                    displayPoints.forEach { p ->
-                        val color = getPointColor(p.status)
-                        val radius = getPointRadius(pointSize)
-                        Circle(
-                            center = GoogleLatLng(p.latitude, p.longitude),
-                            radius = radius,
-                            fillColor = color.copy(alpha = 0.8f),
-                            strokeColor = color,
-                            strokeWidth = 1f
-                        )
+                    // To prevent engine lag, only draw dots every 5th point if we have too many
+                    val step = (displayPoints.size / 500).coerceAtLeast(1)
+                    displayPoints.forEachIndexed { idx, p ->
+                        if (idx % step == 0 || idx == displayPoints.size - 1) {
+                            val color = getPointColor(p.status)
+                            val radius = getPointRadius(pointSize)
+                            Circle(
+                                center = GoogleLatLng(p.latitude, p.longitude),
+                                radius = radius,
+                                fillColor = color.copy(alpha = 0.8f),
+                                strokeColor = color,
+                                strokeWidth = 1f
+                            )
+                        }
                     }
                     
                     // [NEW] Current Location marker & Accuracy circle
@@ -151,10 +171,10 @@ fun GpsAuthOverlay(
                         )
                     }
 
-                    // [NEW] Simplified Path (Polyline)
-                    if (simplifiedPoints.isNotEmpty()) {
+                    // [FIX] Incremental Simplified Path
+                    if (displayPath.isNotEmpty()) {
                         Polyline(
-                            points = simplifiedPoints.map { GoogleLatLng(it.latitude, it.longitude) },
+                            points = displayPath.map { GoogleLatLng(it.latitude, it.longitude) },
                             color = Color.Blue,
                             width = 12f,
                             jointType = com.google.android.gms.maps.model.JointType.ROUND,
@@ -188,7 +208,7 @@ fun GpsAuthOverlay(
                 )
                 
                 // Efficient Label Management
-                LaunchedEffect(kakaoMapInstance, points, tmIndex, pointSize, simplifiedPoints) {
+                LaunchedEffect(kakaoMapInstance, points, tmIndex, pointSize, displayPath) {
                     val map = kakaoMapInstance ?: return@LaunchedEffect
                     val layer = map.labelManager?.getLayer("gpsLayer") ?: map.labelManager?.addLayer(com.kakao.vectormap.label.LabelLayerOptions.from("gpsLayer"))
                     val routeLayer = map.routeLineManager?.getLayer("pathLayer") ?: map.routeLineManager?.addLayer("pathLayer", 1000)
@@ -197,11 +217,13 @@ fun GpsAuthOverlay(
                     routeLayer?.removeAll()
                     
                     val displayPoints = if (tmIndex >= 0) points.take(tmIndex + 1) else points
-                    
-                    // Group by color/size to reuse styles
+                    // [OPTIMIZATION] Sparse dots for Kakao
+                    val step = (displayPoints.size / 500).coerceAtLeast(1)
                     val dotBitmaps = mutableMapOf<Int, Bitmap>()
                     
-                    displayPoints.forEach { p ->
+                    displayPoints.forEachIndexed { idx, p ->
+                         if (idx % step != 0 && idx != displayPoints.size - 1) return@forEachIndexed
+                         
                          val color = getPointColor(p.status)
                          val radius = getPointRadius(pointSize)
                          val sizePx = (radius * 10).toInt().coerceAtLeast(10)
@@ -214,9 +236,9 @@ fun GpsAuthOverlay(
                          layer?.addLabel(com.kakao.vectormap.label.LabelOptions.from(com.kakao.vectormap.LatLng.from(p.latitude, p.longitude)).setStyles(styles))
                     }
 
-                    // Simplified Path for Kakao using RouteLine (proven pattern)
-                    if (simplifiedPoints.isNotEmpty()) {
-                        val latLngs = simplifiedPoints.map { com.kakao.vectormap.LatLng.from(it.latitude, it.longitude) }
+                    // [FIX] Incremental Simplified Path for Kakao
+                    if (displayPath.size >= 2) {
+                        val latLngs = displayPath.map { com.kakao.vectormap.LatLng.from(it.latitude, it.longitude) }
                         val routeStyle = com.kakao.vectormap.route.RouteLineStyles.from(com.kakao.vectormap.route.RouteLineStyle.from(12f, AndroidColor.BLUE))
                         val segment = com.kakao.vectormap.route.RouteLineSegment.from(latLngs, routeStyle)
                         routeLayer?.addRouteLine(com.kakao.vectormap.route.RouteLineOptions.from(segment))
@@ -252,7 +274,7 @@ fun GpsAuthOverlay(
                     modifier = Modifier.fillMaxSize()
                 )
                 
-                LaunchedEffect(naverMapInstance, points, tmIndex, pointSize, currentLocation, simplifiedPoints) {
+                LaunchedEffect(naverMapInstance, points, tmIndex, pointSize, currentLocation, displayPath) {
                     val map = naverMapInstance ?: return@LaunchedEffect
                     naverMarkers.forEach { it.map = null }
                     naverMarkers.clear()
@@ -260,12 +282,15 @@ fun GpsAuthOverlay(
                     naverCircle.value = null
                     
                     val displayPoints = if (tmIndex >= 0) points.take(tmIndex + 1) else points
+                    val step = (displayPoints.size / 500).coerceAtLeast(1)
                     val dotImages = mutableMapOf<Int, NaverOverlayImage>()
                     
-                    displayPoints.forEach { p ->
+                    displayPoints.forEachIndexed { idx, p ->
+                        if (idx % step != 0 && idx != displayPoints.size - 1) return@forEachIndexed
+                        
                         val color = getPointColor(p.status)
                         val radius = getPointRadius(pointSize)
-                        val sizePx = (radius * 16).toInt().coerceAtLeast(16) // Naver needs slightly larger base
+                        val sizePx = (radius * 16).toInt().coerceAtLeast(16)
                         val styleKey = color.toArgb() * 31 + sizePx
                         
                         val image = dotImages.getOrPut(styleKey) { NaverOverlayImage.fromBitmap(createDotBitmap(color, sizePx)) }
@@ -274,15 +299,14 @@ fun GpsAuthOverlay(
                         marker.position = NaverLatLng(p.latitude, p.longitude)
                         marker.icon = image
                         marker.anchor = android.graphics.PointF(0.5f, 0.5f)
-                        marker.isForceShowIcon = true // Ensure visible even if tiny
                         marker.map = map
                         naverMarkers.add(marker)
                     }
 
-                    // Simplified Path for Naver
-                    if (simplifiedPoints.isNotEmpty()) {
+                    // [FIX] Incremental Simplified Path for Naver
+                    if (displayPath.size >= 2) {
                         val path = com.naver.maps.map.overlay.PathOverlay()
-                        path.coords = simplifiedPoints.map { NaverLatLng(it.latitude, it.longitude) }
+                        path.coords = displayPath.map { NaverLatLng(it.latitude, it.longitude) }
                         path.width = 15
                         path.color = AndroidColor.BLUE
                         path.map = map
@@ -408,7 +432,7 @@ fun GpsAuthOverlay(
         Row(
             modifier = Modifier
                 .align(Alignment.TopEnd) // Align to top right
-                .padding(16.dp)
+                .padding(top = 40.dp, end = 16.dp) // [FIX] Down by 24pt (16+24=40)
                 .zIndex(50f),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -611,11 +635,12 @@ fun GpsAuthOverlay(
                     },
                     enabled = isTracking || selectedTrack != null,
                     colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = if(isTracking || selectedTrack != null) Color.Red else Color.Transparent,
-                        contentColor = if(isTracking || selectedTrack != null) Color.White else Color.Gray.copy(alpha = 0.5f),
+                        // [FIX] Background Gray 1, Text Gray 6
+                        containerColor = if(isTracking || selectedTrack != null) Color(0xFFF5F5F5) else Color.Transparent,
+                        contentColor = if(isTracking || selectedTrack != null) Color(0xFF666666) else Color.Gray.copy(alpha = 0.5f),
                         disabledContentColor = Color.Gray.copy(alpha = 0.5f)
                     ),
-                    border = BorderStroke(2.dp, if(isTracking || selectedTrack != null) Color.Red else Color.Gray.copy(alpha = 0.5f)),
+                    border = BorderStroke(2.dp, if(isTracking || selectedTrack != null) Color(0xFFCCCCCC) else Color.Gray.copy(alpha = 0.5f)),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.width(130.dp).height(56.dp)
                 ) {

@@ -13,26 +13,26 @@ struct UserProfileView: View {
     @AppStorage("popupFontSize") private var popupFontSize = 1
     @AppStorage("selectedMapProvider") private var mapProvider: MapProvider = .apple
     @State private var showPinGallery = false
-    @State private var showMapTest = false
     
     var body: some View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Text("My Info")
+                Text("내 정보")
                     .font(.largeTitle)
                     .fontWeight(.bold)
                     .onTapGesture(count: 3) {
                         uploadLogs()
-                        message = "Uploading logs..."
+                        message = "로그 업로드 중..."
                     }
                 Spacer()
                 Button(action: { isPresented = false }) {
-                    Image(systemName: "xmark.circle.fill")
+                    Image(systemName: "xmark")
                         .foregroundColor(.gray)
                         .font(.title2)
                 }
             }
+
             .padding()
             .background(Color(.systemGroupedBackground))
             
@@ -55,42 +55,51 @@ struct UserProfileView: View {
                                 .resizable()
                                 .frame(width: 80, height: 80)
                                 .foregroundColor(.gray)
-                            Text("Profile Photo").font(.caption).foregroundColor(.gray)
+                            Text("프로필 사진").font(.caption).foregroundColor(.gray)
                         }
                         
                         Spacer()
                         
-                        // Map Icon (Right)
-                        Button(action: { showMapTest = true }) {
-                            Image(systemName: "map.circle.fill")
+                        // [FIX] Path Tracking (GPS Recording) - Sync with Android
+                        Button(action: {
+                            if locationManager.isRecording {
+                                Task { await locationManager.endSession() }
+                            } else {
+                                locationManager.startSession()
+                            }
+                        }) {
+                            Image("ic_path_tracking")
                                 .resizable()
+                                .scaledToFit()
                                 .frame(width: 44, height: 44)
-                                .foregroundColor(.blue)
+                                .foregroundColor(locationManager.isRecording ? Color.allToDoRed : Color.blue)
                         }
                         .buttonStyle(PlainButtonStyle())
+
+
                     }
                     .padding(.vertical, 10)
                     .listRowBackground(Color.clear)
                 }
                 
-                Section(header: Text("User Info")) {
-                    TextField("Name", text: $name)
-                    TextField("Nickname", text: $nickname)
-                    TextField("Phone Number", text: $phoneNumber)
+                Section(header: Text("사용자 정보")) {
+                    TextField("이름", text: $name)
+                    TextField("닉네임", text: $nickname)
+                    TextField("전화번호", text: $phoneNumber)
                 }
                 
-                Section(header: Text("Popup Settings")) {
-                    Stepper("Max Items: \(maxPopupItems)", value: $maxPopupItems, in: 3...5)
-                    Picker("Time Font Size", selection: $popupFontSize) {
-                        Text("Small").tag(0)
-                        Text("Medium").tag(1)
-                        Text("Large").tag(2)
+                Section(header: Text("팝업 설정")) {
+                    Stepper("최대 항목 수: \(maxPopupItems)", value: $maxPopupItems, in: 3...5)
+                    Picker("글꼴 크기", selection: $popupFontSize) {
+                        Text("작게").tag(0)
+                        Text("보통").tag(1)
+                        Text("크게").tag(2)
                     }
                     .pickerStyle(.segmented)
                 }
                 
-                Section(header: Text("Map Settings")) {
-                    Picker("Map Type", selection: $mapProvider) {
+                Section(header: Text("지도 설정")) {
+                    Picker("지도 종류", selection: $mapProvider) {
                         ForEach(MapProvider.allCases) { provider in
                             Text(provider.rawValue).tag(provider)
                         }
@@ -103,6 +112,7 @@ struct UserProfileView: View {
                         }
                     }
                 }
+
                 
                 if !message.isEmpty {
                     Section {
@@ -117,10 +127,9 @@ struct UserProfileView: View {
         .onDisappear(perform: saveUserInfo)
         .sheet(isPresented: $showPinGallery) {
             PinGalleryView()
+                .preferredColorScheme((mapProvider == .apple || mapProvider == .google) ? nil : .light)
         }
-        .fullScreenCover(isPresented: $showMapTest) {
-            KakaoMapTEST(locationManager: locationManager)
-        }
+
     }
     
     private func loadUserInfo() {
@@ -135,9 +144,10 @@ struct UserProfileView: View {
                 phoneNumber = info.phone_number ?? ""
                 isLoading = false
             } catch {
-                message = "Failed to load info: \(error.localizedDescription)"
+                message = "정보 로드 실패: \(error.localizedDescription)"
                 isLoading = false
             }
+
         }
     }
     
@@ -148,20 +158,22 @@ struct UserProfileView: View {
         Task {
             do {
                 try await APIManager.shared.updateUserInfo(uuid: uuid, name: name, password: nil)
-                message = "Info updated successfully!"
+                message = "정보가 업데이트되었습니다!"
                 isLoading = false
             } catch {
-                message = "Failed to save: \(error.localizedDescription)"
+                message = "저장 실패: \(error.localizedDescription)"
                 isLoading = false
             }
+
         }
     }
     
     private func uploadLogs() {
         guard let jsonString = OptimizationLogger.shared.readLogs() else {
-             message = "No logs found"
+             message = "로그를 찾을 수 없습니다"
              return
         }
+
         
         let lines = jsonString.components(separatedBy: "\n").filter { !$0.isEmpty }
         var logs: [[String: Any]] = []

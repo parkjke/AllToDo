@@ -25,6 +25,7 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
     @Published var isRecording = false
     @Published var debugStatus: String = "Ready"
     @Published var processedSessionPoints: [PathPoint] = []
+    @Published var showActivePath = true
     
     // [NEW] Buffer for Batch Processing
     var pendingBuffer: [PathPoint] = []
