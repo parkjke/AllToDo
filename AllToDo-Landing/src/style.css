@@ -9,7 +9,8 @@
 body {
   margin: 0;
   background-color: var(--color-bg);
-  background-image: radial-gradient(circle at 50% 10%, rgba(0, 230, 118, 0.05) 0%, transparent 50%);
+  /* Restored for fallback */
+  /* background-image: radial-gradient... moved to JS */
   color: var(--color-text);
   font-family: var(--font-main);
   display: flex;
@@ -25,6 +26,10 @@ body {
   max-width: 700px;
   padding: 2rem;
   text-align: center;
+  position: relative;
+  /* Added for stacking context */
+  z-index: 1;
+  /* Ensure content is above background */
 }
 
 .hero {
@@ -92,17 +97,33 @@ body {
 }
 
 /* Animations */
-.fade-in-1, .fade-in-2, .fade-in-3 {
+.fade-in-1,
+.fade-in-2,
+.fade-in-3 {
   opacity: 0;
   transform: translateY(20px);
   animation: fadeInUp 0.8s ease forwards;
 }
 
-.fade-in-1 { animation-delay: 0.4s; }
-.fade-in-2 { animation-delay: 0.8s; }
-.fade-in-3 { animation-delay: 1.2s; }
+.fade-in-1 {
+  animation-delay: 0.4s;
+}
+
+.fade-in-2 {
+  animation-delay: 0.8s;
+}
+
+.fade-in-3 {
+  animation-delay: 1.2s;
+}
 
 @keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+    /* Increased distance */
+  }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -112,17 +133,40 @@ body {
 @keyframes fadeInDown {
   from {
     opacity: 0;
-    transform: translateY(-20px);
+    transform: translateY(-40px);
+    /* Increased distance */
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
+/* Slower durations */
+.fade-in-1,
+.fade-in-2,
+.fade-in-3,
+.hero {
+  animation-duration: 1.2s;
+  /* Slower */
+}
+
+
 @media (max-width: 600px) {
-  .logo { font-size: 2.8rem; }
-  .subtitle { font-size: 1rem; }
-  .content p { font-size: 1rem; }
-  .footer { margin-top: 4rem; }
+  .logo {
+    font-size: 2.8rem;
+  }
+
+  .subtitle {
+    font-size: 1rem;
+  }
+
+  .content p {
+    font-size: 1rem;
+  }
+
+  .footer {
+    margin-top: 4rem;
+  }
 }
