@@ -13,6 +13,8 @@ struct UserProfileView: View {
     @AppStorage("popupFontSize") private var popupFontSize = 1
     @AppStorage("selectedMapProvider") private var mapProvider: MapProvider = .apple
     @State private var showPinGallery = false
+    @State private var showDeleteAlert = false
+    @Environment(\.modelContext) private var modelContext
     
     var body: some View {
         VStack(spacing: 0) {
@@ -74,9 +76,21 @@ struct UserProfileView: View {
                                 .frame(width: 44, height: 44)
                                 .foregroundColor(locationManager.isRecording ? Color.allToDoRed : Color.blue)
                         }
+                        // [NEW] Delete All Data Button (Trash Icon)
+                        Button(action: { showDeleteAlert = true }) {
+                            Image(systemName: "trash.circle.fill")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 44, height: 44)
+                                .foregroundColor(.allToDoRed)
+                        }
                         .buttonStyle(PlainButtonStyle())
-
-
+                        .alert("데이터 초기화", isPresented: $showDeleteAlert) {
+                            Button("취소", role: .cancel) { }
+                            Button("전체 삭제", role: .destructive) { deleteAllData() }
+                        } message: {
+                            Text("모든 할 일과 이동 경로 데이터가 영구적으로 삭제됩니다. 계속하시겠습니까?")
+                        }
                     }
                     .padding(.vertical, 10)
                     .listRowBackground(Color.clear)
@@ -234,6 +248,21 @@ struct UserProfileView: View {
         } catch {
             message = "Encoding Error"
             isLoading = false
+        }
+    }
+    
+    private func deleteAllData() {
+
+        do {
+            try modelContext.delete(model: ToDoItem.self)
+            try modelContext.delete(model: PathItem.self)
+            try modelContext.save()
+            message = "모든 데이터가 삭제되었습니다."
+            
+            // Re-trigger launch animation if needed
+            NotificationCenter.default.post(name: NSNotification.Name("TriggerLaunchAnimation"), object: nil)
+        } catch {
+            message = "데이터 삭제 실패: \(error.localizedDescription)"
         }
     }
 }

@@ -80,18 +80,6 @@ struct ContentView: View {
         var results: [UnifiedMapItem] = []
         
         for item in items {
-            // Optimization: History items should have a cached midpoint.
-            // If missing (e.g. from old version), we force calculation once.
-            if item.type.hasPrefix("0") && item.int_lat == 0 {
-                let itemPaths = allPaths.filter { $0.todo_id == item.todo_id }
-                if !itemPaths.isEmpty {
-                    let sorted = itemPaths.sorted { $0.timestamp < $1.timestamp }
-                    let mid = sorted[sorted.count / 2]
-                    item.latitude = mid.latitude
-                    item.longitude = mid.longitude
-                }
-            }
-            
             if item.type.hasPrefix("0") {
                 results.append(.history(item))
             } else {
@@ -398,7 +386,7 @@ struct ContentView: View {
                 break
             }
         .onAppear {
-            repairDataIntegrity()
+            // repairDataIntegrity() removed as requested
         }
     }
 
@@ -692,39 +680,6 @@ extension ContentView {
 
     private func centerMapOn(_ loc: CLLocationCoordinate2D) {
         NotificationCenter.default.post(name: NSNotification.Name("CenterMapOnLocation"), object: loc)
-    }
-
-    private func repairDataIntegrity() {
-        // Find items that should have location but flag is false
-        let itemsToRepair = allItems.filter { !$0.is_exist_location_path }
-        guard !itemsToRepair.isEmpty else { return }
-        
-        print(">>> start map: Migration started for \(itemsToRepair.count) items.")
-        var repairCount = 0
-        
-        for item in itemsToRepair {
-            let itemPaths = allPaths.filter { $0.todo_id == item.todo_id }
-            if !itemPaths.isEmpty {
-                // 1. Repair Flag
-                item.is_exist_location_path = true
-                
-                // 2. Cache Midpoint (Permanent save to int_lat/long)
-                let sortedPaths = itemPaths.sorted { $0.timestamp < $1.timestamp }
-                let midIdx = sortedPaths.count / 2
-                let midpoint = sortedPaths[midIdx].coordinate
-                
-                item.latitude = midpoint.latitude
-                item.longitude = midpoint.longitude
-                
-                repairCount += 1
-                print(">>> start map: [MIGRATION] Repaired \(item.todo_name) with \(itemPaths.count) points.")
-            }
-        }
-        
-        if repairCount > 0 {
-            try? modelContext.save()
-            print(">>> start map: Migration completed. Repaired \(repairCount) items.")
-        }
     }
 }
 
