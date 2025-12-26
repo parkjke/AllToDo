@@ -83,6 +83,7 @@ struct AppleMapView: UIViewRepresentable {
         let initialSpan = 0.01 // Zoom 15
         let initialRegion = MKCoordinateRegion(center: initialCenter, span: MKCoordinateSpan(latitudeDelta: initialSpan, longitudeDelta: initialSpan))
         mapView.setRegion(initialRegion, animated: false)
+        print(">>> start map: Initial Map Displayed at Zoom 15 (Span 0.01) at \(initialCenter.latitude), \(initialCenter.longitude)")
         
         // Long Press Gesture
         let longPress = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleLongPress(_:)))
@@ -364,7 +365,10 @@ struct AppleMapView: UIViewRepresentable {
         // MARK: - WASM Clustering Integration
         
         func refreshWasmClusters(mapView: MKMapView) {
+            print(">>> start map: AppleMapView refreshing with - Todos: \(parent.todoItems.count), Logs: \(parent.userLogs.count)")
+            
             // [FIX] Fallback to Screen Width if Map View is not yet laid out (Width=0)
+
             // This prevents "No pins on launch" bug.
             var widthPixels = mapView.bounds.width
             var heightPixels: CGFloat = 0.0 // Declare heightPixels
