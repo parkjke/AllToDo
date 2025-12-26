@@ -185,11 +185,22 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         
         let start = processedSessionPoints.first?.timestamp ?? Date()
         let end = processedSessionPoints.last?.timestamp ?? Date()
-        let latSum = processedSessionPoints.reduce(0.0) { $0 + $1.latitude }
-        let lonSum = processedSessionPoints.reduce(0.0) { $0 + $1.longitude }
-        let count = Double(processedSessionPoints.count)
+        let midLat = latSum / count
+        let midLon = lonSum / count
         
-        let result = (start: start, end: end, midLat: latSum / count, midLon: lonSum / count, points: processedSessionPoints)
+        // [NEW] Cache Midpoint in DB
+        if let tripID = currentTripID {
+            let context = ModelContext(AllToDoApp.sharedModelContainer)
+            let tripIDCopy = tripID // Avoid capturing optional
+            if let trip = try? context.fetch(FetchDescriptor<ToDoItem>(predicate: #predicate { $0.todo_id == tripIDCopy })).first {
+                trip.latitude = midLat
+                trip.longitude = midLon
+                try? context.save()
+                print(">>> endSession: Cached midpoint for trip \(tripIDCopy)")
+            }
+        }
+        
+        let result = (start: start, end: end, midLat: midLat, midLon: midLon, points: processedSessionPoints)
         
         // Close session for UI trail
         isRecording = true // Keep it on for next points but reset UI trail
@@ -198,6 +209,7 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         
         return result
     }
+
     
     func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
         authorizationStatus = status
