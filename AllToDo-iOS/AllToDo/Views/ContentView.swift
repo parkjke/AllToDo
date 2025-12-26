@@ -385,6 +385,7 @@ struct ContentView: View {
             @unknown default:
                 break
             }
+        }
         .onAppear {
             // repairDataIntegrity() removed as requested
         }
