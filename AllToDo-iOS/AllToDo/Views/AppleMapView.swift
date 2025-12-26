@@ -68,46 +68,76 @@ struct AppleMapView: UIViewRepresentable {
         context.coordinator.parent = self
         context.coordinator.currentMapView = uiView // [NEW] Set Reference
         uiView.showsUserLocation = false // Force disable System Blue Dot
-        print(">>> start map: AppleMapView: updateUIView")
+
+        // 1. Calculate Change Flags
+        let currentSummary = "\(allItems.count)-\(allItems.first?.id.uuidString ?? "")"
+        let isDataChanged = context.coordinator.lastDataSummary != currentSummary
         
-        // Handle Map Actions
-        if action != .none {
-            context.coordinator.handleAction(action, mapView: uiView)
-            DispatchQueue.main.async {
-                action = .none
+        let currentHistoryItem = selectedItem ?? viewingHistoryItem
+        let isPathChanged = context.coordinator.lastHistoryItemID != currentHistoryItem?.todo_id
+        
+        let isActivePathChanged = context.coordinator.lastActivePointCount != activePoints.count || context.coordinator.lastShowActivePath != showActivePath
+        
+        let hasAction = action != .none
+        let isLaunch = context.coordinator.firstRender && locationManager.currentLocation != nil
+        
+        // Location Check
+        var isLocationChanged = false
+        if let u = locationManager.currentLocation {
+            if let last = context.coordinator.lastUserLocation {
+                isLocationChanged = u.distance(from: last) > 0.1 // Significant move (> 10cm)
+            } else {
+                isLocationChanged = true
             }
         }
         
-        // Update Annotations - DEPRECATED: Handled by [SMART REFRESH] below
-        // context.coordinator.updateAnnotations(mapView: uiView, userLocation: locationManager.currentLocation)
+        // 2. Early Return (Silent)
+        if !isDataChanged && !isPathChanged && !isActivePathChanged && !hasAction && !isLocationChanged && !isLaunch {
+            return
+        }
         
-        // Guard against launch animation
-        context.coordinator.creatingTodoLocationBinding = $creatingTodoLocation // [NEW]
+        // 3. Log (Only when active)
+        print(">>> updateUIView: [Data:\(isDataChanged)] [Loc:\(isLocationChanged)] [Path:\(isPathChanged)] [Action:\(hasAction)]")
         
+        // 4. Update States & execute
+        if isLocationChanged { context.coordinator.lastUserLocation = locationManager.currentLocation }
+
+        // Handle Map Actions
+        if hasAction {
+            context.coordinator.handleAction(action, mapView: uiView)
+            DispatchQueue.main.async { action = .none }
+        }
+        
+        // Tethering
+        context.coordinator.creatingTodoLocationBinding = $creatingTodoLocation
         if let u = locationManager.currentLocation, !context.coordinator.isLaunchAnimating, !context.coordinator.firstRender {
             context.coordinator.checkTethering(mapView: uiView, userLocation: u)
         }
         
-        // Update Path Visualization (Selected Item or Viewing History)
-        context.coordinator.updatePath(mapView: uiView, historyItem: selectedItem ?? viewingHistoryItem)
-
-        
-        // [NEW] Active Path Rendering
-        context.coordinator.updateActiveRecordingPath(mapView: uiView, points: activePoints, visible: showActivePath)
-        
-        // Launch Animation
-        if context.coordinator.firstRender, let u = locationManager.currentLocation {
-            context.coordinator.performLaunchAnimation(mapView: uiView, userLocation: u)
+        // Path Updates
+        if isPathChanged {
+             context.coordinator.updatePath(mapView: uiView, historyItem: currentHistoryItem)
+             context.coordinator.lastHistoryItemID = currentHistoryItem?.todo_id
         }
         
-        // [SMART REFRESH] Only trigger if data changed AND map is ready
-        let currentSummary = "\(allItems.count)-\(allItems.first?.id.uuidString ?? "")"
-        if context.coordinator.lastDataSummary != currentSummary {
-            // [FIX] Guard: Do not refresh if map is not yet laid out or in launch phase
-            if uiView.bounds.width > 0 && !context.coordinator.isLaunchAnimating {
-                context.coordinator.lastDataSummary = currentSummary
-                context.coordinator.refreshWasmClusters(mapView: uiView)
-            }
+        // Active Path
+        if isActivePathChanged {
+             context.coordinator.updateActiveRecordingPath(mapView: uiView, points: activePoints, visible: showActivePath)
+             context.coordinator.lastActivePointCount = activePoints.count
+             context.coordinator.lastShowActivePath = showActivePath
+        }
+        
+        // Launch
+        if isLaunch {
+             context.coordinator.performLaunchAnimation(mapView: uiView, userLocation: locationManager.currentLocation!)
+        }
+        
+        // WASM (Data)
+        if isDataChanged {
+             if uiView.bounds.width > 0 && !context.coordinator.isLaunchAnimating {
+                 context.coordinator.lastDataSummary = currentSummary
+                 context.coordinator.refreshWasmClusters(mapView: uiView)
+             }
         }
     }
     
@@ -123,6 +153,13 @@ struct AppleMapView: UIViewRepresentable {
         var lastDataSummary: String = "" // For Smart Refresh
         var lastItemIDs: Set<UUID> = []
         var lastLogIDs: Set<UUID> = []
+        
+        // [OPTIMIZATION] State Caching to prevent redundant Overlay Updates
+        var lastUserLocation: CLLocation? = nil
+        var lastHistoryItemID: UUID? = nil
+        var lastActivePointCount: Int = -1
+        var lastShowActivePath: Bool = false
+        
         var creatingTodoLocationBinding: Binding<CLLocationCoordinate2D?>? // [NEW]
         
         weak var currentMapView: MKMapView? // [NEW] Store Reference
@@ -340,9 +377,9 @@ struct AppleMapView: UIViewRepresentable {
         // MARK: - WASM Clustering Integration
         
         func refreshWasmClusters(mapView: MKMapView) {
-            // [FIX] Explicit Control: If launch not finished, DO NOT cluster
+            // [FIX] Explicit Control: If launch not finished, Render RAW items immediately
             guard isWasmCluster else {
-                // print(">>> start map: AppleMapView skipping clustering (isWasmCluster=false)")
+                renderRawItems(mapView: mapView, allItems: parent.allItems)
                 return
             }
 
@@ -619,6 +656,9 @@ struct AppleMapView: UIViewRepresentable {
         func performLaunchAnimation(mapView: MKMapView, userLocation: CLLocation?) {
             isLaunchAnimating = true
             
+            // [FIX] Render Raw Items immediately before animation (Launch Integrity)
+            renderRawItems(mapView: mapView, allItems: parent.allItems)
+            
             // Step 1: Fit Bounds (pins within 500km)
             var points: [CLLocationCoordinate2D] = []
             let userLoc = userLocation
@@ -707,7 +747,10 @@ struct AppleMapView: UIViewRepresentable {
             }
             
             // [TEMPORARY CHECK] Enable Native Clustering (Only for Singles)
-            if !isWasmCluster && !isNativeCluster {
+            // [FIX] Disable Native Clustering during Launch (Show Raw Pins)
+            if isLaunchAnimating {
+                view?.clusteringIdentifier = nil
+            } else if !isWasmCluster && !isNativeCluster {
                 view?.clusteringIdentifier = "native_cluster_id"
             } else {
                 view?.clusteringIdentifier = nil
