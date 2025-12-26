@@ -599,9 +599,20 @@ struct NaverMapView: UIViewRepresentable {
                  maxLon = max(maxLon, loc.coordinate.longitude)
              }
              
+             // [FIX] 500km Filter for Fit Bounds
+             var uInt: (lat: Int, lon: Int)? = nil
+             if let u = parent.locationManager.currentLocation {
+                 uInt = SmartLocationManager.shared.toIntLocation(u)
+             }
+             
              // Include Pins
              for item in parent.todoItems {
                  if let l = item.location {
+                     // Filter far items
+                     if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: item.int_lat, lon2: item.int_long) {
+                         continue
+                     }
+                     
                      minLat = min(minLat, l.latitude)
                      maxLat = max(maxLat, l.latitude)
                      minLon = min(minLon, l.longitude)
@@ -609,6 +620,7 @@ struct NaverMapView: UIViewRepresentable {
                      hasPins = true
                  }
              }
+
              
              if hasPins {
                  let southWest = NMGLatLng(lat: minLat, lng: minLon)

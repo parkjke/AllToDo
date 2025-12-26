@@ -6,6 +6,8 @@ import SwiftData
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var allItems: [ToDoItem]
+    @Query private var allPaths: [PathItem]
+
     
     @State private var showProfile = false
     @State private var showTasks = false
@@ -48,30 +50,66 @@ struct ContentView: View {
     @AppStorage("popupFontSize") private var popupFontSize = 1
 
     // MARK: - Filtered Data
-    var filteredTodos: [ToDoItem] {
+    var filteredMapItems: [UnifiedMapItem] {
         let centerDate = showHistoryMode ? selectedDate : Date()
         let min = Calendar.current.date(byAdding: .hour, value: -24, to: centerDate)!
         let max = Calendar.current.date(byAdding: .hour, value: 24, to: centerDate)!
         
-        return allItems.filter {
-            $0.type == "10" && (
-                $0.date_time == nil || ($0.date_time! >= min && $0.date_time! <= max)
-            )
+        let items = allItems.filter {
+            // 1. Basic Type Filter
+            guard $0.type == "00" || $0.type == "10" || $0.type == "20" else { return false }
+            
+            // 2. Location Path Necessity
+            if !$0.is_exist_location_path { return false }
+            
+            // 3. Time Filter (±24h)
+            let itemDate = ($0.type == "00") ? 
+                ($0.begin_time ?? Date(timeIntervalSince1970: Double($0.created_at)/1000.0)) : 
+                ($0.date_time ?? Date(timeIntervalSince1970: Double($0.created_at)/1000.0))
+            
+            return itemDate >= min && itemDate <= max
         }
+        
+        var results: [UnifiedMapItem] = []
+        
+        for item in items {
+            // Find PathItems for this ToDoItem
+            let itemPaths = allPaths.filter { $0.todo_id == item.todo_id }
+            
+            if itemPaths.isEmpty {
+                // [SERIOUS ERROR] Log as requested
+                print(">>> [SERIOUS ERROR] No path data found for TodoID: \(item.todo_id) Name: \(item.todo_name) despite is_exist_location_path being True.")
+                continue
+            }
+            
+            // Calculate Midpoint for Pin Location
+            let sortedPaths = itemPaths.sorted { $0.timestamp < $1.timestamp }
+            let midIdx = sortedPaths.count / 2
+            let midpoint = sortedPaths[midIdx].coordinate
+            
+            // Update item coordinate for rendering (Temporary update for this render cycle)
+            item.latitude = midpoint.latitude
+            item.longitude = midpoint.longitude
+            
+            if item.type == "00" {
+                results.append(.history(item))
+            } else {
+                results.append(.todo(item))
+            }
+        }
+        
+        return results
+    }
+    
+    // Legacy support for existing View props (Split from filteredMapItems)
+    var filteredTodos: [ToDoItem] {
+        filteredMapItems.compactMap { if case .todo(let t) = $0 { return t }; return nil }
     }
     
     var filteredLogs: [ToDoItem] {
-        let centerDate = showHistoryMode ? selectedDate : Date()
-        let min = Calendar.current.date(byAdding: .hour, value: -24, to: centerDate)!
-        let max = Calendar.current.date(byAdding: .hour, value: 24, to: centerDate)!
-        
-        return allItems.filter {
-            $0.type == "00" && (
-                ($0.begin_time ?? Date(timeIntervalSince1970: Double($0.created_at)/1000.0)) >= min &&
-                ($0.begin_time ?? Date(timeIntervalSince1970: Double($0.created_at)/1000.0)) <= max
-            )
-        }
+        filteredMapItems.compactMap { if case .history(let t) = $0 { return t }; return nil }
     }
+
 
     // MARK: - Body
     var body: some View {

@@ -203,9 +203,32 @@ struct KakaoMapView: UIViewRepresentable {
         
         private func fitBoundsInitially(_ mapView: KakaoMap) {
             var points: [MapPoint] = []
-            for item in parent.todoItems { if let l = item.location { points.append(MapPoint(longitude: l.longitude, latitude: l.latitude)) } }
-            for log in parent.userLogs { points.append(MapPoint(longitude: log.longitude, latitude: log.latitude)) }
-            if let u = parent.locationManager.currentLocation { points.append(MapPoint(longitude: u.coordinate.longitude, latitude: u.coordinate.latitude)) }
+            
+            // [FIX] 500km Filter for Initial Fit Bounds
+            var uInt: (lat: Int, lon: Int)? = nil
+            if let u = parent.locationManager.currentLocation {
+                uInt = SmartLocationManager.shared.toIntLocation(u)
+                points.append(MapPoint(longitude: u.coordinate.longitude, latitude: u.coordinate.latitude))
+            }
+            
+            for item in parent.todoItems {
+                if let l = item.location {
+                    // Filter far items
+                    if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: item.int_lat, lon2: item.int_long) {
+                        continue
+                    }
+                    points.append(MapPoint(longitude: l.longitude, latitude: l.latitude))
+                }
+            }
+            
+            for log in parent.userLogs {
+                // Filter far items
+                if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.int_lat, lon2: log.int_long) {
+                    continue
+                }
+                points.append(MapPoint(longitude: log.location?.longitude ?? 0, latitude: log.location?.latitude ?? 0))
+            }
+
             
             if !points.isEmpty {
                 let centerLon = points.map { $0.wgsCoord.longitude }.reduce(0, +) / Double(points.count)

@@ -22,40 +22,45 @@ class PinImageHelper {
         format.scale = 0.0 // Device Scale
         
         return UIGraphicsImageRenderer(size: size, format: format).image { context in
-            // 1. Draw Base Image (Shifted down due to badge overhang possibility? No, badge overhang adds to width/height)
-            // Wait, badgeOverhang is added to context dimension.
-            // If badge is top-right, it extends beyond shieldWidth/0.
+            let cgContext = context.cgContext
             
-            // Logic:
-            // Shield is at (0, badgeOverhang). badgeOverhang (8pt) pushes it down.
-            // Original logic: `y: badgeOverhang` (Line 26).
-            // This means visual top of pin is at y=8.
-            // Badge center is at (width, 8).
-            // Badge is 16x16, so it goes from y=0 to y=16.
-            // If we keep this logic, it works for any size.
+            // 1. Draw Shield Base (Manual Bezier Path as Fallback/Base)
+            // Even if baseImage is nil, we MUST see the pin shape.
+            let shieldRect = CGRect(x: 0, y: badgeOverhang, width: shieldWidth, height: shieldHeight)
+            let path = UIBezierPath()
+            let r = shieldWidth / 2
+            let tailHeight = shieldHeight - shieldWidth
             
-            let imageRect = CGRect(x: 0, y: badgeOverhang, width: shieldWidth, height: shieldHeight)
+            path.move(to: CGPoint(x: shieldWidth/2, y: badgeOverhang + shieldHeight)) // Tip
+            path.addCurve(to: CGPoint(x: 0, y: badgeOverhang + r),
+                         controlPoint1: CGPoint(x: shieldWidth/2 - 5, y: badgeOverhang + shieldHeight - 5),
+                         controlPoint2: CGPoint(x: 0, y: badgeOverhang + shieldHeight - 10))
+            path.addArc(withCenter: CGPoint(x: r, y: badgeOverhang + r), radius: r, startAngle: .pi, endAngle: 0, clockwise: true)
+            path.addCurve(to: CGPoint(x: shieldWidth/2, y: badgeOverhang + shieldHeight),
+                         controlPoint1: CGPoint(x: shieldWidth, y: badgeOverhang + shieldHeight - 10),
+                         controlPoint2: CGPoint(x: shieldWidth/2 + 5, y: badgeOverhang + shieldHeight - 5))
+            path.close()
             
+            color.setFill()
+            path.fill()
+            
+            // 2. Draw Base Image if exists (Asset Override)
             if let baseImage = baseImage {
-                baseImage.draw(in: imageRect)
+                baseImage.draw(in: shieldRect)
             }
             
-            // 2. Draw Badge (Top-Right Corner of Pin)
+            // 3. Draw Badge (Top-Right Corner)
             if let count = count {
-                // [FIX] Shift inward (-1, +1) to prevent border clipping (Stroke width 1.5)
                 let badgeCenter = CGPoint(x: shieldWidth - 1.0, y: badgeOverhang + 1.0)
                 let badgeRect = CGRect(x: badgeCenter.x - badgeSize/2, y: badgeCenter.y - badgeSize/2, width: badgeSize, height: badgeSize)
                 
-                // White Circle
-                let path = UIBezierPath(ovalIn: badgeRect)
+                let bPath = UIBezierPath(ovalIn: badgeRect)
                 UIColor.white.setFill()
-                path.fill()
-                // Red Border
+                bPath.fill()
                 UIColor.red.setStroke()
-                path.lineWidth = 1.5
-                path.stroke()
+                bPath.lineWidth = 1.5
+                bPath.stroke()
                 
-                // Red Text
                 let countText = count > 9 ? "9+" : "\(count)"
                 let fontSize: CGFloat = 11
                 let attributes: [NSAttributedString.Key: Any] = [
@@ -67,6 +72,7 @@ class PinImageHelper {
                 string.draw(at: CGPoint(x: badgeCenter.x - textSize.width/2, y: badgeCenter.y - textSize.height/2), withAttributes: attributes)
             }
         }
+
 
     }
 }
