@@ -651,12 +651,11 @@ extension ContentView {
         let newItem = ToDoItem(
             todo_name: name,
             date_time: dateTime,
-            type: "10",
-            is_exist_location_path: true,
-            latitude: lat,
-
-            longitude: lon
+            is_exist_location_path: true
         )
+        newItem.type = "10"
+        newItem.latitude = lat
+        newItem.longitude = lon
         modelContext.insert(newItem)
         try? modelContext.save()
         let generator = UINotificationFeedbackGenerator()

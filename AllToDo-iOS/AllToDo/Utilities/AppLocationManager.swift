@@ -86,12 +86,12 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
             let startLoc = points.first!
             let newTrip = ToDoItem(
                 todo_name: "자동 기록 경로 (\(Date().formatted(.dateTime.hour().minute())))",
-                type: "00",
-                is_exist_location_path: true,
-                latitude: startLoc.latitude,
-
-                longitude: startLoc.longitude
+                is_exist_location_path: true
             )
+            newTrip.type = "00"
+            newTrip.latitude = startLoc.latitude
+            newTrip.longitude = startLoc.longitude
+
             context.insert(newTrip)
             currentTripID = newTrip.todo_id
             print(">>> Continuous Persistence: New Trip Created (\(newTrip.todo_id))")
