@@ -396,7 +396,7 @@ struct AppleMapView: UIViewRepresentable {
             // visual overlap is acceptable during this phase.
             // [CRITICAL LOCK: DO NOT MODIFY] Raw First -> Cluster Strategy
             let totalCount = parent.allItems.count
-            let isLaunchPhase = parent.action == .launchSequence || firstRender // Identify launch
+            let isLaunchPhase = parent.action == .launchSequence || firstRender || isLaunchAnimating // [FIX] Include isLaunchAnimating
             
             // [TEMPORARY CHECK] switch to native clustering
             let useNativeClustering = false 
@@ -719,7 +719,12 @@ struct AppleMapView: UIViewRepresentable {
                         self.isLaunchAnimating = false
                         self.firstRender = false 
                         self.isWasmCluster = true // [FIX] Enable Clustering NOW
-                        self.moveLocation = SmartLocationManager.shared.toIntLocation(freshLoc) // [NEW] Set Initial Anchor
+                        
+                        if let finalLoc = self.parent.locationManager.currentLocation {
+                             self.moveLocation = SmartLocationManager.shared.toIntLocation(finalLoc) // [NEW] Set Initial Anchor
+                        }
+                        
+                        print(">>> start map: Launch Sequence Completed. Transitioning to Cluster Mode.")
                         self.refreshWasmClusters(mapView: mapView)
                     }
                     

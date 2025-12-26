@@ -61,7 +61,6 @@ struct ContentView: View {
         print(">>> start map: Filtering DB Data - Total Items: \(allItems.count), Center: \(centerDate)")
         
         let withPath = allItems.filter { $0.is_exist_location_path }
-        // print(">>> start map: Items with is_exist_location_path=true: \(withPath.count)")
 
         let items = withPath.filter {
             let itemDate = $0.begin_time ?? $0.date_time ?? Date(timeIntervalSince1970: Double($0.created_at)/1000.0)
@@ -71,6 +70,11 @@ struct ContentView: View {
         print(">>> start map: Items after ±24h Time Filter: \(items.count)")
         
         var results: [UnifiedMapItem] = []
+        
+        // [NEW] Add Current Location
+        if let current = locationManager.currentLocation {
+            results.append(.userLocation(current.coordinate))
+        }
         
         for item in items {
             if item.type.hasPrefix("0") {
@@ -83,7 +87,7 @@ struct ContentView: View {
         // Only update if count changed (Basic EQ Check)
         if results.count != cachedMapItems.count || results.map(\.id) != cachedMapItems.map(\.id) {
             self.cachedMapItems = results
-            print(">>> start map: cachedMapItems UPDATED")
+            print(">>> start map: cachedMapItems UPDATED (includes UserLocation: \(locationManager.currentLocation != nil))")
         }
     }
     
@@ -387,6 +391,9 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             self.anchorDate = Date() // [FIX] Update Anchor on Resume
             mapAction = .none
+        }
+        .onChange(of: locationManager.currentLocation) { _, _ in
+            updateMapItems()
         }
     }
 

@@ -85,24 +85,10 @@ enum UnifiedMapItem: Identifiable {
             // [Rule 2 & 3] Majority Vote with Tie-Breaker (Blue > Green > Red)
             // Array order determines priority for ties
             let counts = [
-                ("PinTodoReady", greenCount),
                 ("PinReceiveReady", blueCount),
+                ("PinTodoReady", greenCount),
                 ("PinHistory", redCount)
             ]
-            
-            // max(by:) returns the first element if values are equal but the closure returns false.
-            // Wait, max(by:) behavior: "If there are multiple elements with the same maximum value, this method returns the first one."
-            // So we want the HIGHER priority to be returned if counts are equal.
-            // But we need to use strict inequality for 'less than'.
-            // If we sort by Count Descending, then by Priority Order?
-            
-            // Let's use the standard Swift max. 
-            // counts.max(by: { $0.1 < $1.1 })
-            // Example: Blue=1, Green=1. 
-            // Compare Blue(1) < Green(1) -> False.
-            // Compare Green(1) < Blue(1) -> False.
-            // They are equal. `max` returns the FIRST one encountered (Blue).
-            // So implicit order in array: Blue, Green, Red matches our priority.
             
             if let max = counts.max(by: { $0.1 < $1.1 }), max.1 > 0 {
                 baseName = max.0
