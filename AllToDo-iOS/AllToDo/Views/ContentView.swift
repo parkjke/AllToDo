@@ -63,9 +63,8 @@ struct ContentView: View {
             if !$0.is_exist_location_path { return false }
             
             // 3. Time Filter (±24h)
-            let itemDate = ($0.type == "00") ? 
-                ($0.begin_time ?? Date(timeIntervalSince1970: Double($0.created_at)/1000.0)) : 
-                ($0.date_time ?? Date(timeIntervalSince1970: Double($0.created_at)/1000.0))
+            let itemDate = $0.begin_time ?? $0.date_time ?? Date(timeIntervalSince1970: Double($0.created_at)/1000.0)
+
             
             return itemDate >= min && itemDate <= max
         }
