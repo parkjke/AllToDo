@@ -722,10 +722,12 @@ struct GoogleMapView: UIViewRepresentable {
                      polyline.map = mapView
                      self.pathOverlay = polyline
                      
-                     // [NEW] Auto-zoom to history path
-                     let bounds = GMSCoordinateBounds(path: path)
-                     let update = GMSCameraUpdate.fit(bounds, withPadding: 80)
-                     mapView.animate(with: update)
+                     // [NEW] Auto-zoom to history path with 0.1s delay to stabilize
+                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                         let bounds = GMSCoordinateBounds(path: path)
+                         let update = GMSCameraUpdate.fit(bounds, withPadding: 80)
+                         mapView.animate(with: update)
+                     }
                  }
 
              }

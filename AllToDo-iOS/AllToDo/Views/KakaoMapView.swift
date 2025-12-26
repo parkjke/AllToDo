@@ -620,7 +620,7 @@ struct KakaoMapView: UIViewRepresentable {
                     // Unique style for the path
                     let styleID = "MainPathStyle_\(item.todo_id.uuidString.prefix(8))"
                     let style = PolylineStyle(styles: [
-                        PerLevelPolylineStyle(bodyColor: .red, bodyWidth: 4, strokeColor: .clear, strokeWidth: 0, level: 0)
+                        PerLevelPolylineStyle(bodyColor: .red, bodyWidth: 3, strokeColor: .clear, strokeWidth: 0, level: 0)
                     ])
                     manager.addPolylineStyleSet(PolylineStyleSet(styleSetID: styleID, styles: [style]))
 
@@ -652,8 +652,8 @@ struct KakaoMapView: UIViewRepresentable {
             let coords = points.map { MapPoint(longitude: $0.longitude, latitude: $0.latitude) }
             let styleID = "ActiveTrailStyle"
             let style = PolylineStyle(styles: [
-                // Thinned to 4pt as requested
-                PerLevelPolylineStyle(bodyColor: UIColor(red: 1.0, green: 0.34, blue: 0.13, alpha: 1.0), bodyWidth: 4, strokeColor: .clear, strokeWidth: 0, level: 0)
+                // Thinned to 3pt as requested (UInt constraint)
+                PerLevelPolylineStyle(bodyColor: UIColor(red: 1.0, green: 0.34, blue: 0.13, alpha: 1.0), bodyWidth: 3, strokeColor: .clear, strokeWidth: 0, level: 0)
             ])
             manager.addPolylineStyleSet(PolylineStyleSet(styleSetID: styleID, styles: [style]))
 

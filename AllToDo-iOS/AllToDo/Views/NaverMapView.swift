@@ -250,12 +250,12 @@ struct NaverMapView: UIViewRepresentable {
              guard let log = historyItem, log.type == "00" else { return }
              
              // 3. Query PathItems
-             let idString = log.todo_id.uuidString
-             let searchID = UUID(uuidString: idString) ?? log.todo_id
-             let descriptor = FetchDescriptor<PathItem>(predicate: #Predicate<PathItem> { path in
-                 path.todo_id == searchID
-             })
-             if let paths = try? parent.modelContext.fetch(descriptor) {
+             let searchID = log.todo_id
+             let descriptor = FetchDescriptor<PathItem>(
+                 predicate: #Predicate<PathItem> { $0.todo_id == searchID },
+                 sortBy: [SortDescriptor(\.timestamp)]
+             )
+             if let paths: [PathItem] = try? parent.modelContext.fetch(descriptor) {
                  let coords = paths.map { NMGLatLng(lat: $0.coordinate.latitude, lng: $0.coordinate.longitude) }
                  if coords.count >= 2 {
                      let path = NMFPath()
@@ -266,12 +266,14 @@ struct NaverMapView: UIViewRepresentable {
                      path.mapView = map
                      self.pathOverlay = path
                      
-                     // [NEW] Auto-zoom to history path
-                     let bounds = NMGLatLngBounds(southWest: NMGLatLng(lat: coords.map{$0.lat}.min()!, lng: coords.map{$0.lng}.min()!), 
-                                                 northEast: NMGLatLng(lat: coords.map{$0.lat}.max()!, lng: coords.map{$0.lng}.max()!))
-                     let update = NMFCameraUpdate(fit: bounds, padding: 80)
-                     update.animation = .easeIn
-                     map.moveCamera(update)
+                     // [NEW] Auto-zoom to history path with 0.1s delay to stabilize
+                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                         let bounds = NMGLatLngBounds(southWest: NMGLatLng(lat: coords.map{$0.lat}.min()!, lng: coords.map{$0.lng}.min()!), 
+                                                     northEast: NMGLatLng(lat: coords.map{$0.lat}.max()!, lng: coords.map{$0.lng}.max()!))
+                         let update = NMFCameraUpdate(fit: bounds, padding: 80)
+                         update.animation = .easeIn
+                         map.moveCamera(update)
+                     }
                  }
 
              }

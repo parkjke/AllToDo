@@ -914,9 +914,11 @@ struct AppleMapView: UIViewRepresentable {
                     let polyline = HistoryPolyline(coordinates: &coords, count: coords.count)
                     mapView.addOverlay(polyline)
                     
-                    // [NEW] Auto-zoom to history path if it's new
+                    // [NEW] Auto-zoom to history path with 0.1s delay to stabilize
                     let rect = polyline.boundingMapRect
-                    mapView.setVisibleMapRect(rect, edgePadding: UIEdgeInsets(top: 80, left: 50, bottom: 50, right: 50), animated: true)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        mapView.setVisibleMapRect(rect, edgePadding: UIEdgeInsets(top: 80, left: 50, bottom: 50, right: 50), animated: true)
+                    }
                 }
             }
         }

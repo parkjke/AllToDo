@@ -344,38 +344,8 @@ struct ContentView: View {
             switch newPhase {
             case .background, .inactive:
                 backgroundStartTime = Date()
-                
-                // [FIX] Use Background Task to ensure saving finishes
-                let taskId = UIApplication.shared.beginBackgroundTask {
-                    // Expiration handler
-                }
-                
-                Task {
-                    if let session = await locationManager.endSession() {
-                        let log = ToDoItem(
-                            todo_name: "이동 경로",
-                            date_time: session.start,
-                            begin_time: session.start,
-                            end_time: session.end,
-                            type: "00",
-                            latitude: session.midLat,
-                            longitude: session.midLon
-                        )
-                        modelContext.insert(log)
-                        for point in session.points {
-                            let path = PathItem(
-                                todo_id: log.todo_id,
-                                latitude: point.latitude,
-                                longitude: point.longitude
-                            )
-                            modelContext.insert(path)
-                        }
-                        try? modelContext.save()
-                        print(">>> BG SAVE SUCCESS: \(session.points.count) pts saved")
-                        locationManager.startSession()
-                    }
-                    UIApplication.shared.endBackgroundTask(taskId)
-                }
+                // [Standard] Only save representative location if needed, 
+                // but path saving is now MANUAL as requested for integrity.
             case .active:
                 if let start = backgroundStartTime {
                     let elapsed = Date().timeIntervalSince(start)
@@ -384,7 +354,7 @@ struct ContentView: View {
                     }
                 }
                 backgroundStartTime = nil
-                locationManager.startSession()
+                // Automatic startSession removed to allow user control
             @unknown default:
                 break
             }
@@ -421,9 +391,8 @@ struct ContentView: View {
             onZoomOutClick: { mapAction = .zoomOut },
             onCompassClick: { mapAction = .rotateNorth },
             onExpandClick: { withAnimation { showListView = true } },
-            isRecording: locationManager.isRecording,
             showActivePath: locationManager.showActivePath,
-            onToggleActivePath: { locationManager.showActivePath.toggle() }
+            onRecordClick: handleRecordClick
         )
     }
 
@@ -457,15 +426,26 @@ struct ContentView: View {
                         }
                         .frame(width: 320)
                         .background(Color(.systemBackground))
-                        .cornerRadius(12)
+                        .cornerRadius(20) // Changed from 12 to 20
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20)
+                                .strokeBorder(
+                                    LinearGradient(
+                                        colors: [
+                                            .white.opacity(0.9), // Bright Highlight
+                                            .white.opacity(0.2)  // Fades out
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 1.5 // Thicker Edge
+                                )
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 20))
                         .preferredColorScheme((mapProvider == .apple || mapProvider == .google) ? nil : .light)
                         
-                        CalloutTriangle()
-                            .fill(Color(.systemBackground))
-                            .frame(width: 20, height: 10)
                             .padding(.top, -1)
                     }
-                    .shadow(radius: 10)
                     .frame(width: 320, height: 0, alignment: .bottom) // [사용자 원천기술] 하단 고정 상단 확장
                     .position(x: (tapPosition?.x ?? 0) + mapXOffset, y: (tapPosition?.y ?? 0) + mapYOffset)
                     .transition(.scale.combined(with: .opacity))
@@ -502,7 +482,6 @@ struct ContentView: View {
                         UserProfileView(isPresented: $showProfile, locationManager: locationManager)
                             .frame(width: 300)
                             .background(Color(.systemBackground)) // Dynamic background
-                            .shadow(radius: 5)
                         Spacer()
                     }
                     .transition(.move(edge: .leading))
@@ -615,6 +594,12 @@ extension ContentView {
         } else {
             showCalendar = true
         }
+    }
+
+    private func handleRecordClick() {
+        // [MODIFIED] Now used as a debugging toggle for path visualization
+        locationManager.showActivePath.toggle()
+        print(">>> Debug Path Visibility: \(locationManager.showActivePath)")
     }
 
     private func handleLongTap(lat: Double, lon: Double, name: String, dateTime: Date) {

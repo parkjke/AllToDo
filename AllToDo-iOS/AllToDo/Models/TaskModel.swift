@@ -92,11 +92,11 @@ final class PathItem {
     var int_lat: Int
     var timestamp: Date = Date()
     
-    init(todo_id: UUID, latitude: Double, longitude: Double) {
+    init(todo_id: UUID, latitude: Double, longitude: Double, timestamp: Date = Date()) {
         self.todo_id = todo_id
         self.int_lat = Int((latitude * 100_000.0).rounded())
         self.int_long = Int((longitude * 100_000.0).rounded())
-        self.timestamp = Date()
+        self.timestamp = timestamp
     }
     
     var coordinate: CLLocationCoordinate2D {

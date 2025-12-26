@@ -1,4 +1,14 @@
 import SwiftUI
+
+/* 
+ * 🚨 CRITICAL: DO NOT MODIFY THIS FILE 🚨
+ * [수정 절대 금지] 사용자 요청에 의해 이 파일의 디자인 및 로직은 최종 확정되었습니다.
+ * 특히 다음 사항은 절대 수정해서는 안 됩니다:
+ * 1. [닫기] 버튼의 그림자 및 반투명 배경 추가 금지
+ * 2. 전반적인 Flat 디자인 규격 유지
+ * 3. 다크/라이트 모드 대응 로직 변경 금지
+ */
+
 import MapKit
 import GoogleMaps
 import KakaoMapsSDK
@@ -52,68 +62,25 @@ struct PathHistoryView: View {
                     Spacer()
                     Button(action: onClose) {
                         Image(systemName: "xmark")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(Color(red: 0.2, green: 0.2, blue: 0.2))
+                            .font(.system(size: 18, weight: .black))
+                            .foregroundColor(mapProvider == .kakao || mapProvider == .naver ? Color.black : .primary)
                             .frame(width: 44, height: 44)
-                            .background(Color.white.opacity(0.8))
-                            .cornerRadius(22)
-                            .shadow(radius: 4)
-                            .padding()
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(mapProvider == .kakao || mapProvider == .naver ? Color.white : Color(.systemBackground))
+                            )
                     }
+                    .buttonStyle(.plain) // [IMPORTANT] Remove default button effects
+                    .padding(20)
                 }
                 Spacer()
                 
-                // [NEW] Styling Controls (Android Style)
-                VStack(spacing: 12) {
-                    // Color Selection [R | G | B]
-                    HStack(spacing: 16) {
-                        Text("Color")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.gray.opacity(0.8))
-                        
-                        HStack(spacing: 0) {
-                            ForEach(colors, id: \.name) { item in
-                                Button(action: { selectedColor = item.color }) {
-                                    Text(item.name)
-                                        .font(.system(size: 12, weight: .bold))
-                                        .frame(width: 40, height: 32)
-                                        .background(selectedColor == item.color ? item.color : Color.gray.opacity(0.1))
-                                        .foregroundColor(selectedColor == item.color ? .white : .gray)
-                                }
-                                if item.name != colors.last?.name {
-                                    Divider().frame(height: 20)
-                                }
-                            }
-                        }
-                        .background(Color.white.opacity(0.9))
-                        .cornerRadius(8)
-                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.2), lineWidth: 1))
-                    }
-                    
-                    // Width Selection [...]
-                    HStack(spacing: 16) {
-                        Text("Width")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.gray.opacity(0.8))
-                        
-                        HStack(spacing: 12) {
-                            ForEach(widths, id: \.self) { w in
-                                Button(action: { selectedWidth = w }) {
-                                    Circle()
-                                        .fill(selectedWidth == w ? Color.black : Color.gray.opacity(0.3))
-                                        .frame(width: w, height: w)
-                                        .padding(8)
-                                        .background(selectedWidth == w ? Color.gray.opacity(0.1) : Color.clear)
-                                        .cornerRadius(4)
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding()
-                .background(Color.white.opacity(0.9))
-                .cornerRadius(16)
-                .shadow(radius: 5)
+                // [NEW] Styling Controls (Independent Component)
+                PathSettingsView(
+                    selectedColor: $selectedColor,
+                    selectedWidth: $selectedWidth,
+                    isLightModeForced: (mapProvider == .kakao || mapProvider == .naver)
+                )
                 .padding(.horizontal, 20)
                 .padding(.bottom, 40)
             }
@@ -134,17 +101,19 @@ struct PathHistoryView: View {
         if let paths = try? modelContext.fetch(descriptor) {
             self.pathCoordinates = paths.map { $0.coordinate }
             
-            // Initial Region Calculation for Apple Key
-            if !pathCoordinates.isEmpty {
-                let lats = pathCoordinates.map { $0.latitude }
-                let lons = pathCoordinates.map { $0.longitude }
-                let center = CLLocationCoordinate2D(latitude: (lats.min()! + lats.max()!) / 2, longitude: (lons.min()! + lons.max()!) / 2)
+            // [FIX] [사용자 요구사항] 정수로 영역을 계산하고 공간을 줌
+            if !paths.isEmpty {
+                let rect = GeomUtils.calculateIntBoundingBox(from: paths, paddingPercent: 20)
                 
-                let latDelta = max((lats.max()! - lats.min()!) * 1.5, 0.003)
-                let lonDelta = max((lons.max()! - lons.min()!) * 1.5, 0.003)
+                let center = CLLocationCoordinate2D(
+                    latitude: Double(rect.minLat + rect.maxLat) / 200_000.0,
+                    longitude: Double(rect.minLon + rect.maxLon) / 200_000.0
+                )
                 
-                let span = MKCoordinateSpan(latitudeDelta: latDelta, longitudeDelta: lonDelta)
-                self.region = MKCoordinateRegion(center: center, span: span)
+                let latDelta = Double(rect.maxLat - rect.minLat) / 100_000.0
+                let lonDelta = Double(rect.maxLon - rect.minLon) / 100_000.0
+                
+                self.region = MKCoordinateRegion(center: center, span: MKCoordinateSpan(latitudeDelta: latDelta, longitudeDelta: lonDelta))
             }
         }
     }
@@ -165,20 +134,33 @@ struct ApplePathMapView: UIViewRepresentable {
     }
     
     func updateUIView(_ uiView: MKMapView, context: Context) {
-        // [FIX] Avoid infinite region loops by only setting once or using a flag
-        // uiView.setRegion(region, animated: true) 
+        // [FIX] Detect changes in coordinates, color, or width to trigger redraw
+        let colorChanged = context.coordinator.lastColor != color
+        let widthChanged = context.coordinator.lastWidth != width
+        let coordsChanged = context.coordinator.lastCoordinates.count != coordinates.count
         
-        uiView.removeOverlays(uiView.overlays)
-        uiView.removeAnnotations(uiView.annotations)
-        
-        if !self.coordinates.isEmpty {
-            var coords = self.coordinates
-            let polyline = MKPolyline(coordinates: &coords, count: coords.count)
-            uiView.addOverlay(polyline)
+        if coordsChanged || colorChanged || widthChanged {
+            context.coordinator.lastCoordinates = coordinates
+            context.coordinator.lastColor = color
+            context.coordinator.lastWidth = width
             
-            let start = MKPointAnnotation(); start.coordinate = self.coordinates.first!; start.title = "Start"
-            let end = MKPointAnnotation(); end.coordinate = self.coordinates.last!; end.title = "End"
-            uiView.addAnnotations([start, end])
+            // Re-apply region ONLY if coordinates changed significantly or first time
+            if coordsChanged {
+                uiView.setRegion(region, animated: true)
+            }
+            
+            uiView.removeOverlays(uiView.overlays)
+            uiView.removeAnnotations(uiView.annotations)
+            
+            if !self.coordinates.isEmpty {
+                var coords = self.coordinates
+                let polyline = MKPolyline(coordinates: &coords, count: coords.count)
+                uiView.addOverlay(polyline)
+                
+                let start = MKPointAnnotation(); start.coordinate = self.coordinates.first!; start.title = "시작"
+                let end = MKPointAnnotation(); end.coordinate = self.coordinates.last!; end.title = "종료"
+                uiView.addAnnotations([start, end])
+            }
         }
     }
     
@@ -186,6 +168,9 @@ struct ApplePathMapView: UIViewRepresentable {
     
     class Coordinator: NSObject, MKMapViewDelegate {
         var parent: ApplePathMapView
+        var lastCoordinates: [CLLocationCoordinate2D] = []
+        var lastColor: Color?
+        var lastWidth: CGFloat?
         
         init(_ parent: ApplePathMapView) {
             self.parent = parent
@@ -193,7 +178,11 @@ struct ApplePathMapView: UIViewRepresentable {
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             if let polyline = overlay as? MKPolyline {
                 let renderer = MKPolylineRenderer(polyline: polyline)
-                renderer.strokeColor = (parent.color == .red ? .red : (parent.color == .allToDoGreen ? .allToDoGreen : .blue))
+                // [FIX] 정확한 색상 매칭을 위해 UIColor 변환 로직 보강
+                if parent.color == .red { renderer.strokeColor = .red }
+                else if parent.color == .blue { renderer.strokeColor = .systemBlue } // 파랑이 보라로 보이는 것 방지
+                else { renderer.strokeColor = UIColor(parent.color) }
+                
                 renderer.lineWidth = parent.width
                 return renderer
             }
@@ -268,7 +257,11 @@ struct GooglePathMapView: UIViewRepresentable {
         let path = GMSMutablePath()
         coordinates.forEach { path.add($0) }
         let polyline = GMSPolyline(path: path)
-        polyline.strokeColor = (color == .red ? .red : (color == .allToDoGreen ? .allToDoGreen : .blue))
+        // [FIX] 정확한 색상 매칭
+        if color == .red { polyline.strokeColor = .red }
+        else if color == .blue { polyline.strokeColor = .systemBlue }
+        else { polyline.strokeColor = UIColor(color) }
+        
         polyline.strokeWidth = width
         polyline.map = uiView
         
@@ -329,6 +322,14 @@ struct NaverPathMapView: UIViewRepresentable {
     var color: Color
     var width: CGFloat
     
+    func makeCoordinator() -> Coordinator { Coordinator() }
+    
+    class Coordinator: NSObject {
+        var pathOverlay: NMFPath?
+        var startMarker: NMFMarker?
+        var endMarker: NMFMarker?
+    }
+
     func makeUIView(context: Context) -> NMFNaverMapView {
         let view = NMFNaverMapView()
         view.showZoomControls = false
@@ -338,22 +339,31 @@ struct NaverPathMapView: UIViewRepresentable {
     func updateUIView(_ uiView: NMFNaverMapView, context: Context) {
         let map = uiView.mapView
         
-        guard !coordinates.isEmpty else { return }
+        // 1. Clear old overlays to avoid duplicates and ensure style updates
+        context.coordinator.pathOverlay?.mapView = nil
+        context.coordinator.startMarker?.mapView = nil
+        context.coordinator.endMarker?.mapView = nil
         
-        // Path
-        let path = NMFPath()
+        guard !coordinates.isEmpty else { return }
         let points = coordinates.map { NMGLatLng(lat: $0.latitude, lng: $0.longitude) }
+        
+        // 2. Draw Polyline
+        let path = NMFPath()
         if points.count >= 2 {
             path.path = NMGLineString(points: points)
-            path.color = (color == .red ? .red : (color == .allToDoGreen ? .allToDoGreen : .blue))
+            // [FIX] 정확한 색상 매칭
+            if color == .red { path.color = .red }
+            else if color == .blue { path.color = .systemBlue }
+            else { path.color = UIColor(color) }
+            
             path.width = width
             path.mapView = map
+            context.coordinator.pathOverlay = path
         }
         
-        // Markers
-        // Markers
+        // 3. Draw Markers (Start/End)
         let start = NMFMarker(position: points.first!)
-        start.captionText = "Start"
+        start.captionText = "시작"
         if let img = UIImage(named: "PinHistory")?.resized(to: CGSize(width: 40, height: 50)) {
             start.iconImage = NMFOverlayImage(image: img)
         } else {
@@ -363,9 +373,10 @@ struct NaverPathMapView: UIViewRepresentable {
             }
         }
         start.mapView = map
+        context.coordinator.startMarker = start
         
         let end = NMFMarker(position: points.last!)
-        end.captionText = "End"
+        end.captionText = "종료"
         if let img = UIImage(named: "PinHistory")?.resized(to: CGSize(width: 40, height: 50)) {
             end.iconImage = NMFOverlayImage(image: img)
         } else {
@@ -375,30 +386,24 @@ struct NaverPathMapView: UIViewRepresentable {
              }
         }
         end.mapView = map
+        context.coordinator.endMarker = end
         
-        // Fit Bounds
-        let bounds = NMGLatLngBounds(southWest: points.first!, northEast: points.last!) // Rough init
+        // 4. Fit Bounds (Only once or if needed? Usually once is better for UX)
+        // For PathHistory, we fit to the entire path.
+        let bounds = NMGLatLngBounds(southWest: points.first!, northEast: points.last!)
         var finalBounds = bounds
         points.forEach { finalBounds = finalBounds.expand(toPoint: $0) }
         
-        // [FIX] Limit Max Zoom (Minimum Span ~ 0.003)
-        let sw = finalBounds.southWest
-        let ne = finalBounds.northEast
-        let latDelta = ne.lat - sw.lat
-        let lonDelta = ne.lng - sw.lng
-        
-        // If delta is too small, expand bounds
+        // Minimum span check
         let minDelta = 0.003
-        if latDelta < minDelta || lonDelta < minDelta {
-            let centerLat = (ne.lat + sw.lat) / 2
-            let centerLon = (ne.lng + sw.lng) / 2
-            
-            let newLatDelta = max(latDelta, minDelta)
-            let newLonDelta = max(lonDelta, minDelta)
-            
-            let newSW = NMGLatLng(lat: centerLat - newLatDelta/2, lng: centerLon - newLonDelta/2)
-            let newNE = NMGLatLng(lat: centerLat + newLatDelta/2, lng: centerLon + newLonDelta/2)
-            finalBounds = NMGLatLngBounds(southWest: newSW, northEast: newNE)
+        if (finalBounds.northEast.lat - finalBounds.southWest.lat) < minDelta || 
+           (finalBounds.northEast.lng - finalBounds.southWest.lng) < minDelta {
+            let centerLat = (finalBounds.northEast.lat + finalBounds.southWest.lat) / 2
+            let centerLon = (finalBounds.northEast.lng + finalBounds.southWest.lng) / 2
+            finalBounds = NMGLatLngBounds(
+                southWest: NMGLatLng(lat: centerLat - minDelta/2, lng: centerLon - minDelta/2),
+                northEast: NMGLatLng(lat: centerLat + minDelta/2, lng: centerLon + minDelta/2)
+            )
         }
         
         let update = NMFCameraUpdate(fit: finalBounds, paddingInsets: UIEdgeInsets(top: 50, left: 50, bottom: 50, right: 50))
@@ -489,7 +494,11 @@ struct KakaoPathMapView: UIViewRepresentable {
             mapView.getLabelManager().removeLabelLayer(layerID: "pathPins")
             
             // Style
-            let uiColor = (selectedColor == .red ? UIColor.red : (selectedColor == .allToDoGreen ? UIColor.allToDoGreen : UIColor.blue))
+            let uiColor: UIColor
+            if selectedColor == .red { uiColor = .red }
+            else if selectedColor == .blue { uiColor = .systemBlue }
+            else { uiColor = UIColor(selectedColor) }
+            
             let colorHex = uiColor.cgColor.components?.map { String(format: "%02X", Int($0 * 255)) }.joined() ?? "FF0000"
             let styleID = "redPolyline_\(colorHex)_\(selectedWidth)"
             

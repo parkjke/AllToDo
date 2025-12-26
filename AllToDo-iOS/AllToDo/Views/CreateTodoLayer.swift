@@ -107,7 +107,6 @@ struct CreateTodoLayer: View {
                 .frame(height: 550) 
                 .background(Color(UIColor.systemBackground))
                 .cornerRadius(24, corners: [.topLeft, .topRight])
-                .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: -5)
             }
             .ignoresSafeArea(edges: .bottom)
             

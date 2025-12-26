@@ -33,7 +33,6 @@ struct LiquidGlass: ViewModifier {
                         lineWidth: 1.5 // Thicker Edge
                     )
             )
-            .shadow(color: .black.opacity(0.25), radius: 8, x: 0, y: 4) // Deeper Shadow
             .clipShape(RoundedRectangle(cornerRadius: 20))
     }
 }
