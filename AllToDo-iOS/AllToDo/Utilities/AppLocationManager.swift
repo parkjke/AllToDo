@@ -196,10 +196,9 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         if let tripID = currentTripID {
             let context = ModelContext(AllToDoApp.sharedModelContainer)
             let tripIDCopy = tripID
-            let descriptor = FetchDescriptor<ToDoItem>(
-                predicate: #predicate { $0.todo_id == tripIDCopy }
-            )
-            if let trip = try? context.fetch(descriptor).first {
+            let descriptor = FetchDescriptor<ToDoItem>()
+            if let trips = try? context.fetch(descriptor),
+               let trip = trips.first(where: { $0.todo_id == tripIDCopy }) {
                 trip.latitude = midLat
                 trip.longitude = midLon
                 try? context.save()
