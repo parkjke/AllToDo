@@ -1,5 +1,6 @@
 import SwiftUI
 import CoreLocation
+import SwiftData
 
 struct UserProfileView: View {
     @Binding var isPresented: Bool
