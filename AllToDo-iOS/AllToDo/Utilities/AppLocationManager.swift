@@ -231,7 +231,6 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
             lastIntLocation = SmartLocationManager.shared.toIntLocation(location)
             DispatchQueue.main.async {
                 self.currentLocation = location
-                print(">>> start map: Location received from OS: \(location.coordinate.latitude), \(location.coordinate.longitude)")
             }
 
         }

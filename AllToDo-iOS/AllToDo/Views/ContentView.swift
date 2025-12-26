@@ -55,13 +55,7 @@ struct ContentView: View {
         let min = Calendar.current.date(byAdding: .hour, value: -24, to: centerDate)!
         let max = Calendar.current.date(byAdding: .hour, value: 24, to: centerDate)!
         
-        print(">>> start map: Filtering DB Data - Total Items: \(allItems.count), Center: \(centerDate)")
-        print(">>> start map: Diagnostic - Total PathItems in DB: \(allPaths.count)")
-
         
-        let pathItemsCount = allItems.filter { $0.is_exist_location_path }.count
-        print(">>> start map: Items with is_exist_location_path=true: \(pathItemsCount)")
-
         let items = allItems.filter {
             // 1. Location Path Necessity (Primary Filter)
             if !$0.is_exist_location_path { return false }
@@ -69,13 +63,8 @@ struct ContentView: View {
             // 2. Time Filter (±24h)
 
             let itemDate = $0.begin_time ?? $0.date_time ?? Date(timeIntervalSince1970: Double($0.created_at)/1000.0)
-
-            
             return itemDate >= min && itemDate <= max
         }
-        
-        print(">>> start map: Items after ±24h Time Filter: \(items.count)")
-        if allPaths.isEmpty { print(">>> start map: WARNING - allPaths is EMPTY") }
         
         var results: [UnifiedMapItem] = []
         

@@ -365,7 +365,6 @@ struct AppleMapView: UIViewRepresentable {
         // MARK: - WASM Clustering Integration
         
         func refreshWasmClusters(mapView: MKMapView) {
-            print(">>> start map: AppleMapView refreshing with - Todos: \(parent.todoItems.count), Logs: \(parent.userLogs.count)")
             
             // [FIX] Fallback to Screen Width if Map View is not yet laid out (Width=0)
 
