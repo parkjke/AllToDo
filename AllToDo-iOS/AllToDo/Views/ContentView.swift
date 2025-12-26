@@ -56,13 +56,11 @@ struct ContentView: View {
         let max = Calendar.current.date(byAdding: .hour, value: 24, to: centerDate)!
         
         let items = allItems.filter {
-            // 1. Basic Type Filter
-            guard $0.type == "00" || $0.type == "10" || $0.type == "20" else { return false }
-            
-            // 2. Location Path Necessity
+            // 1. Location Path Necessity (Primary Filter)
             if !$0.is_exist_location_path { return false }
             
-            // 3. Time Filter (±24h)
+            // 2. Time Filter (±24h)
+
             let itemDate = $0.begin_time ?? $0.date_time ?? Date(timeIntervalSince1970: Double($0.created_at)/1000.0)
 
             
@@ -90,11 +88,12 @@ struct ContentView: View {
             item.latitude = midpoint.latitude
             item.longitude = midpoint.longitude
             
-            if item.type == "00" {
+            if item.type.hasPrefix("0") {
                 results.append(.history(item))
             } else {
                 results.append(.todo(item))
             }
+
         }
         
         return results
