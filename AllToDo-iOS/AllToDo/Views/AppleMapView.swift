@@ -83,7 +83,6 @@ struct AppleMapView: UIViewRepresentable {
         let initialSpan = 0.01 // Zoom 15
         let initialRegion = MKCoordinateRegion(center: initialCenter, span: MKCoordinateSpan(latitudeDelta: initialSpan, longitudeDelta: initialSpan))
         mapView.setRegion(initialRegion, animated: false)
-        print(">>> start map: Initial Map Displayed at Zoom 15 (Span 0.01) at \(initialCenter.latitude), \(initialCenter.longitude)")
         
         // Long Press Gesture
         let longPress = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleLongPress(_:)))
