@@ -6,7 +6,7 @@ import SwiftData
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var allItems: [ToDoItem]
-    @Query private var allPaths: [PathItem]
+    // @Query private var allPaths: [PathItem] // [OPTIMIZATION] Removed to prevent re-render on path update
 
     
     @State private var showProfile = false
@@ -37,6 +37,8 @@ struct ContentView: View {
     @State private var farItemsCount = 0
     @State private var showFarNotification = false
     @State private var clusterRadius: Double? = 100.0
+    @State private var anchorDate: Date = Date() // [FIX] Time Anchor for Stable Filtering
+    @State private var cachedMapItems: [UnifiedMapItem] = [] // [FIX] State Caching
 
     // Create Todo State
     @State private var isCreatingTodo = false
@@ -50,21 +52,23 @@ struct ContentView: View {
     @AppStorage("popupFontSize") private var popupFontSize = 1
 
     // MARK: - Filtered Data
-    var filteredMapItems: [UnifiedMapItem] {
-        let centerDate = showHistoryMode ? selectedDate : Date()
+    // MARK: - Filtered Data Logic
+    private func updateMapItems() {
+        let centerDate = showHistoryMode ? selectedDate : anchorDate
         let min = Calendar.current.date(byAdding: .hour, value: -24, to: centerDate)!
         let max = Calendar.current.date(byAdding: .hour, value: 24, to: centerDate)!
         
+        print(">>> start map: Filtering DB Data - Total Items: \(allItems.count), Center: \(centerDate)")
         
-        let items = allItems.filter {
-            // 1. Location Path Necessity (Primary Filter)
-            if !$0.is_exist_location_path { return false }
-            
-            // 2. Time Filter (±24h)
+        let withPath = allItems.filter { $0.is_exist_location_path }
+        // print(">>> start map: Items with is_exist_location_path=true: \(withPath.count)")
 
+        let items = withPath.filter {
             let itemDate = $0.begin_time ?? $0.date_time ?? Date(timeIntervalSince1970: Double($0.created_at)/1000.0)
             return itemDate >= min && itemDate <= max
         }
+        
+        print(">>> start map: Items after ±24h Time Filter: \(items.count)")
         
         var results: [UnifiedMapItem] = []
         
@@ -76,19 +80,13 @@ struct ContentView: View {
             }
         }
         
-        return results
+        // Only update if count changed (Basic EQ Check)
+        if results.count != cachedMapItems.count || results.map(\.id) != cachedMapItems.map(\.id) {
+            self.cachedMapItems = results
+            print(">>> start map: cachedMapItems UPDATED")
+        }
     }
     
-    // Legacy support for existing View props (Split from filteredMapItems)
-    var filteredTodos: [ToDoItem] {
-        filteredMapItems.compactMap { if case .todo(let t) = $0 { return t }; return nil }
-    }
-    
-    var filteredLogs: [ToDoItem] {
-        filteredMapItems.compactMap { if case .history(let t) = $0 { return t }; return nil }
-    }
-
-
     // MARK: - Body
     var body: some View {
         ZStack {
@@ -100,8 +98,7 @@ struct ContentView: View {
                         action: $mapAction,
                         rotation: $compassRotation,
                         locationManager: locationManager,
-                        todoItems: filteredTodos,
-                        userLogs: filteredLogs,
+                        allItems: cachedMapItems,
                         selectedItem: $selectedItem,
                         viewingHistoryItem: $viewingHistoryItem, // [NEW]
                         selectedClusterItems: $selectedClusterItems,
@@ -133,8 +130,7 @@ struct ContentView: View {
                          action: $mapAction,
                          rotation: $compassRotation,
                          locationManager: locationManager,
-                         todoItems: filteredTodos,
-                         userLogs: filteredLogs,
+                         allItems: cachedMapItems,
                          selectedItem: $selectedItem,
                          viewingHistoryItem: $viewingHistoryItem, // [NEW]
                          selectedClusterItems: $selectedClusterItems,
@@ -166,8 +162,7 @@ struct ContentView: View {
                         action: $mapAction,
                         rotation: $compassRotation,
                         locationManager: locationManager,
-                        todoItems: filteredTodos,
-                        userLogs: filteredLogs,
+                        allItems: cachedMapItems,
                         selectedItem: $selectedItem,
                         viewingHistoryItem: $viewingHistoryItem, // [NEW]
                         selectedClusterItems: $selectedClusterItems,
@@ -199,8 +194,7 @@ struct ContentView: View {
                         action: $mapAction,
                         rotation: $compassRotation,
                         locationManager: locationManager,
-                        todoItems: filteredTodos,
-                        userLogs: filteredLogs,
+                        allItems: cachedMapItems,
                         selectedItem: $selectedItem,
                         viewingHistoryItem: $viewingHistoryItem, // [NEW]
                         selectedClusterItems: $selectedClusterItems,
@@ -208,7 +202,7 @@ struct ContentView: View {
                         tapPosition: $tapPosition,
                         clusterRadius: $clusterRadius,
                         creatingTodoLocation: $creatingTodoLocation, // [NEW]
-                        hasItems: !filteredTodos.isEmpty || !filteredLogs.isEmpty,
+                        hasItems: !cachedMapItems.isEmpty,
                         onLongTap: { coord in
                             self.creatingTodoLocation = coord
                             self.initialTodoName = ""
@@ -360,8 +354,16 @@ struct ContentView: View {
             switch newPhase {
             case .background, .inactive:
                 backgroundStartTime = Date()
-                // [Standard] Only save representative location if needed, 
-                // but path saving is now MANUAL as requested for integrity.
+                // [FIX] Store session and last representative location on exit
+                Task {
+                    await locationManager.endSession()
+                    if let loc = locationManager.currentLocation {
+                        UserDefaults.standard.set(loc.coordinate.latitude, forKey: "last_latitude")
+                        UserDefaults.standard.set(loc.coordinate.longitude, forKey: "last_longitude")
+                        UserDefaults.standard.set(true, forKey: "has_saved_location")
+                        print(">>> scenePhase: Saved last location and ended session.")
+                    }
+                }
             case .active:
                 if let start = backgroundStartTime {
                     let elapsed = Date().timeIntervalSince(start)
@@ -375,17 +377,23 @@ struct ContentView: View {
                 break
             }
         }
+        .onChange(of: allItems) { _, _ in updateMapItems() }
+        .onChange(of: anchorDate) { _, _ in updateMapItems() }
+        .onChange(of: showHistoryMode) { _, _ in updateMapItems() }
+        .onChange(of: selectedDate) { _, _ in updateMapItems() }
         .onAppear {
-            // repairDataIntegrity() removed as requested
+             updateMapItems()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            self.anchorDate = Date() // [FIX] Update Anchor on Resume
+            mapAction = .none
         }
     }
 
 
     // MARK: - Computed Properties / Helper Views
     var sortedAllItems: [UnifiedMapItem] {
-        (filteredTodos.map { UnifiedMapItem.todo($0) } +
-         filteredLogs.map { UnifiedMapItem.history($0) })
-        .sorted { getItemDate($0) > getItemDate($1) }
+        cachedMapItems.sorted { getItemDate($0) > getItemDate($1) }
     }
 
     var statusWidget: some View {
@@ -555,7 +563,7 @@ extension ContentView {
                     
                     VStack(spacing: 0) {
                         HStack {
-                            Text("모든 항목 (\(filteredTodos.count + filteredLogs.count))")
+                            Text("모든 항목 (\(cachedMapItems.count))")
                                 .font(.headline)
                             Spacer()
                             Button(action: { withAnimation { showListView = false } }) {

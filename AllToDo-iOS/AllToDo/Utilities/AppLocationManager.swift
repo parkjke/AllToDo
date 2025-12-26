@@ -215,6 +215,14 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         
         return result
     }
+    
+    /// [NEW] Force reset session state without saving (used for DB reset)
+    func resetSession() {
+        currentTripID = nil
+        processedSessionPoints.removeAll()
+        pendingBuffer.removeAll()
+        print(">>> AppLocationManager: Session reset completed.")
+    }
 
     
     func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
@@ -227,12 +235,15 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
         
+        // [FIX] Always update current location for UI and persistence, even if stationary
+        DispatchQueue.main.async {
+            self.currentLocation = location
+            self.saveLastLocation(location)
+        }
+        
         if SmartLocationManager.shared.shouldUpdate(lastLoc: lastIntLocation, newLoc: location, currentSpan: currentSpan) {
             lastIntLocation = SmartLocationManager.shared.toIntLocation(location)
-            DispatchQueue.main.async {
-                self.currentLocation = location
-            }
-
+            print(">>> start map: Location received from OS: \(location.coordinate.latitude), \(location.coordinate.longitude)")
         }
         
         if !hasLoggedInitialLocation {
@@ -255,5 +266,11 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
                 }
             }
         }
+    }
+    
+    private func saveLastLocation(_ loc: CLLocation) {
+        UserDefaults.standard.set(loc.coordinate.latitude, forKey: "last_latitude")
+        UserDefaults.standard.set(loc.coordinate.longitude, forKey: "last_longitude")
+        UserDefaults.standard.set(true, forKey: "has_saved_location")
     }
 }

@@ -9,8 +9,7 @@ struct KakaoMapView: UIViewRepresentable {
     @Binding var action: MapAction
     @Binding var rotation: Double
     @ObservedObject var locationManager: AppLocationManager
-    var todoItems: [ToDoItem]
-    var userLogs: [ToDoItem]
+    var allItems: [UnifiedMapItem]
     @Binding var selectedItem: ToDoItem?
     @Binding var viewingHistoryItem: ToDoItem? // [NEW]
     @Binding var selectedClusterItems: [UnifiedMapItem]?
@@ -63,7 +62,11 @@ struct KakaoMapView: UIViewRepresentable {
         }
         
         // [STEP 5] Smart Pins & Tethering
-        context.coordinator.forceUpdatePins()
+        let currentSummary = "\(allItems.count)-\(allItems.first?.id.uuidString ?? "")"
+        if context.coordinator.lastDataSummary != currentSummary {
+            context.coordinator.lastDataSummary = currentSummary
+            context.coordinator.forceUpdatePins()
+        }
         if let mapView = context.coordinator.controller?.getView("mapview") as? KakaoMap,
            let loc = locationManager.currentLocation {
             context.coordinator.checkTethering(mapView: mapView, userLocation: loc)
@@ -204,29 +207,38 @@ struct KakaoMapView: UIViewRepresentable {
         private func fitBoundsInitially(_ mapView: KakaoMap) {
             var points: [MapPoint] = []
             
-            // [FIX] 500km Filter for Initial Fit Bounds
             var uInt: (lat: Int, lon: Int)? = nil
             if let u = parent.locationManager.currentLocation {
                 uInt = SmartLocationManager.shared.toIntLocation(u)
                 points.append(MapPoint(longitude: u.coordinate.longitude, latitude: u.coordinate.latitude))
+            } else {
+                // [FIX] Prioritize saved location from UserDefaults
+                let hasSaved = UserDefaults.standard.bool(forKey: "has_saved_location")
+                if hasSaved {
+                    let savedLat = UserDefaults.standard.double(forKey: "last_latitude")
+                    let savedLon = UserDefaults.standard.double(forKey: "last_longitude")
+                    points.append(MapPoint(longitude: savedLon, latitude: savedLat))
+                    print(">>> KakaoMapView: Including Saved Location in Fit Bounds: \(savedLat), \(savedLon)")
+                }
             }
             
-            for item in parent.todoItems {
-                if let l = item.location {
-                    // Filter far items
-                    if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: item.int_lat, lon2: item.int_long) {
+            for item in parent.allItems {
+                switch item {
+                case .todo(let t):
+                    if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: t.int_lat, lon2: t.int_long) {
                         continue
                     }
-                    points.append(MapPoint(longitude: l.longitude, latitude: l.latitude))
+                    points.append(MapPoint(longitude: t.longitude, latitude: t.latitude))
+                case .history(let log):
+                    if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.int_lat, lon2: log.int_long) {
+                        continue
+                    }
+                    points.append(MapPoint(longitude: log.longitude, latitude: log.latitude))
+                case .userLocation(let coord):
+                    points.append(MapPoint(longitude: coord.longitude, latitude: coord.latitude))
+                case .serverMessage:
+                    break
                 }
-            }
-            
-            for log in parent.userLogs {
-                // Filter far items
-                if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.int_lat, lon2: log.int_long) {
-                    continue
-                }
-                points.append(MapPoint(longitude: log.location?.longitude ?? 0, latitude: log.location?.latitude ?? 0))
             }
 
             
@@ -279,7 +291,7 @@ struct KakaoMapView: UIViewRepresentable {
         // MARK: - [STEP 4] Smart Refresh & WASM
         func forceUpdatePins() {
             let createCoord = parent.creatingTodoLocation
-            let summary = "\(parent.todoItems.count)-\(parent.userLogs.count)-\(createCoord?.latitude ?? 0)-\(createCoord?.longitude ?? 0)-\(isInitialPhase)"
+            let summary = "\(parent.allItems.count)-\(createCoord?.latitude ?? 0)-\(createCoord?.longitude ?? 0)-\(isInitialPhase)"
             
             // If summary matches, we still check if engine just resumed
             if lastDataSummary != summary {
@@ -288,8 +300,6 @@ struct KakaoMapView: UIViewRepresentable {
                 print(">>> MAIN MAP [STEP 4]: Data Changed -> Refreshing (InitiPhase: \(isInitialPhase))")
                 Task { @MainActor in
                     refreshWasmClusters()
-                    refreshWasmClusters()
-                    // syncCreatingTodoPin() // [FIX] Removed as it is now handled in WASM logic
                 }
             }
         }
@@ -305,35 +315,34 @@ struct KakaoMapView: UIViewRepresentable {
             let wasmCellSize = metersPerPixel * 100.0 
             
             // 2. Prepare Data
-            var allItems: [UnifiedMapItem] = []
+            var allItemsToProcess: [UnifiedMapItem] = []
             var rawPoints: [Int32] = []
             
-            for item in parent.todoItems {
-                if let loc = item.location {
-                    allItems.append(.todo(item))
-                    rawPoints.append(Int32(loc.latitude * 100_000))
-                    rawPoints.append(Int32(loc.longitude * 100_000))
+            for item in parent.allItems {
+                switch item {
+                case .todo(let t):
+                    allItemsToProcess.append(item)
+                    rawPoints.append(Int32(t.int_lat))
+                    rawPoints.append(Int32(t.int_long))
+                case .history(let log):
+                    allItemsToProcess.append(item)
+                    rawPoints.append(Int32(log.int_lat))
+                    rawPoints.append(Int32(log.int_long))
+                case .userLocation(let coord):
+                    allItemsToProcess.append(item)
+                    rawPoints.append(Int32(coord.latitude * 100_000))
+                    rawPoints.append(Int32(coord.longitude * 100_000))
+                case .serverMessage:
+                    break
                 }
             }
-            for log in parent.userLogs {
-                allItems.append(.history(log))
-                rawPoints.append(Int32(log.latitude * 100_000))
-                rawPoints.append(Int32(log.longitude * 100_000))
-            }
-
-            // [FIX] Match Apple Map: Add creatingTodoLocation to WASM points
-            // This ensures the "New Entry" pin is clustered and shown
+            
+            // [NEW] Add Creating Todo Location if active
             if let target = parent.creatingTodoLocation {
-                allItems.append(.todo(ToDoItem(todo_name: "New Entry", latitude: target.latitude, longitude: target.longitude)))
+                let newItem = ToDoItem(todo_name: "New Entry", latitude: target.latitude, longitude: target.longitude)
+                allItemsToProcess.append(.todo(newItem))
                 rawPoints.append(Int32(target.latitude * 100_000))
                 rawPoints.append(Int32(target.longitude * 100_000))
-            }
-            
-            // [FIX] Add User Location to Kakao Map
-            if let u = parent.locationManager.currentLocation {
-                allItems.append(.userLocation(u.coordinate))
-                rawPoints.append(Int32(u.coordinate.latitude * 100_000))
-                rawPoints.append(Int32(u.coordinate.longitude * 100_000))
             }
             
             // 3. Request WASM Clustering
@@ -342,7 +351,7 @@ struct KakaoMapView: UIViewRepresentable {
                     // [FIX] Initial 3 seconds: Show all pins raw (no clustering)
                     await MainActor.run {
                         print(">>> MAIN MAP [STEP 5]: Initial Phase -> Rendering Raw Items")
-                        self.renderRawItems(mapView: mapView, allItems: allItems)
+                        self.renderRawItems(mapView: mapView, allItems: allItemsToProcess)
                     }
                     return
                 }
@@ -351,9 +360,9 @@ struct KakaoMapView: UIViewRepresentable {
                 await MainActor.run {
                     print(">>> MAIN MAP [STEP 4]: WASM Clusters found: \(result.count / 3)")
                     if result.isEmpty {
-                        self.renderRawItems(mapView: mapView, allItems: allItems) // Fallback to raw
+                        self.renderRawItems(mapView: mapView, allItems: allItemsToProcess) // Fallback to raw
                     } else {
-                        self.renderClusters(mapView: mapView, clusterResult: result, allItems: allItems)
+                        self.renderClusters(mapView: mapView, clusterResult: result, allItems: allItemsToProcess)
                     }
                 }
             }

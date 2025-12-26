@@ -258,6 +258,10 @@ struct UserProfileView: View {
             try modelContext.delete(model: ToDoItem.self)
             try modelContext.delete(model: PathItem.self)
             try modelContext.save()
+            
+            // [FIX] Also reset the active session in memory to prevent phantom pin creation
+            locationManager.resetSession()
+            
             message = "모든 데이터가 삭제되었습니다."
             
             // Re-trigger launch animation if needed

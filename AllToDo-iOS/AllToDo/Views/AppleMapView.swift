@@ -8,8 +8,7 @@ struct AppleMapView: UIViewRepresentable {
     @Binding var action: MapAction
     @Binding var rotation: Double
     @ObservedObject var locationManager: AppLocationManager
-    var todoItems: [ToDoItem]
-    var userLogs: [ToDoItem]
+    var allItems: [UnifiedMapItem]
     @Binding var selectedItem: ToDoItem?
     @Binding var viewingHistoryItem: ToDoItem? // [NEW]
     @Binding var selectedClusterItems: [UnifiedMapItem]?
@@ -37,52 +36,24 @@ struct AppleMapView: UIViewRepresentable {
         mapView.isRotateEnabled = true
         mapView.isPitchEnabled = false
         
-        // [FIX] Initial Region Calculation (User Location > Pins Centroid > Gwanghwamun)
-        var initialCenter = CLLocationCoordinate2D(latitude: 37.5759, longitude: 126.9768) // Default Gwanghwamun
-        var fitRegion = MKCoordinateRegion(center: initialCenter, span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)) // Default span
+        // FALLBACK TO GWANGHWAMUN
+        var initialCenter = CLLocationCoordinate2D(latitude: 37.5759, longitude: 126.9768)
+        print(">>> start map: AppleMapView: No saved location, starting from Gwanghwamun")
 
-        if let userLoc = locationManager.currentLocation {
-            // Calculate dynamic bounds including User Location
-            var minLat = userLoc.coordinate.latitude
-            var maxLat = userLoc.coordinate.latitude
-            var minLon = userLoc.coordinate.longitude
-            var maxLon = userLoc.coordinate.longitude
-            var hasPoints = true // User location is always a point
-            
-            // [FIX] Apply 500km Filter to Bounds Calculation (Using Int Logic)
-            let uLat = Int(userLoc.coordinate.latitude * 100_000)
-            let uLon = Int(userLoc.coordinate.longitude * 100_000)
-            
-            for item in todoItems { 
-                if let l = item.location {
-                    // Filter Check (Int Ops)
-                    if SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: item.latInt, lon2: item.lonInt) { continue }
-                    minLat = min(minLat, l.latitude); maxLat = max(maxLat, l.latitude); minLon = min(minLon, l.longitude); maxLon = max(maxLon, l.longitude) 
-                } 
-            }
-            for log in userLogs { 
-                // Filter Check (Int Ops)
-                if SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: log.latInt, lon2: log.lonInt) { continue }
-                minLat = min(minLat, log.latitude); maxLat = max(maxLat, log.latitude); minLon = min(minLon, log.longitude); maxLon = max(maxLon, log.longitude) 
-            }
-            
-            if hasPoints {
-                let center = CLLocationCoordinate2D(latitude: (minLat + maxLat) / 2, longitude: (minLon + maxLon) / 2)
-                let span = MKCoordinateSpan(latitudeDelta: (maxLat - minLat) * 1.5 + 0.01, longitudeDelta: (maxLon - minLon) * 1.5 + 0.01)
-                fitRegion = MKCoordinateRegion(center: center, span: span)
-            }
-        } else {
-            // [FIX] If no user location, DEFAULT TO GWANGHWAMUN.
-            // Do NOT try to fit all pins because we don't know which ones are "far" without a reference point.
-            // Fitting all pins causes the "Beijing Zoom" issue.
-            initialCenter = CLLocationCoordinate2D(latitude: 37.5759, longitude: 126.9768)
-            fitRegion = MKCoordinateRegion(center: initialCenter, span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05))
+        let hasSaved = UserDefaults.standard.bool(forKey: "has_saved_location")
+        if hasSaved {
+            let savedLat = UserDefaults.standard.double(forKey: "last_latitude")
+            let savedLon = UserDefaults.standard.double(forKey: "last_longitude")
+            initialCenter = CLLocationCoordinate2D(latitude: savedLat, longitude: savedLon)
+            print(">>> start map: AppleMapView: Restored from Saved Location: \(savedLat), \(savedLon)")
         }
+        // fitRegion = MKCoordinateRegion(center: initialCenter, span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05))
         
         // [FIX] Instant Display (Saved/Default at Zoom 15)
         let initialSpan = 0.01 // Zoom 15
         let initialRegion = MKCoordinateRegion(center: initialCenter, span: MKCoordinateSpan(latitudeDelta: initialSpan, longitudeDelta: initialSpan))
         mapView.setRegion(initialRegion, animated: false)
+        print(">>> start map: Initial Map Displayed at Zoom 15 (Span 0.01) at \(initialCenter.latitude), \(initialCenter.longitude)")
         
         // Long Press Gesture
         let longPress = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleLongPress(_:)))
@@ -97,6 +68,7 @@ struct AppleMapView: UIViewRepresentable {
         context.coordinator.parent = self
         context.coordinator.currentMapView = uiView // [NEW] Set Reference
         uiView.showsUserLocation = false // Force disable System Blue Dot
+        print(">>> start map: AppleMapView: updateUIView")
         
         // Handle Map Actions
         if action != .none {
@@ -106,8 +78,8 @@ struct AppleMapView: UIViewRepresentable {
             }
         }
         
-        // Update Annotations
-        context.coordinator.updateAnnotations(mapView: uiView, items: todoItems, userLocation: locationManager.currentLocation)
+        // Update Annotations - DEPRECATED: Handled by [SMART REFRESH] below
+        // context.coordinator.updateAnnotations(mapView: uiView, userLocation: locationManager.currentLocation)
         
         // Guard against launch animation
         context.coordinator.creatingTodoLocationBinding = $creatingTodoLocation // [NEW]
@@ -128,11 +100,14 @@ struct AppleMapView: UIViewRepresentable {
             context.coordinator.performLaunchAnimation(mapView: uiView, userLocation: u)
         }
         
-        // [SMART REFRESH] Only trigger if data changed
-        let currentSummary = "\(todoItems.count)-\(todoItems.first?.todo_id.uuidString ?? "")-\(userLogs.count)-\(userLogs.first?.todo_id.uuidString ?? "")"
+        // [SMART REFRESH] Only trigger if data changed AND map is ready
+        let currentSummary = "\(allItems.count)-\(allItems.first?.id.uuidString ?? "")"
         if context.coordinator.lastDataSummary != currentSummary {
-            context.coordinator.lastDataSummary = currentSummary
-            context.coordinator.refreshWasmClusters(mapView: uiView)
+            // [FIX] Guard: Do not refresh if map is not yet laid out or in launch phase
+            if uiView.bounds.width > 0 && !context.coordinator.isLaunchAnimating {
+                context.coordinator.lastDataSummary = currentSummary
+                context.coordinator.refreshWasmClusters(mapView: uiView)
+            }
         }
     }
     
@@ -143,6 +118,7 @@ struct AppleMapView: UIViewRepresentable {
     class Coordinator: NSObject, MKMapViewDelegate {
         var parent: AppleMapView
         var firstRender = true
+        var isWasmCluster = false // [FIX] Start false to block initial loop
         var userAnnotation: UnifiedAnnotation?
         var lastDataSummary: String = "" // For Smart Refresh
         var lastItemIDs: Set<UUID> = []
@@ -364,24 +340,25 @@ struct AppleMapView: UIViewRepresentable {
         // MARK: - WASM Clustering Integration
         
         func refreshWasmClusters(mapView: MKMapView) {
-            
-            // [FIX] Fallback to Screen Width if Map View is not yet laid out (Width=0)
-
-            // This prevents "No pins on launch" bug.
-            var widthPixels = mapView.bounds.width
-            var heightPixels: CGFloat = 0.0 // Declare heightPixels
-            if widthPixels <= 0 {
-                widthPixels = 375
-                heightPixels = 812
+            // [FIX] Explicit Control: If launch not finished, DO NOT cluster
+            guard isWasmCluster else {
+                // print(">>> start map: AppleMapView skipping clustering (isWasmCluster=false)")
+                return
             }
-            // guard widthPixels > 0 else { return } // Removed guard
+
+            print(">>> start map: AppleMapView refreshing with - Total: \(parent.allItems.count)")
+            
+            // [FIX] Strict Layout Guard: If map has no width, we can't cluster accurately.
+            guard mapView.bounds.width > 0 else { return }
+            var widthPixels = mapView.bounds.width
+            var heightPixels: CGFloat = mapView.bounds.height
             
             // [OPTIMIZATION] Fast Path: Bypass WASM if forced OR item count is small (< 50) AND not animating to user yet
             // This prevents initial delay and shows raw pins immediately during "Fit Bounds" phase.
             // [OPTIMIZATION] Fast Path: Bypass WASM on launch for speed.
             // visual overlap is acceptable during this phase.
             // [CRITICAL LOCK: DO NOT MODIFY] Raw First -> Cluster Strategy
-            let totalCount = parent.todoItems.count + parent.userLogs.count
+            let totalCount = parent.allItems.count
             let isLaunchPhase = parent.action == .launchSequence || firstRender // Identify launch
             
             // [TEMPORARY CHECK] switch to native clustering
@@ -399,24 +376,28 @@ struct AppleMapView: UIViewRepresentable {
                  var allItems: [UnifiedMapItem] = []
                  var farCount = 0
                  
-                 for item in parent.todoItems {
-                     // 500km Filter (Integer)
-                     if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: item.int_lat, lon2: item.int_long) {
-                         farCount += 1
-                         continue
+                 for item in parent.allItems {
+                     switch item {
+                     case .todo(let t):
+                         // 500km Filter (Integer)
+                         if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: t.int_lat, lon2: t.int_long) {
+                             farCount += 1
+                             continue
+                         }
+                         allItems.append(item)
+                     case .history(let log):
+                         // 500km Filter (Integer)
+                         if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.int_lat, lon2: log.int_long) {
+                             farCount += 1
+                             continue
+                         }
+                         allItems.append(item)
+                     case .userLocation(let coord):
+                         allItems.append(item)
+                     case .serverMessage:
+                         break
                      }
-                     allItems.append(.todo(item))
                  }
-                 for log in parent.userLogs {
-                     // 500km Filter (Integer)
-                      if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.int_lat, lon2: log.int_long) {
-                          farCount += 1
-                          continue
-                      }
-                     allItems.append(.history(log))
-                 }
-                  // User Location
-                  if let u = parent.locationManager.currentLocation { allItems.append(.userLocation(u.coordinate)) }
                  
                  // Notify Far Items
                  if farCount > 0 {
@@ -441,69 +422,71 @@ struct AppleMapView: UIViewRepresentable {
                 }
                 
                 // Fast Path Loop
-                 var allItems: [UnifiedMapItem] = []
-                 var farCount = 0
-                 
-                 for item in parent.todoItems {
-                     // 500km Filter (Integer)
-                     if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: item.int_lat, lon2: item.int_long) {
-                         farCount += 1
-                         continue
-                     }
-                     allItems.append(.todo(item))
-                 }
-                 for log in parent.userLogs {
-                     // 500km Filter (Integer)
-                      if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.int_lat, lon2: log.int_long) {
-                          farCount += 1
-                          continue
-                      }
-                     allItems.append(.history(log))
-                 }
-                 if let loc = parent.locationManager.currentLocation { allItems.append(.userLocation(loc.coordinate)) }
-                 
-                 // Notify Far Items
-                 if farCount > 0 {
-                     DispatchQueue.main.async { self.parent.onFarItemsDetected?(farCount) }
-                 }
-                 
-                 // Render Raw Immediately
-                 DispatchQueue.main.async {
-                     self.renderRawItems(mapView: mapView, allItems: allItems)
-                 }
-                 return
+                var allItemsToRender: [UnifiedMapItem] = []
+                var farCount = 0
+                
+                for item in parent.allItems {
+                    switch item {
+                    case .todo(let t):
+                        // 500km Filter (Integer)
+                        if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: t.int_lat, lon2: t.int_long) {
+                            farCount += 1
+                            continue
+                        }
+                        allItemsToRender.append(item)
+                    case .history(let log):
+                        // 500km Filter (Integer)
+                        if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.int_lat, lon2: log.int_long) {
+                            farCount += 1
+                            continue
+                        }
+                        allItemsToRender.append(item)
+                    case .userLocation:
+                        allItemsToRender.append(item)
+                    case .serverMessage:
+                        break
+                    }
+                }
+                
+                // Notify Far Items
+                if farCount > 0 {
+                    DispatchQueue.main.async { self.parent.onFarItemsDetected?(farCount) }
+                }
+                
+                // Render Raw Immediately
+                DispatchQueue.main.async {
+                    self.renderRawItems(mapView: mapView, allItems: allItemsToRender)
+                }
+                return
             }
 
-            let currentItems = self.parent.todoItems
-            let currentLogs = self.parent.userLogs
-            let userLocation = self.parent.locationManager.currentLocation
-            
             // 1. Prepare Data
-            var allItems: [UnifiedMapItem] = []
+            var allItemsToProcess: [UnifiedMapItem] = []
             var rawPoints: [Int32] = []
             
-            var farItemsCount = 0 
-            
-            for item in currentItems {
-                allItems.append(.todo(item))
-                rawPoints.append(Int32(item.int_lat))
-                rawPoints.append(Int32(item.int_long))
-            }
-            for log in currentLogs {
-                allItems.append(.history(log))
-                rawPoints.append(Int32(log.int_lat))
-                rawPoints.append(Int32(log.int_long))
-            }
-            
-            if let userLoc = userLocation {
-                allItems.append(.userLocation(userLoc.coordinate))
-                rawPoints.append(Int32(userLoc.coordinate.latitude * 100_000))
-                rawPoints.append(Int32(userLoc.coordinate.longitude * 100_000))
+            for item in parent.allItems {
+                switch item {
+                case .todo(let t):
+                    allItemsToProcess.append(item)
+                    rawPoints.append(Int32(t.int_lat))
+                    rawPoints.append(Int32(t.int_long))
+                case .history(let log):
+                    allItemsToProcess.append(item)
+                    rawPoints.append(Int32(log.int_lat))
+                    rawPoints.append(Int32(log.int_long))
+                case .userLocation(let coord):
+                    allItemsToProcess.append(item)
+                    rawPoints.append(Int32(coord.latitude * 100_000))
+                    rawPoints.append(Int32(coord.longitude * 100_000))
+                case .serverMessage:
+                    break
+                }
             }
             
             // [NEW] Add Creating Todo Location if active
             if let target = creatingTodoLocationBinding?.wrappedValue {
-                allItems.append(.todo(ToDoItem(todo_name: "New Entry", latitude: target.latitude, longitude: target.longitude)))
+                let newItem = ToDoItem(todo_name: "New Entry", latitude: target.latitude, longitude: target.longitude)
+                allItemsToProcess.append(.todo(newItem))
                 rawPoints.append(Int32(target.latitude * 100_000))
                 rawPoints.append(Int32(target.longitude * 100_000))
             }
@@ -515,14 +498,27 @@ struct AppleMapView: UIViewRepresentable {
             let metersPerPixel = widthMeters / widthPixels
             let wasmCellSize = metersPerPixel * 100.0 
             
-            DispatchQueue.main.async {
-                self.parent.clusterRadius = wasmCellSize
+            // [FIX] Invalid Region Guard: If span is too large (World view) or tiny, skip clustering
+            guard region.span.latitudeDelta < 150 && region.span.latitudeDelta > 0 else {
+                print(">>> start map: AppleMapView skipping clustering due to invalid region span: \(region.span.latitudeDelta)")
+                return
+            }
+            
+            // [OPTIMIZATION] Strict Loop Prevention: Do NOT update binding during launch or if change is negligible
+            if !isLaunchPhase {
+                let currentRadius = parent.clusterRadius ?? 0
+                let diff = abs(currentRadius - wasmCellSize)
+                if diff > 0.0001 || parent.clusterRadius == nil {
+                    DispatchQueue.main.async {
+                        self.parent.clusterRadius = wasmCellSize
+                    }
+                }
             }
             
             Task {
                 let result = await WasmManager.shared.cluster(points: rawPoints, cellSize: wasmCellSize)
                 await MainActor.run {
-                    self.renderWasmResults(mapView: mapView, clusterResult: result, allItems: allItems, userLocation: userLocation)
+                    self.renderWasmResults(mapView: mapView, clusterResult: result, allItems: allItemsToProcess, userLocation: parent.locationManager.currentLocation)
                 }
             }
         }
@@ -615,7 +611,7 @@ struct AppleMapView: UIViewRepresentable {
         }
         
         // MARK: - Legacy Update (Disabled)
-        func updateAnnotations(mapView: MKMapView, items: [ToDoItem], userLocation: CLLocation?) {
+        func updateAnnotations(mapView: MKMapView, userLocation: CLLocation?) {
             refreshWasmClusters(mapView: mapView)
         }
         
@@ -633,14 +629,20 @@ struct AppleMapView: UIViewRepresentable {
                 uLat = ui.lat; uLon = ui.lon
             }
             
-            for item in parent.todoItems { 
-                if userLoc != nil && SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: item.int_lat, lon2: item.int_long) { continue }
-                points.append(item.coordinate) 
+            for item in parent.allItems {
+                switch item {
+                case .todo(let t):
+                    if userLoc != nil && SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: t.int_lat, lon2: t.int_long) { continue }
+                    points.append(CLLocationCoordinate2D(latitude: t.latitude, longitude: t.longitude))
+                case .history(let log):
+                    if userLoc != nil && SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: log.int_lat, lon2: log.int_long) { continue }
+                    points.append(CLLocationCoordinate2D(latitude: log.latitude, longitude: log.longitude))
+                case .userLocation(let coord):
+                    points.append(coord)
+                case .serverMessage:
+                    break
+                }
             }
-            for log in parent.userLogs { 
-                 if userLoc != nil && SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: log.int_lat, lon2: log.int_long) { continue }
-                 points.append(log.coordinate) 
-             }
             
             if !points.isEmpty {
                  var minLat = points[0].latitude; var maxLat = points[0].latitude
@@ -676,6 +678,7 @@ struct AppleMapView: UIViewRepresentable {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                         self.isLaunchAnimating = false
                         self.firstRender = false 
+                        self.isWasmCluster = true // [FIX] Enable Clustering NOW
                         self.moveLocation = SmartLocationManager.shared.toIntLocation(freshLoc) // [NEW] Set Initial Anchor
                         self.refreshWasmClusters(mapView: mapView)
                     }

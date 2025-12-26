@@ -9,8 +9,7 @@ struct GoogleMapView: UIViewRepresentable {
     @Binding var rotation: Double
     @ObservedObject var locationManager: AppLocationManager
     
-    var todoItems: [ToDoItem]
-    var userLogs: [ToDoItem]
+    var allItems: [UnifiedMapItem]
     
     @Binding var selectedItem: ToDoItem?
     @Binding var viewingHistoryItem: ToDoItem? // [NEW]
@@ -37,34 +36,46 @@ struct GoogleMapView: UIViewRepresentable {
     func makeUIView(context: Context) -> GMSMapView {
         let options = GMSMapViewOptions()
         options.frame = .zero
-        
-        // [FIX] Initial Camera Calculation (User Location > Pins Centroid > Seoul)
-        // [FIX] Initial Camera Calculation (User Location > Pins Centroid > Gwanghwamun)
-        var initialTarget = CLLocationCoordinate2D(latitude: 37.5759, longitude: 126.9768) // Default Gwanghwamun
+        var initialTarget = CLLocationCoordinate2D(latitude: 37.5759, longitude: 126.9768)
         
         if let userLoc = locationManager.currentLocation {
             initialTarget = userLoc.coordinate
         } else {
-            // Calculate Centroid
-            var latSum: Double = 0
-            var lonSum: Double = 0
-            var count: Double = 0
-            
-            for item in todoItems {
-                if let loc = item.location {
-                    latSum += loc.latitude
-                    lonSum += loc.longitude
-                    count += 1
+            // [FIX] Prioritize saved location from UserDefaults
+            let hasSaved = UserDefaults.standard.bool(forKey: "has_saved_location")
+            if hasSaved {
+                let savedLat = UserDefaults.standard.double(forKey: "last_latitude")
+                let savedLon = UserDefaults.standard.double(forKey: "last_longitude")
+                initialTarget = CLLocationCoordinate2D(latitude: savedLat, longitude: savedLon)
+                print(">>> GoogleMapView: Restored from Saved Location: \(savedLat), \(savedLon)")
+            } else {
+                // Calculate Centroid fallback
+                var latSum: Double = 0
+                var lonSum: Double = 0
+                var count: Double = 0
+                
+                for item in allItems {
+                    switch item {
+                    case .todo(let t):
+                        latSum += t.latitude
+                        lonSum += t.longitude
+                        count += 1
+                    case .history(let t):
+                        latSum += t.latitude
+                        lonSum += t.longitude
+                        count += 1
+                    case .userLocation(let coord):
+                        latSum += coord.latitude
+                        lonSum += coord.longitude
+                        count += 1
+                    case .serverMessage:
+                          break
+                    }
                 }
-            }
-            for log in userLogs {
-                latSum += log.latitude
-                lonSum += log.longitude
-                count += 1
-            }
-            
-            if count > 0 {
-                initialTarget = CLLocationCoordinate2D(latitude: latSum / count, longitude: lonSum / count)
+                
+                if count > 0 {
+                    initialTarget = CLLocationCoordinate2D(latitude: latSum / count, longitude: lonSum / count)
+                }
             }
         }
         
@@ -91,11 +102,13 @@ struct GoogleMapView: UIViewRepresentable {
             }
         }
         
-        // [FIX] Ensure clusters are refreshed when SwiftUI state changes, BUT avoid redundant calls at init
-        // Only refresh if not in first render sequence (Launch Animation handles the first refresh)
         // 2. Refresh WASM Clusters (if needed) - Logic inside
-        context.coordinator.creatingTodoLocationBinding = $creatingTodoLocation // [NEW]
-        context.coordinator.refreshWasmClusters(mapView: uiView)
+        let currentSummary = "\(allItems.count)-\(allItems.first?.id.uuidString ?? "")"
+        if context.coordinator.lastDataSummary != currentSummary {
+            context.coordinator.lastDataSummary = currentSummary
+            context.coordinator.creatingTodoLocationBinding = $creatingTodoLocation // [NEW]
+            context.coordinator.refreshWasmClusters(mapView: uiView)
+        }
         
         // [NEW] Check Tethering (Conditional)
         // Only if NOT animating and NOT first render
@@ -128,6 +141,9 @@ struct GoogleMapView: UIViewRepresentable {
         
         var pathOverlay: GMSPolyline?
         var activePathOverlay: GMSPolyline?
+        var lastDataSummary: String = ""
+        var pendingSelection: (items: [UnifiedMapItem], position: CLLocationCoordinate2D)?
+        var moveLocation: (lat: Int, lon: Int)?
         
         init(_ parent: GoogleMapView) {
             self.parent = parent
@@ -146,10 +162,16 @@ struct GoogleMapView: UIViewRepresentable {
                 
                 // 1. Position
                 switch item {
-                 case .todo(let t): if let l = t.location { marker.position = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude) }
-                 case .history(let l): marker.position = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)
-                 case .userLocation(let coord): marker.position = coord
-                 default: break
+                case .todo(let t):
+                    if let l = t.location {
+                        marker.position = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)
+                    }
+                case .history(let l):
+                    marker.position = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)
+                case .userLocation(let coord):
+                          marker.position = coord
+                      case .serverMessage:
+                          break
                 }
                 
                 // 2. Icon Type
@@ -157,11 +179,12 @@ struct GoogleMapView: UIViewRepresentable {
                 switch item {
                 case .todo(let t):
                     if t.isCompleted { name = "PinTodoDone" }
-                    // Source check not available currently
-                    // if t.source != "local" { name = "PinReceiveReady" } // Blue
-                case .history: name = "PinHistory"
-                case .userLocation: name = "PinCurrent"
-                case .serverMessage: name = "PinReceiveReady"
+                case .history:
+                    name = "PinHistory"
+                case .userLocation, .serverMessage:
+                    name = "PinCurrent"
+                case .serverMessage:
+                    name = "PinReceiveReady"
                 }
                 
                 marker.icon = UIImage(named: name)?.resized(to: CGSize(width: 40, height: 50))
@@ -199,10 +222,21 @@ struct GoogleMapView: UIViewRepresentable {
                     bounds = bounds.includingCoordinate(loc.coordinate)
                     count += 1
                 }
-                for item in parent.todoItems {
-                    if let l = item.location {
-                        bounds = bounds.includingCoordinate(CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude))
+                for item in parent.allItems {
+                    switch item {
+                    case .todo(let t):
+                        bounds = bounds.includingCoordinate(CLLocationCoordinate2D(latitude: t.latitude, longitude: t.longitude))
                         count += 1
+                    case .history(let log):
+                        bounds = bounds.includingCoordinate(CLLocationCoordinate2D(latitude: log.latitude, longitude: log.longitude))
+                        count += 1
+                    case .userLocation(let coord):
+                      bounds = bounds.includingCoordinate(coord)
+                  case .serverMessage:
+                          break
+                        count += 1
+                    case .serverMessage:
+                          break
                     }
                 }
                 if count > 0 {
@@ -238,13 +272,9 @@ struct GoogleMapView: UIViewRepresentable {
             }
         }
         
-        // [NEW] Pending Selection for Auto-Center
-        var pendingSelection: (items: [UnifiedMapItem], position: CLLocationCoordinate2D)?
-
-        // [FIX] Restored Missing Properties
+        // (Removed duplicate properties as they are now at the top of Coordinator)
         var currentSpanLon: Int = 0
         var currentSpanLat: Int = 0 
-        var moveLocation: (lat: Int, lon: Int)? = nil
 
         // MARK: - Delegate Methods
         func mapView(_ mapView: GMSMapView, didChange position: GMSCameraPosition) {
@@ -287,8 +317,8 @@ struct GoogleMapView: UIViewRepresentable {
         func mapView(_ mapView: GMSMapView, idleAt position: GMSCameraPosition) {
             // [NEW] Handle Pending Selection (Auto-Center Complete)
             if let pending = pendingSelection {
-                let items = pending.items
-                let pos = pending.position
+                let items = pending.0
+                let pos = pending.1
                 pendingSelection = nil
                 
                 DispatchQueue.main.async {
@@ -376,7 +406,7 @@ struct GoogleMapView: UIViewRepresentable {
             
             // [OPTIMIZATION] Fast Path
             // [CRITICAL LOCK: DO NOT MODIFY] Raw First -> Cluster Strategy
-            let totalCount = parent.todoItems.count + parent.userLogs.count
+            let totalCount = parent.allItems.count
             let isLaunchPhase = parent.action == .launchSequence || firstRender
             let useFastPath = isLaunchPhase
             
@@ -390,44 +420,46 @@ struct GoogleMapView: UIViewRepresentable {
                 }
                 
                  // Prepare Raw
-                 var allItems: [UnifiedMapItem] = []
-                 var farCount = 0
-                 
-                 for item in parent.todoItems {
-                     if let loc = item.location {
+                var allItemsToRender: [UnifiedMapItem] = []
+                var farCount = 0
+                
+                for item in parent.allItems {
+                    switch item {
+                    case .todo(let t):
                          // 500km (Integer)
-                         if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: item.latInt, lon2: item.lonInt) {
+                         if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: t.int_lat, lon2: t.int_long) {
                              farCount += 1
                              continue
                          }
-                         allItems.append(.todo(item))
-                     }
-                 }
-                 for log in parent.userLogs {
-                     // 500km (Integer)
-                      if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.latInt, lon2: log.lonInt) {
-                          farCount += 1
-                          continue
-                      }
-                     allItems.append(.history(log))
-                 }
-                 
-                 // [NEW] Add Creating Todo Location
-                 if let target = creatingTodoLocationBinding?.wrappedValue {
-                     allItems.append(.todo(ToDoItem(todo_name: "New Entry", latitude: target.latitude, longitude: target.longitude)))
-                 }
-                 
-                 if let u = parent.locationManager.currentLocation { allItems.append(.userLocation(u.coordinate)) }
-                 
-                 // Notify
-                 if farCount > 0 {
-                     DispatchQueue.main.async { self.parent.onFarItemsDetected?(farCount) }
-                 }
-                 
-                 DispatchQueue.main.async {
-                     self.renderRawItems(mapView: mapView, allItems: allItems)
-                 }
-                 return
+                         allItemsToRender.append(item)
+                    case .history(let log):
+                         // 500km (Integer)
+                         if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.int_lat, lon2: log.int_long) {
+                             farCount += 1
+                             continue
+                         }
+                         allItemsToRender.append(item)
+                    case .userLocation, .serverMessage:
+                         allItemsToRender.append(item)
+                    case .serverMessage:
+                         allItemsToRender.append(item)
+                    }
+                }
+                
+                // [NEW] Add Creating Todo Location
+                if let target = creatingTodoLocationBinding?.wrappedValue {
+                    allItemsToRender.append(.todo(ToDoItem(todo_name: "New Entry", latitude: target.latitude, longitude: target.longitude)))
+                }
+                
+                // Notify
+                if farCount > 0 {
+                    DispatchQueue.main.async { self.parent.onFarItemsDetected?(farCount) }
+                }
+                
+                DispatchQueue.main.async {
+                    self.renderRawItems(mapView: mapView, allItems: allItemsToRender)
+                }
+                return
             }
             
             let center = mapView.camera.target
@@ -436,72 +468,52 @@ struct GoogleMapView: UIViewRepresentable {
             let metersPerPixel = 156543.03392 * cos(center.latitude * .pi / 180.0) / pow(2, Double(zoom))
             let wasmCellSize = metersPerPixel * 100.0 // [FIX] Restored Standard Sensitivity (100.0)
             
-            // [NEW] Update Binding
-            DispatchQueue.main.async {
-                self.parent.clusterRadius = wasmCellSize
+            // [OPTIMIZATION] Strict Loop Prevention: Do NOT update binding during launch or if change is negligible
+            if !isLaunchPhase {
+                let currentRadius = parent.clusterRadius ?? 0
+                let diff = abs(currentRadius - wasmCellSize)
+                if diff > 0.0001 || parent.clusterRadius == nil {
+                    DispatchQueue.main.async {
+                        self.parent.clusterRadius = wasmCellSize
+                    }
+                }
             }
             
             // Prepare Data
-            let currentItems = parent.todoItems
-            let currentLogs = parent.userLogs
-            
-            var allItems: [UnifiedMapItem] = []
+            var allItemsToProcess: [UnifiedMapItem] = []
             var rawPoints: [Int32] = []
             
-            var farItemsCount = 0
-            
-            let userLocation = parent.locationManager.currentLocation // Define userLocation here
-            // Pre-calc user int
-            var uInt: (lat: Int, lon: Int)? = nil
-            if let u = userLocation {
-                uInt = SmartLocationManager.shared.toIntLocation(u)
-            }
-            
-            // OptimizationLogger.shared.log(type: .launchStep, value: ">>> Pins Loaded: \(currentItems.count) Items, \(currentLogs.count) Logs")
-            
-            for item in currentItems {
-                if let loc = item.location {
-                     // Standard Path: Show All
-                    allItems.append(.todo(item))
-                    rawPoints.append(Int32(loc.latitude * 100_000))
-                    rawPoints.append(Int32(loc.longitude * 100_000))
+            for item in parent.allItems {
+                switch item {
+                case .todo(let t):
+                    allItemsToProcess.append(item)
+                    rawPoints.append(Int32(t.int_lat))
+                    rawPoints.append(Int32(t.int_long))
+                case .history(let log):
+                    allItemsToProcess.append(item)
+                    rawPoints.append(Int32(log.int_lat))
+                    rawPoints.append(Int32(log.int_long))
+                case .userLocation(let coord):
+                    allItemsToProcess.append(item)
+                    rawPoints.append(Int32(coord.latitude * 100_000))
+                    rawPoints.append(Int32(coord.longitude * 100_000))
+                case .serverMessage:
+                          break
                 }
-            }
-            for log in currentLogs {
-                  // Standard Path: Show All
-                allItems.append(.history(log))
-                rawPoints.append(Int32(log.latitude * 100_000))
-                rawPoints.append(Int32(log.longitude * 100_000))
-            }
-            
-            if farItemsCount > 0 {
-                DispatchQueue.main.async {
-                    self.parent.onFarItemsDetected?(farItemsCount)
-                }
-            }
-            
-            if let userLoc = parent.locationManager.currentLocation {
-                allItems.append(.userLocation(userLoc.coordinate))
-                rawPoints.append(Int32(userLoc.coordinate.latitude * 100_000))
-                rawPoints.append(Int32(userLoc.coordinate.longitude * 100_000))
             }
             
             // [NEW] Add Creating Todo Location if active
             if let target = creatingTodoLocationBinding?.wrappedValue {
-                allItems.append(.todo(ToDoItem(todo_name: "New Entry", latitude: target.latitude, longitude: target.longitude)))
+                let newItem = ToDoItem(todo_name: "New Entry", latitude: target.latitude, longitude: target.longitude)
+                allItemsToProcess.append(.todo(newItem))
                 rawPoints.append(Int32(target.latitude * 100_000))
                 rawPoints.append(Int32(target.longitude * 100_000))
             }
             
             Task {
-                // print(">>> WASM Clustering Start")
-                let start = Date()
                 let result = await WasmManager.shared.cluster(points: rawPoints, cellSize: wasmCellSize)
-                // print(">>> WASM Clustering Result: \(result.count/3)")
-                let _ = Date().timeIntervalSince(start) * 1000
-                
                 await MainActor.run {
-                    self.renderWasmResults(mapView: mapView, clusterResult: result, allItems: allItems)
+                    self.renderWasmResults(mapView: mapView, clusterResult: result, allItems: allItemsToProcess)
                 }
             }
         }
@@ -539,8 +551,9 @@ struct GoogleMapView: UIViewRepresentable {
                  case .todo(let t): if let l = t.location { itemLat = l.latitude; itemLon = l.longitude }
                  case .history(let l): itemLat = l.latitude; itemLon = l.longitude
                  case .userLocation(let coord):
-                     itemLat = coord.latitude; itemLon = coord.longitude
-                 default: break
+                    itemLat = coord.latitude; itemLon = coord.longitude
+                case .serverMessage:
+                          break
                  }
                  
                  var bestIdx = -1
@@ -581,8 +594,10 @@ struct GoogleMapView: UIViewRepresentable {
                      switch item {
                      case .todo(let t): if let l = t.location { marker.position = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude) }
                      case .history(let l): marker.position = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)
-                     case .userLocation(let coord): marker.position = coord
-                     default: break
+                     case .userLocation(let coord):
+                          marker.position = coord
+                      case .serverMessage:
+                          break
                      }
                      
                      // [FIX] Explicit Anchor for Single Items (Default)
@@ -604,7 +619,7 @@ struct GoogleMapView: UIViewRepresentable {
                           if let img = UIImage(named: "PinReceiveReady") {
                               marker.icon = img.resized(to: CGSize(width: 40, height: 50))
                           }
-                     case .userLocation:
+                     case .userLocation, .serverMessage:
                           if let img = UIImage(named: "PinCurrent") {
                               marker.icon = img.resized(to: CGSize(width: 40, height: 50))
                           }
@@ -650,15 +665,19 @@ struct GoogleMapView: UIViewRepresentable {
              let uLat = Int(userLoc.coordinate.latitude * 100_000)
              let uLon = Int(userLoc.coordinate.longitude * 100_000)
              
-             for item in parent.todoItems { 
-                 if let l = item.location {
-                     if SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: item.latInt, lon2: item.lonInt) { continue }
-                     bounds = bounds.includingCoordinate(l) 
-                 } 
-             }
-             for log in parent.userLogs {
-                 if SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: log.latInt, lon2: log.lonInt) { continue }
-                 bounds = bounds.includingCoordinate(CLLocationCoordinate2D(latitude: log.latitude, longitude: log.longitude)) 
+             for item in parent.allItems {
+                 switch item {
+                 case .todo(let t):
+                     if SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: t.int_lat, lon2: t.int_long) { continue }
+                     bounds = bounds.includingCoordinate(CLLocationCoordinate2D(latitude: t.latitude, longitude: t.longitude))
+                 case .history(let log):
+                     if SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: log.int_lat, lon2: log.int_long) { continue }
+                     bounds = bounds.includingCoordinate(CLLocationCoordinate2D(latitude: log.latitude, longitude: log.longitude))
+                 case .userLocation(let coord):
+                      bounds = bounds.includingCoordinate(coord)
+                  case .serverMessage:
+                          break
+                 }
              }
             
              // Apply Fit with Padding

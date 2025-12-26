@@ -8,8 +8,7 @@ struct NaverMapView: UIViewRepresentable {
     @Binding var action: MapAction
     @Binding var rotation: Double
     @ObservedObject var locationManager: AppLocationManager
-    var todoItems: [ToDoItem]
-    var userLogs: [ToDoItem]
+    var allItems: [UnifiedMapItem]
     @Binding var selectedItem: ToDoItem?
     @Binding var viewingHistoryItem: ToDoItem? // [NEW]
     @Binding var selectedClusterItems: [UnifiedMapItem]?
@@ -43,32 +42,47 @@ struct NaverMapView: UIViewRepresentable {
         view.mapView.touchDelegate = context.coordinator
         view.mapView.addCameraDelegate(delegate: context.coordinator)
         
-        // [FIX] Initial Camera Calculation (User Location > Pins Centroid > Gwanghwamun)
-        var initialTarget = NMGLatLng(lat: 37.5759, lng: 126.9768) // Default Gwanghwamun
+        var initialTarget = NMGLatLng(lat: 37.5759, lng: 126.9768)
         
         if let userLoc = locationManager.currentLocation {
             initialTarget = NMGLatLng(lat: userLoc.coordinate.latitude, lng: userLoc.coordinate.longitude)
         } else {
-            // Calculate Centroid
-            var latSum: Double = 0
-            var lonSum: Double = 0
-            var count: Double = 0
-            
-            for item in todoItems {
-                if let loc = item.location {
-                    latSum += loc.latitude
-                    lonSum += loc.longitude
-                    count += 1
+            // [FIX] Prioritize saved location from UserDefaults
+            let hasSaved = UserDefaults.standard.bool(forKey: "has_saved_location")
+            if hasSaved {
+                let savedLat = UserDefaults.standard.double(forKey: "last_latitude")
+                let savedLon = UserDefaults.standard.double(forKey: "last_longitude")
+                initialTarget = NMGLatLng(lat: savedLat, lng: savedLon)
+                print(">>> NaverMapView: Restored from Saved Location: \(savedLat), \(savedLon)")
+            } else {
+                // Calculate Centroid fallback
+                var latSum: Double = 0
+                var lonSum: Double = 0
+                var count: Double = 0
+                
+                for item in allItems {
+                    switch item {
+                    case .todo(let t):
+                        latSum += t.latitude
+                        lonSum += t.longitude
+                        count += 1
+                    case .history(let log):
+                        latSum += log.latitude
+                        lonSum += log.longitude
+                        count += 1
+                    case .userLocation(let coord):
+                        latSum += coord.latitude
+                        lonSum += coord.longitude
+                        count += 1
+                    case .serverMessage:
+                    break
+                        break
+                    }
                 }
-            }
-            for log in userLogs {
-                latSum += log.latitude
-                lonSum += log.longitude
-                count += 1
-            }
-            
-            if count > 0 {
-                initialTarget = NMGLatLng(lat: latSum / count, lng: lonSum / count)
+                
+                if count > 0 {
+                    initialTarget = NMGLatLng(lat: latSum / count, lng: lonSum / count)
+                }
             }
         }
         
@@ -99,7 +113,7 @@ struct NaverMapView: UIViewRepresentable {
         
         // 2. Trigger Clustering (Only if not in first render sequence)
         if !context.coordinator.firstRender {
-            let currentSummary = "\(todoItems.count)-\(todoItems.first?.todo_id.uuidString ?? "")-\(userLogs.count)-\(userLogs.first?.todo_id.uuidString ?? "")"
+            let currentSummary = "\(allItems.count)-\(allItems.first?.id.uuidString ?? "")"
             if context.coordinator.lastDataSummary != currentSummary {
                 context.coordinator.lastDataSummary = currentSummary
                 context.coordinator.refreshWasmClusters()
@@ -157,7 +171,10 @@ struct NaverMapView: UIViewRepresentable {
                 switch item {
                 case .todo(let t): if let l = t.location { marker.position = NMGLatLng(lat: l.latitude, lng: l.longitude) }
                 case .history(let l): marker.position = NMGLatLng(lat: l.latitude, lng: l.longitude)
-                case .userLocation(let coord): marker.position = NMGLatLng(lat: coord.latitude, lng: coord.longitude)
+                case .userLocation(let coord):
+                    marker.position = NMGLatLng(lat: coord.latitude, lng: coord.longitude)
+                case .serverMessage:
+                    break
                 default: break
                 }
                 
@@ -172,7 +189,7 @@ struct NaverMapView: UIViewRepresentable {
                     
                 case .history:
                     name = "PinHistory" // Red
-                case .userLocation:
+                case .userLocation, .serverMessage:
                     name = "PinCurrent" // Red
                 case .serverMessage:
                     name = "PinReceiveReady" // Blue
@@ -317,7 +334,7 @@ struct NaverMapView: UIViewRepresentable {
                 widthPixels = 375
             }
             // [OPTIMIZATION] Fast Path
-            let total = parent.todoItems.count + parent.userLogs.count
+            let total = parent.allItems.count
             // If launching, render raw regardless of count
             // Naver uses 'firstRender' flag in Coordinator.
             // [CRITICAL LOCK: DO NOT MODIFY] Raw First -> Cluster Strategy
@@ -330,32 +347,33 @@ struct NaverMapView: UIViewRepresentable {
                     uInt = SmartLocationManager.shared.toIntLocation(u)
                 }
                  
-                 var allItems: [UnifiedMapItem] = []
+                 var allItemsToRender: [UnifiedMapItem] = []
                  var farCount = 0
                  
-                 for item in parent.todoItems {
-                     if let loc = item.location {
-                         // 500km Filter (Integer)
-                         if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: item.latInt, lon2: item.lonInt) {
-                             farCount += 1
-                             continue
-                         }
-                         allItems.append(.todo(item))
+                 for item in parent.allItems {
+                     switch item {
+                     case .todo(let t):
+                          // 500km Filter (Integer)
+                          if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: t.int_lat, lon2: t.int_long) {
+                              farCount += 1
+                              continue
+                          }
+                          allItemsToRender.append(item)
+                     case .history(let log):
+                          // 500km Filter (Integer)
+                          if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.int_lat, lon2: log.int_long) {
+                              farCount += 1
+                              continue
+                          }
+                          allItemsToRender.append(item)
+                     case .userLocation, .serverMessage:
+                          allItemsToRender.append(item)
                      }
                  }
-                 for log in parent.userLogs {
-                     // 500km Filter (Integer)
-                      if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.latInt, lon2: log.lonInt) {
-                          farCount += 1
-                          continue
-                      }
-                     allItems.append(.history(log))
-                 }
-                 if let u = parent.locationManager.currentLocation { allItems.append(.userLocation(u.coordinate)) }
                  
                  // [NEW] Add Creating Todo Location
                  if let target = creatingTodoLocationBinding?.wrappedValue {
-                     allItems.append(.todo(ToDoItem(todo_name: "New Entry", latitude: target.latitude, longitude: target.longitude)))
+                     allItemsToRender.append(.todo(ToDoItem(todo_name: "New Entry", latitude: target.latitude, longitude: target.longitude)))
                  }
                  
                  // Notify
@@ -364,7 +382,7 @@ struct NaverMapView: UIViewRepresentable {
                  }
                  
                  DispatchQueue.main.async {
-                     self.renderRawItems(mapView: map, allItems: allItems)
+                     self.renderRawItems(mapView: map, allItems: allItemsToRender)
                  }
                  return
             }
@@ -376,59 +394,46 @@ struct NaverMapView: UIViewRepresentable {
             let metersPerPixel = 156543.03392 * cos(centerLat * .pi / 180.0) / pow(2, zoom)
             let wasmCellSize = metersPerPixel * 100.0 // [FIX] Restored Standard Sensitivity (100.0)
             
-            // [NEW] Update Binding
-            DispatchQueue.main.async {
-                self.parent.clusterRadius = wasmCellSize
+            // [OPTIMIZATION] Strict Loop Prevention: Do NOT update binding during launch or if change is negligible
+            let isLaunchPhase = parent.action == .launchSequence || firstRender
+            if !isLaunchPhase {
+                let currentRadius = parent.clusterRadius ?? 0
+                let diff = abs(currentRadius - wasmCellSize)
+                if diff > 0.0001 || parent.clusterRadius == nil {
+                    DispatchQueue.main.async {
+                        self.parent.clusterRadius = wasmCellSize
+                    }
+                }
             }
             
             // Prepare Data
-            let currentItems = parent.todoItems
-            let currentLogs = parent.userLogs
-            let userLocation = parent.locationManager.currentLocation
-            
-            var allItems: [UnifiedMapItem] = []
+            var allItemsToProcess: [UnifiedMapItem] = []
             var rawPoints: [Int32] = []
             
-            var farItemsCount = 0
-            
-            // Pre-calc user int
-            var uInt: (lat: Int, lon: Int)? = nil
-            if let u = userLocation {
-                uInt = SmartLocationManager.shared.toIntLocation(u)
-            }
-            
-            // OptimizationLogger.shared.log(type: .launchStep, value: ">>> Pins Loaded: \(currentItems.count) Items, \(currentLogs.count) Logs")
-            
-            for item in currentItems {
-                if let loc = item.location {
-                     // Standard Path: Show All
-                    allItems.append(.todo(item))
-                    rawPoints.append(Int32(loc.latitude * 100_000))
-                    rawPoints.append(Int32(loc.longitude * 100_000))
+            for item in parent.allItems {
+                switch item {
+                case .todo(let t):
+                    allItemsToProcess.append(item)
+                    rawPoints.append(Int32(t.int_lat))
+                    rawPoints.append(Int32(t.int_long))
+                case .history(let log):
+                    allItemsToProcess.append(item)
+                    rawPoints.append(Int32(log.int_lat))
+                    rawPoints.append(Int32(log.int_long))
+                case .userLocation(let coord):
+                    allItemsToProcess.append(item)
+                    rawPoints.append(Int32(coord.latitude * 100_000))
+                    rawPoints.append(Int32(coord.longitude * 100_000))
+                case .serverMessage:
+                    break
+                    break
                 }
-            }
-            for log in currentLogs {
-                  // Standard Path: Show All
-                allItems.append(.history(log))
-                rawPoints.append(Int32(log.latitude * 100_000))
-                rawPoints.append(Int32(log.longitude * 100_000))
-            }
-            
-            if farItemsCount > 0 {
-                DispatchQueue.main.async {
-                    self.onFarItemsDetected?(farItemsCount)
-                }
-            }
-            
-            if let userLoc = userLocation {
-                allItems.append(.userLocation(userLoc.coordinate))
-                rawPoints.append(Int32(userLoc.coordinate.latitude * 100_000))
-                rawPoints.append(Int32(userLoc.coordinate.longitude * 100_000))
             }
             
             // [NEW] Add Creating Todo Location if active
             if let target = creatingTodoLocationBinding?.wrappedValue {
-                allItems.append(.todo(ToDoItem(todo_name: "New Entry", latitude: target.latitude, longitude: target.longitude)))
+                let newItem = ToDoItem(todo_name: "New Entry", latitude: target.latitude, longitude: target.longitude)
+                allItemsToProcess.append(.todo(newItem))
                 rawPoints.append(Int32(target.latitude * 100_000))
                 rawPoints.append(Int32(target.longitude * 100_000))
             }
@@ -439,7 +444,7 @@ struct NaverMapView: UIViewRepresentable {
                 // print(">>> WASM Clustering Result: \(result.count/3)")
                 
                 await MainActor.run {
-                    self.renderWasmResults(mapView: map, clusterResult: result, allItems: allItems)
+                    self.renderWasmResults(mapView: map, clusterResult: result, allItems: allItemsToProcess)
                 }
             }
         }
@@ -474,8 +479,10 @@ struct NaverMapView: UIViewRepresentable {
                 switch item {
                 case .todo(let t): if let l = t.location { itemLat = l.latitude; itemLon = l.longitude }
                 case .history(let l): itemLat = l.latitude; itemLon = l.longitude
-                case .userLocation(let coord): 
+                case .userLocation(let coord):
                     itemLat = coord.latitude; itemLon = coord.longitude
+                case .serverMessage:
+                    break
                 default: break
                 }
                 
@@ -509,9 +516,13 @@ struct NaverMapView: UIViewRepresentable {
                     switch item {
                     case .todo(let t): if let l = t.location { marker.position = NMGLatLng(lat: l.latitude, lng: l.longitude) }
                     case .history(let l): marker.position = NMGLatLng(lat: l.latitude, lng: l.longitude)
-                    case .userLocation(let coord): marker.position = NMGLatLng(lat: coord.latitude, lng: coord.longitude)
-                    default: marker.position = NMGLatLng(lat: centroid.lat, lng: centroid.lon)
-                    }
+                        case .userLocation(let coord):
+                            marker.position = NMGLatLng(lat: coord.latitude, lng: coord.longitude)
+                        case .serverMessage:
+                            break
+                        default: 
+                            marker.position = NMGLatLng(lat: centroid.lat, lng: centroid.lon)
+                        }
                 } else {
                     var finalCoord = NMGLatLng(lat: centroid.lat, lng: centroid.lon)
                     // [FIX] Cluster Anchoring: If user is in cluster, force cluster to user position
@@ -606,19 +617,37 @@ struct NaverMapView: UIViewRepresentable {
              }
              
              // Include Pins
-             for item in parent.todoItems {
-                 if let l = item.location {
-                     // Filter far items
-                     if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: item.int_lat, lon2: item.int_long) {
-                         continue
-                     }
-                     
-                     minLat = min(minLat, l.latitude)
-                     maxLat = max(maxLat, l.latitude)
-                     minLon = min(minLon, l.longitude)
-                     maxLon = max(maxLon, l.longitude)
-                     hasPins = true
-                 }
+             for item in parent.allItems {
+                  switch item {
+                  case .todo(let t):
+                      // Filter far items
+                      if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: t.int_lat, lon2: t.int_long) {
+                          continue
+                      }
+                      minLat = min(minLat, t.latitude)
+                      maxLat = max(maxLat, t.latitude)
+                      minLon = min(minLon, t.longitude)
+                      maxLon = max(maxLon, t.longitude)
+                      hasPins = true
+                  case .history(let log):
+                      // Filter far items
+                      if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.int_lat, lon2: log.int_long) {
+                          continue
+                      }
+                      minLat = min(minLat, log.latitude)
+                      maxLat = max(maxLat, log.latitude)
+                      minLon = min(minLon, log.longitude)
+                      maxLon = max(maxLon, log.longitude)
+                      hasPins = true
+                  case .userLocation(let coord):
+                      minLat = min(minLat, coord.latitude)
+                      maxLat = max(maxLat, coord.latitude)
+                      minLon = min(minLon, coord.longitude)
+                      maxLon = max(maxLon, coord.longitude)
+                      hasPins = true
+                  case .serverMessage:
+                      break
+                  }
              }
 
              
