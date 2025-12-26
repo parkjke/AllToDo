@@ -55,6 +55,11 @@ struct ContentView: View {
         let min = Calendar.current.date(byAdding: .hour, value: -24, to: centerDate)!
         let max = Calendar.current.date(byAdding: .hour, value: 24, to: centerDate)!
         
+        print(">>> start map: Filtering DB Data - Total Items: \(allItems.count), Center: \(centerDate)")
+        
+        let pathItemsCount = allItems.filter { $0.is_exist_location_path }.count
+        print(">>> start map: Items with is_exist_location_path=true: \(pathItemsCount)")
+
         let items = allItems.filter {
             // 1. Location Path Necessity (Primary Filter)
             if !$0.is_exist_location_path { return false }
@@ -66,6 +71,10 @@ struct ContentView: View {
             
             return itemDate >= min && itemDate <= max
         }
+        
+        print(">>> start map: Items after ±24h Time Filter: \(items.count)")
+        if allPaths.isEmpty { print(">>> start map: WARNING - allPaths is EMPTY") }
+
         
         var results: [UnifiedMapItem] = []
         
@@ -643,7 +652,9 @@ extension ContentView {
             todo_name: name,
             date_time: dateTime,
             type: "10",
+            is_exist_location_path: true,
             latitude: lat,
+
             longitude: lon
         )
         modelContext.insert(newItem)

@@ -87,7 +87,9 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
             let newTrip = ToDoItem(
                 todo_name: "자동 기록 경로 (\(Date().formatted(.dateTime.hour().minute())))",
                 type: "00",
+                is_exist_location_path: true,
                 latitude: startLoc.latitude,
+
                 longitude: startLoc.longitude
             )
             context.insert(newTrip)
