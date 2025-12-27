@@ -73,3 +73,44 @@
 
 > [!NOTE]
 > 이 방식을 사용하면 향후 핀 디자인이 바뀌어도 에셋 파일명만 새로 정의된 규칙으로 교체하면 되며, 비즈니스 로직(DB 처리부)은 전혀 건드릴 필요가 없습니다.
+
+## 6. 핀 렌더링 구조 개선 설계 (Pin Rendering Structure Improvement)
+
+기존의 결합형 에셋(배경+마크)을 분리하여 **런타임 합성(Layer Compositing)** 방식으로 전환합니다. (2025-12-28 설계)
+
+### 6.1. 구조 변경 (Structure Change)
+*   **AS-IS**: `PinTodoReady.svg` (배경과 체크 마크가 한 파일에 있음)
+*   **TO-BE**: `pin_shp_green.svg` (배경) + `mark_check.svg` (마크) -> **Runtime Combine**
+
+### 6.2. 배경(Shield) 및 마크(Mark) 정의
+1.  **배경 (Shield)**: 3가지 색상의 그라데이션 방패.
+    *   `pin_shp_red.svg` (0x 계열)
+    *   `pin_shp_green.svg` (1x 계열)
+    *   `pin_shp_blue.svg` (2x 계열)
+2.  **마크 (Mark)**: 투명 배경의 단색(White/Colored) 아이콘.
+    *   `mark_star.svg`, `mark_check.svg`, `mark_x.svg` 등.
+
+### 6.3. 배치 규격 (Layout Specification)
+사용자 테스트 결과를 기반으로 한 마크의 최대 배치 영역입니다.
+
+*   **캔버스 크기**: 100 x 125
+*   **안전 영역 (Safe Area)**:
+    *   **중심점 (Center)**: **(50, 45)**
+    *   **최대 크기 (Max Size)**: **50 x 45** (가로 50, 세로 45)
+    *   **권장 여백**: 방패의 굴곡을 고려하여 중앙 배치.
+
+### 6.4. 구현 레퍼런스 (Implementation Reference)
+사용자가 검증한 마크 배치 및 스케일링 예시 코드입니다.
+
+```xml
+<!-- Mark Placement Example -->
+<g transform="translate(50, 45) scale(0.6) translate(-50, -50)">
+    <!-- Scale 0.6: Smaller icon inside the safe area -->
+    <path d="M55,10 L25,60 L50,60 L40,90 L75,40 L50,40 Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="2" stroke-linejoin="round"/>
+</g>
+
+<!-- Full Size Usage Example -->
+<g transform="translate(50, 45) scale(1.0) translate(-25, -25)">
+    <!-- Scale 1.0: Filling the max safe area (50x45) -->
+</g>
+```
