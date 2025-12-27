@@ -104,3 +104,10 @@ AllToDo 시스템의 데이터 영속성을 위한 테이블 구조와 관계를
 *   **갱신 로직**:
     *   GPS 위치가 변경될 때마다 이 '0번 히스토리'의 `int_lat`, `int_long` 컬럼을 **UPDATE** 합니다. (INSERT 아님)
     *   이 데이터는 지도상에 **"내 위치(Current Location Pin)"**를 그리는 소스로 활용됩니다.
+
+## 9. 설계 메모 (Design Memos)
+다음은 확정된 스키마 변경 예정 사항입니다. (구현 시 반영 필요)
+
+*   **[Todo Table]**: 위치 기반 할 일(장소)을 지원하기 위해 좌표 필드 추가 필요.
+    *   `int_long` (Integer, Nullable): 할 일 위치 경도.
+    *   `int_lat` (Integer, Nullable): 할 일 위치 위도.
