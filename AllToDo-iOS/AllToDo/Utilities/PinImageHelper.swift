@@ -5,7 +5,7 @@ class PinImageHelper {
     
     // [사용자 원천기술] 비트맵 캐시 시스템 (성능 최적화용)
     private static var imageCache: [String: UIImage] = [:]
-    private static let HEADER_SIGNATURE = "ALLTODO_V6"
+    private static let HEADER_SIGNATURE = "ALLTODO_V7"
     
     // 디스크 캐시 경로 (Application Support/pins/)
     private var pinsDirectory: URL {
@@ -29,9 +29,10 @@ class PinImageHelper {
         let header = data.subdata(in: 0..<signatureData.count)
         if header != signatureData { return nil }
         
-        // 2. 실제 이미지 데이터 추출 및 생성 (지도 엔진 호환성을 위해 스케일 1.0 고정)
+        // 2. 실제 이미지 데이터 추출 및 생성
+        // 파일에서 읽어올 때 기기 스케일(3.0x 등) 정보를 수동으로 주입하여 올바른 포인트 크기 복원
         let imageData = data.subdata(in: signatureData.count..<data.count)
-        return UIImage(data: imageData, scale: 1.0)
+        return UIImage(data: imageData, scale: UIScreen.main.scale)
     }
     
     /// 비트맵을 시그니처와 함께 디스크에 저장합니다.
@@ -85,7 +86,7 @@ class PinImageHelper {
         let size = CGSize(width: baseSize.width + badgeOverhang, height: baseSize.height + badgeOverhang)
         
         let format = UIGraphicsImageRendererFormat()
-        format.scale = 1.0 // 지도 엔진 호환성을 위해 1.0 고정 (1 Pixel = 1 Point)
+        format.scale = 0.0 // 기기 해상도 자동 대응 (Retina 품질 복구)
         
         return UIGraphicsImageRenderer(size: size, format: format).image { context in
             // 1. 베이스 핀 그리기 (아래쪽에 배치)
@@ -154,8 +155,8 @@ class PinImageHelper {
 // MARK: - UIImage Extensions
 extension UIImage {
     func resized(to size: CGSize) -> UIImage? {
-        // 스케일 1.0을 사용하여 물리적 픽셀 크기를 포인트 크기와 일치시킴
-        UIGraphicsBeginImageContextWithOptions(size, false, 1.0)
+        // 기기 해상도(0.0)를 사용하여 선명한 Retina 이미지 생성
+        UIGraphicsBeginImageContextWithOptions(size, false, 0.0)
         draw(in: CGRect(origin: .zero, size: size))
         let resizedImage = UIGraphicsGetImageFromCurrentImageContext()
         UIGraphicsEndImageContext()
@@ -163,9 +164,9 @@ extension UIImage {
     }
     
     func rasterized() -> UIImage? {
-        // [FIX] PNG 데이터로 변환 후 스케일 1.0으로 재생성
+        // [FIX] PNG 데이터로 변환 후 시스템 스케일을 명시하여 재생성
         guard let data = self.pngData() else { return nil }
-        return UIImage(data: data, scale: 1.0)
+        return UIImage(data: data, scale: UIScreen.main.scale)
     }
 }
 
