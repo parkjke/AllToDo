@@ -32,7 +32,7 @@
 ## 🎨 디자인 및 리소스 (Design & Resources)
 *   [**맵 핀 디자인 명세서 (MAP_PIN_DESIGN)**](logic/MAP_PIN_DESIGN.md)
     *   **[최신]** V7 캐시, 뱃지 3pt 하향 조정, 엔진별 뱃지 크기 동기화.
-*   [**지도 핀 스펙 정리 (설계중)**](logic/지도%20핀%20스팩%20정리(설계중).md)
+*   [**지도 핀 로직 개선 계획 (MAP_PIN_LOGIC_IMPROVEMENT)**](logic/map_pin_logic_improvement_plan.md)
     *   Snake Case 기반 통합 에셋 키 및 타입 치환 테이블.
 *   [**기능 적용 현황표 (Feature Status)**](logic/FeatureStatus.md)
     *   Android vs iOS 플랫폼 간 기능 대조표.
