@@ -521,7 +521,8 @@ struct NaverMapView: UIViewRepresentable {
                     
                     if let baseImage = PinImageHelper.shared.fetchBasePin(named: baseName, size: targetSize) {
                         if count > 1 {
-                            marker.iconImage = NMFOverlayImage(image: PinImageHelper.shared.applyBadge(to: baseImage, count: count, badgeColor: color))
+                            // [FIX] 네이버 0.9배 스케일에 맞춰 뱃지 크기를 18pt로 적용하여 상단 잘림 방지 및 비율 최적화
+                            marker.iconImage = NMFOverlayImage(image: PinImageHelper.shared.applyBadge(to: baseImage, count: count, badgeColor: color, badgeSize: 18))
                         } else {
                             marker.iconImage = NMFOverlayImage(image: baseImage)
                         }

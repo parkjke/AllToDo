@@ -463,7 +463,8 @@ struct KakaoMapView: UIViewRepresentable {
                     let finalImage: UIImage?
                     if let baseImage = PinImageHelper.shared.fetchBasePin(named: baseName, size: targetSize) {
                          if count > 1 {
-                             finalImage = PinImageHelper.shared.applyBadge(to: baseImage, count: count, badgeColor: color).rasterized()
+                             // [FIX] 카카오 0.7배 스케일에 맞춰 뱃지 크기를 14pt로 축소 적용하여 일관성 유지
+                             finalImage = PinImageHelper.shared.applyBadge(to: baseImage, count: count, badgeColor: color, badgeSize: 14).rasterized()
                          } else {
                              finalImage = baseImage // Already rasterized in fetchBasePin
                          }

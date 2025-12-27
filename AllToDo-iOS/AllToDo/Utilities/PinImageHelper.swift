@@ -77,23 +77,25 @@ class PinImageHelper {
     }
     
     /// 베이스 이미지 위에 클러스터 숫자를 나타내는 뱃지를 합성합니다.
-    func applyBadge(to baseImage: UIImage, count: Int, badgeColor: UIColor = .red) -> UIImage {
+    /// - Parameters:
+    ///   - badgeSize: 뱃지의 지름 (애플 20pt, 네이버 18pt, 카카오 14pt 권장)
+    func applyBadge(to baseImage: UIImage, count: Int, badgeColor: UIColor = .red, badgeSize: CGFloat = 20) -> UIImage {
         let baseSize = baseImage.size
-        let badgeSize: CGFloat = 20 
         let badgeOverhang: CGFloat = 10 
         
-        // 뱃지가 튀어나오는 공간까지 고려한 컨텍스트 정의 (표준 40x50 -> 50x60)
+        // 뱃지 크기에 맞춘 캔버스 사이즈 정의
         let size = CGSize(width: baseSize.width + badgeOverhang, height: baseSize.height + badgeOverhang)
         
         let format = UIGraphicsImageRendererFormat()
-        format.scale = 0.0 // 기기 해상도 자동 대응 (Retina 품질 복구)
+        format.scale = UIScreen.main.scale // 고해상도 유지
         
         return UIGraphicsImageRenderer(size: size, format: format).image { context in
             // 1. 베이스 핀 그리기 (아래쪽에 배치)
             baseImage.draw(in: CGRect(x: 0, y: badgeOverhang, width: baseSize.width, height: baseSize.height))
             
             // 2. 뱃지 그리기 (우측 상단)
-            let badgeCenter = CGPoint(x: baseSize.width - 2.0, y: badgeOverhang - 2.0)
+            // [FIX] 위치를 3pt 내림 (badgeOverhang - 2.0 -> badgeOverhang + 1.0)
+            let badgeCenter = CGPoint(x: baseSize.width - 2.0, y: badgeOverhang + 1.0)
             let badgeRect = CGRect(x: badgeCenter.x - badgeSize/2, y: badgeCenter.y - badgeSize/2, width: badgeSize, height: badgeSize)
             
             // 배경원
@@ -108,8 +110,9 @@ class PinImageHelper {
             
             // 숫자 텍스트
             let countText = count > 99 ? "99+" : "\(count)"
+            let fontSize: CGFloat = badgeSize > 15 ? 11 : 9 // 크기에 따른 폰트 조절
             let attributes: [NSAttributedString.Key: Any] = [
-                .font: UIFont.systemFont(ofSize: 11, weight: .bold),
+                .font: UIFont.systemFont(ofSize: fontSize, weight: .bold),
                 .foregroundColor: badgeColor
             ]
             let string = NSString(string: countText)
@@ -118,10 +121,10 @@ class PinImageHelper {
         }
     }
     
-    // 하위 호환성을 위해 유지되는 메인 인터페이스
-    func createShieldPin(imageName: String, color: UIColor, count: Int? = nil) -> UIImage? {
+    // 하위 호환성을 위해 유지되는 메인 인터페이스 (뱃지 크기 파라미터 추가)
+    func createShieldPin(imageName: String, color: UIColor, count: Int? = nil, badgeSize: CGFloat = 20) -> UIImage? {
         let badgeCount = count ?? 1
-        let cacheKey = "shield-\(imageName)-\(color.accessibilityName)-\(badgeCount)"
+        let cacheKey = "shield-\(imageName)-\(color.accessibilityName)-\(badgeCount)-\(Int(badgeSize))"
         
         // 1. 메모리 캐시
         if let cachedImage = PinImageHelper.imageCache[cacheKey] {
@@ -141,7 +144,7 @@ class PinImageHelper {
         
         let finalImage: UIImage
         if badgeCount > 1 {
-            finalImage = applyBadge(to: baseImage, count: badgeCount, badgeColor: color)
+            finalImage = applyBadge(to: baseImage, count: badgeCount, badgeColor: color, badgeSize: badgeSize)
         } else {
             finalImage = baseImage
         }

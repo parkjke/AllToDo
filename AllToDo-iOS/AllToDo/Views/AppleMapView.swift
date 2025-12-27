@@ -810,7 +810,7 @@ struct AppleMapView: UIViewRepresentable {
                 btn.items = items
                 let (baseName, color, count) = UnifiedMapItem.resolveClusterStyle(items: items)
                 
-                if let img = PinImageHelper.shared.createShieldPin(imageName: baseName, color: color, count: count) {
+                if let img = PinImageHelper.shared.createShieldPin(imageName: baseName, color: color, count: count, badgeSize: 20) {
                     imageView.image = img
                     view.frame = CGRect(origin: .zero, size: img.size)
                     view.centerOffset = CGPoint(x: -5, y: 30) // (20-25, 60-30)
@@ -820,7 +820,7 @@ struct AppleMapView: UIViewRepresentable {
                 btn.items = items
                 let (baseName, color, count) = UnifiedMapItem.resolveClusterStyle(items: items)
                 
-                if let img = PinImageHelper.shared.createShieldPin(imageName: baseName, color: color, count: count) {
+                if let img = PinImageHelper.shared.createShieldPin(imageName: baseName, color: color, count: count, badgeSize: 20) {
                     imageView.image = img
                     view.frame = CGRect(origin: .zero, size: img.size)
                     view.centerOffset = CGPoint(x: -5, y: 30)
