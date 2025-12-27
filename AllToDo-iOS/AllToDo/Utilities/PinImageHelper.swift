@@ -29,9 +29,9 @@ class PinImageHelper {
         let header = data.subdata(in: 0..<signatureData.count)
         if header != signatureData { return nil }
         
-        // 2. 실제 이미지 데이터 추출 및 생성
+        // 2. 실제 이미지 데이터 추출 및 생성 (지도 엔진 호환성을 위해 스케일 1.0 고정)
         let imageData = data.subdata(in: signatureData.count..<data.count)
-        return UIImage(data: imageData, scale: UIScreen.main.scale)
+        return UIImage(data: imageData, scale: 1.0)
     }
     
     /// 비트맵을 시그니처와 함께 디스크에 저장합니다.
@@ -85,7 +85,7 @@ class PinImageHelper {
         let size = CGSize(width: baseSize.width + badgeOverhang, height: baseSize.height + badgeOverhang)
         
         let format = UIGraphicsImageRendererFormat()
-        format.scale = UIScreen.main.scale // 기기 해상도 대응
+        format.scale = 1.0 // 지도 엔진 호환성을 위해 1.0 고정 (1 Pixel = 1 Point)
         
         return UIGraphicsImageRenderer(size: size, format: format).image { context in
             // 1. 베이스 핀 그리기 (아래쪽에 배치)
@@ -154,7 +154,8 @@ class PinImageHelper {
 // MARK: - UIImage Extensions
 extension UIImage {
     func resized(to size: CGSize) -> UIImage? {
-        UIGraphicsBeginImageContextWithOptions(size, false, 0.0)
+        // 스케일 1.0을 사용하여 물리적 픽셀 크기를 포인트 크기와 일치시킴
+        UIGraphicsBeginImageContextWithOptions(size, false, 1.0)
         draw(in: CGRect(origin: .zero, size: size))
         let resizedImage = UIGraphicsGetImageFromCurrentImageContext()
         UIGraphicsEndImageContext()
@@ -162,9 +163,9 @@ extension UIImage {
     }
     
     func rasterized() -> UIImage? {
-        // [FIX] PNG 데이터로 변환 후 재상성하여 Kakao SDK 등의 "unsupported image format" 방지
+        // [FIX] PNG 데이터로 변환 후 스케일 1.0으로 재생성
         guard let data = self.pngData() else { return nil }
-        return UIImage(data: data, scale: 0.0)
+        return UIImage(data: data, scale: 1.0)
     }
 }
 
