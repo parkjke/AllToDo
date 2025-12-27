@@ -111,3 +111,4 @@ AllToDo 시스템의 데이터 영속성을 위한 테이블 구조와 관계를
 *   **[Todo Table]**: 위치 기반 할 일(장소)을 지원하기 위해 좌표 필드 추가 필요.
     *   `int_long` (Integer, Nullable): 할 일 위치 경도.
     *   `int_lat` (Integer, Nullable): 할 일 위치 위도.
+    *   `is_exist_location_path` (Boolean) -> **`no_of_path`** (Integer): 경로 유무 대신 경로의 수를 저장 (0이면 없음, 1 이상이면 있음).
