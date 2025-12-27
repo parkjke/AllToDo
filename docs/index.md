@@ -1,5 +1,11 @@
 # AllToDo 문서 인덱스 (Documentation Index)
 
+## 🤖 협업 및 보안 (Collaboration & Security) [NEW]
+*   [**에이전트 작업 수칙 (AGENT_WORK_RULES)**](AGENT_WORK_RULES.md)
+    *   작업 승인 절차 (Implementation Plan + [Proceed]), 한국어 소통 원칙, 수정 금지 구역 준수.
+*   [**코드 수정 금지 구역 (CRITICAL_CODE_LOCKS)**](CRITICAL_CODE_LOCKS.md)
+    *   안정성이 검증되어 에이전트의 임의 수정이 금지된 핵심 코드 섹션 목록.
+
 ## 🧠 핵심 로직 및 알고리즘 (Core Logic)
 *   [**지도 정의 로직 (MAP_DEFINITION_LOGICS)**](logic/map_definition_logics.md)
     *   스마트 트래킹 (Smart Tracking): 위치 업데이트를 위한 최적의 임계값 판정.
