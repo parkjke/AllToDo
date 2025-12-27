@@ -574,10 +574,10 @@ struct GoogleMapView: UIViewRepresentable {
                   } else {
                       // Cluster Logic
                       let (baseName, color, count) = UnifiedMapItem.resolveClusterStyle(items: items)
-                      
-                      // Visual Center is at x=20 of total width 50 -> 0.4
-                      marker.groundAnchor = CGPoint(x: 0.4, y: 1.0)
-                      
+             // 5. [Anchor] Standard Anchor (Pin Tip at Bottom Center)
+            // Cluster results in 50x60 bitmap (40x50 pin + 10pt overhang)
+            // Pin tip is at x=20 on a 50px wide canvas -> 20/50 = 0.4
+            marker.groundAnchor = CGPoint(x: 0.4, y: 1.0)
                       // Use PinImageHelper to get cached synthesized bitmap
                       marker.icon = PinImageHelper.shared.createShieldPin(imageName: baseName, color: color, count: count)
                   }

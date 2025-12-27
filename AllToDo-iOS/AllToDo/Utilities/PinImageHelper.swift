@@ -38,21 +38,21 @@ class PinImageHelper {
     ///   - badgeColor: 뱃지 색상
     func applyBadge(to baseImage: UIImage, count: Int, badgeColor: UIColor = .red) -> UIImage {
         let baseSize = baseImage.size
-        let badgeSize: CGFloat = 16 
-        let badgeOverhang: CGFloat = badgeSize / 2 
+        let badgeSize: CGFloat = 20 
+        let badgeOverhang: CGFloat = 10 
         
-        // 뱃지가 튀어나오는 공간까지 고려한 컨텍스트 정의
+        // 뱃지가 튀어나오는 공간까지 고려한 컨텍스트 정의 (표준 40x50 -> 50x60)
         let size = CGSize(width: baseSize.width + badgeOverhang, height: baseSize.height + badgeOverhang)
         
         let format = UIGraphicsImageRendererFormat()
         format.scale = 0.0 // 기기 해상도(Retina) 자동 대응
         
         return UIGraphicsImageRenderer(size: size, format: format).image { context in
-            // 1. 베이스 핀 그리기 (뱃지 공간 확보를 위해 아래/왼쪽 정렬 시 이동 가능하지만, 현재는 0, badgeOverhang 기준)
+            // 1. 베이스 핀 그리기 (아래쪽에 배치)
             baseImage.draw(in: CGRect(x: 0, y: badgeOverhang, width: baseSize.width, height: baseSize.height))
             
             // 2. 뱃지 그리기 (우측 상단)
-            let badgeCenter = CGPoint(x: baseSize.width - 1.0, y: badgeOverhang + 1.0)
+            let badgeCenter = CGPoint(x: baseSize.width - 2.0, y: badgeOverhang - 2.0)
             let badgeRect = CGRect(x: badgeCenter.x - badgeSize/2, y: badgeCenter.y - badgeSize/2, width: badgeSize, height: badgeSize)
             
             // 배경원

@@ -472,8 +472,8 @@ struct KakaoMapView: UIViewRepresentable {
                     }
 
                     if let img = finalImage {
-                        // W=28, Overhang=8 => Total W=36. Tip X=14. Anchor X = 14/36 (~0.388)
-                        let anchorX = 14.0 / 36.0
+                        // W=28, Overhang=10 => Total W=38. Tip X=14. Anchor X = 14/38 (~0.368)
+                        let anchorX = 14.0 / 38.0
                         let anchor = CGPoint(x: anchorX, y: 1.0)
                         
                         labelManager.addPoiStyle(PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: PoiIconStyle(symbol: img, anchorPoint: anchor), level: 0)]))

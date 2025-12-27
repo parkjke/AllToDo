@@ -511,9 +511,13 @@ struct NaverMapView: UIViewRepresentable {
                     marker.height = 30
                     marker.anchor = CGPoint(x: 0.5, y: 0.5)
                 } else {
-                    // Visual Center calculation for 0.4 anchor (W=36, Overhang=8 => Total W=44. Tip X=18. Anchor X = 18/44 ~= 0.409)
-                    // Let's use 0.4 for consistency or calculated value
-                    marker.anchor = CGPoint(x: 18.0 / 44.0, y: 1.0)
+                    // Cluster pin: Scaled base 36x45 + 10pt overhang = 46x55 canvas
+                    // Center of 36 is 18 -> 18.0 / 46.0
+                    marker.anchor = CGPoint(x: 18.0 / 46.0, y: 1.0)
+                    // createShieldPin handles the 0.9 scaling internally for Naver if we pass size?
+                    // Wait, PinImageHelper handles standard 40x50.
+                    // In NaverMapView, we call createShieldPin.
+                    // We should probably ensure the 0.9 scale is applied to the final image or base.
                     
                     if let baseImage = PinImageHelper.shared.fetchBasePin(named: baseName, size: targetSize) {
                         if count > 1 {

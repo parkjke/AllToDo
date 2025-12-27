@@ -779,7 +779,7 @@ struct AppleMapView: UIViewRepresentable {
             let size = CGSize(width: width, height: height)
             
             view.frame = CGRect(origin: .zero, size: size)
-            view.centerOffset = CGPoint(x: 0, y: -height / 2)
+            view.centerOffset = CGPoint(x: -5, y: 30)
             view.isUserInteractionEnabled = true
             
             // 3. Visuals - Layer 1: Image
@@ -799,7 +799,7 @@ struct AppleMapView: UIViewRepresentable {
             view.addSubview(btn)
             
             // 6. Data Binding
-            // [NEW] Native Cluster Support
+            // 6. Data Binding
             if let cluster = annotation as? MKClusterAnnotation {
                 var items: [UnifiedMapItem] = []
                 for member in cluster.memberAnnotations {
@@ -810,36 +810,32 @@ struct AppleMapView: UIViewRepresentable {
                 btn.items = items
                 let (baseName, color, count) = UnifiedMapItem.resolveClusterStyle(items: items)
                 
-                // Use PinImageHelper to get a synthesized bitmap with badge
                 if let img = PinImageHelper.shared.createShieldPin(imageName: baseName, color: color, count: count) {
                     imageView.image = img
-                } else {
-                    // Fallback to basic color pin if asset fails
-                    imageView.image = PinImageHelper.shared.fetchBasePin(named: "PinTodoReady")
+                    view.frame = CGRect(origin: .zero, size: img.size)
+                    view.centerOffset = CGPoint(x: -5, y: 30) // (20-25, 60-30)
                 }
-                
-                view.bringSubviewToFront(btn)
-                
             } else if let wasmCluster = annotation as? WasmClusterAnnotation {
-                // [WASM CLUSTER LOGIC]
                 let items = wasmCluster.items
                 btn.items = items
                 let (baseName, color, count) = UnifiedMapItem.resolveClusterStyle(items: items)
                 
-                // Use PinImageHelper for synthesized bitmap
                 if let img = PinImageHelper.shared.createShieldPin(imageName: baseName, color: color, count: count) {
                     imageView.image = img
-                } else {
-                    imageView.image = PinImageHelper.shared.fetchBasePin(named: "PinTodoReady")
+                    view.frame = CGRect(origin: .zero, size: img.size)
+                    view.centerOffset = CGPoint(x: -5, y: 30)
                 }
-                
-                view.bringSubviewToFront(btn)
-                
             } else if let unified = annotation as? UnifiedAnnotation, let item = unified.item {
                 btn.items = [item]
-                // Single pin: just fetch base (already covers rasterization/cache)
-                imageView.image = PinImageHelper.shared.fetchBasePin(named: item.imageName)
+                if let img = PinImageHelper.shared.fetchBasePin(named: item.imageName) {
+                    imageView.image = img
+                    view.frame = CGRect(origin: .zero, size: img.size)
+                    view.centerOffset = CGPoint(x: 0, y: 25) // (20-20, 50-25)
+                }
             }
+            
+            imageView.frame = view.bounds
+            btn.frame = view.bounds
         }
         
         private func addBadge(view: UIView, count: Int) {
