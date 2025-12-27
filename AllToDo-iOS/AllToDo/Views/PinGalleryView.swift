@@ -155,15 +155,12 @@ struct PinGalleryView: View {
     }
     
     func generatePin(name: String, count: Int) -> UIImage? {
-        // Mocking the logic from MapViews
-        let baseImage = UIImage(named: name)?.resized(to: CGSize(width: 40, height: 50))
-        
         let color: UIColor
         if name == "PinHistory" { color = .red }
         else if name == "PinReceiveReady" { color = .blue }
         else { color = UIColor(red: 0.2, green: 0.8, blue: 0.2, alpha: 1.0) }
         
-        return PinImageHelper.shared.createShieldPin(color: color, count: count, baseImage: baseImage)
+        return PinImageHelper.shared.createShieldPin(imageName: name, color: color, count: count)
     }
 }
 

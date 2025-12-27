@@ -808,49 +808,37 @@ struct AppleMapView: UIViewRepresentable {
                     }
                 }
                 btn.items = items
-                let count = items.count
+                let (baseName, color, count) = UnifiedMapItem.resolveClusterStyle(items: items)
                 
-                // Style Logic
-                let (baseName, color, _) = UnifiedMapItem.resolveClusterStyle(items: items)
-                
-                if let img = UIImage(named: baseName) {
+                // Use PinImageHelper to get a synthesized bitmap with badge
+                if let img = PinImageHelper.shared.createShieldPin(imageName: baseName, color: color, count: count) {
                     imageView.image = img
                 } else {
-                     imageView.image = PinImageHelper.shared.createShieldPin(color: color, count: count)
+                    // Fallback to basic color pin if asset fails
+                    imageView.image = PinImageHelper.shared.fetchBasePin(named: "PinTodoReady")
                 }
                 
-                // Badge
-                if count > 1 {
-                    addBadge(view: view, count: count)
-                }
                 view.bringSubviewToFront(btn)
                 
             } else if let wasmCluster = annotation as? WasmClusterAnnotation {
                 // [WASM CLUSTER LOGIC]
                 let items = wasmCluster.items
                 btn.items = items
-                let count = items.count
+                let (baseName, color, count) = UnifiedMapItem.resolveClusterStyle(items: items)
                 
-                // [FIX] Centralized Logic
-                let (baseName, color, _) = UnifiedMapItem.resolveClusterStyle(items: items)
-                
-                if let img = UIImage(named: baseName) {
-                    // Use base image directly. Badge is added by code below (UIView)
+                // Use PinImageHelper for synthesized bitmap
+                if let img = PinImageHelper.shared.createShieldPin(imageName: baseName, color: color, count: count) {
                     imageView.image = img
                 } else {
-                     // Fallback
-                     imageView.image = PinImageHelper.shared.createShieldPin(color: color, count: count)
+                    imageView.image = PinImageHelper.shared.fetchBasePin(named: "PinTodoReady")
                 }
                 
-                // Badge
-                if count > 1 {
-                    addBadge(view: view, count: count)
-                }
                 view.bringSubviewToFront(btn)
                 
             } else if let unified = annotation as? UnifiedAnnotation, let item = unified.item {
                 btn.items = [item]
-                imageView.image = UIImage(named: item.imageName)
+                // Single pin: just fetch base (already covers rasterization/cache)
+                imageView.image = PinImageHelper.shared.fetchBasePin(named: item.imageName)
             }
         }
         
@@ -967,8 +955,20 @@ struct AppleMapView: UIViewRepresentable {
                     let polyline = HistoryPolyline(coordinates: &coords, count: coords.count)
                     mapView.addOverlay(polyline)
                     
-                    // [NEW] Auto-zoom to history path with 0.1s delay to stabilize
-                    let rect = polyline.boundingMapRect
+                    // [NEW] Auto-zoom to history path using GeomUtils (Integer Geometry)
+                    let intRect = GeomUtils.calculateIntBoundingBox(from: paths)
+                    let southWest = CLLocationCoordinate2D(latitude: Double(intRect.minLat) / 100_000.0, 
+                                                           longitude: Double(intRect.minLon) / 100_000.0)
+                    let northEast = CLLocationCoordinate2D(latitude: Double(intRect.maxLat) / 100_000.0, 
+                                                           longitude: Double(intRect.maxLon) / 100_000.0)
+                    
+                    let mkSouthWest = MKMapPoint(southWest)
+                    let mkNorthEast = MKMapPoint(northEast)
+                    let rect = MKMapRect(x: min(mkSouthWest.x, mkNorthEast.x), 
+                                         y: min(mkSouthWest.y, mkNorthEast.y), 
+                                         width: abs(mkSouthWest.x - mkNorthEast.x), 
+                                         height: abs(mkSouthWest.y - mkNorthEast.y))
+                    
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                         mapView.setVisibleMapRect(rect, edgePadding: UIEdgeInsets(top: 80, left: 50, bottom: 50, right: 50), animated: true)
                     }

@@ -1,3 +1,18 @@
+## 2025-12-28
+### iOS Pin Rendering Stabilization & Integer Geometry Integration
+- **프로젝트 환경 복구 및 빌드 최적화**:
+  - `v1.20-map-integrity` 기반의 코드 복원 및 GitHub 동기화 작업을 완료했습니다.
+  - `Info.plist` 중복 생성으로 인한 빌드 오류를 해결하기 위해 메인 파일을 `AllToDo-Info.plist`로 변경하고 프로젝트 설정을 업데이트했습니다.
+- **지도 엔진별 핀 렌더링 표준화 및 비트맵 캐싱 (`PinImageHelper`)**:
+  - 애플 맵 표준 규격(40x50pt)을 기반으로 모든 지도 엔진의 핀 크기를 통일했습니다.
+  - **비트맵 캐싱 시스템**: 동일 이미지의 반복 렌더링을 방지하여 성능을 최적화했습니다.
+  - **엔진별 스케일링**: Apple/Google(1.0x), Naver(0.9x), Kakao(0.7x)로 세밀하게 조정하여 시각적 일관성을 확보했습니다.
+  - **앵커 포인트 보정**: 우측 상단 뱃지 오버행(8pt)을 고려하여 핀 끝점이 정확한 좌표를 가리키도록 앵커 포인트를 수정했습니다 (Kakao: 14/36, Google: 0.4, Naver: 18/44).
+- **정수 좌표 기반 지리 연산 통합 (`GeomUtils`)**:
+  - `GeomUtils.calculateIntBoundingBox`를 Apple, Kakao, Naver 지도에 도입하여 히스토리 경로 자동 줌(Fit Bounds) 로직의 정밀도를 높였습니다.
+- **컴필레이션 에러 해결**:
+  - `AppleMapView.swift`, `PinGalleryView.swift`, `PathHistoryView.swift` 등에서 발생한 중복 선언 및 API 변경으로 인한 에러를 모두 수정했습니다.
+
 ## 2025-12-25
 ### iOS/Android Map UI Refinement & Localization
 - **iOS 지도 테마 및 다크 모드 최적화**:

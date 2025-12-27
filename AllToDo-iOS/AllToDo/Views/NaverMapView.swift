@@ -167,43 +167,15 @@ struct NaverMapView: UIViewRepresentable {
             for item in allItems {
                 let marker = NMFMarker()
                 
-                // 1. Position
-                switch item {
-                case .todo(let t): if let l = t.location { marker.position = NMGLatLng(lat: l.latitude, lng: l.longitude) }
-                case .history(let l): marker.position = NMGLatLng(lat: l.latitude, lng: l.longitude)
-                case .userLocation(let coord):
-                    marker.position = NMGLatLng(lat: coord.latitude, lng: coord.longitude)
-                case .serverMessage:
-                    break
-                default: break
-                }
+                if let pos = item.location {
+                    marker.position = NMGLatLng(lat: pos.latitude, lng: pos.longitude)
+                } else { continue }
                 
-                // 2. Icon Type
-                var name = "PinTodoReady" // Default Green
+                // Naver Scale: 0.9x (36x45)
+                let targetSize = CGSize(width: 36, height: 45)
                 
-                switch item {
-                case .todo(let t):
-                    if t.isCompleted { name = "PinTodoDone" }
-                    // Source check not available on ToDoItem currently
-                    // if t.source != "local" { name = "PinReceiveReady" }
-                    
-                case .history:
-                    name = "PinHistory" // Red
-                case .userLocation, .serverMessage:
-                    name = "PinCurrent" // Red
-                case .serverMessage:
-                    name = "PinReceiveReady" // Blue
-                }
-                
-                // [NEW] Check if it's the creating todo pin
-                if let target = parent.creatingTodoLocation, 
-                   abs(marker.position.lat - target.latitude) < 0.00001 && abs(marker.position.lng - target.longitude) < 0.00001 {
-                    name = "PinTodoReady" // Green for new entry
-                }
-                
-                let img = UIImage(named: name)?.resized(to: CGSize(width: 36, height: 45))
-                if let i = img { 
-                    marker.iconImage = NMFOverlayImage(image: i) 
+                if let img = PinImageHelper.shared.fetchBasePin(named: item.imageName, size: targetSize) {
+                    marker.iconImage = NMFOverlayImage(image: img)
                     marker.anchor = CGPoint(x: 0.5, y: 1.0)
                 }
                 
@@ -283,10 +255,15 @@ struct NaverMapView: UIViewRepresentable {
                      path.mapView = map
                      self.pathOverlay = path
                      
-                     // [NEW] Auto-zoom to history path with 0.1s delay to stabilize
+                     // [NEW] Auto-zoom to history path using GeomUtils
+                     let intRect = GeomUtils.calculateIntBoundingBox(from: paths)
+                     let southWest = NMGLatLng(lat: Double(intRect.minLat) / 100_000.0, 
+                                               lng: Double(intRect.minLon) / 100_000.0)
+                     let northEast = NMGLatLng(lat: Double(intRect.maxLat) / 100_000.0, 
+                                               lng: Double(intRect.maxLon) / 100_000.0)
+                     
                      DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                         let bounds = NMGLatLngBounds(southWest: NMGLatLng(lat: coords.map{$0.lat}.min()!, lng: coords.map{$0.lng}.min()!), 
-                                                     northEast: NMGLatLng(lat: coords.map{$0.lat}.max()!, lng: coords.map{$0.lng}.max()!))
+                         let bounds = NMGLatLngBounds(southWest: southWest, northEast: northEast)
                          let update = NMFCameraUpdate(fit: bounds, padding: 80)
                          update.animation = .easeIn
                          map.moveCamera(update)
@@ -511,44 +488,40 @@ struct NaverMapView: UIViewRepresentable {
                 let marker = NMFMarker()
                 
                 // Position
+                var finalCoord = NMGLatLng(lat: centroid.lat, lng: centroid.lon)
                 if items.count == 1 {
-                    let item = items[0]
-                    switch item {
-                    case .todo(let t): if let l = t.location { marker.position = NMGLatLng(lat: l.latitude, lng: l.longitude) }
-                    case .history(let l): marker.position = NMGLatLng(lat: l.latitude, lng: l.longitude)
-                        case .userLocation(let coord):
-                            marker.position = NMGLatLng(lat: coord.latitude, lng: coord.longitude)
-                        case .serverMessage:
-                            break
-                        default: 
-                            marker.position = NMGLatLng(lat: centroid.lat, lng: centroid.lon)
-                        }
-                } else {
-                    var finalCoord = NMGLatLng(lat: centroid.lat, lng: centroid.lon)
-                    // [FIX] Cluster Anchoring: If user is in cluster, force cluster to user position
-                    if let userItem = items.first(where: { if case .userLocation = $0 { return true }; return false }),
-                       let userCoord = userItem.location {
-                        finalCoord = NMGLatLng(lat: userCoord.latitude, lng: userCoord.longitude)
+                    if let loc = items[0].location {
+                        finalCoord = NMGLatLng(lat: loc.latitude, lng: loc.longitude)
                     }
-                    marker.position = finalCoord
+                } else if let userItem = items.first(where: { if case .userLocation = $0 { return true }; return false }),
+                          let userCoord = userItem.location {
+                    finalCoord = NMGLatLng(lat: userCoord.latitude, lng: userCoord.longitude)
                 }
+                marker.position = finalCoord
                 
+                // [FIX] Centralized Style Resolution
+                let (baseName, color, count) = UnifiedMapItem.resolveClusterStyle(items: items)
                 
-                // [FIX] Centralized Logic
-                let (baseName, color, _) = UnifiedMapItem.resolveClusterStyle(items: items)
+                // Naver Scale: 0.9x (36x45)
+                let targetSize = CGSize(width: 36, height: 45)
                 
-                // [FIX] PinCurrent rendering: Avoid shield, use 32x32 circle
-                if baseName == "PinCurrent" {
+                if baseName == "PinCurrent" && count == 1 {
                     marker.iconImage = NMFOverlayImage(name: "PinCurrent")
                     marker.width = 30
                     marker.height = 30
+                    marker.anchor = CGPoint(x: 0.5, y: 0.5)
                 } else {
-                    // [FIX] Resize Base Image
-                    let baseImage = UIImage(named: baseName)?.resized(to: CGSize(width: 36, height: 45))
-                    // [FIX] Overlay Badge ONLY if count > 1
-                    let displayCount: Int? = items.count > 1 ? items.count : nil
-                    let finalImage = PinImageHelper.shared.createShieldPin(color: color, count: displayCount, baseImage: baseImage)
-                    marker.iconImage = NMFOverlayImage(image: finalImage)
+                    // Visual Center calculation for 0.4 anchor (W=36, Overhang=8 => Total W=44. Tip X=18. Anchor X = 18/44 ~= 0.409)
+                    // Let's use 0.4 for consistency or calculated value
+                    marker.anchor = CGPoint(x: 18.0 / 44.0, y: 1.0)
+                    
+                    if let baseImage = PinImageHelper.shared.fetchBasePin(named: baseName, size: targetSize) {
+                        if count > 1 {
+                            marker.iconImage = NMFOverlayImage(image: PinImageHelper.shared.applyBadge(to: baseImage, count: count, badgeColor: color))
+                        } else {
+                            marker.iconImage = NMFOverlayImage(image: baseImage)
+                        }
+                    }
                 }
 
                 marker.anchor = CGPoint(x: 0.5, y: 1.0) 

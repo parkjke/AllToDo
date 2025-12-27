@@ -199,10 +199,10 @@ struct ApplePathMapView: UIViewRepresentable {
              }
              
              // [FIX] Use History Pin Icon (Prioritize Asset)
-             if let img = UIImage(named: "PinHistory") {
+             if let img = PinImageHelper.shared.fetchBasePin(named: "PinHistory") {
                  view?.image = img
              } else {
-                 view?.image = PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill")
+                 view?.image = PinImageHelper.shared.createShieldPin(imageName: "PinTodoReady", color: .red)
              }
              
              // [FIX] Text is Debug Only -> Restore Label support
@@ -269,19 +269,19 @@ struct GooglePathMapView: UIViewRepresentable {
         // Markers
         let start = GMSMarker(position: coordinates.first!)
         start.title = "Start"
-        if let img = UIImage(named: "PinHistory") {
-            start.icon = img.resized(to: CGSize(width: 40, height: 50))
+        if let img = PinImageHelper.shared.fetchBasePin(named: "PinHistory") {
+            start.icon = img
         } else {
-             start.icon = PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill").resized(to: CGSize(width: 40, height: 50))
+             start.icon = PinImageHelper.shared.createShieldPin(imageName: "PinTodoReady", color: .red)
         }
         start.map = uiView
         
         let end = GMSMarker(position: coordinates.last!)
         end.title = "End"
-        if let img = UIImage(named: "PinHistory") {
-            end.icon = img.resized(to: CGSize(width: 40, height: 50))
+        if let img = PinImageHelper.shared.fetchBasePin(named: "PinHistory") {
+            end.icon = img
         } else {
-            end.icon = PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill").resized(to: CGSize(width: 40, height: 50))
+            end.icon = PinImageHelper.shared.createShieldPin(imageName: "PinTodoReady", color: .red)
         }
         end.map = uiView
         
@@ -364,12 +364,11 @@ struct NaverPathMapView: UIViewRepresentable {
         // 3. Draw Markers (Start/End)
         let start = NMFMarker(position: points.first!)
         start.captionText = "시작"
-        if let img = UIImage(named: "PinHistory")?.resized(to: CGSize(width: 40, height: 50)) {
+        if let img = PinImageHelper.shared.fetchBasePin(named: "PinHistory") {
             start.iconImage = NMFOverlayImage(image: img)
         } else {
-            let shield = PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill")
-            if let resized = shield.resized(to: CGSize(width: 40, height: 50)) {
-                start.iconImage = NMFOverlayImage(image: resized)
+            if let fallback = PinImageHelper.shared.createShieldPin(imageName: "PinTodoReady", color: .red) {
+                start.iconImage = NMFOverlayImage(image: fallback)
             }
         }
         start.mapView = map
@@ -377,12 +376,11 @@ struct NaverPathMapView: UIViewRepresentable {
         
         let end = NMFMarker(position: points.last!)
         end.captionText = "종료"
-        if let img = UIImage(named: "PinHistory")?.resized(to: CGSize(width: 40, height: 50)) {
+        if let img = PinImageHelper.shared.fetchBasePin(named: "PinHistory") {
             end.iconImage = NMFOverlayImage(image: img)
         } else {
-             let shield = PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill")
-             if let resized = shield.resized(to: CGSize(width: 40, height: 50)) {
-                 end.iconImage = NMFOverlayImage(image: resized)
+             if let fallback = PinImageHelper.shared.createShieldPin(imageName: "PinTodoReady", color: .red) {
+                 end.iconImage = NMFOverlayImage(image: fallback)
              }
         }
         end.mapView = map
@@ -549,15 +547,12 @@ struct KakaoPathMapView: UIViewRepresentable {
             // Since this is a separate view usage, we register style.
             
             // [FIX] Prioritize Asset with Rasterization
-            var image: UIImage
-            if let asset = UIImage(named: "PinHistory"), 
-               let resized = asset.resized(to: CGSize(width: 40, height: 50)),
-               let rasterized = resized.rasterized() { 
-                image = rasterized
+            let image: UIImage
+            if let asset = PinImageHelper.shared.fetchBasePin(named: "PinHistory") { 
+                image = asset
             }
             else { 
-                let shield = PinImageHelper.shared.createShieldPin(color: .red, iconName: "star.fill")
-                image = shield.resized(to: CGSize(width: 40, height: 50))?.rasterized() ?? shield
+                image = PinImageHelper.shared.createShieldPin(imageName: "PinTodoReady", color: .red) ?? UIImage()
             }
             
             let iconStyle = PoiIconStyle(symbol: image, anchorPoint: CGPoint(x: 0.5, y: 1.0))

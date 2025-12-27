@@ -381,12 +381,14 @@ struct KakaoMapView: UIViewRepresentable {
                  let styleID = "RawStyle_\(baseName)"
                  
                  if !registeredStyleIDs.contains(styleID) {
-                     // [FIX] iOS Style: Use 40x50 base size to match Apple Map standard
-                      if let baseImage = UIImage(named: baseName)?.resized(to: CGSize(width: 28, height: 35)),
-                        let finalImage = PinImageHelper.shared.createShieldPin(color: color, count: nil, baseImage: baseImage).rasterized() {
-                         labelManager.addPoiStyle(PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: PoiIconStyle(symbol: finalImage, anchorPoint: CGPoint(x: 0.5, y: 1.0)), level: 0)]))
-                         registeredStyleIDs.insert(styleID)
-                     }
+                      // Kakao Scale: 0.7x (28x35)
+                      let targetSize = CGSize(width: 28, height: 35)
+                      if let finalImage = PinImageHelper.shared.fetchBasePin(named: baseName, size: targetSize) {
+                          // W=28, Overhang=8 => Total W=36. Tip X=14. Anchor X = 14/36
+                          let anchorX = 14.0 / 36.0
+                          labelManager.addPoiStyle(PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: PoiIconStyle(symbol: finalImage, anchorPoint: CGPoint(x: anchorX, y: 1.0)), level: 0)]))
+                          registeredStyleIDs.insert(styleID)
+                      }
                  }
                  
                  let poiID = "raw_\(idx)"
@@ -454,34 +456,22 @@ struct KakaoMapView: UIViewRepresentable {
                 let styleID = "Style_\(baseName)_\(count)_\(colorHex)"
                 
                 if !registeredStyleIDs.contains(styleID) {
-                    var finalImage: UIImage?
-                    
-                    // [FIX] Align with Apple Map Logic: Try load image -> Fallback to Shield
                     // Kakao Scale: 0.7x (28x35)
                     let targetSize = CGSize(width: 28, height: 35)
                     
-                    if let preloaded = UIImage(named: baseName) {
-                        // Case A: Image exists (e.g. PinCurrent, PinRed) -> Resize & Add Badge/Shield Logic
-                        if let resizedBase = preloaded.resized(to: targetSize) {
-                             finalImage = PinImageHelper.shared.createShieldPin(color: color, count: count > 1 ? count : nil, baseImage: resizedBase).rasterized()
-                        }
-                    } else {
-                        // Case B: No image -> Create programmatic shield with symbol (using baseName as fallback symbol name if needed)
-                         if let baseImage = UIImage(named: baseName)?.resized(to: targetSize) {
-                             finalImage = PinImageHelper.shared.createShieldPin(color: color, count: count > 1 ? count : nil, baseImage: baseImage).rasterized()
+                    // Use PinImageHelper to fetch/create cached image
+                    let finalImage: UIImage?
+                    if let baseImage = PinImageHelper.shared.fetchBasePin(named: baseName, size: targetSize) {
+                         if count > 1 {
+                             finalImage = PinImageHelper.shared.applyBadge(to: baseImage, count: count, badgeColor: color).rasterized()
                          } else {
-                             // Fallback if even base symbol is missing (unlikely)
-                             finalImage = PinImageHelper.shared.createShieldPin(color: color, count: count > 1 ? count : nil, baseImage: nil).rasterized()
+                             finalImage = baseImage // Already rasterized in fetchBasePin
                          }
+                    } else {
+                        finalImage = nil
                     }
-                    
+
                     if let img = finalImage {
-                        // [FIX] Calculate Anchor based on PinImageHelper geometry
-                        // Helper creates image of size: (W + 8, H + 8)
-                        // Pin is drawn at (0, 8). Tip is at (W/2, H+8).
-                        // Anchor X = (W/2) / (W+8)
-                        // Anchor Y = 1.0
-                        
                         // W=28, Overhang=8 => Total W=36. Tip X=14. Anchor X = 14/36 (~0.388)
                         let anchorX = 14.0 / 36.0
                         let anchor = CGPoint(x: anchorX, y: 1.0)
@@ -707,22 +697,17 @@ struct KakaoMapView: UIViewRepresentable {
                 sortBy: [SortDescriptor(\.timestamp)]
             )
             if let paths = try? parent.modelContext.fetch(descriptor), !paths.isEmpty {
-                let lats = paths.map { $0.coordinate.latitude }
-                let lons = paths.map { $0.coordinate.longitude }
-
-                let minLat = lats.min()!
-                let maxLat = lats.max()!
-                let minLon = lons.min()!
-                let maxLon = lons.max()!
+                // [FIX] Use GeomUtils for integer-based Fit Bounds
+                let intRect = GeomUtils.calculateIntBoundingBox(from: paths)
                 
-                let finalMinLat = (maxLat - minLat < 0.003) ? ((maxLat + minLat)/2 - 0.0015) : minLat
-                let finalMaxLat = (maxLat - minLat < 0.003) ? ((maxLat + minLat)/2 + 0.0015) : maxLat
-                let finalMinLon = (maxLon - minLon < 0.003) ? ((maxLon + minLon)/2 - 0.0015) : minLon
-                let finalMaxLon = (maxLon - minLon < 0.003) ? ((maxLon + minLon)/2 + 0.0015) : maxLon
+                let southWest = MapPoint(longitude: Double(intRect.minLon) / 100_000.0, 
+                                         latitude: Double(intRect.minLat) / 100_000.0)
+                let northEast = MapPoint(longitude: Double(intRect.maxLon) / 100_000.0, 
+                                         latitude: Double(intRect.maxLat) / 100_000.0)
                 
-                let rect = AreaRect(southWest: MapPoint(longitude: finalMinLon, latitude: finalMinLat), 
-                                    northEast: MapPoint(longitude: finalMaxLon, latitude: finalMaxLat))
-                mapView.animateCamera(cameraUpdate: CameraUpdate.make(area: rect), options: CameraAnimationOptions(autoElevation: false, consecutive: false, durationInMillis: 800))
+                let area = AreaRect(southWest: southWest, northEast: northEast)
+                mapView.animateCamera(cameraUpdate: CameraUpdate.make(area: area), 
+                                      options: CameraAnimationOptions(autoElevation: false, consecutive: false, durationInMillis: 800))
             }
         }
     }

@@ -46,10 +46,11 @@ enum UnifiedMapItem: Identifiable {
         }
     }
     
-    // [NEW] Asset Image Name Mapping
+    // [NEW] Asset Image Name Mapping (Refined)
     var imageName: String {
         switch self {
-        case .todo:
+        case .todo(let item):
+            if item.is_completed { return "PinTodoDone" }
             return "PinTodoReady"
         case .history:
             return "PinHistory"
@@ -63,15 +64,18 @@ enum UnifiedMapItem: Identifiable {
     // [NEW] Centralized Cluster Style Logic (Priority: User > Majority > Blue > Green > Red)
     static func resolveClusterStyle(items: [UnifiedMapItem]) -> (baseName: String, color: UIColor, count: Int) {
         var userLocationFound = false
-        var blueCount = 0   // Server Todo / Message
-        var greenCount = 0  // Local Todo (Ready + Done)
-        var redCount = 0    // History
+        var blueCount = 0   // Server Todo / Message (Type 20)
+        var greenCount = 0  // Local Todo (Ready + Done) (Type 10)
+        var redCount = 0    // History (Type 00)
         
         for item in items {
             switch item {
             case .userLocation: userLocationFound = true
             case .serverMessage: blueCount += 1
-            case .todo: greenCount += 1 // Treat all todos as green for now, or check source if available
+            case .todo(let t):
+                if t.type == "20" { blueCount += 1 }
+                else if t.type == "00" { redCount += 1 }
+                else { greenCount += 1 }
             case .history: redCount += 1
             }
         }
@@ -79,28 +83,28 @@ enum UnifiedMapItem: Identifiable {
         var baseName = "PinTodoReady" // Default
         
         if userLocationFound {
-            // [Rule 1] User Location Priority
             baseName = "PinCurrent"
         } else {
-            // [Rule 2 & 3] Majority Vote with Tie-Breaker (Blue > Green > Red)
-            // Array order determines priority for ties
             let counts = [
                 ("PinReceiveReady", blueCount),
                 ("PinTodoReady", greenCount),
                 ("PinHistory", redCount)
             ]
             
-            if let max = counts.max(by: { $0.1 < $1.1 }), max.1 > 0 {
-                baseName = max.0
+            if let maxItem = counts.max(by: { $0.1 < $1.1 }), maxItem.1 > 0 {
+                baseName = maxItem.0
             }
         }
         
-        // Color Resolution
+        // Color Resolution (Matching PinImageHelper requirements)
         let color: UIColor
-        if baseName == "PinHistory" { color = .red }
-        else if baseName == "PinReceiveReady" { color = .blue }
-        else if baseName == "PinCurrent" { color = .red } // User Location is Red Badge (Wait, Android says Red? Doc says Red)
-        else { color = .allToDoGreen } // Green
+        if baseName == "PinHistory" || baseName == "PinCurrent" {
+            color = .red
+        } else if baseName == "PinReceiveReady" {
+            color = .systemBlue
+        } else {
+            color = .allToDoGreen
+        }
         
         return (baseName, color, items.count)
     }

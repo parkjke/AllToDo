@@ -160,37 +160,15 @@ struct GoogleMapView: UIViewRepresentable {
                 let marker = WasmClusterMarker()
                 marker.items = [item]
                 
-                // 1. Position
-                switch item {
-                case .todo(let t):
-                    if let l = t.location {
-                        marker.position = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)
-                    }
-                case .history(let l):
-                    marker.position = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)
-                case .userLocation(let coord):
-                          marker.position = coord
-                      case .serverMessage:
-                          break
-                }
+                if let pos = item.location {
+                    marker.position = pos
+                } else { continue }
                 
-                // 2. Icon Type
-                var name = "PinTodoReady" // Default Green
-                switch item {
-                case .todo(let t):
-                    if t.isCompleted { name = "PinTodoDone" }
-                case .history:
-                    name = "PinHistory"
-                case .userLocation, .serverMessage:
-                    name = "PinCurrent"
-                case .serverMessage:
-                    name = "PinReceiveReady"
-                }
+                // 2. Use PinImageHelper for cached/standardized icon
+                marker.icon = PinImageHelper.shared.fetchBasePin(named: item.imageName)
                 
-                marker.icon = UIImage(named: name)?.resized(to: CGSize(width: 40, height: 50))
-                // Explicit Anchor
+                // Ground Anchor: Tip is at center-bottom
                 marker.groundAnchor = CGPoint(x: 0.5, y: 1.0)
-                
                 marker.map = mapView
             }
         }
@@ -573,80 +551,39 @@ struct GoogleMapView: UIViewRepresentable {
              }
              
              // Create Markers
-             for (idx, items) in clusters.enumerated() {
-                 if items.isEmpty { continue }
-                 let centroid = centroids[idx]
-                 let marker = WasmClusterMarker()
-                 var finalCoordinate = CLLocationCoordinate2D(latitude: centroid.lat, longitude: centroid.lon)
-                 
-                 // [FIX] Cluster Anchoring: If user is in cluster, force cluster to user position
-                 if let userItem = items.first(where: { if case .userLocation = $0 { return true }; return false }),
-                    case .userLocation(let userCoord) = userItem {
-                     finalCoordinate = userCoord
-                 }
-                 
-                 marker.position = finalCoordinate
-                 marker.items = items
-                 
-                 // Single Logic
-                 if items.count == 1, let item = items.first {
-                     // Recenter to actual item loc
-                     switch item {
-                     case .todo(let t): if let l = t.location { marker.position = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude) }
-                     case .history(let l): marker.position = CLLocationCoordinate2D(latitude: l.latitude, longitude: l.longitude)
-                     case .userLocation(let coord):
-                          marker.position = coord
-                      case .serverMessage:
-                          break
-                     }
-                     
-                     // [FIX] Explicit Anchor for Single Items (Default)
-                     marker.groundAnchor = CGPoint(x: 0.5, y: 1.0)
-                     
-                     // Icon
-                     switch item {
-                     case .todo(let t):
-                         let name = t.isCompleted ? "PinTodoDone" : "PinTodoReady"
-                         if let img = UIImage(named: name) {
-                             marker.icon = img.resized(to: CGSize(width: 40, height: 50))
-                         }
-                     case .history(_):
-                         if let img = UIImage(named: "PinHistory") {
-                             marker.icon = img.resized(to: CGSize(width: 40, height: 50))
-                         }
-                         else { marker.icon = PinImageHelper.shared.createShieldPin(color: .red, iconName: "clock.fill") }
-                     case .serverMessage:
-                          if let img = UIImage(named: "PinReceiveReady") {
-                              marker.icon = img.resized(to: CGSize(width: 40, height: 50))
-                          }
-                     case .userLocation, .serverMessage:
-                          if let img = UIImage(named: "PinCurrent") {
-                              marker.icon = img.resized(to: CGSize(width: 40, height: 50))
-                          }
-                     default:
-                         marker.icon = PinImageHelper.shared.createShieldPin(color: .blue, iconName: "circle.fill")
-                     }
-                 } else {
-                     // Cluster Logic
-                     
-                     // [FIX] Adjust Anchor for Cluster (Right Badge Overhang)
-                     // Visual Center is at x=20 of total width 50 -> 0.4
-                     marker.groundAnchor = CGPoint(x: 0.4, y: 1.0)
-                                          
-                      // [FIX] Centralized Logic
-                      let (baseName, color, _) = UnifiedMapItem.resolveClusterStyle(items: items)
-                     
-                     
-                     // [FIX] Resize Base Image FIRST to match Apple Map size (40x50)
-                     let baseImage = UIImage(named: baseName)?.resized(to: CGSize(width: 40, height: 50))
-                     
-                     // [FIX] Draw standard badge (20pt) on top of the already-resized pin.
-                     // The final image will be slightly larger due to badge overhang, but the pin part will be 40x50.
-                     marker.icon = PinImageHelper.shared.createShieldPin(color: color, count: items.count, baseImage: baseImage)
-                 }
-                 
-                 marker.map = mapView
-             }
+              for (idx, items) in clusters.enumerated() {
+                  if items.isEmpty { continue }
+                  let centroid = centroids[idx]
+                  let marker = WasmClusterMarker()
+                  var finalCoordinate = CLLocationCoordinate2D(latitude: centroid.lat, longitude: centroid.lon)
+                  
+                  // [FIX] Cluster Anchoring: If user is in cluster, force cluster to user position
+                  if let userItem = items.first(where: { if case .userLocation = $0 { return true }; return false }),
+                     case .userLocation(let userCoord) = userItem {
+                      finalCoordinate = userCoord
+                  }
+                  
+                  marker.position = finalCoordinate
+                  marker.items = items
+                  
+                  if items.count == 1, let item = items.first {
+                      // Single Logic
+                      marker.position = item.location ?? finalCoordinate
+                      marker.groundAnchor = CGPoint(x: 0.5, y: 1.0)
+                      marker.icon = PinImageHelper.shared.fetchBasePin(named: item.imageName)
+                  } else {
+                      // Cluster Logic
+                      let (baseName, color, count) = UnifiedMapItem.resolveClusterStyle(items: items)
+                      
+                      // Visual Center is at x=20 of total width 50 -> 0.4
+                      marker.groundAnchor = CGPoint(x: 0.4, y: 1.0)
+                      
+                      // Use PinImageHelper to get cached synthesized bitmap
+                      marker.icon = PinImageHelper.shared.createShieldPin(imageName: baseName, color: color, count: count)
+                  }
+                  
+                  marker.map = mapView
+              }
         }
         
 
@@ -741,10 +678,16 @@ struct GoogleMapView: UIViewRepresentable {
                      polyline.map = mapView
                      self.pathOverlay = polyline
                      
-                     // [NEW] Auto-zoom to history path with 0.1s delay to stabilize
+                     // [NEW] Auto-zoom to history path using GeomUtils
+                     let intRect = GeomUtils.calculateIntBoundingBox(from: paths)
+                     let southWest = CLLocationCoordinate2D(latitude: Double(intRect.minLat) / 100_000.0, 
+                                                            longitude: Double(intRect.minLon) / 100_000.0)
+                     let northEast = CLLocationCoordinate2D(latitude: Double(intRect.maxLat) / 100_000.0, 
+                                                            longitude: Double(intRect.maxLon) / 100_000.0)
+                     
                      DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                         let bounds = GMSCoordinateBounds(path: path)
-                         let update = GMSCameraUpdate.fit(bounds, withPadding: 80)
+                         let bounds = GMSCoordinateBounds(coordinate: southWest, coordinate: northEast)
+                         let update = GMSCameraUpdate.fit(bounds, withPadding: 50)
                          mapView.animate(with: update)
                      }
                  }
