@@ -48,6 +48,14 @@ sealed class UnifiedItem {
     }
 }
 
+data class PinClusterItem(
+    val latitude: Double,
+    val longitude: Double,
+    val count: Int,
+    val items: List<UnifiedItem>
+)
+
+// Legacy PinCluster (to be removed if unused)
 data class PinCluster(
     val latitude: Double,
     val longitude: Double,

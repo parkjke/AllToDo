@@ -13,6 +13,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import kr.alltodo.ui.UnifiedItem
+import kr.alltodo.ui.PinClusterItem
 import com.naver.maps.geometry.LatLng
 import com.naver.maps.geometry.LatLngBounds
 import com.naver.maps.map.CameraAnimation
@@ -30,7 +31,7 @@ import kotlinx.coroutines.flow.first
 @Composable
 fun NaverMapContent(
     modifier: Modifier = Modifier,
-    clusteredItems: List<kr.alltodo.ui.TodoViewModel.PinClusterItem>,
+    clusteredItems: List<PinClusterItem>,
     beforeLocation: android.location.Location,
     currentLocation: android.location.Location?,
     onMapReady: (NaverMap) -> Unit,

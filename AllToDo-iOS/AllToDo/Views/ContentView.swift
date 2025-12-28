@@ -442,7 +442,7 @@ extension ContentView {
         let newItem = ToDoItem(
             todo_name: name,
             date_time: dateTime,
-            is_exist_location_path: true
+            no_of_path: 0
         )
         newItem.type = "10"
         newItem.latitude = lat

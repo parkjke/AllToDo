@@ -34,11 +34,14 @@ object MapLogicHelper {
         calendar.add(Calendar.HOUR, 24)
         val maxTime = calendar.timeInMillis
         
-        // 1. Path Existence Filter
-        val withPath = allItems.filter { it.is_exist_location_path }
+        // 1. Path Existence OR Location Filter
+        // [FIX] Include items that have a path OR valid coordinates (Point Todo)
+        val withLocation = allItems.filter { 
+            (it.no_of_path > 0) || (it.latitude != null && it.latitude != 0.0) 
+        }
         
         // 2. Time Window Filter (±24h)
-        val timeFiltered = withPath.filter { item ->
+        val timeFiltered = withLocation.filter { item ->
             // Use begin_time or date_time(parsed) or created_at
             // iOS Logic used Date comparison
             val itemTime = item.begin_time ?: item.created_at // specific logic might be needed for string date_time

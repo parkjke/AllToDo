@@ -68,13 +68,6 @@ class TodoViewModel @Inject constructor(
     private val _farItemCount = MutableStateFlow(0)
     val farItemCount: StateFlow<Int> = _farItemCount.asStateFlow()
 
-    data class PinClusterItem(
-        val latitude: Double,
-        val longitude: Double,
-        val count: Int,
-        val items: List<kr.alltodo.ui.UnifiedItem>
-    )
-
     private val _clusteredItems = MutableStateFlow<List<PinClusterItem>>(emptyList())
     val clusteredItems: StateFlow<List<PinClusterItem>> = _clusteredItems.asStateFlow()
 
@@ -465,7 +458,9 @@ class TodoViewModel @Inject constructor(
                         todo_id = todoId,
                         todo_name = "이동 히스토리",
                         type = "00", // History
-                        is_exist_location_path = true,
+                        no_of_path = pointCount,
+                        int_lat = (avgLat * 100_000).toInt(),
+                        int_long = (avgLon * 100_000).toInt(),
                         latitude = avgLat,
                         longitude = avgLon,
                         begin_time = start,
@@ -480,7 +475,8 @@ class TodoViewModel @Inject constructor(
                         kr.alltodo.data.PathItem(
                             todo_id = todoId,
                             int_long = (p.longitude * 100_000).toInt(),
-                            int_lat = (p.latitude * 100_000).toInt()
+                            int_lat = (p.latitude * 100_000).toInt(),
+                            time = p.timestamp // Use location's timestamp
                         )
                     }
                     todoRepository.insertPaths(pathItems)
@@ -585,6 +581,8 @@ class TodoViewModel @Inject constructor(
             val todo = TodoItem(
                 todo_name = text, 
                 source = "local",
+                int_lat = (latitude * 100_000).toInt(),
+                int_long = (longitude * 100_000).toInt(),
                 latitude = latitude,
                 longitude = longitude,
                 person = person,
@@ -623,6 +621,8 @@ class TodoViewModel @Inject constructor(
                 todo_name = "위치 할 일",
                 completed = false,
                 source = "local",
+                int_lat = (location.latitude * 100_000).toInt(),
+                int_long = (location.longitude * 100_000).toInt(),
                 latitude = location.latitude,
                 longitude = location.longitude,
                 created_at = System.currentTimeMillis()

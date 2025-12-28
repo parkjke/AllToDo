@@ -287,11 +287,11 @@ fun MainScreen(
         key(mapProvider) {
             when (mapProvider) {
                 MapProvider.Naver -> {
-                    // Use MapViewModel's displayItems
-                    val displayItems by mapViewModel.displayItems.collectAsState()
+                    // Use MapViewModel's clusteredItems
+                    val clusteredItems by mapViewModel.clusteredItems.collectAsState()
                     NaverMapContent(
                         modifier = Modifier.fillMaxSize(),
-                        clusteredItems = displayItems,
+                        clusteredItems = clusteredItems,
                         beforeLocation = beforeLocation.value, // [Item 1]
                         currentLocation = currentLocation.value,
                         onMapReady = { naverMapInstance = it },
@@ -311,8 +311,13 @@ fun MainScreen(
                         initialAnimationDone = initialAnimationDone,
                         onInitialAnimationDone = { initialAnimationDone = true },
                         onResetAnimationDone = { initialAnimationDone = false }, // [NEW]
-                        onZoomChange = { todoViewModel.updateZoom(it) },
-                        onEnableClustering = { todoViewModel.enableClustering() },
+                        onZoomChange = { mapViewModel.updateZoom(it) }, // Zoom affects clustering, mapViewModel observes currentZoom?
+                        // MapViewModel needs zoom updates too!
+                        // Wait, mapViewModel has updateZoom logic.
+                        // Checked MapFeatureViewModel: fun updateZoom(zoom: Float)
+                        // TodoViewModel also had it.
+                        // Let's check MainScreen usage for onZoomChange.
+                        onEnableClustering = { mapViewModel.enableClustering() },
                         onMapLongClick = { latLng ->
                             mapViewModel.startCreatingTodo(latLng.latitude, latLng.longitude)
                         },
@@ -323,11 +328,11 @@ fun MainScreen(
                     )
                 }
                 MapProvider.Kakao -> {
-                    val displayItems by mapViewModel.displayItems.collectAsState()
+                    val clusteredItems by mapViewModel.clusteredItems.collectAsState()
                     KakaoMapContent(
                         modifier = Modifier.fillMaxSize(),
                         isSdkInitialized = isKakaoInitialized,
-                        clusteredItems = displayItems,
+                        clusteredItems = clusteredItems,
                         beforeLocation = beforeLocation.value, // [Item 1]
                         currentLocation = currentLocation.value,
                         onMapReady = { kakaoMapInstance = it },
@@ -347,8 +352,8 @@ fun MainScreen(
                         initialAnimationDone = initialAnimationDone,
                         onInitialAnimationDone = { initialAnimationDone = true },
                         onResetAnimationDone = { initialAnimationDone = false }, // [NEW]
-                        onZoomChange = { todoViewModel.updateZoom(it) },
-                        onEnableClustering = { todoViewModel.enableClustering() },
+                        onZoomChange = { mapViewModel.updateZoom(it) },
+                        onEnableClustering = { mapViewModel.enableClustering() },
                         onMapLongClick = { latLng ->
                             mapViewModel.startCreatingTodo(latLng.latitude, latLng.longitude)
                         },
@@ -359,10 +364,16 @@ fun MainScreen(
                     )
                 }
                 MapProvider.Google -> {
-                    val displayItems by mapViewModel.displayItems.collectAsState()
+                    val clusteredItems by mapViewModel.clusteredItems.collectAsState()
+                    
+                    // [FIX] Sync Zoom with MapViewModel for clustering
+                    LaunchedEffect(googleCameraPositionState.position.zoom) {
+                        mapViewModel.updateZoom(googleCameraPositionState.position.zoom)
+                    }
+
                     GoogleMapContent(
                         modifier = Modifier.fillMaxSize(),
-                        clusteredItems = displayItems,
+                        clusteredItems = clusteredItems,
                         beforeLocation = beforeLocation.value, // [Item 1]
                         currentLocation = currentLocation.value,
                         cameraPositionState = googleCameraPositionState,
@@ -391,7 +402,7 @@ fun MainScreen(
                         initialAnimationDone = initialAnimationDone,
                         onInitialAnimationDone = { initialAnimationDone = true },
                         onResetAnimationDone = { initialAnimationDone = false }, // [NEW]
-                        onEnableClustering = { todoViewModel.enableClustering() },
+                        onEnableClustering = { mapViewModel.enableClustering() },
                         onFarItemsDetected = { },
                         creatingTodoLocation = creatingLocation?.let { com.google.android.gms.maps.model.LatLng(it.latitude, it.longitude) },
                         contentPaddingBottom = if (isCreatingTodo) (context.resources.displayMetrics.heightPixels * 0.7).toInt() else 0,

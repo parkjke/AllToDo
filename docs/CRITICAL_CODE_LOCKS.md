@@ -3,6 +3,9 @@
 이 문서는 AI 에이전트 및 개발자가 절대 수정해서는 안 되는 **3가지 핵심 잠금(Lock) 요소**를 정의합니다.  
 이 코드들은 앱의 안정성, 성능, UI/UX 품질을 보장하기 위해 정밀하게 튜닝되었으므로, **"DO NOT MODIFY"** 주석이 없더라도 임의로 변경해서는 안 됩니다.
 
+## ⚠️ 통합 준수 수칙 (Unified Compliance Rule)
+**에이전트는 작업 수행 중 아래에 정의된 잠금 구역(Critical Code Locks)을 수정해야 할 필요성을 발견할 경우, 즉시 모든 작업을 중단하고 사용자에게 상황을 보고한 후 지침을 기다려야 합니다.** 사용자의 명시적인 승인 없이는 어떠한 변경도 진행할 수 없습니다.
+
 ## 1. Raw First -> Cluster Strategy (초기화 성능 최적화)
 - **위치**: `KakaoMapView.swift`, `GoogleMapView.swift`, `NaverMapView.swift`, `AppleMapView.swift`  
 - **키워드**: `[CRITICAL LOCK: DO NOT MODIFY] Raw First -> Cluster Strategy`

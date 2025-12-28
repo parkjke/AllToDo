@@ -12,7 +12,9 @@ AllToDo 시스템의 데이터 영속성을 위한 테이블 구조와 관계를
 | `is_exist_person` | Boolean | 연락처(사람) 할당 여부 |
 | `date_time` | DateTime | 할일 수행 예정 날짜 및 시간 |
 | `memo` | String | 할일 관련 메모 |
-| `is_exist_location_path`| Boolean | 이동 경로 데이터 존재 여부 |
+| `no_of_path` | Integer | 이동 경로 데이터 포인트 개수 (0이면 없음) |
+| `int_lat` | Integer | 할 일 위치 위도 (x100,000 정수화, Nullable) |
+| `int_long` | Integer | 할 일 위치 경도 (x100,000 정수화, Nullable) |
 | `begin_time` | DateTime | 경로 시작 시간 (Nullable) |
 | `end_time` | DateTime | 경로 종료 시간 (Nullable) |
 | `type` | String | 항목 형태 (00: 히스토리, 10: 할일, 20: 서버 지시) |
@@ -56,6 +58,7 @@ AllToDo 시스템의 데이터 영속성을 위한 테이블 구조와 관계를
 | `todo_id` | UUID (FK) | 할일 테이블 참조 |
 | `int_long` | Integer | 경도 (x100,000 정수화) |
 | `int_lat` | Integer | 위도 (x100,000 정수화) |
+| `time` | DateTime | 해당 포인트 기록 시각 |
 
 ---
 
@@ -85,7 +88,7 @@ AllToDo 시스템의 데이터 영속성을 위한 테이블 구조와 관계를
 앱이 실행되는 동안 지속적으로 경로를 추적하며, 데이터가 비대해지는 것을 방지하기 위해 **30분 단위**로 히스토리를 분리하여 저장합니다.
 
 1.  **30분 타이머**: 경로 기록이 시작된 시점부터 30분이 경과하면 현재의 `Path` 기록을 중단합니다.
-2.  **데이터 저장**: 지금까지 누적된 경로(`PathItem` List)와 메타 데이터를 `todo_items` (Type: 00) 및 `paths` 테이블에 영구 저장합니다. (`is_exist_location_path = true`)
+2.  **데이터 저장**: 지금까지 누적된 경로(`PathItem` List)와 메타 데이터를 `todo_items` (Type: 00) 및 `paths` 테이블에 영구 저장합니다. (`no_of_path = points.count`)
 3.  **새 세션 시작**: 새로운 `UUID`를 발급받아 빈 상태에서 다시 경로 기록을 시작합니다. (사용자는 끊김을 인지하지 못함)
 
 ### 8.2. 앱 종료 및 재시작 시나리오
@@ -105,10 +108,3 @@ AllToDo 시스템의 데이터 영속성을 위한 테이블 구조와 관계를
     *   GPS 위치가 변경될 때마다 이 '0번 히스토리'의 `int_lat`, `int_long` 컬럼을 **UPDATE** 합니다. (INSERT 아님)
     *   이 데이터는 지도상에 **"내 위치(Current Location Pin)"**를 그리는 소스로 활용됩니다.
 
-## 9. 설계 메모 (Design Memos)
-다음은 확정된 스키마 변경 예정 사항입니다. (구현 시 반영 필요)
-
-*   **[Todo Table]**: 위치 기반 할 일(장소)을 지원하기 위해 좌표 필드 추가 필요.
-    *   `int_long` (Integer, Nullable): 할 일 위치 경도.
-    *   `int_lat` (Integer, Nullable): 할 일 위치 위도.
-    *   `is_exist_location_path` (Boolean) -> **`no_of_path`** (Integer): 경로 유무 대신 경로의 수를 저장 (0이면 없음, 1 이상이면 있음).

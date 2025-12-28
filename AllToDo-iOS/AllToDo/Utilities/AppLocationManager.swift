@@ -86,7 +86,7 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
             let startLoc = points.first!
             let newTrip = ToDoItem(
                 todo_name: "자동 기록 경로 (\(Date().formatted(.dateTime.hour().minute())))",
-                is_exist_location_path: true
+                no_of_path: points.count
             )
             newTrip.type = "00"
             newTrip.latitude = startLoc.latitude
@@ -101,7 +101,7 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         
         // B. Insert PathItems
         for p in points {
-            let item = PathItem(todo_id: tripID, latitude: p.latitude, longitude: p.longitude, timestamp: p.timestamp)
+            let item = PathItem(todo_id: tripID, latitude: p.latitude, longitude: p.longitude, time: p.timestamp)
             context.insert(item)
         }
         

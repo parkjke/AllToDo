@@ -24,7 +24,7 @@ enum class MapAction {
 
 @HiltViewModel
 class MapFeatureViewModel @Inject constructor(
-    // Inject Repositories if needed later
+    private val wasmManager: kr.alltodo.wasm.WasmManager // [NEW] Injected for clustering
 ) : ViewModel() {
 
     // MARK: - Map Control State
@@ -62,6 +62,29 @@ class MapFeatureViewModel @Inject constructor(
     // Display items (filtered by Korea rule if needed)
     private val _displayItems = MutableStateFlow<List<UnifiedItem>>(emptyList())
     val displayItems: StateFlow<List<UnifiedItem>> = _displayItems.asStateFlow()
+
+    // [NEW] Clustered Items (Source of Truth for Map)
+    private val _clusteredItems = MutableStateFlow<List<PinClusterItem>>(emptyList())
+    val clusteredItems: StateFlow<List<PinClusterItem>> = _clusteredItems.asStateFlow()
+
+    private val _currentZoom = MutableStateFlow(15f)
+    val currentZoom: StateFlow<Float> = _currentZoom.asStateFlow()
+
+    private val _isClusteringEnabled = MutableStateFlow(false)
+
+    fun updateZoom(zoom: Float) {
+        if (_currentZoom.value != zoom) {
+            _currentZoom.value = zoom
+            recalculateClusters()
+        }
+    }
+
+    fun enableClustering() {
+        if (!_isClusteringEnabled.value) {
+            _isClusteringEnabled.value = true
+            recalculateClusters()
+        }
+    }
     
     private val _farItemsCount = MutableStateFlow(0)
     val farItemsCount: StateFlow<Int> = _farItemsCount.asStateFlow()
@@ -131,7 +154,111 @@ class MapFeatureViewModel @Inject constructor(
                 _displayItems.value = transformed
                 _showFarNotification.value = false
                 _farItemsCount.value = 0
+                _displayItems.value = transformed
+                _showFarNotification.value = false
+                _farItemsCount.value = 0
             }
+            // 3. Trigger Clustering
+            recalculateClusters()
+        }
+    }
+
+    private fun recalculateClusters() {
+        // Debounce or launch?
+        viewModelScope.launch {
+            val items = _displayItems.value
+            val zoom = _currentZoom.value
+
+            if (items.isEmpty()) {
+                _clusteredItems.value = emptyList()
+                return@launch
+            }
+
+            // 1. Prepare Points for WASM
+            val flatPoints = items.flatMap { item ->
+                val lat = item.latitude
+                val lng = item.longitude
+                if (lat != 0.0) {
+                    listOf((lat * 100_000).toInt(), (lng * 100_000).toInt())
+                } else {
+                    emptyList()
+                }
+            }
+
+            if (flatPoints.isEmpty()) {
+                _clusteredItems.value = emptyList()
+                return@launch
+            }
+
+            // 2. Clustering Check
+            if (!_isClusteringEnabled.value) {
+                // Return 1-to-1 clusters
+                _clusteredItems.value = items.map { item ->
+                     PinClusterItem(item.latitude, item.longitude, 1, listOf(item))
+                }
+                return@launch
+            }
+
+            // 3. WASM Clustering
+            val resolution = 12_000_000.0 / Math.pow(2.0, zoom.toDouble())
+            val cellSizeMeters = resolution.toInt().coerceAtLeast(2) 
+
+            val clustersFlat = try {
+                 wasmManager.cluster(flatPoints, cellSizeMeters)
+            } catch (e: Exception) {
+                 emptyList<Int>()
+            }
+            
+            // Fallback
+            if (clustersFlat.isEmpty()) {
+                 _clusteredItems.value = items.map { item ->
+                     PinClusterItem(item.latitude, item.longitude, 1, listOf(item))
+                }
+                return@launch
+            }
+
+            // 4. Map Clusters
+            val newClusters = mutableListOf<PinClusterItem>()
+            for (i in 0 until clustersFlat.size step 3) {
+                val cLat = clustersFlat[i] / 100_000.0
+                val cLng = clustersFlat[i+1] / 100_000.0
+                val count = clustersFlat[i+2]
+                newClusters.add(PinClusterItem(cLat, cLng, count, mutableListOf()))
+            }
+
+            // Assign Items (Nearest Neighbor)
+            if (newClusters.isNotEmpty()) {
+                items.forEach { item ->
+                    val lat = item.latitude
+                    val lng = item.longitude
+                    
+                    var minDist = Double.MAX_VALUE
+                    var bestCluster: PinClusterItem? = null
+                    
+                    for (cluster in newClusters) {
+                        val dLat = cluster.latitude - lat
+                        val dLng = cluster.longitude - lng
+                        val distSq = dLat*dLat + dLng*dLng
+                        if (distSq < minDist) {
+                            minDist = distSq
+                            bestCluster = cluster
+                        }
+                    }
+                    (bestCluster?.items as? MutableList)?.add(item)
+                }
+            }
+
+            // [FIX] Cluster Anchoring (Keep User Pin Position Exact if inside)
+            val finalClusters = newClusters.map { cluster ->
+                  val userLoc = cluster.items.find { it is UnifiedItem.CurrentLocation }
+                  if (userLoc != null) {
+                      cluster.copy(latitude = userLoc.latitude, longitude = userLoc.longitude)
+                  } else {
+                      cluster
+                  }
+            }
+
+            _clusteredItems.value = finalClusters
         }
     }
 
@@ -188,5 +315,14 @@ class MapFeatureViewModel @Inject constructor(
     // Same as iOS: Always true, let LogicHelper/View handle diffing
     fun shouldUpdateMapItems(newLocation: Location): Boolean {
         return true
+    }
+
+    init {
+        wasmManager.initialize { success ->
+            if (success) {
+                // Trigger initial calculation if items exist
+                recalculateClusters()
+            }
+        }
     }
 }

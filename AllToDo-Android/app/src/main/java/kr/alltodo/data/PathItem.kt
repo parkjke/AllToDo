@@ -26,5 +26,8 @@ data class PathItem(
     val int_long: Int,
     
     @ColumnInfo(name = "int_lat")
-    val int_lat: Int
+    val int_lat: Int,
+    
+    @ColumnInfo(name = "time")
+    val time: Long = System.currentTimeMillis()
 )

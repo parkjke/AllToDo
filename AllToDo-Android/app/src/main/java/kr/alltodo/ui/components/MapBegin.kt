@@ -10,6 +10,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kr.alltodo.ui.TodoViewModel
+import kr.alltodo.ui.PinClusterItem
 
 /**
  * MapBegin: Centralized 3-Stage Initialization Sequence
@@ -21,7 +22,7 @@ fun MapBeginSequence(
     initialAnimationDone: Boolean,
     beforeLocation: Location,
     currentLocation: Location?,
-    clusteredItems: List<TodoViewModel.PinClusterItem>,
+    clusteredItems: List<PinClusterItem>,
     onInitialAnimationDone: () -> Unit,
     onResetAnimationDone: () -> Unit, // [NEW] Added for 5s Background Resume
     onEnableClustering: () -> Unit,
@@ -90,13 +91,16 @@ fun MapBeginSequence(
 
     // [Stage 2 & 3] Data-Driven Fit Bounds & Final Focus
     // [FIX] Use snapshotFlow to wait for initial items but prevent restarts on subsequent updates.
+    val currentClusteredItemsState by rememberUpdatedState(clusteredItems)
+    
+    // [Stage 2 & 3] Data-Driven Fit Bounds & Final Focus
     LaunchedEffect(isMapReady, initialAnimationDone) {
         if (!isMapReady || initialAnimationDone) return@LaunchedEffect
         
         // [Stage 2.0] Wait for initial clustered items if not already present
-        // This ensures the sequence starts as soon as data is ready without dependency flickering
-        if (clusteredItems.isEmpty()) {
-            snapshotFlow { clusteredItems }
+        // [FIX] Use currentClusteredItemsState to observe latest items without restarting effect
+        if (currentClusteredItemsState.isEmpty()) {
+            snapshotFlow { currentClusteredItemsState }
                 .filter { it.isNotEmpty() }
                 .first()
         }

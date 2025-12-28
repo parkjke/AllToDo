@@ -8,6 +8,7 @@ import androidx.compose.ui.platform.LocalDensity
 
 import androidx.compose.ui.geometry.Offset
 import kr.alltodo.ui.UnifiedItem
+import kr.alltodo.ui.PinClusterItem
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
@@ -31,7 +32,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun GoogleMapContent(
     modifier: Modifier = Modifier,
-    clusteredItems: List<kr.alltodo.ui.TodoViewModel.PinClusterItem>,
+    clusteredItems: List<PinClusterItem>,
     beforeLocation: android.location.Location,
     currentLocation: android.location.Location?,
     cameraPositionState: CameraPositionState,

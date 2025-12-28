@@ -143,10 +143,6 @@ object PinImageManager {
         }
     }
 
-    /**
-     * Creates a Cluster Pin with Badge.
-     * Refined for iOS Aesthetic: Top-right placement with crisp rendering.
-     */
     fun createClusterPin(context: Context, resId: Int, count: Int, badgeColor: Int, scale: Float): Bitmap? {
         val density = context.resources.displayMetrics.density
         
@@ -156,7 +152,11 @@ object PinImageManager {
         
         // Padding for Badge (Badge can overflow the 40x50 box)
         val badgeRadius = 10f * density * scale
-        val padding = (badgeRadius * 1.2f).toInt() 
+        val borderThickness = 1.5f * density * scale
+        val totalBadgeRadius = badgeRadius + borderThickness
+        
+        // [FIX] Use 2.0x padding to be absolutely safe against clipping
+        val padding = (totalBadgeRadius * 2.0f).toInt() 
         
         val sizeW = pinW + padding
         val sizeH = pinH + padding
@@ -169,42 +169,57 @@ object PinImageManager {
         if (baseBitmap != null) {
             val srcRect = Rect(0, 0, baseBitmap.width, baseBitmap.height)
             // Draw pin at left-bottom of the expanded canvas
+            // destRect stays at bottom-left (x=0, y=padding)
             val destRect = Rect(0, padding, pinW, pinH + padding)
-            canvas.drawBitmap(baseBitmap, srcRect, destRect, null)
+            
+            // [FIX] Ensure clean paint for bitmap
+            val bitmapPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.FILTER_BITMAP_FLAG)
+            canvas.drawBitmap(baseBitmap, srcRect, destRect, bitmapPaint)
         } else {
             return null
         }
         
         // 2. Badge (iOS Style: Top-Right of the Pin)
         if (count > 0) {
-            val paint = android.graphics.Paint().apply {
-                isAntiAlias = true
+            // [FIX] Use fresh paint for badge elements to avoid state pollution
+            val badgePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
                 style = android.graphics.Paint.Style.FILL
             }
             
-            val cx = pinW.toFloat() - (2 * density * scale) 
-            val cy = padding.toFloat() + (2 * density * scale) 
+            // Center of Badge:
+            // Calculate overlap to ensure it sits on the corner
+            val overlap = 3 * density * scale // Increased overlap slightly for tightness
+            val cx = pinW.toFloat() - overlap
+            val cy = padding.toFloat() + overlap
             
             // A. Badge Border
-            paint.color = android.graphics.Color.WHITE
-            canvas.drawCircle(cx, cy, badgeRadius + (1.5f * density * scale), paint)
+            badgePaint.color = android.graphics.Color.WHITE
+            canvas.drawCircle(cx, cy, totalBadgeRadius, badgePaint)
             
             // B. Badge Fill
-            paint.color = badgeColor
-            canvas.drawCircle(cx, cy, badgeRadius, paint)
+            badgePaint.color = badgeColor
+            canvas.drawCircle(cx, cy, badgeRadius, badgePaint)
             
             // C. Text
-            paint.color = android.graphics.Color.WHITE
-            paint.textSize = 10f * density * scale
-            paint.textAlign = android.graphics.Paint.Align.CENTER
-            paint.typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+            val textPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                color = android.graphics.Color.WHITE
+                textAlign = android.graphics.Paint.Align.CENTER
+                typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+            }
+
+            // [FIX] Robust Text Sizing
+            val calculatedSize = 10f * density * scale
+            val minSize = 9f * density // Minimum legible size
+            textPaint.textSize = if (calculatedSize < minSize) minSize else calculatedSize
             
             val text = if (count > 99) "99+" else count.toString()
             val bounds = android.graphics.Rect()
-            paint.getTextBounds(text, 0, text.length, bounds)
-            val yOff = bounds.height().toFloat() / 2f - bounds.bottom
+            textPaint.getTextBounds(text, 0, text.length, bounds)
             
-            canvas.drawText(text, cx, cy + yOff, paint)
+            // Vertical Centering
+            val yOff = bounds.height() / 2f - bounds.bottom
+            
+            canvas.drawText(text, cx, cy + yOff, textPaint)
         }
         
         return bitmap

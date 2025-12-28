@@ -14,7 +14,9 @@ erDiagram
         boolean is_exist_person
         datetime date_time
         string memo
-        boolean is_exist_location_path
+        int no_of_path
+        int int_lat
+        int int_long
         datetime begin_time
         datetime end_time
         string type
@@ -49,6 +51,7 @@ erDiagram
         string todo_id FK
         int int_long
         int int_lat
+        datetime time
     }
 ```
 
@@ -59,4 +62,4 @@ erDiagram
     *   개별 할일에 할당된 연락처 정보는 시스템 주소록의 특정 항목을 참조할 수 있습니다.
     *   서로 별개의 테이블로 존재하여 데이터의 독립성을 유지합니다.
 3.  **할일 : 경로 (1:N)**
-    *   히스토리나 경로 데이터가 있는 할일(`is_exist_location_path`가 true인 경우)은 여러 개의 위치 좌표를 가집니다.
+    *   히스토리나 경로 데이터가 있는 할일(`no_of_path`가 1 이상인 경우)은 여러 개의 위치 좌표를 가집니다.

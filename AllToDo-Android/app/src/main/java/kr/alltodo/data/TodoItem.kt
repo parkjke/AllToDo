@@ -23,8 +23,8 @@ data class TodoItem(
     @ColumnInfo(name = "memo")
     val memo: String? = null,
     
-    @ColumnInfo(name = "is_exist_location_path")
-    val is_exist_location_path: Boolean = false,
+    @ColumnInfo(name = "no_of_path")
+    val no_of_path: Int = 0,
     
     @ColumnInfo(name = "begin_time")
     val begin_time: Long? = null,
@@ -41,6 +41,12 @@ data class TodoItem(
     // Additional fields for app logic
     @ColumnInfo(name = "completed")
     val completed: Boolean = false,
+    
+    @ColumnInfo(name = "int_lat")
+    val int_lat: Int? = null,
+    
+    @ColumnInfo(name = "int_long")
+    val int_long: Int? = null,
     
     @ColumnInfo(name = "latitude")
     val latitude: Double? = null,

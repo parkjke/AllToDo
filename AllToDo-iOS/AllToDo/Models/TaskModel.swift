@@ -10,7 +10,7 @@ final class ToDoItem {
     var is_exist_person: Bool
     var date_time: Date?
     var memo: String
-    var is_exist_location_path: Bool
+    var no_of_path: Int
     var begin_time: Date?
     var end_time: Date?
     var type: String // 00: History, 10: To-do, 20: Server
@@ -58,7 +58,7 @@ final class ToDoItem {
         is_exist_person: Bool = false,
         date_time: Date? = nil,
         memo: String = "",
-        is_exist_location_path: Bool = false,
+        no_of_path: Int = 0,
         begin_time: Date? = nil,
         end_time: Date? = nil,
         type: String = "10",
@@ -72,7 +72,7 @@ final class ToDoItem {
         self.is_exist_person = is_exist_person
         self.date_time = date_time
         self.memo = memo
-        self.is_exist_location_path = is_exist_location_path
+        self.no_of_path = no_of_path
         self.begin_time = begin_time
         self.end_time = end_time
         self.type = type
@@ -90,13 +90,13 @@ final class PathItem {
     var todo_id: UUID
     var int_long: Int
     var int_lat: Int
-    var timestamp: Date = Date()
+    var time: Date = Date()
     
-    init(todo_id: UUID, latitude: Double, longitude: Double, timestamp: Date = Date()) {
+    init(todo_id: UUID, latitude: Double, longitude: Double, time: Date = Date()) {
         self.todo_id = todo_id
         self.int_lat = Int((latitude * 100_000.0).rounded())
         self.int_long = Int((longitude * 100_000.0).rounded())
-        self.timestamp = timestamp
+        self.time = time
     }
     
     var coordinate: CLLocationCoordinate2D {

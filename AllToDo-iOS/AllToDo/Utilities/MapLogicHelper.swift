@@ -32,11 +32,11 @@ struct MapLogicHelper {
             return []
         }
         
-        // 1. Filter by location path existence
-        let withPath = allItems.filter { $0.is_exist_location_path }
+        // 1. Filter by location path existence OR valid location
+        let itemsWithLocation = allItems.filter { $0.no_of_path > 0 || ($0.int_lat != 0 && $0.int_long != 0) }
         
         // 2. Filter by time window
-        let timeFiltered = withPath.filter {
+        let timeFiltered = itemsWithLocation.filter {
             let itemDate = $0.begin_time ?? $0.date_time ?? Date(timeIntervalSince1970: Double($0.created_at)/1000.0)
             return itemDate >= min && itemDate <= max
         }

@@ -179,7 +179,7 @@ fun CalloutRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(modifier = Modifier.width(32.dp)) {
-            val hasPath = (item as? UnifiedItem.History)?.item?.is_exist_location_path == true
+            val hasPath = (item as? UnifiedItem.History)?.item?.no_of_path ?: 0 > 0
             
             IconButton(
                 onClick = { if (hasPath) onSelectLog((item as UnifiedItem.History).item) },
