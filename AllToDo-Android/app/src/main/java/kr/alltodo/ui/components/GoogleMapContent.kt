@@ -245,11 +245,38 @@ fun GoogleMapContent(
             )
         }
         
-        // [FIX] Render Clustered Items (Filtered)
+        // [VISUAL DIFFING]
+        // Maintain stable MarkerState objects to enable smooth updates (especially for User Pin)
+        val markerStates = remember { mutableStateMapOf<String, com.google.maps.android.compose.MarkerState>() }
+        val currentKeys = mutableSetOf<String>()
+        
         filteredItems.forEach { cluster ->
-            val position = LatLng(cluster.latitude, cluster.longitude)
             val isSingle = cluster.count == 1
             val firstItem = cluster.items.firstOrNull()
+            
+            // Generate Stable ID
+            // User Pin: "UserPin"
+            // Others: "Cluster_{lat}_{lon}_{count}" (or just lat/lon if static)
+            var stableId = "Cluster_${cluster.latitude}_${cluster.longitude}_${cluster.count}"
+            
+            // Check if this cluster contains User Location
+            var hasUserLocation = false
+            cluster.items.forEach { 
+                if (it is UnifiedItem.CurrentLocation) hasUserLocation = true
+            }
+            if (hasUserLocation) {
+                stableId = "UserPin" 
+            }
+            
+            currentKeys.add(stableId)
+            
+            // Get or Create State
+            val position = LatLng(cluster.latitude, cluster.longitude)
+            val state = markerStates.getOrPut(stableId) {
+                MarkerState(position = position)
+            }
+            // Update Position (Maps Compose optimizes this: if same, no-op; if diff, animate/move)
+            state.position = position
             
             // Determine Icon
             val iconDescriptor = if (isSingle && firstItem != null) {
@@ -284,24 +311,36 @@ fun GoogleMapContent(
                 kr.alltodo.ui.getCachedClusterBitmap(context, cluster.count, resId, badgeColor)
             }
             
-            // [FIX] Add Marker
-            Marker(
-                state = MarkerState(position = position),
-                icon = iconDescriptor,
-                // [FIX] Adjust anchor for cluster (offset due to badge overhang)
-                anchor = if (isSingle && firstItem != null) Offset(0.5f, 1.0f) else Offset(0.4f, 1.0f),
-                onClick = {
-                    val point = mapProjection?.toScreenLocation(position)
-                    if (point != null) {
-                        if (isSingle && firstItem != null) {
-                            onItemClickWithCoords(firstItem, point.x.toFloat(), point.y.toFloat())
-                        } else {
-                            onClusterClickWithCoords(cluster.items, point.x.toFloat(), point.y.toFloat())
+            // [FIX] Add Marker with Stable State and Key
+            key(stableId) {
+                Marker(
+                    state = state,
+                    icon = iconDescriptor,
+                    // [FIX] Adjust anchor for cluster (offset due to badge overhang)
+                    anchor = if (isSingle && firstItem != null) Offset(0.5f, 1.0f) else Offset(0.4f, 1.0f),
+                    onClick = {
+                        val point = mapProjection?.toScreenLocation(position)
+                        if (point != null) {
+                            if (isSingle && firstItem != null) {
+                                onItemClickWithCoords(firstItem, point.x.toFloat(), point.y.toFloat())
+                            } else {
+                                onClusterClickWithCoords(cluster.items, point.x.toFloat(), point.y.toFloat())
+                            }
                         }
-                    }
-                    true
-                }
-            )
+                        true
+                    },
+                    zIndex = if (hasUserLocation) 100f else 1.0f
+                )
+            }
+        }
+        
+        // Cleanup old states
+        val it = markerStates.iterator()
+        while (it.hasNext()) {
+            val entry = it.next()
+            if (!currentKeys.contains(entry.key)) {
+                it.remove()
+            }
         }
 
         

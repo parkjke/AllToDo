@@ -184,67 +184,226 @@ fun KakaoMapContent(
 
 
     // Rendering Logic
+        // [VISUAL DIFFING ALGORITHM]
+        // 1. Identify User Pin in New Data
+        var newUserLabelData: Triple<LatLng, Bitmap, Pair<Float, Float>>? = null
+        var newUserClusterIndex = -1
+        
+        visibleClusters.forEachIndexed { index, cluster ->
+            val isUserFn = { item: UnifiedItem -> item is UnifiedItem.CurrentLocation }
+            if (cluster.items.any(isUserFn)) {
+                newUserClusterIndex = index
+                val position = LatLng.from(cluster.latitude, cluster.longitude)
+                
+                // Resolve Style
+                val isSingle = cluster.count == 1
+                val firstItem = cluster.items.first()
+                
+                val (bitmap, anchorX, anchorY) = if (isSingle) {
+                     kr.alltodo.R.drawable.pin_current.let { resId -> 
+                         Triple(kr.alltodo.ui.createKakaoPinBitmap(context, 0, resId, android.graphics.Color.TRANSPARENT), 0.5f, 0.5f) 
+                     }
+                } else {
+                     val (resId, badgeColor) = kr.alltodo.R.drawable.pin_current to android.graphics.Color.RED
+                     val b = kr.alltodo.ui.createKakaoPinBitmap(context, cluster.count, resId, badgeColor)
+                     Triple(b, 0.33f, 1.0f)
+                }
+                
+                if (bitmap != null) {
+                    newUserLabelData = Triple(position, bitmap, Pair(anchorX, anchorY))
+                }
+            }
+        }
+        
+        // 2. Reuse User Label
+        // We need to keep track of created labels. Since we can't easily query layer for specific tags,
+        // we will clear ALL except the one we identify as user pin?
+        // Or better: Maintain a local list of labels.
+    }
+    
+    // [FIX] We need a persistent state for the User Label to reuse it across recompositions
+    val userLabelState = remember { mutableStateOf<com.kakao.vectormap.label.Label?>(null) }
+    
     LaunchedEffect(kakaoMap, visibleClusters) {
         val map = kakaoMap ?: return@LaunchedEffect
         val labelManager = map.labelManager ?: return@LaunchedEffect
         val layer = labelManager.getLayer("mainLayer") ?: labelManager.addLayer(LabelLayerOptions.from("mainLayer"))
-        layer?.removeAll()
         
-        visibleClusters.forEach { cluster ->
-             // Standard Pin Logic
-            val isSingle = cluster.count == 1
-            val firstItem = cluster.items.firstOrNull()
-            
-             // Determine Icon & Style
-            val styleId = "cluster_${cluster.count}_${cluster.latitude}" // Unique ID
-            var styles = labelManager.getLabelStyles(styleId)
-            
-            if (styles == null) {
-                val (bitmap, anchorX, anchorY) = if (isSingle && firstItem != null) {
-                    val resId = firstItem.getPinResId()
-                    // Use createKakaoPinBitmap with count=0 for Single Pin (No Badge, Scaled 0.7)
-                    val b = kr.alltodo.ui.createKakaoPinBitmap(context, 0, resId, android.graphics.Color.TRANSPARENT)
-                    Triple(b, 0.5f, 1.0f)
-                } else {
-                    var hasUserLocation = false
-                    var hasHistory = false
-                    var hasServerTodo = false
-                    var hasUserTodo = false
-                    cluster.items.forEach { 
-                        when(it) {
-                            is UnifiedItem.CurrentLocation -> hasUserLocation = true
-                            is UnifiedItem.History -> hasHistory = true
-                            is UnifiedItem.Todo -> {
-                                if (it.item.source != "local") hasServerTodo = true
-                                else hasUserTodo = true
-                            }
-                        }
-                    }
-                    val (resId, badgeColor) = when {
-                        hasUserLocation -> kr.alltodo.R.drawable.pin_current to android.graphics.Color.RED
-                        hasUserTodo -> kr.alltodo.R.drawable.pin_todo_ready to android.graphics.Color.parseColor("#00AA00")
-                        hasServerTodo -> kr.alltodo.R.drawable.pin_receive_ready to android.graphics.Color.BLUE
-                        else -> kr.alltodo.R.drawable.pin_history to android.graphics.Color.RED
-                    }
-                    val b = kr.alltodo.ui.createKakaoPinBitmap(context, cluster.count, resId, badgeColor) // Scale handled internally
-                    // [FIX] Adjusted Anchor X from 0.4 to 0.33 to match new padding ratio (16 / 48)
-                    Triple(b, 0.33f, 1.0f)
-                }
-                
-                if (bitmap != null) {
-                    styles = labelManager.addLabelStyles(LabelStyles.from(styleId, LabelStyle.from(bitmap).setAnchorPoint(anchorX, anchorY)))
-                }
-            }
-            
-            if (styles != null) {
-                 val options = LabelOptions.from(LatLng.from(cluster.latitude, cluster.longitude))
-                        .setStyles(styles)
-                        .setClickable(true)
+        // [FIX] instead of removeAll(), we will remove all EXCEPT the user label if we can find it?
+        // Actually, easiest is to keep a reference.
+        
+        // 1. Identify New User Data
+        var newUserPos: LatLng? = null
+        var newUserBitmap: Bitmap? = null
+        var newUserAnchor: Pair<Float, Float>? = null
+        var newUserItems: List<UnifiedItem>? = null
+        var newUserClusterIndex = -1
+        
+        visibleClusters.forEachIndexed { index, cluster ->
+             if (cluster.items.any { it is UnifiedItem.CurrentLocation }) {
+                 newUserClusterIndex = index
+                 newUserItems = cluster.items
+                 newUserPos = LatLng.from(cluster.latitude, cluster.longitude)
                  
-                 val label = layer?.addLabel(options)
-                 label?.tag = cluster // [FIX] Store cluster in tag for reliable click handling
+                 val isSingle = cluster.count == 1
+                 val firstItem = cluster.items.first()
+                 
+                 val (b, ax, ay) = if (isSingle) {
+                     Triple(kr.alltodo.ui.createKakaoPinBitmap(context, 0, kr.alltodo.R.drawable.pin_current, android.graphics.Color.TRANSPARENT), 0.5f, 0.5f)
+                 } else {
+                     Triple(kr.alltodo.ui.createKakaoPinBitmap(context, cluster.count, kr.alltodo.R.drawable.pin_current, android.graphics.Color.RED), 0.33f, 1.0f)
+                 }
+                 newUserBitmap = b
+                 newUserAnchor = Pair(ax, ay)
+             }
+        }
+        
+        // 2. Clear Non-User Labels
+        // We can't selectively remove easily without tracking ALL. 
+        // Strategy: removeAll(), but if userLabelState is valid, does removeAll() invalidate it?
+        // YES. layer.removeAll() destroys all labels.
+        
+        // CHANGE STRATEGY: We must track ALL labels to do proper diffing, OR
+        // just accept that we clear non-user labels.
+        // But to reuse User Label, we must NOT call removeAll().
+        
+        // So we need to iterate internal list? No access.
+        // We MUST maintain our own list of labels.
+        
+        // [Refined Plan]
+        // 1. Clear everything (Performance hit? No, logic is simpler).
+        // 2. BUT to support smooth movement, we need to SAVE the user label instance.
+        // 3. Issue: If we call layer.removeAll(), the user label is dead.
+        // 4. Solution: Don't call removeAll(). Call remove(label) for everyone else.
+        
+        // We need a persistent list of labels.
+    }
+    
+    // [FIX] Persistent State for Labels
+    val currentLabels = remember { mutableListOf<com.kakao.vectormap.label.Label>() }
+    
+    LaunchedEffect(kakaoMap, visibleClusters) {
+        val map = kakaoMap ?: return@LaunchedEffect
+        val labelManager = map.labelManager ?: return@LaunchedEffect
+        val layer = labelManager.getLayer("mainLayer") ?: labelManager.addLayer(LabelLayerOptions.from("mainLayer"))
+        
+        // 1. Identify User in New Data
+        var newUserClusterIndex = -1
+        visibleClusters.forEachIndexed { index, cluster ->
+            if (cluster.items.any { it is UnifiedItem.CurrentLocation }) {
+                newUserClusterIndex = index
             }
         }
+        
+        // 2. Find Existing User Label
+        var reusedUserLabel: com.kakao.vectormap.label.Label? = null
+        val oldUserLabel = currentLabels.find { (it.tag as? kr.alltodo.ui.TodoViewModel.PinClusterItem)?.items?.any { item -> item is UnifiedItem.CurrentLocation } == true }
+        
+        // 3. Render New Labels
+        val newLabels = mutableListOf<com.kakao.vectormap.label.Label>()
+        
+        visibleClusters.forEachIndexed { index, cluster ->
+            val isUserCluster = (index == newUserClusterIndex)
+            
+            if (isUserCluster && oldUserLabel != null) {
+                // Reuse!
+                reusedUserLabel = oldUserLabel
+                val pos = LatLng.from(cluster.latitude, cluster.longitude)
+                oldUserLabel.moveTo(pos, 500) // Smooth Move!
+                
+                // Update Style (Icon/Anchor)
+                // Kakao Label doesn't support changing icon easily without styles.
+                // But we can add new style and set it?
+                // Or just assume style is same (Blue Dot)?
+                // Actually changing styles is possible: label.setStyles(styles)
+                
+                val isSingle = cluster.count == 1
+                val firstItem = cluster.items.first()
+                val styleId = "cluster_${cluster.count}_User"
+                
+                var styles = labelManager.getLabelStyles(styleId)
+                if (styles == null) {
+                    val (b, ax, ay) = if (isSingle) {
+                        Triple(kr.alltodo.ui.createKakaoPinBitmap(context, 0, kr.alltodo.R.drawable.pin_current, android.graphics.Color.TRANSPARENT), 0.5f, 0.5f)
+                    } else {
+                        Triple(kr.alltodo.ui.createKakaoPinBitmap(context, cluster.count, kr.alltodo.R.drawable.pin_current, android.graphics.Color.RED), 0.33f, 1.0f)
+                    }
+                    if (b != null) {
+                         styles = labelManager.addLabelStyles(LabelStyles.from(styleId, LabelStyle.from(b).setAnchorPoint(ax, ay)))
+                    }
+                }
+                
+                if (styles != null) oldUserLabel.styles = styles
+                
+                // Update Tag
+                oldUserLabel.tag = cluster
+                newLabels.add(oldUserLabel)
+                
+            } else {
+                // Create New
+                val isSingle = cluster.count == 1
+                val firstItem = cluster.items.firstOrNull() ?: return@forEachIndexed
+                
+                val styleId = "cluster_${cluster.count}_${cluster.latitude}_${cluster.longitude}" // Unique per pos
+                var styles = labelManager.getLabelStyles(styleId)
+                
+                if (styles == null) {
+                    val (bitmap, anchorX, anchorY) = if (isSingle) {
+                        val resId = firstItem.getPinResId()
+                        val b = kr.alltodo.ui.createKakaoPinBitmap(context, 0, resId, android.graphics.Color.TRANSPARENT)
+                        Triple(b, 0.5f, 1.0f)
+                    } else {
+                         // (Color Logic...)
+                        var hasUserLocation = false
+                        var hasHistory = false
+                        var hasServerTodo = false
+                        var hasUserTodo = false
+                        cluster.items.forEach { 
+                            when(it) {
+                                is UnifiedItem.CurrentLocation -> hasUserLocation = true
+                                is UnifiedItem.History -> hasHistory = true
+                                is UnifiedItem.Todo -> {
+                                    if (it.item.source != "local") hasServerTodo = true
+                                    else hasUserTodo = true
+                                }
+                            }
+                        }
+                        val (resId, badgeColor) = when {
+                            hasUserLocation -> kr.alltodo.R.drawable.pin_current to android.graphics.Color.RED
+                            hasUserTodo -> kr.alltodo.R.drawable.pin_todo_ready to android.graphics.Color.parseColor("#00AA00")
+                            hasServerTodo -> kr.alltodo.R.drawable.pin_receive_ready to android.graphics.Color.BLUE
+                            else -> kr.alltodo.R.drawable.pin_history to android.graphics.Color.RED
+                        }
+                        val b = kr.alltodo.ui.createKakaoPinBitmap(context, cluster.count, resId, badgeColor) 
+                        Triple(b, 0.33f, 1.0f)
+                    }
+                    
+                    if (bitmap != null) {
+                        styles = labelManager.addLabelStyles(LabelStyles.from(styleId, LabelStyle.from(bitmap).setAnchorPoint(anchorX, anchorY)))
+                    }
+                }
+                
+                if (styles != null) {
+                     val options = LabelOptions.from(LatLng.from(cluster.latitude, cluster.longitude))
+                            .setStyles(styles)
+                            .setClickable(true)
+                     val label = layer?.addLabel(options)
+                     if (label != null) {
+                         label.tag = cluster
+                         newLabels.add(label)
+                     }
+                }
+            }
+        }
+        
+        // 4. Cleanup Old Labels
+        currentLabels.forEach { old ->
+             if (old != reusedUserLabel) {
+                 layer?.remove(old)
+             }
+        }
+        currentLabels.clear()
+        currentLabels.addAll(newLabels)
 
         // [NEW] Show Creating Todo Pin (Green)
         if (creatingTodoLocation != null) {
