@@ -1,0 +1,13 @@
+<svg width="100" height="90" viewBox="0 0 100 90" xmlns="http://www.w3.org/2000/svg">
+  <!-- Centered Checkbox Frame (34x34) -->
+  <rect x="33" y="28" width="34" height="34" rx="4" ry="4" fill="none" stroke="white" stroke-width="3" />
+  
+  <!-- Red Brush Stroke (Slash) from Top-Right to Bottom-Left -->
+  <path d="M72,18 
+           C65,22 45,45 28,72 
+           C35,68 55,40 72,18 Z" 
+        fill="#FF3B30" 
+        stroke="#FF3B30" 
+        stroke-width="1.5" 
+        stroke-linejoin="round" />
+</svg>

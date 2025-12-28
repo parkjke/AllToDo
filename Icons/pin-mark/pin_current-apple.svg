@@ -14,14 +14,26 @@
 
   <g transform="translate(50, 45) scale(0.6) translate(-50, -50)">
       
+  <!-- 하늘색 타원 (채움) -->
+  <ellipse cx="50" cy="68" rx="22" ry="11" fill="#87CEEB"/>
+  <!-- 파란 점 (위에 겹침) -->
+  <ellipse cx="50" cy="68" rx="10" ry="5" fill="#007AFF"/>
+  <!-- 파란 점 (위에 겹침) 
         <circle cx="50" cy="50" r="30" stroke="#FFFFFF" stroke-width="6" fill="none"/>
         <line x1="50" y1="10" x2="50" y2="90" stroke="#FFFFFF" stroke-width="6"/>
         <line x1="10" y1="50" x2="90" y2="50" stroke="#FFFFFF" stroke-width="6"/>
-    
+    -->
   </g>
 
   <g transform="translate(50, 45) scale(1.0) translate(-25, -25)">
       
+  <!-- 손 (위에서 아래로 가리킴) -->
+  <path d="M40 8 L40 28 L34 28 L34 42 L44 42 L44 48 L56 48 L56 42 L66 42 L66 28 L60 28 L60 8 Q60 4 50 4 Q40 4 40 8 Z" fill="white"/>
+  <!-- 손 (위에서 아래로 가리킴) 
         <polygon points="25,8 40,38 25,30 10,38" fill="gray"/>
+        -->
   </g>
 </svg>
+
+
+

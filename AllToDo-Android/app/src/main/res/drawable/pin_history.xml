@@ -8,9 +8,9 @@
       android:pathData="M10,15Q50,5 90,15Q100,40 95,65Q75,80 50,120Q25,80 5,65Q0,40 10,15Z">
     <aapt:attr name="android:fillColor">
       <gradient
-          android:startX="3.33"
+          android:startX="50"
           android:startY="10"
-          android:endX="3.33"
+          android:endX="50"
           android:endY="120"
           android:type="linear">
         <item android:offset="0" android:color="#FFFF3B30"/>
@@ -18,7 +18,12 @@
       </gradient>
     </aapt:attr>
   </path>
-  <path
-      android:pathData="M50,18l6.6,18l20.4,0l-16.2,12l6.6,18l-17.4,-9l-17.4,9l6.6,-18l-16.2,-12l20.4,0z"
-      android:fillColor="#FFFFFF"/>
+  <!-- v3 Path & Clock -->
+  <path android:pathData="M25,60 C30,40 70,70 75,30" android:strokeColor="#FFFFFF" android:strokeWidth="4" android:strokeDashArray="1, 8" android:strokeLineCap="round" android:fillColor="#00000000"/>
+  <path android:pathData="M75,30m-12,0a12,12 0,1 1,24 0a12,12 0,1 1,-24 0" android:fillColor="#1AFFFFFF" android:strokeColor="#FFFFFF" android:strokeWidth="3"/>
+  <path android:pathData="M75,16m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" android:strokeColor="#FFFFFF" android:strokeWidth="1.5" android:fillColor="#00000000"/>
+  <!-- Hands -->
+  <path android:pathData="M75,30L70,25" android:strokeColor="#FFFFFF" android:strokeWidth="2" android:strokeLineCap="round"/>
+  <path android:pathData="M75,30L80,28" android:strokeColor="#FFD60A" android:strokeWidth="1.5" android:strokeLineCap="round"/>
+  <path android:pathData="M25,60m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" android:fillColor="#FFFF3B30"/>
 </vector>
