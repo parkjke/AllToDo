@@ -100,7 +100,13 @@ struct AppleMapView: UIViewRepresentable {
         print(">>> updateUIView: [Data:\(isDataChanged)] [Loc:\(isLocationChanged)] [Path:\(isPathChanged)] [Action:\(hasAction)]")
         
         // 4. Update States & execute
-        if isLocationChanged { context.coordinator.lastUserLocation = locationManager.currentLocation }
+        if isLocationChanged { 
+            context.coordinator.lastUserLocation = locationManager.currentLocation 
+            // [OPTIMIZATION] Trigger update. The Coordinator's refreshWasmClusters will handle the Diffing.
+            if !isDataChanged {
+                 context.coordinator.refreshWasmClusters(mapView: uiView)
+            }
+        }
 
         // Handle Map Actions
         if hasAction {
@@ -398,101 +404,15 @@ struct AppleMapView: UIViewRepresentable {
             let totalCount = parent.allItems.count
             let isLaunchPhase = parent.action == .launchSequence || firstRender || isLaunchAnimating // [FIX] Include isLaunchAnimating
             
-            // [TEMPORARY CHECK] switch to native clustering
-            let useNativeClustering = false 
-            
-            if useNativeClustering {
-                OptimizationLogger.shared.log(type: .launchStep, value: ">>> Native Clustering Mode Active")
-                 // Pre-calc user int location
-                var uInt: (lat: Int, lon: Int)? = nil
-                if let u = parent.locationManager.currentLocation {
-                    uInt = SmartLocationManager.shared.toIntLocation(u)
-                }
-                
-                // Collect All Items
-                 var allItems: [UnifiedMapItem] = []
-                 var farCount = 0
-                 
-                 for item in parent.allItems {
-                     switch item {
-                     case .todo(let t):
-                         // 500km Filter (Integer)
-                         if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: t.int_lat, lon2: t.int_long) {
-                             farCount += 1
-                             continue
-                         }
-                         allItems.append(item)
-                     case .history(let log):
-                         // 500km Filter (Integer)
-                         if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.int_lat, lon2: log.int_long) {
-                             farCount += 1
-                             continue
-                         }
-                         allItems.append(item)
-                     case .userLocation(let coord):
-                         allItems.append(item)
-                     case .serverMessage:
-                         break
-                     }
-                 }
-                 
-                 // Notify Far Items
-                 if farCount > 0 {
-                     DispatchQueue.main.async { self.parent.onFarItemsDetected?(farCount) }
-                 }
-                 
-                 // Render Raw Immediately
-                 DispatchQueue.main.async {
-                     self.renderRawItems(mapView: mapView, allItems: allItems)
-                 }
-                 return
-            }
-            
             let useFastPath = isLaunchPhase
+
             
             if useFastPath {
                 OptimizationLogger.shared.log(type: .launchStep, value: ">>> Fast Path: Rendering \(totalCount) items raw (No WASM)")
-                // Pre-calc user int location
-                var uInt: (lat: Int, lon: Int)? = nil
-                if let u = parent.locationManager.currentLocation {
-                    uInt = SmartLocationManager.shared.toIntLocation(u)
-                }
                 
-                // Fast Path Loop
-                var allItemsToRender: [UnifiedMapItem] = []
-                var farCount = 0
-                
-                for item in parent.allItems {
-                    switch item {
-                    case .todo(let t):
-                        // 500km Filter (Integer)
-                        if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: t.int_lat, lon2: t.int_long) {
-                            farCount += 1
-                            continue
-                        }
-                        allItemsToRender.append(item)
-                    case .history(let log):
-                        // 500km Filter (Integer)
-                        if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.int_lat, lon2: log.int_long) {
-                            farCount += 1
-                            continue
-                        }
-                        allItemsToRender.append(item)
-                    case .userLocation:
-                        allItemsToRender.append(item)
-                    case .serverMessage:
-                        break
-                    }
-                }
-                
-                // Notify Far Items
-                if farCount > 0 {
-                    DispatchQueue.main.async { self.parent.onFarItemsDetected?(farCount) }
-                }
-                
-                // Render Raw Immediately
+                // Render Raw Immediately (Data is already filtered by ViewModel)
                 DispatchQueue.main.async {
-                    self.renderRawItems(mapView: mapView, allItems: allItemsToRender)
+                    self.renderRawItems(mapView: mapView, allItems: self.parent.allItems)
                 }
                 return
             }
@@ -602,9 +522,8 @@ struct AppleMapView: UIViewRepresentable {
             for (idx, items) in clusters.enumerated() {
                 if items.isEmpty { continue }
                 let centroid = centroids[idx]
-                let coordinate = CLLocationCoordinate2D(latitude: centroid.lat, longitude: centroid.lon)
+                var finalCoordinate = CLLocationCoordinate2D(latitude: centroid.lat, longitude: centroid.lon)
                 
-                var finalCoordinate = coordinate
                 // [FIX] Cluster Anchoring: If user is in cluster, force cluster to user position
                 if let userItem = items.first(where: { if case .userLocation = $0 { return true }; return false }),
                    let userCoord = userItem.location {
@@ -624,9 +543,68 @@ struct AppleMapView: UIViewRepresentable {
                 }
             }
             
-            let oldInterval = mapView.annotations.filter { !($0 is MKUserLocation) }
-            mapView.removeAnnotations(oldInterval)
-            mapView.addAnnotations(newAnnotations)
+            // [VISUAL DIFFING ALGORITHM]
+            // Goal: Reuse existing "User Pin" (Single or Cluster) to animate movement
+            
+            let oldAnnotations = mapView.annotations.filter { !($0 is MKUserLocation) }
+            var toAdd: [MKAnnotation] = []
+            var toRemove: [MKAnnotation] = []
+            
+            // 1. Find "User Pin" in New Set
+            let newUserPin = newAnnotations.first { ann in
+                if let uni = ann as? UnifiedAnnotation, case .userLocation = uni.item { return true }
+                if let cl = ann as? WasmClusterAnnotation, cl.items.contains(where: { if case .userLocation = $0 { return true }; return false }) { return true }
+                return false
+            }
+            
+            // 2. Find "User Pin" in Old Set
+            let oldUserPin = oldAnnotations.first { ann in
+                if let uni = ann as? UnifiedAnnotation, case .userLocation = uni.item { return true }
+                if let cl = ann as? WasmClusterAnnotation, cl.items.contains(where: { if case .userLocation = $0 { return true }; return false }) { return true }
+                return false
+            }
+            
+            var reusedUserPin: MKAnnotation? = nil
+            
+            // 3. Diff Check
+            if let newPin = newUserPin, let oldPin = oldUserPin {
+                // Check if they are compatible (Same Type, Same Count/Style)
+                // Simplified: Just Check Class Type and Item Count
+                let isSameType = type(of: newPin) == type(of: oldPin)
+                var isSameCount = false
+                
+                if let nc = newPin as? WasmClusterAnnotation, let oc = oldPin as? WasmClusterAnnotation {
+                    isSameCount = nc.items.count == oc.items.count
+                } else if newPin is UnifiedAnnotation && oldPin is UnifiedAnnotation {
+                    isSameCount = true
+                }
+                
+                if isSameType && isSameCount {
+                    // [REUSE] Smooth Move!
+                    UIView.animate(withDuration: 0.3) {
+                        if let mutablePin = oldPin as? MKPointAnnotation {
+                             mutablePin.coordinate = newPin.coordinate
+                        } else if let mutableUni = oldPin as? UnifiedAnnotation {
+                             mutableUni.coordinate = newPin.coordinate
+                        }
+                    }
+                    reusedUserPin = oldPin
+                }
+            }
+            
+            // 4. Build Add/Remove Lists
+            for newAnn in newAnnotations {
+                if newAnn === newUserPin && reusedUserPin != nil { continue } // Skip adding new user pin if reused
+                toAdd.append(newAnn)
+            }
+            
+            for oldAnn in oldAnnotations {
+                if oldAnn === oldUserPin && reusedUserPin != nil { continue } // Skip removing old user pin if reused
+                toRemove.append(oldAnn)
+            }
+            
+            if !toRemove.isEmpty { mapView.removeAnnotations(toRemove) }
+            if !toAdd.isEmpty { mapView.addAnnotations(toAdd) }
         }
         
         // Helper Class for WASM Clusters
@@ -647,10 +625,10 @@ struct AppleMapView: UIViewRepresentable {
             mapView.addAnnotations(newAnnotations)
         }
         
-        // MARK: - Legacy Update (Disabled)
         func updateAnnotations(mapView: MKMapView, userLocation: CLLocation?) {
             refreshWasmClusters(mapView: mapView)
         }
+        
         
         // MARK: - Launch Animation
         func performLaunchAnimation(mapView: MKMapView, userLocation: CLLocation?) {
@@ -667,15 +645,15 @@ struct AppleMapView: UIViewRepresentable {
             if let u = userLoc {
                 let ui = SmartLocationManager.shared.toIntLocation(u)
                 uLat = ui.lat; uLon = ui.lon
+                // [FIX] Also append user location to points for bounds calculation
+                points.append(u.coordinate)
             }
             
             for item in parent.allItems {
                 switch item {
                 case .todo(let t):
-                    if userLoc != nil && SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: t.int_lat, lon2: t.int_long) { continue }
                     points.append(CLLocationCoordinate2D(latitude: t.latitude, longitude: t.longitude))
                 case .history(let log):
-                    if userLoc != nil && SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: log.int_lat, lon2: log.int_long) { continue }
                     points.append(CLLocationCoordinate2D(latitude: log.latitude, longitude: log.longitude))
                 case .userLocation(let coord):
                     points.append(coord)
@@ -779,7 +757,7 @@ struct AppleMapView: UIViewRepresentable {
             let size = CGSize(width: width, height: height)
             
             view.frame = CGRect(origin: .zero, size: size)
-            view.centerOffset = CGPoint(x: -5, y: 30)
+            view.centerOffset = CGPoint(x: 0, y: -25) // Pin Tip (Bottom Center) is Anchor
             view.isUserInteractionEnabled = true
             
             // 3. Visuals - Layer 1: Image
@@ -808,7 +786,7 @@ struct AppleMapView: UIViewRepresentable {
                     }
                 }
                 btn.items = items
-                let (baseName, color, count) = UnifiedMapItem.resolveClusterStyle(items: items)
+                let (baseName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
                 
                 if let img = PinImageHelper.shared.createShieldPin(imageName: baseName, color: color, count: count, badgeSize: 20) {
                     imageView.image = img
@@ -818,19 +796,19 @@ struct AppleMapView: UIViewRepresentable {
             } else if let wasmCluster = annotation as? WasmClusterAnnotation {
                 let items = wasmCluster.items
                 btn.items = items
-                let (baseName, color, count) = UnifiedMapItem.resolveClusterStyle(items: items)
+                let (baseName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
                 
                 if let img = PinImageHelper.shared.createShieldPin(imageName: baseName, color: color, count: count, badgeSize: 20) {
                     imageView.image = img
                     view.frame = CGRect(origin: .zero, size: img.size)
-                    view.centerOffset = CGPoint(x: -5, y: 30)
+                    view.centerOffset = CGPoint(x: 0, y: -25) // (20-20, 50-25) -> Shift Up by 25
                 }
             } else if let unified = annotation as? UnifiedAnnotation, let item = unified.item {
                 btn.items = [item]
                 if let img = PinImageHelper.shared.fetchBasePin(named: item.imageName) {
                     imageView.image = img
                     view.frame = CGRect(origin: .zero, size: img.size)
-                    view.centerOffset = CGPoint(x: 0, y: 25) // (20-20, 50-25)
+                    view.centerOffset = CGPoint(x: 0, y: -25) // (20-20, 50-25) -> Shift Up by 25
                 }
             }
             
@@ -1018,7 +996,7 @@ struct AppleMapView: UIViewRepresentable {
             view.detailCalloutAccessoryView = containerView
         }
     } 
-} 
+}
 
 
 struct ClusterListCallout: View {

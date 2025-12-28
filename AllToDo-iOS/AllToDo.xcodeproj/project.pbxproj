@@ -17,22 +17,9 @@
 		EF594C4547D0212EC0FF4650 /* Pods-AllToDo.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-AllToDo.release.xcconfig"; path = "Target Support Files/Pods-AllToDo/Pods-AllToDo.release.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		96712B9A2ED3941F0012E548 /* Exceptions for "AllToDo" folder in "AllToDo" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = 96A4A4F32ED271F20000401C /* AllToDo */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		96A4A4F62ED271F20000401C /* AllToDo */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				96712B9A2ED3941F0012E548 /* Exceptions for "AllToDo" folder in "AllToDo" target */,
-			);
 			path = AllToDo;
 			sourceTree = "<group>";
 		};
@@ -164,9 +151,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-AllToDo/Pods-AllToDo-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-AllToDo/Pods-AllToDo-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -181,9 +172,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-AllToDo/Pods-AllToDo-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-AllToDo/Pods-AllToDo-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;

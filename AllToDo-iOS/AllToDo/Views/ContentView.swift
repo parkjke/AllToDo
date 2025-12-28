@@ -6,228 +6,25 @@ import SwiftData
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var allItems: [ToDoItem]
-    // @Query private var allPaths: [PathItem] // [OPTIMIZATION] Removed to prevent re-render on path update
-
     
-    @State private var showProfile = false
-    @State private var showTasks = false
-    
-    // Map Control State
-    @State private var mapAction: MapAction = .none
-    @State private var compassRotation: Double = 0.0
+    // [Phase 1 Refactoring] Central Controller
+    @StateObject private var viewModel = MapFeatureViewModel()
     
     @StateObject private var locationManager = AppLocationManager()
     
-    @State private var showLocationHistory = false
-    
-    @State private var selectedItem: ToDoItem?
-    @State private var selectedClusterItems: [UnifiedMapItem]?
-    @State private var viewingHistoryItem: ToDoItem?
-    @State private var showHistoryMode = false
-    @State private var selectedDate = Date()
-    @State private var showCalendar = false
-    @State private var showListView = false
+    // UI State (Non-Map)
+    @State private var showProfile = false
     @State private var backgroundStartTime: Date?
-    @State private var tapPosition: CGPoint?
     
-    // Far Item / Cluster State
-    @State private var farItemMessage: String?
-    @State private var farMessageTask: Task<Void, Never>?
-    @State private var hasShownFarItemToast = false
-    @State private var farItemsCount = 0
-    @State private var showFarNotification = false
-    @State private var clusterRadius: Double? = 100.0
-    @State private var anchorDate: Date = Date() // [FIX] Time Anchor for Stable Filtering
-    @State private var cachedMapItems: [UnifiedMapItem] = [] // [FIX] State Caching
-
-    // Create Todo State
-    @State private var isCreatingTodo = false
-    @State private var creatingTodoLocation: CLLocationCoordinate2D?
-    @State private var initialTodoName = ""
-    @State private var initialTodoTitle = "할 일 만들기"
-
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("selectedMapProvider") private var mapProvider: MapProvider = .apple
-    @AppStorage("maxPopupItems") private var maxPopupItems = 5
-    @AppStorage("popupFontSize") private var popupFontSize = 1
 
-    // MARK: - Filtered Data
-    // MARK: - Filtered Data Logic
-    private func updateMapItems() {
-        let centerDate = showHistoryMode ? selectedDate : anchorDate
-        let min = Calendar.current.date(byAdding: .hour, value: -24, to: centerDate)!
-        let max = Calendar.current.date(byAdding: .hour, value: 24, to: centerDate)!
-        
-        print(">>> start map: Filtering DB Data - Total Items: \(allItems.count), Center: \(centerDate)")
-        
-        let withPath = allItems.filter { $0.is_exist_location_path }
-
-        let items = withPath.filter {
-            let itemDate = $0.begin_time ?? $0.date_time ?? Date(timeIntervalSince1970: Double($0.created_at)/1000.0)
-            return itemDate >= min && itemDate <= max
-        }
-        
-        print(">>> start map: Items after ±24h Time Filter: \(items.count)")
-        
-        var results: [UnifiedMapItem] = []
-        
-        // [NEW] Add Current Location
-        if let current = locationManager.currentLocation {
-            results.append(.userLocation(current.coordinate))
-        }
-        
-        for item in items {
-            if item.type.hasPrefix("0") {
-                results.append(.history(item))
-            } else {
-                results.append(.todo(item))
-            }
-        }
-        
-        // Only update if count changed (Basic EQ Check)
-        if results.count != cachedMapItems.count || results.map(\.id) != cachedMapItems.map(\.id) {
-            self.cachedMapItems = results
-            print(">>> start map: cachedMapItems UPDATED (includes UserLocation: \(locationManager.currentLocation != nil))")
-        }
-    }
-    
     // MARK: - Body
     var body: some View {
         ZStack {
             // Map Layer
-            Group {
-                switch mapProvider {
-                case .apple:
-                    AppleMapView(
-                        action: $mapAction,
-                        rotation: $compassRotation,
-                        locationManager: locationManager,
-                        allItems: cachedMapItems,
-                        selectedItem: $selectedItem,
-                        viewingHistoryItem: $viewingHistoryItem, // [NEW]
-                        selectedClusterItems: $selectedClusterItems,
+            mapLayer
 
-                        tapPosition: $tapPosition,
-                        clusterRadius: $clusterRadius,
-                        creatingTodoLocation: $creatingTodoLocation,
-                        onLongTap: { coord in
-                            self.creatingTodoLocation = coord
-                            self.initialTodoName = ""
-                            self.initialTodoTitle = "할 일 만들기"
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                self.isCreatingTodo = true
-                            }
-                        },
-                        onUserLocationTap: {},
-                        onDelete: { deleteItem($0) },
-                        onDeleteLog: { deleteItem($0) },
-                        onSelectLog: { viewingHistoryItem = $0 }, onSelectItem: { selectedItem = $0 },
-                        onFarItemsDetected: { count in
-                            self.farItemsCount = count
-                            self.showFarNotification = true
-                        },
-                        activePoints: locationManager.processedSessionPoints,
-                        showActivePath: locationManager.showActivePath
-                    )
-                case .kakao:
-                     KakaoMapView(
-                         action: $mapAction,
-                         rotation: $compassRotation,
-                         locationManager: locationManager,
-                         allItems: cachedMapItems,
-                         selectedItem: $selectedItem,
-                         viewingHistoryItem: $viewingHistoryItem, // [NEW]
-                         selectedClusterItems: $selectedClusterItems,
-
-                         tapPosition: $tapPosition,
-                         clusterRadius: $clusterRadius,
-                         creatingTodoLocation: $creatingTodoLocation, // [NEW]
-                         onLongTap: { coord in
-                            self.creatingTodoLocation = coord
-                            self.initialTodoName = ""
-                            self.initialTodoTitle = "할 일 만들기"
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                self.isCreatingTodo = true
-                            }
-                         },
-                         onDelete: { deleteItem($0) },
-                         onDeleteLog: { deleteItem($0) },
-                         onSelectLog: { viewingHistoryItem = $0 },
-                         onSelectItem: { selectedItem = $0 },
-                         onFarItemsDetected: { count in
-                             self.farItemsCount = count
-                             self.showFarNotification = true
-                         },
-                         activePoints: locationManager.processedSessionPoints,
-                         showActivePath: locationManager.showActivePath
-                     )
-                case .naver:
-                    NaverMapView(
-                        action: $mapAction,
-                        rotation: $compassRotation,
-                        locationManager: locationManager,
-                        allItems: cachedMapItems,
-                        selectedItem: $selectedItem,
-                        viewingHistoryItem: $viewingHistoryItem, // [NEW]
-                        selectedClusterItems: $selectedClusterItems,
-
-                        tapPosition: $tapPosition,
-                        clusterRadius: $clusterRadius,
-                        creatingTodoLocation: $creatingTodoLocation,
-                        onLongTap: { coord in
-                            self.creatingTodoLocation = coord
-                            self.initialTodoName = ""
-                            self.initialTodoTitle = "할 일 만들기"
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                self.isCreatingTodo = true
-                            }
-                        },
-                        onUserLocationTap: {},
-                        onDelete: { deleteItem($0) },
-                        onDeleteLog: { deleteItem($0) },
-                        onSelectLog: { viewingHistoryItem = $0 }, onSelectItem: { selectedItem = $0 },
-                        onFarItemsDetected: { count in
-                            self.farItemsCount = count
-                            self.showFarNotification = true
-                        },
-                        activePoints: locationManager.processedSessionPoints,
-                        showActivePath: locationManager.showActivePath
-                    )
-                case .google:
-                    GoogleMapView(
-                        action: $mapAction,
-                        rotation: $compassRotation,
-                        locationManager: locationManager,
-                        allItems: cachedMapItems,
-                        selectedItem: $selectedItem,
-                        viewingHistoryItem: $viewingHistoryItem, // [NEW]
-                        selectedClusterItems: $selectedClusterItems,
-
-                        tapPosition: $tapPosition,
-                        clusterRadius: $clusterRadius,
-                        creatingTodoLocation: $creatingTodoLocation, // [NEW]
-                        hasItems: !cachedMapItems.isEmpty,
-                        onLongTap: { coord in
-                            self.creatingTodoLocation = coord
-                            self.initialTodoName = ""
-                            self.initialTodoTitle = "할 일 만들기"
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                self.isCreatingTodo = true
-                            }
-                        },
-                        onUserLocationTap: {},
-                        onDelete: { deleteItem($0) },
-                        onDeleteLog: { deleteItem($0) },
-                        onSelectLog: { viewingHistoryItem = $0 }, onSelectItem: { selectedItem = $0 },
-                        onFarItemsDetected: { count in
-                            self.farItemsCount = count
-                            self.showFarNotification = true
-                        },
-                        activePoints: locationManager.processedSessionPoints,
-                        showActivePath: locationManager.showActivePath
-                    )
-                }
-            }
             .ignoresSafeArea()
             
             // UI Layer
@@ -236,11 +33,11 @@ struct ContentView: View {
                      statusWidget
                      Spacer()
                      VStack(spacing: 12) {
-                        if showFarNotification {
-                            Button(action: { showFarNotification = false }) {
+                        if viewModel.showFarNotification {
+                            Button(action: { viewModel.showFarItems() }) { // [FIX] Show Items
                                 HStack {
                                     Image(systemName: "mappin.circle.fill")
-                                    Text("\(farItemsCount)개의 핀이 멀리 있어요")
+                                    Text("\(viewModel.farItemsCount)개의 핀이 멀리 있어요")
                                         .font(.system(size: 12, weight: .bold))
                                 }
                                 .padding(10)
@@ -252,8 +49,8 @@ struct ContentView: View {
                         navigationControls
                      }
                      .padding(.trailing, 8)
-                     .padding(.bottom, isCreatingTodo ? 350 : 0)
-                     .animation(.spring(), value: isCreatingTodo)
+                     .padding(.bottom, viewModel.isCreatingTodo ? 350 : 0)
+                     .animation(.spring(), value: viewModel.isCreatingTodo)
                  }
                  .padding(.top, 32)
                  .padding(.horizontal, 8)
@@ -267,13 +64,13 @@ struct ContentView: View {
             sideMenuLayer
             
             // Create Todo Layer
-            if isCreatingTodo {
+            if viewModel.isCreatingTodo {
                 CreateTodoLayer(
-                    title: initialTodoTitle,
+                    title: viewModel.initialTodoTitle,
                     defaultName: "새 할 일",
-                    initialName: initialTodoName,
+                    initialName: viewModel.initialTodoName,
                     onRegister: { name, person, dateStr, timeStr, memo in
-                        if let loc = creatingTodoLocation {
+                        if let loc = viewModel.creatingTodoLocation {
                             let formatter = DateFormatter()
                             formatter.dateFormat = "yyyy.MM.dd HH:mm"
                             let combinedStr = "\(dateStr) \(timeStr)"
@@ -281,48 +78,48 @@ struct ContentView: View {
                             handleLongTap(lat: loc.latitude, lon: loc.longitude, name: name, dateTime: dateTime)
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { centerMapOn(loc) }
                         }
-                        isCreatingTodo = false
-                        creatingTodoLocation = nil
-                        initialTodoName = ""
+                        viewModel.isCreatingTodo = false
+                        viewModel.creatingTodoLocation = nil
+                        viewModel.initialTodoName = ""
                     },
                     onCancel: {
-                        if let loc = creatingTodoLocation {
+                        if let loc = viewModel.creatingTodoLocation {
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { centerMapOn(loc) }
                         }
-                        isCreatingTodo = false
-                        creatingTodoLocation = nil
-                        initialTodoName = ""
+                        viewModel.isCreatingTodo = false
+                        viewModel.creatingTodoLocation = nil
+                        viewModel.initialTodoName = ""
                     }
                 )
                 .preferredColorScheme((mapProvider == .apple || mapProvider == .google) ? nil : .light)
                 .transition(.move(edge: .bottom))
 
-                .animation(.spring(), value: isCreatingTodo)
+                .animation(.spring(), value: viewModel.isCreatingTodo)
             }
         }
-        .sheet(item: $viewingHistoryItem) { item in
-            PathHistoryView(item: item, onClose: { viewingHistoryItem = nil })
+        .sheet(item: $viewModel.viewingHistoryItem) { item in
+            PathHistoryView(item: item, onClose: { viewModel.viewingHistoryItem = nil })
                 .preferredColorScheme((mapProvider == .apple || mapProvider == .google) ? nil : .light)
         }
 
-        .sheet(isPresented: $showCalendar) {
+        .sheet(isPresented: $viewModel.showCalendar) {
              VStack {
                  Text("Time Travel")
                      .font(.headline)
                      .padding(.top)
                  
-                 DatePicker("Select Date", selection: $selectedDate, displayedComponents: [.date, .hourAndMinute])
+                 DatePicker("Select Date", selection: $viewModel.selectedDate, displayedComponents: [.date, .hourAndMinute])
                      .datePickerStyle(.graphical)
                      .padding()
                  
                  HStack {
                      Button(action: {
-                         showCalendar = false
-                         showHistoryMode = false
-                         selectedDate = Date()
-                         mapAction = .zoomToFit
+                         viewModel.showCalendar = false
+                         viewModel.showHistoryMode = false
+                         viewModel.selectedDate = Date()
+                         viewModel.mapAction = .zoomToFit
                          DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                             mapAction = .currentLocation
+                             viewModel.mapAction = .currentLocation
                          }
                      }) {
                          HStack {
@@ -338,8 +135,8 @@ struct ContentView: View {
                      Spacer()
                      
                      Button("Go") {
-                         showCalendar = false
-                         mapAction = .zoomToFit
+                         viewModel.showCalendar = false
+                         viewModel.mapAction = .zoomToFit
                      }
                      .padding()
                  }
@@ -351,7 +148,7 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("MapRotationChanged"))) { notification in
             if let rotation = notification.userInfo?["rotation"] as? Double {
-                compassRotation = rotation
+                viewModel.compassRotation = rotation
             }
         }
         .onChange(of: scenePhase) { oldPhase, newPhase in
@@ -382,25 +179,35 @@ struct ContentView: View {
             }
         }
         .onChange(of: allItems) { _, _ in updateMapItems() }
-        .onChange(of: anchorDate) { _, _ in updateMapItems() }
-        .onChange(of: showHistoryMode) { _, _ in updateMapItems() }
-        .onChange(of: selectedDate) { _, _ in updateMapItems() }
+        .onChange(of: viewModel.anchorDate) { _, _ in updateMapItems() }
+        .onChange(of: viewModel.showHistoryMode) { _, _ in updateMapItems() }
+        .onChange(of: viewModel.selectedDate) { _, _ in updateMapItems() }
         .onAppear {
              updateMapItems()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-            self.anchorDate = Date() // [FIX] Update Anchor on Resume
-            mapAction = .none
+            self.viewModel.anchorDate = Date() // [FIX] Update Anchor on Resume
+            viewModel.mapAction = .none
         }
-        .onChange(of: locationManager.currentLocation) { _, _ in
-            updateMapItems()
+        .onChange(of: locationManager.currentLocation) { _, newLocation in
+            // [OPTIMIZATION] Smart Diffing: Only update heavy map items if moved significantly
+            guard let loc = newLocation else { return }
+            
+            if viewModel.shouldUpdateMapItems(for: loc) {
+                updateMapItems()
+            } else {
+                 // Even if we skip full update, we MUST ensure the MapView knows about the location change.
+                 // Since MapViews observe `locationManager` directly, they will receive the update via their own `updateUIView`.
+                 // We just log it here for debugging.
+                 // print(">>> Smart Diffing: Skipping full map update (moved < 50m)")
+            }
         }
     }
 
 
     // MARK: - Computed Properties / Helper Views
     var sortedAllItems: [UnifiedMapItem] {
-        cachedMapItems.sorted { getItemDate($0) > getItemDate($1) }
+        viewModel.cachedMapItems.sorted { getItemDate($0) > getItemDate($1) }
     }
 
     var statusWidget: some View {
@@ -408,24 +215,24 @@ struct ContentView: View {
             historyCount: allItems.filter { $0.type == "00" }.count,
             localTodoCount: allItems.filter { $0.type == "10" && $0.int_lat != 0 }.count, 
             serverTodoCount: 0,
-            compassRotation: compassRotation,
-            onCompassClick: { mapAction = .rotateNorth },
-            onExpandClick: { withAnimation { showListView = true } }
+            compassRotation: viewModel.compassRotation,
+            onCompassClick: { viewModel.mapAction = .rotateNorth },
+            onExpandClick: { withAnimation { viewModel.showListView = true } }
         )
     }
     
     var navigationControls: some View {
         RightSideControls(
-            compassRotation: compassRotation,
-            showHistoryMode: showHistoryMode,
+            compassRotation: viewModel.compassRotation,
+            showHistoryMode: viewModel.showHistoryMode,
             onHistoryClick: handleHistoryClick,
             onNotificationClick: {},
             onLoginClick: { showProfile = true },
-            onLocationClick: { mapAction = .currentLocation },
-            onZoomInClick: { mapAction = .zoomIn },
-            onZoomOutClick: { mapAction = .zoomOut },
-            onCompassClick: { mapAction = .rotateNorth },
-            onExpandClick: { withAnimation { showListView = true } },
+            onLocationClick: { viewModel.mapAction = .currentLocation },
+            onZoomInClick: { viewModel.mapAction = .zoomIn },
+            onZoomOutClick: { viewModel.mapAction = .zoomOut },
+            onCompassClick: { viewModel.mapAction = .rotateNorth },
+            onExpandClick: { withAnimation { viewModel.showListView = true } },
             showActivePath: locationManager.showActivePath,
             onRecordClick: handleRecordClick
         )
@@ -433,11 +240,11 @@ struct ContentView: View {
 
     var clusterOverlay: some View {
         Group {
-            if let clusterItems = selectedClusterItems {
+            if let clusterItems = viewModel.selectedClusterItems {
                 ZStack {
                     Color.black.opacity(0.01)
                         .contentShape(Rectangle())
-                        .onTapGesture { selectedClusterItems = nil }
+                        .onTapGesture { viewModel.selectedClusterItems = nil }
                         .ignoresSafeArea()
                     
                     VStack(spacing: 0) {
@@ -445,16 +252,16 @@ struct ContentView: View {
                             ClusterListCallout(
                                 items: clusterItems.sorted(by: { $0.date > $1.date }),
                                 isCluster: true,
-                                onClose: { selectedClusterItems = nil },
+                                onClose: { viewModel.selectedClusterItems = nil },
                                 onDeleteToDo: { item in deleteItem(item) },
                                 onDeleteLog: { item in deleteItem(item) },
                                 onSelectLog: { item in
-                                    viewingHistoryItem = item
-                                    selectedClusterItems = nil
+                                    viewModel.viewingHistoryItem = item
+                                    viewModel.selectedClusterItems = nil
                                 },
                                 onSelectItem: { item in
-                                    selectedItem = item
-                                    selectedClusterItems = nil
+                                    viewModel.selectedItem = item
+                                    viewModel.selectedClusterItems = nil
                                 }
                             )
                             .padding(.bottom, 8)
@@ -482,7 +289,7 @@ struct ContentView: View {
                             .padding(.top, -1)
                     }
                     .frame(width: 320, height: 0, alignment: .bottom) // [사용자 원천기술] 하단 고정 상단 확장
-                    .position(x: (tapPosition?.x ?? 0) + mapXOffset, y: (tapPosition?.y ?? 0) + mapYOffset)
+                    .position(x: (viewModel.tapPosition?.x ?? 0) + mapXOffset, y: (viewModel.tapPosition?.y ?? 0) + mapYOffset)
                     .transition(.scale.combined(with: .opacity))
                 }
                 .zIndex(999)
@@ -531,11 +338,11 @@ struct ContentView: View {
     
     var todoDetailOverlay: some View {
         Group {
-            if let item = selectedItem {
+            if let item = viewModel.selectedItem {
                 ZStack(alignment: .bottom) {
                     Color.black.opacity(0.3)
                         .ignoresSafeArea()
-                        .onTapGesture { selectedItem = nil }
+                        .onTapGesture { viewModel.selectedItem = nil }
                     
                     CreateTodoLayer(
                         existingItem: item,
@@ -544,9 +351,9 @@ struct ContentView: View {
                             item.todo_name = name
                             item.memo = memo
                             try? modelContext.save()
-                            selectedItem = nil
+                            viewModel.selectedItem = nil
                         },
-                        onCancel: { selectedItem = nil }
+                        onCancel: { viewModel.selectedItem = nil }
                     )
                 }
                 .preferredColorScheme((mapProvider == .apple || mapProvider == .google) ? nil : .light)
@@ -562,18 +369,18 @@ extension ContentView {
     
     var allItemsOverlay: some View {
         Group {
-            if showListView {
+            if viewModel.showListView {
                 ZStack(alignment: .bottom) {
                     Color.black.opacity(0.3)
                         .ignoresSafeArea()
-                        .onTapGesture { withAnimation { showListView = false } }
+                        .onTapGesture { withAnimation { viewModel.showListView = false } }
                     
                     VStack(spacing: 0) {
                         HStack {
-                            Text("모든 항목 (\(cachedMapItems.count))")
+                            Text("모든 항목 (\(viewModel.cachedMapItems.count))")
                                 .font(.headline)
                             Spacer()
-                            Button(action: { withAnimation { showListView = false } }) {
+                            Button(action: { withAnimation { viewModel.showListView = false } }) {
                                 Image(systemName: "xmark.circle.fill")
                                     .foregroundColor(.gray)
                                     .font(.title2)
@@ -593,16 +400,16 @@ extension ContentView {
                             ClusterListCallout(
                                 items: allItemsList,
                                 isCluster: true,
-                                onClose: { withAnimation { showListView = false } },
+                                onClose: { withAnimation { viewModel.showListView = false } },
                                 onDeleteToDo: { deleteItem($0) },
                                 onDeleteLog: { deleteItem($0) },
                                 onSelectLog: { log in
-                                    withAnimation { showListView = false }
-                                    viewingHistoryItem = log
+                                    withAnimation { viewModel.showListView = false }
+                                    viewModel.viewingHistoryItem = log
                                 },
                                 onSelectItem: { item in
-                                    withAnimation { showListView = false }
-                                    selectedItem = item
+                                    withAnimation { viewModel.showListView = false }
+                                    viewModel.selectedItem = item
                                 }
                             )
                             .frame(maxHeight: 400)
@@ -622,13 +429,7 @@ extension ContentView {
 
     // MARK: - Actions
     private func handleHistoryClick() {
-        if !showHistoryMode {
-            showHistoryMode = true
-            selectedDate = Date()
-            mapAction = .zoomToFit
-        } else {
-            showCalendar = true
-        }
+        viewModel.handleHistoryClick()
     }
 
     private func handleRecordClick() {
@@ -654,14 +455,14 @@ extension ContentView {
 
     private func deleteItem(_ item: ToDoItem) {
         // Clear selection first
-        if selectedItem?.todo_id == item.todo_id { selectedItem = nil }
-        if let idx = selectedClusterItems?.firstIndex(where: {
+        if viewModel.selectedItem?.todo_id == item.todo_id { viewModel.selectedItem = nil }
+        if let idx = viewModel.selectedClusterItems?.firstIndex(where: {
             if case .todo(let t) = $0 { return t.todo_id == item.todo_id }
             if case .history(let t) = $0 { return t.todo_id == item.todo_id }
             return false
         }) {
-            selectedClusterItems?.remove(at: idx)
-            if selectedClusterItems?.isEmpty == true { selectedClusterItems = nil }
+            viewModel.selectedClusterItems?.remove(at: idx)
+            if viewModel.selectedClusterItems?.isEmpty == true { viewModel.selectedClusterItems = nil }
         }
         
         // Delete from DB and Save
@@ -672,6 +473,18 @@ extension ContentView {
         } catch {
             print("Failed to save after deletion: \(error)")
         }
+    }
+    
+    private func updateMapItems() {
+        viewModel.updateMapItems(
+            allItems: allItems,
+            currentLocation: locationManager.currentLocation,
+            showHistory: viewModel.showHistoryMode,
+            anchor: viewModel.anchorDate,
+            selectedDate: viewModel.selectedDate,
+
+            filterByKorea: (mapProvider == .kakao || mapProvider == .naver) // [RENAME]
+        )
     }
 
     private func getItemDate(_ item: UnifiedMapItem) -> Date {
@@ -687,6 +500,159 @@ extension ContentView {
         NotificationCenter.default.post(name: NSNotification.Name("CenterMapOnLocation"), object: loc)
     }
 }
+
+// MARK: - Map Logic Separation
+extension ContentView {
+    
+    var mapLayer: some View {
+        Group {
+            switch mapProvider {
+            case .apple: appleMapView
+            case .kakao: kakaoMapView
+            case .naver: naverMapView
+            case .google: googleMapView
+            }
+        }
+    }
+    
+    var appleMapView: some View {
+        AppleMapView(
+            action: $viewModel.mapAction,
+            rotation: $viewModel.compassRotation,
+            locationManager: locationManager,
+            allItems: viewModel.displayItems,
+            selectedItem: $viewModel.selectedItem,
+            viewingHistoryItem: $viewModel.viewingHistoryItem,
+            selectedClusterItems: $viewModel.selectedClusterItems,
+
+            tapPosition: $viewModel.tapPosition,
+            clusterRadius: $viewModel.clusterRadius,
+            creatingTodoLocation: $viewModel.creatingTodoLocation,
+            onLongTap: { coord in
+                viewModel.creatingTodoLocation = coord
+                viewModel.initialTodoName = ""
+                viewModel.initialTodoTitle = "할 일 만들기"
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    viewModel.isCreatingTodo = true
+                }
+            },
+            onUserLocationTap: {},
+            onDelete: { deleteItem($0) },
+            onDeleteLog: { deleteItem($0) },
+            onSelectLog: { viewModel.viewingHistoryItem = $0 },
+            onSelectItem: { viewModel.selectedItem = $0 },
+            // onFarItemsDetected handled by ViewModel
+            activePoints: locationManager.processedSessionPoints,
+            showActivePath: locationManager.showActivePath
+        )
+    }
+    
+    var kakaoMapView: some View {
+        KakaoMapView(
+             action: $viewModel.mapAction,
+             rotation: $viewModel.compassRotation,
+             locationManager: locationManager,
+             allItems: viewModel.cachedMapItems,
+             selectedItem: $viewModel.selectedItem,
+             viewingHistoryItem: $viewModel.viewingHistoryItem,
+             selectedClusterItems: $viewModel.selectedClusterItems,
+
+             tapPosition: $viewModel.tapPosition,
+             clusterRadius: $viewModel.clusterRadius,
+             creatingTodoLocation: $viewModel.creatingTodoLocation,
+             onLongTap: { coord in
+                viewModel.creatingTodoLocation = coord
+                viewModel.initialTodoName = ""
+                viewModel.initialTodoTitle = "할 일 만들기"
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    viewModel.isCreatingTodo = true
+                }
+             },
+             onDelete: { deleteItem($0) },
+             onDeleteLog: { deleteItem($0) },
+             onSelectLog: { viewModel.viewingHistoryItem = $0 },
+             onSelectItem: { viewModel.selectedItem = $0 },
+             onFarItemsDetected: { count in
+                 viewModel.farItemsCount = count
+                 viewModel.showFarNotification = true
+             },
+             activePoints: locationManager.processedSessionPoints,
+             showActivePath: locationManager.showActivePath
+         )
+    }
+    
+    var naverMapView: some View {
+        NaverMapView(
+            action: $viewModel.mapAction,
+            rotation: $viewModel.compassRotation,
+            locationManager: locationManager,
+            allItems: viewModel.cachedMapItems,
+            selectedItem: $viewModel.selectedItem,
+            viewingHistoryItem: $viewModel.viewingHistoryItem,
+            selectedClusterItems: $viewModel.selectedClusterItems,
+
+            tapPosition: $viewModel.tapPosition,
+            clusterRadius: $viewModel.clusterRadius,
+            creatingTodoLocation: $viewModel.creatingTodoLocation,
+            onLongTap: { coord in
+                viewModel.creatingTodoLocation = coord
+                viewModel.initialTodoName = ""
+                viewModel.initialTodoTitle = "할 일 만들기"
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    viewModel.isCreatingTodo = true
+                }
+            },
+            onUserLocationTap: {},
+            onDelete: { deleteItem($0) },
+            onDeleteLog: { deleteItem($0) },
+            onSelectLog: { viewModel.viewingHistoryItem = $0 },
+            onSelectItem: { viewModel.selectedItem = $0 },
+            onFarItemsDetected: { count in
+                viewModel.farItemsCount = count
+                viewModel.showFarNotification = true
+            },
+            activePoints: locationManager.processedSessionPoints,
+            showActivePath: locationManager.showActivePath
+        )
+    }
+    
+    var googleMapView: some View {
+        GoogleMapView(
+            action: $viewModel.mapAction,
+            rotation: $viewModel.compassRotation,
+            locationManager: locationManager,
+            allItems: viewModel.cachedMapItems,
+            selectedItem: $viewModel.selectedItem,
+            viewingHistoryItem: $viewModel.viewingHistoryItem,
+            selectedClusterItems: $viewModel.selectedClusterItems,
+
+            tapPosition: $viewModel.tapPosition,
+            clusterRadius: $viewModel.clusterRadius,
+            creatingTodoLocation: $viewModel.creatingTodoLocation,
+            hasItems: !viewModel.cachedMapItems.isEmpty,
+            onLongTap: { coord in
+                viewModel.creatingTodoLocation = coord
+                viewModel.initialTodoName = ""
+                viewModel.initialTodoTitle = "할 일 만들기"
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    viewModel.isCreatingTodo = true
+                }
+            },
+            onUserLocationTap: {},
+            onDelete: { deleteItem($0) },
+            onDeleteLog: { deleteItem($0) },
+            onSelectLog: { viewModel.viewingHistoryItem = $0 },
+            onSelectItem: { viewModel.selectedItem = $0 },
+            onFarItemsDetected: { count in
+                viewModel.farItemsCount = count
+                viewModel.showFarNotification = true
+            },
+            activePoints: locationManager.processedSessionPoints,
+            showActivePath: locationManager.showActivePath
+        )
+    }
+}
+
 
 // MARK: - Helper Views
 struct CalloutTriangle: Shape {

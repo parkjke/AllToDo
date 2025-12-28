@@ -315,54 +315,20 @@ struct NaverMapView: UIViewRepresentable {
             // If launching, render raw regardless of count
             // Naver uses 'firstRender' flag in Coordinator.
             // [CRITICAL LOCK: DO NOT MODIFY] Raw First -> Cluster Strategy
-            if firstRender {
-                 OptimizationLogger.shared.log(type: .launchStep, value: ">>> Fast Path (Naver): Raw Render")
-                 
-                // Pre-calc user int
-                var uInt: (lat: Int, lon: Int)? = nil
-                if let u = parent.locationManager.currentLocation {
-                    uInt = SmartLocationManager.shared.toIntLocation(u)
-                }
-                 
-                 var allItemsToRender: [UnifiedMapItem] = []
-                 var farCount = 0
-                 
-                 for item in parent.allItems {
-                     switch item {
-                     case .todo(let t):
-                          // 500km Filter (Integer)
-                          if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: t.int_lat, lon2: t.int_long) {
-                              farCount += 1
-                              continue
-                          }
-                          allItemsToRender.append(item)
-                     case .history(let log):
-                          // 500km Filter (Integer)
-                          if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.int_lat, lon2: log.int_long) {
-                              farCount += 1
-                              continue
-                          }
-                          allItemsToRender.append(item)
-                     case .userLocation, .serverMessage:
-                          allItemsToRender.append(item)
-                     }
-                 }
-                 
-                 // [NEW] Add Creating Todo Location
-                 if let target = creatingTodoLocationBinding?.wrappedValue {
-                     allItemsToRender.append(.todo(ToDoItem(todo_name: "New Entry", latitude: target.latitude, longitude: target.longitude)))
-                 }
-                 
-                 // Notify
-                 if farCount > 0 {
-                     DispatchQueue.main.async { self.parent.onFarItemsDetected?(farCount) }
-                 }
-                 
-                 DispatchQueue.main.async {
-                     self.renderRawItems(mapView: map, allItems: allItemsToRender)
-                 }
-                 return
-            }
+             if firstRender {
+                  OptimizationLogger.shared.log(type: .launchStep, value: ">>> Fast Path (Naver): Raw Render")
+                  
+                  // [NEW] Add Creating Todo Location
+                  var allItemsToRender = parent.allItems
+                  if let target = creatingTodoLocationBinding?.wrappedValue {
+                      allItemsToRender.append(.todo(ToDoItem(todo_name: "New Entry", latitude: target.latitude, longitude: target.longitude)))
+                  }
+                  
+                  DispatchQueue.main.async {
+                      self.renderRawItems(mapView: map, allItems: allItemsToRender)
+                  }
+                  return
+             }
             
             let zoom = map.zoomLevel
             let centerLat = map.cameraPosition.target.lat
@@ -431,11 +397,7 @@ struct NaverMapView: UIViewRepresentable {
             // [FIX] Disable Native Location Overlay (Blue Dot)
             mapView.locationOverlay.hidden = true
             
-            // Clear Old Markers
-            markers.forEach { $0.mapView = nil }
-            markers = []
-            
-            // Parse Buckets (Simple Assignment)
+            // [FIX] Restore Parsing Logic (Accidentally deleted)
             struct Centroid { let lat: Double; let lon: Double; let count: Int }
             var centroids: [Centroid] = []
             
@@ -460,7 +422,6 @@ struct NaverMapView: UIViewRepresentable {
                     itemLat = coord.latitude; itemLon = coord.longitude
                 case .serverMessage:
                     break
-                default: break
                 }
                 
                 var bestIdx = -1
@@ -480,80 +441,165 @@ struct NaverMapView: UIViewRepresentable {
                     clusters[bestIdx].append(item)
                 }
             }
+
+            // [VISUAL DIFFING ALGORITHM]
+            // Goal: Reuse existing "User Pin" keys to prevent flickering
             
-            // Create Markers
+            var newMarkers: [NMFMarker] = []
+            var reusedMarker: NMFMarker? = nil
+            
+            // 1. Identify New User Marker Data
+            var newUserMarkerData: (position: NMGLatLng, icon: NMFOverlayImage, anchor: CGPoint, size: CGSize)? = nil
+            var newUserItems: [UnifiedMapItem]? = nil
+            var newUserClusterIdx = -1
+            
             for (idx, items) in clusters.enumerated() {
                 guard !items.isEmpty else { continue }
                 let centroid = centroids[idx]
-                let marker = NMFMarker()
-                
-                // Position
                 var finalCoord = NMGLatLng(lat: centroid.lat, lng: centroid.lon)
-                if items.count == 1 {
-                    if let loc = items[0].location {
-                        finalCoord = NMGLatLng(lat: loc.latitude, lng: loc.longitude)
-                    }
-                } else if let userItem = items.first(where: { if case .userLocation = $0 { return true }; return false }),
-                          let userCoord = userItem.location {
+                
+                // Check for User
+                if let userItem = items.first(where: { if case .userLocation = $0 { return true }; return false }),
+                   let userCoord = userItem.location {
                     finalCoord = NMGLatLng(lat: userCoord.latitude, lng: userCoord.longitude)
+                    newUserItems = items
+                    newUserClusterIdx = idx
+                    
+                    // Resolve Style
+                     let (baseName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
+                     let targetSize = CGSize(width: 36, height: 45)
+                     var icon: NMFOverlayImage?
+                     var anchor = CGPoint(x: 0.5, y: 1.0)
+                     
+                     if baseName == "PinCurrent" && count == 1 {
+                         icon = NMFOverlayImage(name: "PinCurrent")
+                         anchor = CGPoint(x: 0.5, y: 0.5)
+                     } else {
+                         anchor = CGPoint(x: 18.0 / 46.0, y: 1.0)
+                         if let baseImage = PinImageHelper.shared.fetchBasePin(named: baseName, size: targetSize) {
+                             if count > 1 {
+                                 icon = NMFOverlayImage(image: PinImageHelper.shared.applyBadge(to: baseImage, count: count, badgeColor: color, badgeSize: 18))
+                             } else {
+                                 icon = NMFOverlayImage(image: baseImage)
+                             }
+                         }
+                     }
+                    
+                    if let ic = icon {
+                        newUserMarkerData = (finalCoord, ic, anchor, targetSize)
+                    }
                 }
+            }
+            
+            // 2. Try to Find Reusable Marker in Old Set
+            if let newData = newUserMarkerData {
+                // Find a marker that represents user location in `markers`
+                // We don't store metadata in NMFMarker, so we might need a tag or simple heuristics.
+                // Heuristic: Check if any existing marker is CLOSE to the new position (e.g. within previous update)
+                // OR better: In `markers` array, we can track which one was the user marker.
+                // Let's optimize by searching for a marker that *looks* like a user pin (e.g. PinCurrent) or was at the last user loc?
+                // Simplest: Just iterate and check if it WAS the user pin? 
+                // Since we clear `markers` every time, we lose valid references unless we save them.
+                // FIX: We need to know which of the `self.markers` is the user marker. 
+                // Let's assume the user marker is unique.
+                
+                // Let's look for a marker that is currently at the 'old' user location? 
+                // No, we should rely on the fact that we can Identify it via TAG or user info.
+                
+                if let oldUserMarker = self.markers.first(where: {
+                    // Check if tag or some property indicates it's a user pin?
+                    // We can use `userInfo` dict in NMFMarker if available, or just check global state?
+                    // Let's look at `userInfo`. NMFMarker has `userInfo`.
+                    return ($0.userInfo["isUser"] as? Bool) == true
+                }) {
+                     // 3. Reuse!
+                     reusedMarker = oldUserMarker
+                     
+                     // Animate Position
+                     // Naver doesn't have built-in property animation for markers, but we can interpolate or set.
+                     // Setting position is effectively instant, but if called frequently (60fps), it looks smooth.
+                     oldUserMarker.position = newData.position
+                     oldUserMarker.iconImage = newData.icon
+                     oldUserMarker.anchor = newData.anchor
+                     
+                     if let items = newUserItems {
+                         oldUserMarker.touchHandler = { [weak self] (overlay: NMFOverlay) -> Bool in
+                             guard let self = self, let marker = overlay as? NMFMarker else { return false }
+                             let generator = UIImpactFeedbackGenerator(style: .medium); generator.impactOccurred()
+                             self.pendingSelection = (items, marker.position)
+                             let update = NMFCameraUpdate(scrollTo: marker.position)
+                             update.animation = .fly; update.animationDuration = 0.3
+                             self.mapView?.moveCamera(update)
+                             return true
+                         }
+                     }
+                     
+                     // Keep it in new list
+                     newMarkers.append(oldUserMarker)
+                }
+            }
+            
+            // 3. Clean Up Old Markers (Except Reused)
+            for marker in self.markers {
+                if marker === reusedMarker { continue }
+                marker.mapView = nil // Remove from map
+            }
+            
+            // 4. Create NEW Markers (Skip User if Reused)
+            for (idx, items) in clusters.enumerated() {
+                if items.isEmpty { continue }
+                
+                // If this is the user cluster and we reused it, SKIP
+                if idx == newUserClusterIdx && reusedMarker != nil { continue }
+                
+                let centroid = centroids[idx]
+                var finalCoord = NMGLatLng(lat: centroid.lat, lng: centroid.lon)
+                var isUser = false
+                
+                if let userItem = items.first(where: { if case .userLocation = $0 { return true }; return false }),
+                   let userCoord = userItem.location {
+                    finalCoord = NMGLatLng(lat: userCoord.latitude, lng: userCoord.longitude)
+                    isUser = true
+                }
+                
+                let marker = NMFMarker()
                 marker.position = finalCoord
+                if isUser { marker.userInfo = ["isUser": true] } // TAG
                 
-                // [FIX] Centralized Style Resolution
-                let (baseName, color, count) = UnifiedMapItem.resolveClusterStyle(items: items)
-                
-                // Naver Scale: 0.9x (36x45)
+                let (baseName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
                 let targetSize = CGSize(width: 36, height: 45)
                 
                 if baseName == "PinCurrent" && count == 1 {
                     marker.iconImage = NMFOverlayImage(name: "PinCurrent")
-                    marker.width = 30
-                    marker.height = 30
+                    marker.width = 30; marker.height = 30
                     marker.anchor = CGPoint(x: 0.5, y: 0.5)
                 } else {
-                    // Cluster pin: Scaled base 36x45 + 10pt overhang = 46x55 canvas
-                    // Center of 36 is 18 -> 18.0 / 46.0
                     marker.anchor = CGPoint(x: 18.0 / 46.0, y: 1.0)
-                    // createShieldPin handles the 0.9 scaling internally for Naver if we pass size?
-                    // Wait, PinImageHelper handles standard 40x50.
-                    // In NaverMapView, we call createShieldPin.
-                    // We should probably ensure the 0.9 scale is applied to the final image or base.
-                    
                     if let baseImage = PinImageHelper.shared.fetchBasePin(named: baseName, size: targetSize) {
                         if count > 1 {
-                            // [FIX] 네이버 0.9배 스케일에 맞춰 뱃지 크기를 18pt로 적용하여 상단 잘림 방지 및 비율 최적화
                             marker.iconImage = NMFOverlayImage(image: PinImageHelper.shared.applyBadge(to: baseImage, count: count, badgeColor: color, badgeSize: 18))
                         } else {
                             marker.iconImage = NMFOverlayImage(image: baseImage)
                         }
                     }
                 }
-
-                marker.anchor = CGPoint(x: 0.5, y: 1.0) 
                 
-                // Interaction
                 marker.touchHandler = { [weak self] (overlay: NMFOverlay) -> Bool in
                     guard let self = self, let marker = overlay as? NMFMarker else { return false }
-                    
-                    // [NEW] Auto-Center Logic
-                    let generator = UIImpactFeedbackGenerator(style: .medium)
-                    generator.impactOccurred()
-                    
-                    // 1. Store Pending Selection
+                    let generator = UIImpactFeedbackGenerator(style: .medium); generator.impactOccurred()
                     self.pendingSelection = (items, marker.position)
-                    
-                    // 2. Animate to Center
                     let update = NMFCameraUpdate(scrollTo: marker.position)
-                    update.animation = .fly
-                     update.animationDuration = 0.3
+                    update.animation = .fly; update.animationDuration = 0.3
                     self.mapView?.moveCamera(update)
-                    
                     return true
                 }
                 
                 marker.mapView = mapView
-                markers.append(marker)
+                newMarkers.append(marker)
             }
+            
+            // 5. Update Local State
+            self.markers = newMarkers
         }
         
 
@@ -588,30 +634,16 @@ struct NaverMapView: UIViewRepresentable {
                  maxLon = max(maxLon, loc.coordinate.longitude)
              }
              
-             // [FIX] 500km Filter for Fit Bounds
-             var uInt: (lat: Int, lon: Int)? = nil
-             if let u = parent.locationManager.currentLocation {
-                 uInt = SmartLocationManager.shared.toIntLocation(u)
-             }
-             
              // Include Pins
              for item in parent.allItems {
                   switch item {
                   case .todo(let t):
-                      // Filter far items
-                      if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: t.int_lat, lon2: t.int_long) {
-                          continue
-                      }
                       minLat = min(minLat, t.latitude)
                       maxLat = max(maxLat, t.latitude)
                       minLon = min(minLon, t.longitude)
                       maxLon = max(maxLon, t.longitude)
                       hasPins = true
                   case .history(let log):
-                      // Filter far items
-                      if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.int_lat, lon2: log.int_long) {
-                          continue
-                      }
                       minLat = min(minLat, log.latitude)
                       maxLat = max(maxLat, log.latitude)
                       minLon = min(minLon, log.longitude)

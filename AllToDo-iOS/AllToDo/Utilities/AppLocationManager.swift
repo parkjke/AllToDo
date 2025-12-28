@@ -23,7 +23,7 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
     
     // [NEW] Recording State
     @Published var isRecording = true // [RESTORED] Auto-record on by default
-    @Published var debugStatus: String = "Auto-Recording..."
+    @Published var debugStatus: String = "Recording..."
     @Published var processedSessionPoints: [PathPoint] = []
     @Published var showActivePath = false // [DEBUG] Visualization toggle
     
@@ -71,8 +71,8 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         // 4. Update UI trail
         self.processedSessionPoints.append(contentsOf: newPoints)
         
-        // 5. [NEW] Continuous Persistence: Save to DB immediately
-        savePointsToDatabase(newPoints)
+        // 5. [FIX] Removed Continuous Persistence (User req: Save only on background)
+        // savePointsToDatabase(newPoints)
     }
     
     private func savePointsToDatabase(_ points: [PathPoint]) {
@@ -178,8 +178,10 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         if processedSessionPoints.isEmpty, let current = currentLocation {
             let point = PathPoint(latitude: current.coordinate.latitude, longitude: current.coordinate.longitude, timestamp: Date())
             processedSessionPoints.append(point)
-            savePointsToDatabase([point])
         }
+        
+        // [FIX] Save ENTIRE session to DB now (Background/Exit)
+        savePointsToDatabase(processedSessionPoints)
         
         guard !processedSessionPoints.isEmpty else { return nil }
         

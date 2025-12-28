@@ -145,6 +145,10 @@ struct GoogleMapView: UIViewRepresentable {
         var pendingSelection: (items: [UnifiedMapItem], position: CLLocationCoordinate2D)?
         var moveLocation: (lat: Int, lon: Int)?
         
+        // [NEW] Marker Management for Visual Diffing
+        var markers: [GMSMarker] = []
+
+        
         init(_ parent: GoogleMapView) {
             self.parent = parent
         }
@@ -391,47 +395,10 @@ struct GoogleMapView: UIViewRepresentable {
             if useFastPath {
                  OptimizationLogger.shared.log(type: .launchStep, value: ">>> Fast Path (Google): Rendering raw")
                 
-                // Pre-calc user int location
-                var uInt: (lat: Int, lon: Int)? = nil
-                if let u = parent.locationManager.currentLocation {
-                    uInt = SmartLocationManager.shared.toIntLocation(u)
-                }
-                
-                 // Prepare Raw
-                var allItemsToRender: [UnifiedMapItem] = []
-                var farCount = 0
-                
-                for item in parent.allItems {
-                    switch item {
-                    case .todo(let t):
-                         // 500km (Integer)
-                         if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: t.int_lat, lon2: t.int_long) {
-                             farCount += 1
-                             continue
-                         }
-                         allItemsToRender.append(item)
-                    case .history(let log):
-                         // 500km (Integer)
-                         if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.int_lat, lon2: log.int_long) {
-                             farCount += 1
-                             continue
-                         }
-                         allItemsToRender.append(item)
-                    case .userLocation, .serverMessage:
-                         allItemsToRender.append(item)
-                    case .serverMessage:
-                         allItemsToRender.append(item)
-                    }
-                }
-                
-                // [NEW] Add Creating Todo Location
+                 // [NEW] Add Creating Todo Location
+                var allItemsToRender = parent.allItems
                 if let target = creatingTodoLocationBinding?.wrappedValue {
                     allItemsToRender.append(.todo(ToDoItem(todo_name: "New Entry", latitude: target.latitude, longitude: target.longitude)))
-                }
-                
-                // Notify
-                if farCount > 0 {
-                    DispatchQueue.main.async { self.parent.onFarItemsDetected?(farCount) }
                 }
                 
                 DispatchQueue.main.async {
@@ -498,18 +465,10 @@ struct GoogleMapView: UIViewRepresentable {
         
         @MainActor
         func renderWasmResults(mapView: GMSMapView, clusterResult: [Int32], allItems: [UnifiedMapItem]) {
-            mapView.isMyLocationEnabled = false // [FIX] Disable native blue dot to prevent double pins
-            mapView.clear() // Google Maps requires clearing to remove old markers efficiently
+            // [FIX] Restore Parsing Logic
+            struct Centroid { let lat: Double; let lon: Double; let count: Int }
+            var centroids: [Centroid] = []
             
-            // 1. Re-add User Location
-            // 1. (Removed) User Location handled in clusters
-            
-            // 2. Re-add Path Overlay if exists -> REMOVED per user request
-            // updatePath(mapView: mapView, selectedItems: parent.selectedClusterItems)
-            
-            // 3. Process Clusters
-             struct Centroid { let lat: Double; let lon: Double; let count: Int }
-             var centroids: [Centroid] = []
              if clusterResult.count % 3 == 0 {
                  for i in stride(from: 0, to: clusterResult.count, by: 3) {
                      let lat = Double(clusterResult[i]) / 100_000.0
@@ -519,8 +478,7 @@ struct GoogleMapView: UIViewRepresentable {
                  }
              }
             
-            // Buckets matching
-             var clusters: [[UnifiedMapItem]] = Array(repeating: [], count: centroids.count)
+            var clusters: [[UnifiedMapItem]] = Array(repeating: [], count: centroids.count)
              
              for item in allItems {
                  var itemLat: Double = 0
@@ -549,41 +507,113 @@ struct GoogleMapView: UIViewRepresentable {
                      clusters[bestIdx].append(item)
                  }
              }
+
+            // [VISUAL DIFFING ALGORITHM]
+            // Constraint: GMSMapView.clear() wipes Polyline overlays too. We must manage markers manually.
+            
+            var newMarkers: [GMSMarker] = []
+            var reusedMarker: GMSMarker? = nil
+            
+            // 1. Identify New User Marker Data
+            var newUserMarkerData: (position: CLLocationCoordinate2D, icon: UIImage?, anchor: CGPoint)? = nil
+             var newUserItems: [UnifiedMapItem]? = nil
+             var newUserClusterIdx = -1
              
-             // Create Markers
+             for (idx, items) in clusters.enumerated() {
+                 guard !items.isEmpty else { continue }
+                 let centroid = centroids[idx]
+                 var finalCoordinate = CLLocationCoordinate2D(latitude: centroid.lat, longitude: centroid.lon)
+                 
+                 // Check for User
+                 if let userItem = items.first(where: { if case .userLocation = $0 { return true }; return false }),
+                    case .userLocation(let userCoord) = userItem {
+                     finalCoordinate = userCoord
+                     newUserItems = items
+                     newUserClusterIdx = idx
+                     
+                     // Resolve Style
+                     let (baseName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
+                     var icon: UIImage?
+                     var anchor = CGPoint(x: 0.5, y: 1.0)
+                     
+                     if items.count == 1 {
+                         icon = PinImageHelper.shared.fetchBasePin(named: userItem.imageName)
+                     } else {
+                         anchor = CGPoint(x: 0.4, y: 1.0)
+                         icon = PinImageHelper.shared.createShieldPin(imageName: baseName, color: color, count: count)
+                     }
+                     
+                     newUserMarkerData = (finalCoordinate, icon, anchor)
+                 }
+             }
+            
+            // 2. Try to Reuse Existing User Marker
+             if let newData = newUserMarkerData {
+                 if let oldUserMarker = self.markers.first(where: { ($0 as? WasmClusterMarker)?.isUserLocation == true }) {
+                     reusedMarker = oldUserMarker
+                     
+                     // Animate Position (using CATransaction for smoothness if needed, or just set)
+                     // Google Maps markers interpolate automatically if moved short distances?
+                     // Actually GMSMarker needs animation for smooth slide.
+                     CATransaction.begin()
+                     CATransaction.setAnimationDuration(0.3)
+                     oldUserMarker.position = newData.position
+                     CATransaction.commit()
+                     
+                     oldUserMarker.icon = newData.icon
+                     oldUserMarker.groundAnchor = newData.anchor
+                     if let custom = oldUserMarker as? WasmClusterMarker, let items = newUserItems {
+                         custom.items = items
+                     }
+                     
+                     newMarkers.append(oldUserMarker)
+                 }
+             }
+            
+            // 3. Remove Old Markers (Except Reused)
+             for marker in self.markers {
+                 if marker === reusedMarker { continue }
+                 marker.map = nil // Remove from map
+             }
+             
+            // 4. Create New Markers
               for (idx, items) in clusters.enumerated() {
                   if items.isEmpty { continue }
+                  
+                  // Skip reused user cluster
+                  if idx == newUserClusterIdx && reusedMarker != nil { continue }
+                  
                   let centroid = centroids[idx]
                   let marker = WasmClusterMarker()
                   var finalCoordinate = CLLocationCoordinate2D(latitude: centroid.lat, longitude: centroid.lon)
+                  var isUser = false
                   
-                  // [FIX] Cluster Anchoring: If user is in cluster, force cluster to user position
                   if let userItem = items.first(where: { if case .userLocation = $0 { return true }; return false }),
                      case .userLocation(let userCoord) = userItem {
                       finalCoordinate = userCoord
+                      isUser = true
                   }
                   
                   marker.position = finalCoordinate
                   marker.items = items
+                  if isUser { marker.isUserLocation = true }
                   
                   if items.count == 1, let item = items.first {
-                      // Single Logic
                       marker.position = item.location ?? finalCoordinate
                       marker.groundAnchor = CGPoint(x: 0.5, y: 1.0)
                       marker.icon = PinImageHelper.shared.fetchBasePin(named: item.imageName)
                   } else {
-                      // Cluster Logic
-                      let (baseName, color, count) = UnifiedMapItem.resolveClusterStyle(items: items)
-             // 5. [Anchor] Standard Anchor (Pin Tip at Bottom Center)
-            // Cluster results in 50x60 bitmap (40x50 pin + 10pt overhang)
-            // Pin tip is at x=20 on a 50px wide canvas -> 20/50 = 0.4
-            marker.groundAnchor = CGPoint(x: 0.4, y: 1.0)
-                      // Use PinImageHelper to get cached synthesized bitmap
+                      let (baseName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
+                      marker.groundAnchor = CGPoint(x: 0.4, y: 1.0)
                       marker.icon = PinImageHelper.shared.createShieldPin(imageName: baseName, color: color, count: count)
                   }
                   
                   marker.map = mapView
+                  newMarkers.append(marker)
               }
+            
+            // 5. Update State
+            self.markers = newMarkers
         }
         
 
@@ -605,10 +635,8 @@ struct GoogleMapView: UIViewRepresentable {
              for item in parent.allItems {
                  switch item {
                  case .todo(let t):
-                     if SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: t.int_lat, lon2: t.int_long) { continue }
                      bounds = bounds.includingCoordinate(CLLocationCoordinate2D(latitude: t.latitude, longitude: t.longitude))
                  case .history(let log):
-                     if SmartLocationManager.shared.isFar(lat1: uLat, lon1: uLon, lat2: log.int_lat, lon2: log.int_long) { continue }
                      bounds = bounds.includingCoordinate(CLLocationCoordinate2D(latitude: log.latitude, longitude: log.longitude))
                  case .userLocation(let coord):
                       bounds = bounds.includingCoordinate(coord)
@@ -723,4 +751,5 @@ struct GoogleMapView: UIViewRepresentable {
 // Marker Subclass
 class WasmClusterMarker: GMSMarker {
     var items: [UnifiedMapItem] = []
+    var isUserLocation: Bool = false
 }

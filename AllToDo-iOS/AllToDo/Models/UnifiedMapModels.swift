@@ -61,53 +61,7 @@ enum UnifiedMapItem: Identifiable {
         }
     }
 
-    // [NEW] Centralized Cluster Style Logic (Priority: User > Majority > Blue > Green > Red)
-    static func resolveClusterStyle(items: [UnifiedMapItem]) -> (baseName: String, color: UIColor, count: Int) {
-        var userLocationFound = false
-        var blueCount = 0   // Server Todo / Message (Type 20)
-        var greenCount = 0  // Local Todo (Ready + Done) (Type 10)
-        var redCount = 0    // History (Type 00)
-        
-        for item in items {
-            switch item {
-            case .userLocation: userLocationFound = true
-            case .serverMessage: blueCount += 1
-            case .todo(let t):
-                if t.type == "20" { blueCount += 1 }
-                else if t.type == "00" { redCount += 1 }
-                else { greenCount += 1 }
-            case .history: redCount += 1
-            }
-        }
-        
-        var baseName = "PinTodoReady" // Default
-        
-        if userLocationFound {
-            baseName = "PinCurrent"
-        } else {
-            let counts = [
-                ("PinReceiveReady", blueCount),
-                ("PinTodoReady", greenCount),
-                ("PinHistory", redCount)
-            ]
-            
-            if let maxItem = counts.max(by: { $0.1 < $1.1 }), maxItem.1 > 0 {
-                baseName = maxItem.0
-            }
-        }
-        
-        // Color Resolution (Matching PinImageHelper requirements)
-        let color: UIColor
-        if baseName == "PinHistory" || baseName == "PinCurrent" {
-            color = .red
-        } else if baseName == "PinReceiveReady" {
-            color = .systemBlue
-        } else {
-            color = .allToDoGreen
-        }
-        
-        return (baseName, color, items.count)
-    }
+
     
     // [NEW] Centralized Date Formatter for Callouts
     static let calloutDateFormatter: DateFormatter = {

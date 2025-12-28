@@ -103,6 +103,10 @@ struct KakaoMapView: UIViewRepresentable {
         var registeredStyleIDs: Set<String> = []
         var labelIdToClusterItems: [String: [UnifiedMapItem]] = [:]
         
+        // [NEW] Active POI Tracking for Diffing
+        var activePoiIDs: Set<String> = []
+
+        
         // [STEP 5] Advanced State
         var isLaunchAnimating = false
         var firstRender = true
@@ -225,14 +229,8 @@ struct KakaoMapView: UIViewRepresentable {
             for item in parent.allItems {
                 switch item {
                 case .todo(let t):
-                    if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: t.int_lat, lon2: t.int_long) {
-                        continue
-                    }
                     points.append(MapPoint(longitude: t.longitude, latitude: t.latitude))
                 case .history(let log):
-                    if let u = uInt, SmartLocationManager.shared.isFar(lat1: u.lat, lon1: u.lon, lat2: log.int_lat, lon2: log.int_long) {
-                        continue
-                    }
                     points.append(MapPoint(longitude: log.longitude, latitude: log.latitude))
                 case .userLocation(let coord):
                     points.append(MapPoint(longitude: coord.longitude, latitude: coord.latitude))
@@ -377,7 +375,7 @@ struct KakaoMapView: UIViewRepresentable {
              labelIdToClusterItems.removeAll()
              for (idx, item) in allItems.enumerated() {
                  guard let loc = item.location else { continue }
-                 let (baseName, color, _) = UnifiedMapItem.resolveClusterStyle(items: [item])
+                 let (baseName, color, _) = MapLogicHelper.resolveClusterStyle(items: [item])
                  let styleID = "RawStyle_\(baseName)"
                  
                  if !registeredStyleIDs.contains(styleID) {
@@ -405,16 +403,15 @@ struct KakaoMapView: UIViewRepresentable {
         @MainActor
         private func renderClusters(mapView: KakaoMap, clusterResult: [Int32], allItems: [UnifiedMapItem]) {
             let labelManager = mapView.getLabelManager()
-            labelManager.removeLabelLayer(layerID: "todoLayer")
-            
-            // [FIX] Use CompetitionUnit.poi (symbol is not valid) and disable competition
-            guard let layer = labelManager.addLabelLayer(option: LabelLayerOptions(layerID: "todoLayer", competitionType: .none, competitionUnit: .poi, orderType: .rank, zOrder: 20000)) else { return }
+            // Reuse Layer if exists
+            let layer = labelManager.getLabelLayer(layerID: "todoLayer") ?? labelManager.addLabelLayer(option: LabelLayerOptions(layerID: "todoLayer", competitionType: .none, competitionUnit: .poi, orderType: .rank, zOrder: 20000))
+            guard let validLayer = layer else { return }
             
             labelIdToClusterItems.removeAll()
             let clusterCount = clusterResult.count / 3
             var clusters: [[UnifiedMapItem]] = Array(repeating: [], count: clusterCount)
             
-            // 1. Parse Centroids from WASM
+            // 1. Parse Centroids
             struct Centroid { let lat: Double; let lon: Double; let count: Int }
             var centroids: [Centroid] = []
             for i in 0..<clusterCount {
@@ -445,65 +442,86 @@ struct KakaoMapView: UIViewRepresentable {
                 if bestIdx >= 0 { clusters[bestIdx].append(item) }
             }
             
-            // 3. Render POIs
+            // 3. Render (Diffing)
+            var newPoiIDs: Set<String> = []
+            
+            // Identify User Cluster
+            var userClusterIdx = -1
+            var userPoiID = "UserPoi"
+            
             for (idx, items) in clusters.enumerated() {
                 guard !items.isEmpty else { continue }
                 let c = centroids[idx]
-                let (baseName, color, count) = UnifiedMapItem.resolveClusterStyle(items: items)
-                
-                // [FIX] Style ID MUST be unique to the content (image) to avoid Kakao SDK caching transparent pins
-                let colorHex = color.cgColor.components?.map { String(format: "%02X", Int($0 * 255)) }.joined() ?? "000000"
-                let styleID = "Style_\(baseName)_\(count)_\(colorHex)"
-                
-                if !registeredStyleIDs.contains(styleID) {
-                    // Kakao Scale: 0.7x (28x35)
-                    let targetSize = CGSize(width: 28, height: 35)
-                    
-                    // Use PinImageHelper to fetch/create cached image
-                    let finalImage: UIImage?
-                    if let baseImage = PinImageHelper.shared.fetchBasePin(named: baseName, size: targetSize) {
-                         if count > 1 {
-                             // [FIX] 카카오 0.7배 스케일에 맞춰 뱃지 크기를 14pt로 축소 적용하여 일관성 유지
-                             finalImage = PinImageHelper.shared.applyBadge(to: baseImage, count: count, badgeColor: color, badgeSize: 14).rasterized()
-                         } else {
-                             finalImage = baseImage // Already rasterized in fetchBasePin
-                         }
-                    } else {
-                        finalImage = nil
-                    }
-
-                    if let img = finalImage {
-                        // W=28, Overhang=10 => Total W=38. Tip X=14. Anchor X = 14/38 (~0.368)
-                        let anchorX = 14.0 / 38.0
-                        let anchor = CGPoint(x: anchorX, y: 1.0)
-                        
-                        labelManager.addPoiStyle(PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: PoiIconStyle(symbol: img, anchorPoint: anchor), level: 0)]))
-                        registeredStyleIDs.insert(styleID)
-                    }
-                }
-
-
-                
-                let poiID = "poi_\(idx)"
-                labelIdToClusterItems[poiID] = items
-                
                 var finalLon = c.lon
                 var finalLat = c.lat
                 
-                // [FIX] Cluster Anchoring: If user is in cluster, force cluster to user position
+                // Style
+                let (baseName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
+                let colorHex = color.cgColor.components?.map { String(format: "%02X", Int($0 * 255)) }.joined() ?? "000000"
+                let styleID = "Style_\(baseName)_\(count)_\(colorHex)"
+                
+                // Check if this cluster contains user
+                var isUser = false
                 if let userItem = items.first(where: { if case .userLocation = $0 { return true }; return false }),
                    let userCoord = userItem.location {
                     finalLon = userCoord.longitude
                     finalLat = userCoord.latitude
+                    isUser = true
+                    userClusterIdx = idx
                 }
                 
-                let options = PoiOptions(styleID: styleID, poiID: poiID)
-                options.clickable = true
-                if let poi = layer.addPoi(option: options, at: MapPoint(longitude: finalLon, latitude: finalLat)) {
-                    poi.clickable = true
-                    poi.show()
+                // Determine POI ID
+                // User Pin gets FIXED ID for reuse
+                let poiID = isUser ? userPoiID : "poi_\(idx)"
+                newPoiIDs.insert(poiID)
+                labelIdToClusterItems[poiID] = items
+                
+                // Prepare Style
+                if !registeredStyleIDs.contains(styleID) {
+                    let targetSize = CGSize(width: 28, height: 35)
+                    let finalImage: UIImage?
+                    if count > 1 {
+                        if let baseImage = PinImageHelper.shared.fetchBasePin(named: baseName, size: targetSize) {
+                             finalImage = PinImageHelper.shared.applyBadge(to: baseImage, count: count, badgeColor: color, badgeSize: 14).rasterized()
+                        } else { finalImage = nil }
+                    } else {
+                         finalImage = PinImageHelper.shared.fetchBasePin(named: baseName, size: targetSize)
+                    }
+                    
+                    if let img = finalImage {
+                        let anchorX = 14.0 / (count > 1 ? 38.0 : 36.0) // Approx
+                        let anchor = CGPoint(x: anchorX, y: 1.0)
+                        labelManager.addPoiStyle(PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: PoiIconStyle(symbol: img, anchorPoint: anchor), level: 0)]))
+                        registeredStyleIDs.insert(styleID)
+                    }
+                }
+                
+                // Add or Move
+                if let existingPoi = validLayer.getPoi(poiID: poiID) {
+                    // Reuse (Move + Style Update)
+                    // Move
+                    existingPoi.moveAt(MapPoint(longitude: finalLon, latitude: finalLat), duration: 300)
+                    // Style
+                    existingPoi.changeStyle(styleID: styleID, enableTransition: false)
+                    existingPoi.show()
+                } else {
+                    // Create New
+                    let options = PoiOptions(styleID: styleID, poiID: poiID)
+                    options.clickable = true
+                    if let poi = validLayer.addPoi(option: options, at: MapPoint(longitude: finalLon, latitude: finalLat)) {
+                        poi.clickable = true
+                        poi.show()
+                    }
                 }
             }
+            
+            // 4. Cleanup Old POIs (Visual Diffing cleanup)
+            for oldID in activePoiIDs {
+                if !newPoiIDs.contains(oldID) {
+                    validLayer.removePoi(poiID: oldID)
+                }
+            }
+            activePoiIDs = newPoiIDs
         }
 
         @MainActor

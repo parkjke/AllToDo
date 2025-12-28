@@ -39,22 +39,26 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun MainScreen(
     todoViewModel: TodoViewModel = hiltViewModel(),
-    gpsAuthViewModel: GpsAuthViewModel = hiltViewModel()
+    gpsAuthViewModel: GpsAuthViewModel = hiltViewModel(),
+    mapViewModel: MapFeatureViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val prefs = remember { context.getSharedPreferences("kr.alltodo.prefs", android.content.Context.MODE_PRIVATE) }
 
     // 1. States for Requirements
+    // MapProvider logic (Local for now, passed to VM)
     var mapProvider by remember { 
         mutableStateOf(MapProvider.valueOf(prefs.getString("map_provider", "Naver") ?: "Naver")) 
     }
-    var showMyInfo by remember { mutableStateOf(false) }
-    var compassRotation by remember { mutableStateOf(0f) }
+    
+    // ViewModel State Collection
+    val showMyInfo by mapViewModel.showMyInfo.collectAsState()
+    val compassRotation by mapViewModel.compassRotation.collectAsState()
     
     // [NEW] Callout States for "Water Balloon"
-    var selectedCluster by remember { mutableStateOf<List<kr.alltodo.ui.UnifiedItem>?>(null) }
-    var tapScreenPosition by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
+    val selectedCluster by mapViewModel.selectedCluster.collectAsState()
+    val tapScreenPosition by mapViewModel.tapPosition.collectAsState()
     val maxPopupItems by todoViewModel.maxPopupItems.collectAsState()
     val popupFontSize by todoViewModel.popupFontSize.collectAsState()
 
@@ -67,10 +71,13 @@ fun MainScreen(
     var viewingPathTodo by remember { mutableStateOf<kr.alltodo.data.TodoItem?>(null) }
 
     // [NEW] Create Todo States
-    var isCreatingTodo by remember { mutableStateOf(false) }
-    var creatingTodoLocation by remember { mutableStateOf<com.kakao.vectormap.LatLng?>(null) }
-    var initialTodoName by remember { mutableStateOf("") }
-    var initialTodoTitle by remember { mutableStateOf("할 일 만들기") }
+    val isCreatingTodo by mapViewModel.isCreatingTodo.collectAsState()
+    val creatingLocation by mapViewModel.creatingLocation.collectAsState()
+    val initialTodoName by mapViewModel.initialTodoName.collectAsState()
+    val initialTodoTitle by mapViewModel.initialTodoTitle.collectAsState()
+    
+    // Bridge for legacy LatLng types locally if needed, or use the one from VM
+    // We will update the usages to use `creatingLocation`.
     
     // [Item 0] beforeLocation Persistence
     val beforeLocation = remember {
@@ -170,7 +177,8 @@ fun MainScreen(
     }
 
     // [NEW] Toast for Far Items
-    val farItemCount by todoViewModel.farItemCount.collectAsState()
+    // Use MapViewModel's farItemsCount
+    val farItemCount by mapViewModel.farItemsCount.collectAsState()
     LaunchedEffect(farItemCount) {
         if (farItemCount > 0) {
             android.widget.Toast.makeText(context, "현재 위치에서 너무 먼 핀 ${farItemCount}개는 표시되지 않습니다.", android.widget.Toast.LENGTH_LONG).show()
@@ -182,13 +190,94 @@ fun MainScreen(
     
     // [FIX] Auto-hide My Info on Map Change
     LaunchedEffect(mapProvider) {
-        showMyInfo = false
+        mapViewModel.toggleMyInfo(false)
+    }
+    
+    // [NEW] Data Synchronization (TodoViewModel -> MapViewModel)
+    val todoItems by todoViewModel.todoItems.collectAsState()
+    LaunchedEffect(todoItems, currentLocation.value, mapProvider) {
+        mapViewModel.updateMapItems(
+            allItems = todoItems,
+            currentLocation = currentLocation.value,
+            mapProvider = mapProvider
+        )
     }
     
     // Map Instances for Camera Control
     var naverMapInstance by remember { mutableStateOf<com.naver.maps.map.NaverMap?>(null) }
     var kakaoMapInstance by remember { mutableStateOf<com.kakao.vectormap.KakaoMap?>(null) }
     var isGoogleMapReady by remember(mapProvider) { mutableStateOf(false) } // [FIX]
+
+    // [NEW] Map Action Observation Loop
+    val mapAction by mapViewModel.mapAction.collectAsState()
+    
+    // Helper to execute actions (DRY)
+    fun executeMapAction(action: MapAction) {
+        when (action) {
+            MapAction.ZOOM_IN -> {
+                when (mapProvider) {
+                    MapProvider.Naver -> naverMapInstance?.let { it.moveCamera(com.naver.maps.map.CameraUpdate.zoomIn().animate(com.naver.maps.map.CameraAnimation.Easing)) }
+                    MapProvider.Kakao -> kakaoMapInstance?.let { it.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.zoomIn(), com.kakao.vectormap.camera.CameraAnimation.from(300, true, true)) }
+                    MapProvider.Google -> scope.launch { googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.zoomIn()) }
+                }
+            }
+            MapAction.ZOOM_OUT -> {
+                when (mapProvider) {
+                    MapProvider.Naver -> naverMapInstance?.let { it.moveCamera(com.naver.maps.map.CameraUpdate.zoomOut().animate(com.naver.maps.map.CameraAnimation.Easing)) }
+                    MapProvider.Kakao -> kakaoMapInstance?.let { it.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.zoomOut(), com.kakao.vectormap.camera.CameraAnimation.from(300, true, true)) }
+                    MapProvider.Google -> scope.launch { googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.zoomOut()) }
+                }
+            }
+            MapAction.CURRENT_LOCATION -> {
+                 currentLocation.value?.let { loc ->
+                    val latLng = com.naver.maps.geometry.LatLng(loc.latitude, loc.longitude)
+                    when (mapProvider) {
+                        MapProvider.Naver -> {
+                            naverMapInstance?.let { map ->
+                                initialAnimationDone = true
+                                map.maxZoom = 21.0
+                                map.moveCamera(com.naver.maps.map.CameraUpdate.scrollAndZoomTo(latLng, 18.0).animate(com.naver.maps.map.CameraAnimation.Easing, 800))
+                            }
+                        }
+                        MapProvider.Kakao -> {
+                            kakaoMapInstance?.let { map ->
+                                initialAnimationDone = true
+                                map.setCameraMaxLevel(21)
+                                map.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.newCenterPosition(com.kakao.vectormap.LatLng.from(loc.latitude, loc.longitude), 18), com.kakao.vectormap.camera.CameraAnimation.from(800, true, true))
+                            }
+                        }
+                        MapProvider.Google -> {
+                            scope.launch { 
+                                initialAnimationDone = true
+                                googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(com.google.android.gms.maps.model.LatLng(loc.latitude, loc.longitude), 18f))
+                            }
+                        }
+                    }
+                }
+            }
+            MapAction.ROTATE_NORTH -> {
+                when (mapProvider) {
+                    MapProvider.Naver -> naverMapInstance?.moveCamera(com.naver.maps.map.CameraUpdate.withParams(com.naver.maps.map.CameraUpdateParams().rotateTo(0.0)).animate(com.naver.maps.map.CameraAnimation.Easing)) 
+                    MapProvider.Kakao -> kakaoMapInstance?.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.rotateTo(0.0), com.kakao.vectormap.camera.CameraAnimation.from(300, true, true))
+                    MapProvider.Google -> scope.launch { 
+                         googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newCameraPosition(com.google.android.gms.maps.model.CameraPosition.builder(googleCameraPositionState.position).bearing(0f).build())) 
+                    }
+                }
+            }
+            MapAction.ZOOM_TO_FIT -> {
+                // Implement Zoom to Fit logic if needed, e.g. based on displayItems bounds
+                // For now, placeholder or maybe center on Seoul/User if no items.
+            }
+            MapAction.NONE -> {}
+        }
+    }
+
+    LaunchedEffect(mapAction) {
+        if (mapAction != MapAction.NONE) {
+            executeMapAction(mapAction)
+            mapViewModel.consumeMapAction()
+        }
+    }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val density = LocalDensity.current
@@ -198,111 +287,96 @@ fun MainScreen(
         key(mapProvider) {
             when (mapProvider) {
                 MapProvider.Naver -> {
-                    val clusteredItems by todoViewModel.clusteredItems.collectAsState()
+                    // Use MapViewModel's displayItems
+                    val displayItems by mapViewModel.displayItems.collectAsState()
                     NaverMapContent(
                         modifier = Modifier.fillMaxSize(),
-                        clusteredItems = clusteredItems,
+                        clusteredItems = displayItems,
                         beforeLocation = beforeLocation.value, // [Item 1]
                         currentLocation = currentLocation.value,
                         onMapReady = { naverMapInstance = it },
                         onClusterClickWithCoords = { items, x, y ->
-                            selectedCluster = items
-                            // Set to screen center since pin will be auto-centered
-                            tapScreenPosition = androidx.compose.ui.geometry.Offset(centerX, centerY)
+                            mapViewModel.selectCluster(items, x, y)
                             // Auto-center (Naver)
                             items.firstOrNull()?.let { first ->
                                 naverMapInstance?.moveCamera(com.naver.maps.map.CameraUpdate.scrollTo(com.naver.maps.geometry.LatLng(first.latitude, first.longitude)).animate(com.naver.maps.map.CameraAnimation.Easing))
                             }
                         },
                         onItemClickWithCoords = { item, x, y ->
-                            selectedCluster = listOf(item)
-                            // Set to screen center since pin will be auto-centered
-                            tapScreenPosition = androidx.compose.ui.geometry.Offset(centerX, centerY)
+                            mapViewModel.selectCluster(listOf(item), x, y)
                             // Auto-center (Naver)
                             naverMapInstance?.moveCamera(com.naver.maps.map.CameraUpdate.scrollTo(com.naver.maps.geometry.LatLng(item.latitude, item.longitude)).animate(com.naver.maps.map.CameraAnimation.Easing))
                         },
-                        onCameraRotate = { compassRotation = it },
+                        onCameraRotate = { mapViewModel.updateCompassRotation(it) },
                         initialAnimationDone = initialAnimationDone,
                         onInitialAnimationDone = { initialAnimationDone = true },
                         onResetAnimationDone = { initialAnimationDone = false }, // [NEW]
                         onZoomChange = { todoViewModel.updateZoom(it) },
                         onEnableClustering = { todoViewModel.enableClustering() },
                         onMapLongClick = { latLng ->
-                            creatingTodoLocation = com.kakao.vectormap.LatLng.from(latLng.latitude, latLng.longitude)
-                            initialTodoTitle = "할 일 만들기"
-                            isCreatingTodo = true
+                            mapViewModel.startCreatingTodo(latLng.latitude, latLng.longitude)
                         },
-                        creatingTodoLocation = creatingTodoLocation?.let { com.naver.maps.geometry.LatLng(it.latitude, it.longitude) },
+                        creatingTodoLocation = creatingLocation?.let { com.naver.maps.geometry.LatLng(it.latitude, it.longitude) },
                         contentPaddingBottom = if (isCreatingTodo) (context.resources.displayMetrics.heightPixels * 0.7).toInt() else 0,
                         activePoints = activePoints,
                         showActivePath = showActivePath
                     )
                 }
                 MapProvider.Kakao -> {
-                    val clusteredItems by todoViewModel.clusteredItems.collectAsState()
+                    val displayItems by mapViewModel.displayItems.collectAsState()
                     KakaoMapContent(
                         modifier = Modifier.fillMaxSize(),
                         isSdkInitialized = isKakaoInitialized,
-                        clusteredItems = clusteredItems,
+                        clusteredItems = displayItems,
                         beforeLocation = beforeLocation.value, // [Item 1]
                         currentLocation = currentLocation.value,
                         onMapReady = { kakaoMapInstance = it },
                         onClusterClickWithCoords = { items, x, y ->
-                            selectedCluster = items
-                            // Set to screen center since pin will be auto-centered
-                            tapScreenPosition = androidx.compose.ui.geometry.Offset(centerX, centerY)
+                            mapViewModel.selectCluster(items, x, y)
                             // Auto-center (Kakao)
                             items.firstOrNull()?.let { first ->
                                 kakaoMapInstance?.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.newCenterPosition(com.kakao.vectormap.LatLng.from(first.latitude, first.longitude)), com.kakao.vectormap.camera.CameraAnimation.from(300, true, true))
                             }
                         },
                         onItemClickWithCoords = { item, x, y ->
-                            selectedCluster = listOf(item)
-                            // Set to screen center since pin will be auto-centered
-                            tapScreenPosition = androidx.compose.ui.geometry.Offset(centerX, centerY)
+                            mapViewModel.selectCluster(listOf(item), x, y)
                             // Auto-center (Kakao)
                             kakaoMapInstance?.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.newCenterPosition(com.kakao.vectormap.LatLng.from(item.latitude, item.longitude)), com.kakao.vectormap.camera.CameraAnimation.from(300, true, true))
                         },
-                        onCameraRotate = { compassRotation = it },
+                        onCameraRotate = { mapViewModel.updateCompassRotation(it) },
                         initialAnimationDone = initialAnimationDone,
                         onInitialAnimationDone = { initialAnimationDone = true },
                         onResetAnimationDone = { initialAnimationDone = false }, // [NEW]
                         onZoomChange = { todoViewModel.updateZoom(it) },
                         onEnableClustering = { todoViewModel.enableClustering() },
                         onMapLongClick = { latLng ->
-                            creatingTodoLocation = latLng
-                            initialTodoTitle = "할 일 만들기"
-                            isCreatingTodo = true
+                            mapViewModel.startCreatingTodo(latLng.latitude, latLng.longitude)
                         },
-                        creatingTodoLocation = creatingTodoLocation,
+                        creatingTodoLocation = creatingLocation?.let { com.kakao.vectormap.LatLng.from(it.latitude, it.longitude) },
                         contentPaddingBottom = if (isCreatingTodo) (context.resources.displayMetrics.heightPixels * 0.7).toInt() else 0,
                         activePoints = activePoints,
                         showActivePath = showActivePath
                     )
                 }
                 MapProvider.Google -> {
-                    val clusteredItems by todoViewModel.clusteredItems.collectAsState()
+                    val displayItems by mapViewModel.displayItems.collectAsState()
                     GoogleMapContent(
                         modifier = Modifier.fillMaxSize(),
-                        clusteredItems = clusteredItems,
+                        clusteredItems = displayItems,
                         beforeLocation = beforeLocation.value, // [Item 1]
                         currentLocation = currentLocation.value,
                         cameraPositionState = googleCameraPositionState,
                         onMapClick = { },
                         onItemClick = { },
                         onItemClickWithCoords = { item, x, y ->
-                            selectedCluster = listOf(item)
-                            // Set to screen center since pin will be auto-centered
-                            tapScreenPosition = androidx.compose.ui.geometry.Offset(centerX, centerY)
+                            mapViewModel.selectCluster(listOf(item), x, y)
                             // Auto-center (Google)
                             scope.launch {
                                 googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLng(com.google.android.gms.maps.model.LatLng(item.latitude, item.longitude)))
                             }
                         },
                         onClusterClickWithCoords = { items, x, y ->
-                            selectedCluster = items
-                            // Set to screen center since pin will be auto-centered
-                            tapScreenPosition = androidx.compose.ui.geometry.Offset(centerX, centerY)
+                            mapViewModel.selectCluster(items, x, y)
                             // Auto-center (Google)
                             items.firstOrNull()?.let { first ->
                                 scope.launch {
@@ -310,7 +384,7 @@ fun MainScreen(
                                 }
                             }
                         },
-                        onRotationChange = { compassRotation = it },
+                        onRotationChange = { mapViewModel.updateCompassRotation(it) },
                         isMapReady = isGoogleMapReady,
                         onMapLoaded = { isGoogleMapReady = true },
                         showHistoryMode = false,
@@ -319,12 +393,10 @@ fun MainScreen(
                         onResetAnimationDone = { initialAnimationDone = false }, // [NEW]
                         onEnableClustering = { todoViewModel.enableClustering() },
                         onFarItemsDetected = { },
-                        creatingTodoLocation = creatingTodoLocation?.let { com.google.android.gms.maps.model.LatLng(it.latitude, it.longitude) },
+                        creatingTodoLocation = creatingLocation?.let { com.google.android.gms.maps.model.LatLng(it.latitude, it.longitude) },
                         contentPaddingBottom = if (isCreatingTodo) (context.resources.displayMetrics.heightPixels * 0.7).toInt() else 0,
                         onMapLongClick = { latLng: com.kakao.vectormap.LatLng ->
-                            creatingTodoLocation = latLng
-                            initialTodoTitle = "할 일 만들기"
-                            isCreatingTodo = true
+                            mapViewModel.startCreatingTodo(latLng.latitude, latLng.longitude)
                         },
                         activePoints = activePoints,
                         showActivePath = showActivePath
@@ -352,71 +424,11 @@ fun MainScreen(
             isTracking = isTracking,
             showActivePath = showActivePath,
             onToggleActivePath = { gpsAuthViewModel.toggleActivePath() },
-            onLoginClick = { showMyInfo = true },
-            onZoomInClick = { 
-                when (mapProvider) {
-                    MapProvider.Naver -> naverMapInstance?.let { it.moveCamera(com.naver.maps.map.CameraUpdate.zoomIn().animate(com.naver.maps.map.CameraAnimation.Easing)) }
-                    MapProvider.Kakao -> kakaoMapInstance?.let { it.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.zoomIn(), com.kakao.vectormap.camera.CameraAnimation.from(300, true, true)) }
-                    MapProvider.Google -> scope.launch { googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.zoomIn()) }
-                }
-            },
-            onZoomOutClick = { 
-                when (mapProvider) {
-                    MapProvider.Naver -> naverMapInstance?.let { it.moveCamera(com.naver.maps.map.CameraUpdate.zoomOut().animate(com.naver.maps.map.CameraAnimation.Easing)) }
-                    MapProvider.Kakao -> kakaoMapInstance?.let { it.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.zoomOut(), com.kakao.vectormap.camera.CameraAnimation.from(300, true, true)) }
-                    MapProvider.Google -> scope.launch { googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.zoomOut()) }
-                }
-            },
-            onLocationClick = { 
-                // [FIX] Force update to current location with Zoom 18
-                currentLocation.value?.let { loc ->
-                    val latLng = com.naver.maps.geometry.LatLng(loc.latitude, loc.longitude)
-                    when (mapProvider) {
-                        MapProvider.Naver -> {
-                            naverMapInstance?.let { map ->
-                                initialAnimationDone = true // [FIX] Break sequence lock
-                                map.maxZoom = 21.0 // [FIX] Release max level lock (previously 15.0)
-                                map.moveCamera(com.naver.maps.map.CameraUpdate.scrollAndZoomTo(latLng, 18.0).animate(com.naver.maps.map.CameraAnimation.Easing, 800))
-                            }
-                        }
-                        MapProvider.Kakao -> {
-                            kakaoMapInstance?.let { map ->
-                                initialAnimationDone = true // [FIX] Break sequence lock
-                                map.setCameraMaxLevel(21) // Force release max level lock
-                                map.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.newCenterPosition(com.kakao.vectormap.LatLng.from(loc.latitude, loc.longitude), 18), com.kakao.vectormap.camera.CameraAnimation.from(800, true, true))
-                            }
-                        }
-                        MapProvider.Google -> {
-                            scope.launch { 
-                                initialAnimationDone = true
-                                googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(com.google.android.gms.maps.model.LatLng(loc.latitude, loc.longitude), 18f))
-                            }
-                        }
-                    }
-                }
-            },
-            onCompassClick = { 
-                when (mapProvider) {
-                    MapProvider.Naver -> naverMapInstance?.let { 
-                        // Naver V3: rotateTo is the correct param method
-                        it.moveCamera(com.naver.maps.map.CameraUpdate.withParams(com.naver.maps.map.CameraUpdateParams().rotateTo(0.0)).animate(com.naver.maps.map.CameraAnimation.Easing)) 
-                    }
-                    MapProvider.Kakao -> kakaoMapInstance?.let { 
-                        // Kakao: Just reset rotation via simple rotateTo or absolute camera move
-                        it.moveCamera(
-                            com.kakao.vectormap.camera.CameraUpdateFactory.rotateTo(0.0),
-                            com.kakao.vectormap.camera.CameraAnimation.from(300, true, true)
-                        )
-                    }
-                    MapProvider.Google -> scope.launch { 
-                        googleCameraPositionState.animate(
-                            com.google.android.gms.maps.CameraUpdateFactory.newCameraPosition(
-                                com.google.android.gms.maps.model.CameraPosition.builder(googleCameraPositionState.position).bearing(0f).build()
-                            )
-                        ) 
-                    }
-                }
-            }
+            onLoginClick = { mapViewModel.toggleMyInfo(true) },
+            onZoomInClick = { mapViewModel.handleZoomIn() },
+            onZoomOutClick = { mapViewModel.handleZoomOut() },
+            onLocationClick = { mapViewModel.handleLocationClick() },
+            onCompassClick = { mapViewModel.handleCompassClick() }
         )
 
         // [Item 3] My Info (UserProfileView)
@@ -427,14 +439,14 @@ fun MainScreen(
             
             UserProfileView(
                 modifier = Modifier.align(Alignment.CenterStart),
-                onDismiss = { showMyInfo = false },
+                onDismiss = { mapViewModel.toggleMyInfo(false) },
                 maxPopupItems = maxPopupItems,
                 onMaxItemsChange = { todoViewModel.updateMaxPopupItems(it) },
                 popupFontSize = popupFontSize,
                 onFontSizeChange = { todoViewModel.updatePopupFontSize(it) },
                 currentMapProvider = mapProvider,
                 onMapProviderChange = { newProvider ->
-                    showMyInfo = false // [FIX] Move to top for immediate UI feedback
+                    mapViewModel.toggleMyInfo(false) // [FIX] Move to top for immediate UI feedback
                     mapProvider = newProvider
                     prefs.edit().putString("map_provider", newProvider.name).apply()
                 },
@@ -443,12 +455,12 @@ fun MainScreen(
                     if (isTracking) {
                         todoViewModel.toggleTracking() // Stops Todo session
                         gpsAuthViewModel.stopTrackingAndSave() // Stops GPS session
-                        showMyInfo = false
+                        mapViewModel.toggleMyInfo(false)
                     } else {
                         todoViewModel.toggleTracking() // Starts Todo session
                         gpsAuthViewModel.startTracking() // Starts GPS session
                         gpsAuthViewModel.setOverlayVisible(true) // Open for feedback
-                        showMyInfo = false
+                        mapViewModel.toggleMyInfo(false)
                     }
                 }
             )
@@ -472,24 +484,21 @@ fun MainScreen(
                     screenPosition = pos,
                     maxPopupItems = maxPopupItems,
                     popupFontSize = popupFontSize,
-                    onClose = { selectedCluster = null },
+                    onClose = { mapViewModel.clearSelection() },
                     onDeleteTodo = { todoViewModel.deleteTodo(it.item) },
                     onDeleteLog = { todoViewModel.deleteTodo(it.item) },
                     onSelectLog = { 
-                        selectedCluster = null
+                        mapViewModel.clearSelection()
                         viewingPathTodo = it
                         todoViewModel.fetchPathForHistory(it)
                     },
                     onCreateTodo = { 
-                        creatingTodoLocation = com.kakao.vectormap.LatLng.from(it.latitude, it.longitude)
-                        initialTodoName = when(it) {
+                        mapViewModel.startCreatingTodo(it.latitude, it.longitude, "할 일", when(it) {
                             is kr.alltodo.ui.UnifiedItem.Todo -> it.item.todo_name
                             is kr.alltodo.ui.UnifiedItem.History -> it.item.todo_name
                             else -> ""
-                        }
-                        initialTodoTitle = "할 일"
-                        isCreatingTodo = true
-                        selectedCluster = null
+                        })
+                        mapViewModel.clearSelection()
                     },
                     mapProvider = mapProvider
                 )
@@ -517,8 +526,8 @@ fun MainScreen(
             // [Item 6] Reverse Geocode for Default Name (Eup/Myeon/Dong)
             var defaultTodoName by remember { mutableStateOf("요기") }
             val geocoder = android.location.Geocoder(context, java.util.Locale.KOREA)
-            LaunchedEffect(creatingTodoLocation) {
-                creatingTodoLocation?.let { loc ->
+            LaunchedEffect(creatingLocation) {
+                creatingLocation?.let { loc ->
                     try {
                         val addresses = geocoder.getFromLocation(loc.latitude, loc.longitude, 1)
                         if (!addresses.isNullOrEmpty()) {
@@ -535,17 +544,17 @@ fun MainScreen(
                 }
             }
 
-            fun centerMapOn(loc: com.kakao.vectormap.LatLng) {
+            fun centerMapOn(lat: Double, lon: Double) {
                 when (mapProvider) {
                     MapProvider.Naver -> {
-                        naverMapInstance?.moveCamera(com.naver.maps.map.CameraUpdate.scrollTo(com.naver.maps.geometry.LatLng(loc.latitude, loc.longitude)).animate(com.naver.maps.map.CameraAnimation.Easing))
+                        naverMapInstance?.moveCamera(com.naver.maps.map.CameraUpdate.scrollTo(com.naver.maps.geometry.LatLng(lat, lon)).animate(com.naver.maps.map.CameraAnimation.Easing))
                     }
                     MapProvider.Kakao -> {
-                        kakaoMapInstance?.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.newCenterPosition(loc), com.kakao.vectormap.camera.CameraAnimation.from(300, true, true))
+                        kakaoMapInstance?.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.newCenterPosition(com.kakao.vectormap.LatLng.from(lat, lon)), com.kakao.vectormap.camera.CameraAnimation.from(300, true, true))
                     }
                     MapProvider.Google -> {
                         scope.launch {
-                            googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLng(com.google.android.gms.maps.model.LatLng(loc.latitude, loc.longitude)))
+                            googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLng(com.google.android.gms.maps.model.LatLng(lat, lon)))
                         }
                     }
                 }
@@ -559,27 +568,23 @@ fun MainScreen(
                 initialName = initialTodoName,
                 title = initialTodoTitle,
                 onRegister = { name, person, date, time, memo ->
-                    creatingTodoLocation?.let { loc ->
+                    creatingLocation?.let { loc ->
                         todoViewModel.addTodo(name, loc.latitude, loc.longitude, person, date, time, memo)
                         scope.launch {
                             delay(300) // Wait for padding removal animation
-                            centerMapOn(loc)
+                            centerMapOn(loc.latitude, loc.longitude)
                         }
                     }
-                    isCreatingTodo = false
-                    creatingTodoLocation = null
-                    initialTodoName = ""
+                    mapViewModel.cancelCreatingTodo()
                 },
                 onCancel = {
-                    creatingTodoLocation?.let { loc ->
+                    creatingLocation?.let { loc ->
                         scope.launch {
                             delay(300) // Wait for padding removal animation
-                            centerMapOn(loc)
+                            centerMapOn(loc.latitude, loc.longitude)
                         }
                     }
-                    isCreatingTodo = false
-                    creatingTodoLocation = null
-                    initialTodoName = ""
+                    mapViewModel.cancelCreatingTodo()
                 }
             )
         }
