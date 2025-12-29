@@ -786,9 +786,9 @@ struct AppleMapView: UIViewRepresentable {
                     }
                 }
                 btn.items = items
-                let (baseName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
+                let (shieldName, markName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
                 
-                if let img = PinImageHelper.shared.createShieldPin(imageName: baseName, color: color, count: count, badgeSize: 20) {
+                if let img = PinImageHelper.shared.createShieldPin(shieldName: shieldName, markName: markName, color: color, count: count, badgeSize: 20) {
                     imageView.image = img
                     view.frame = CGRect(origin: .zero, size: img.size)
                     view.centerOffset = CGPoint(x: -5, y: 30) // (20-25, 60-30)
@@ -796,16 +796,16 @@ struct AppleMapView: UIViewRepresentable {
             } else if let wasmCluster = annotation as? WasmClusterAnnotation {
                 let items = wasmCluster.items
                 btn.items = items
-                let (baseName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
+                let (shieldName, markName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
                 
-                if let img = PinImageHelper.shared.createShieldPin(imageName: baseName, color: color, count: count, badgeSize: 20) {
+                if let img = PinImageHelper.shared.createShieldPin(shieldName: shieldName, markName: markName, color: color, count: count, badgeSize: 20) {
                     imageView.image = img
                     view.frame = CGRect(origin: .zero, size: img.size)
-                    view.centerOffset = CGPoint(x: 0, y: -25) // (20-20, 50-25) -> Shift Up by 25
+                    view.centerOffset = CGPoint(x: -5, y: 30) // (20-25, 60-30)
                 }
             } else if let unified = annotation as? UnifiedAnnotation, let item = unified.item {
                 btn.items = [item]
-                if let img = PinImageHelper.shared.fetchBasePin(named: item.imageName) {
+                if let img = PinImageHelper.shared.fetchCompositePin(shieldName: item.shieldName, markName: item.markName) {
                     imageView.image = img
                     view.frame = CGRect(origin: .zero, size: img.size)
                     view.centerOffset = CGPoint(x: 0, y: -25) // (20-20, 50-25) -> Shift Up by 25
@@ -920,7 +920,7 @@ struct AppleMapView: UIViewRepresentable {
             let searchID = item.todo_id
             let descriptor = FetchDescriptor<PathItem>(
                 predicate: #Predicate<PathItem> { $0.todo_id == searchID },
-                sortBy: [SortDescriptor(\.timestamp)]
+                sortBy: [SortDescriptor<PathItem>(\.time)]
             )
             
             if let paths = try? parent.modelContext.fetch(descriptor) {

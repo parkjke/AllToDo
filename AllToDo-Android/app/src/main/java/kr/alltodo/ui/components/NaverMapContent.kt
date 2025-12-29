@@ -142,13 +142,17 @@ fun NaverMapContent(
                 val position = LatLng(cluster.latitude, cluster.longitude)
                 
                 // (Logic copied from previous implementation for style resolution)
+                // (Logic copied from previous implementation for style resolution)
                 val (bitmap, anchorX, anchorY) = if (isSingle) { // User Single
-                     kr.alltodo.R.drawable.pin_current.let { resId -> 
-                         Triple(kr.alltodo.ui.createNaverPinBitmap(context, 0, resId, android.graphics.Color.TRANSPARENT), 0.5f, 0.5f) // User pin center is 0.5, 0.5
-                     }
+                     val shieldId = kr.alltodo.ui.PinImageManager.getResourceId(context, firstItem.shieldName)
+                     val markId = kr.alltodo.ui.PinImageManager.getResourceId(context, firstItem.markName)
+                     Triple(kr.alltodo.ui.createNaverPinBitmap(context, 0, shieldId, markId, android.graphics.Color.TRANSPARENT), 0.5f, 0.5f) 
                 } else { // User Cluster
-                     val (resId, badgeColor) = kr.alltodo.R.drawable.pin_current to android.graphics.Color.RED
-                     val b = kr.alltodo.ui.createNaverPinBitmap(context, cluster.count, resId, badgeColor)
+                     val style = kr.alltodo.utils.MapLogicHelper.resolveClusterStyle(cluster.items)
+                     val shieldId = kr.alltodo.ui.PinImageManager.getResourceId(context, style.shieldName)
+                     val markId = kr.alltodo.ui.PinImageManager.getResourceId(context, style.markName)
+                     
+                     val b = kr.alltodo.ui.createNaverPinBitmap(context, cluster.count, shieldId, markId, style.color)
                      // Cluster anchor logic
                      val density = context.resources.displayMetrics.density
                      val scale = 1.0f 
@@ -213,33 +217,17 @@ fun NaverMapContent(
             if (isUserCluster) marker.tag = "UserPin"
             
             val (bitmap, anchorX, anchorY) = if (isSingle) {
-                val resId = firstItem.getPinResId()
-                val b = kr.alltodo.ui.createNaverPinBitmap(context, 0, resId, android.graphics.Color.TRANSPARENT)
+                val shieldId = kr.alltodo.ui.PinImageManager.getResourceId(context, firstItem.shieldName)
+                val markId = kr.alltodo.ui.PinImageManager.getResourceId(context, firstItem.markName)
+                val b = kr.alltodo.ui.createNaverPinBitmap(context, 0, shieldId, markId, android.graphics.Color.TRANSPARENT)
                 // [FIX] Current Location Single Pin center is 0.5, 0.5. Others are 0.5, 1.0
                 val aH = if (firstItem is UnifiedItem.CurrentLocation) 0.5f else 1.0f
                 Triple(b, 0.5f, aH)
             } else {
-                 var hasUserLocation = false
-                 var hasHistory = false
-                 var hasServerTodo = false
-                 var hasUserTodo = false
-                 cluster.items.forEach { 
-                     when(it) {
-                         is UnifiedItem.CurrentLocation -> hasUserLocation = true
-                         is UnifiedItem.History -> hasHistory = true
-                         is UnifiedItem.Todo -> {
-                             if (it.item.source != "local") hasServerTodo = true
-                             else hasUserTodo = true
-                         }
-                     }
-                 }
-                 val (resId, badgeColor) = when {
-                     hasUserLocation -> kr.alltodo.R.drawable.pin_current to android.graphics.Color.RED
-                     hasUserTodo -> kr.alltodo.R.drawable.pin_todo_ready to android.graphics.Color.parseColor("#00AA00")
-                     hasServerTodo -> kr.alltodo.R.drawable.pin_receive_ready to android.graphics.Color.BLUE
-                     else -> kr.alltodo.R.drawable.pin_history to android.graphics.Color.RED
-                 }
-                 val b = kr.alltodo.ui.createNaverPinBitmap(context, cluster.count, resId, badgeColor)
+                 val style = kr.alltodo.utils.MapLogicHelper.resolveClusterStyle(cluster.items)
+                 val shieldId = kr.alltodo.ui.PinImageManager.getResourceId(context, style.shieldName)
+                 val markId = kr.alltodo.ui.PinImageManager.getResourceId(context, style.markName)
+                 val b = kr.alltodo.ui.createNaverPinBitmap(context, cluster.count, shieldId, markId, style.color)
                  
                  val density = context.resources.displayMetrics.density
                  val scale = 1.0f
@@ -286,7 +274,9 @@ fun NaverMapContent(
         if (creatingTodoLocation != null) {
             val marker = Marker()
             marker.position = creatingTodoLocation
-            val b = kr.alltodo.ui.createNaverPinBitmap(context, 0, kr.alltodo.R.drawable.pin_todo_ready, android.graphics.Color.TRANSPARENT)
+            val shieldId = kr.alltodo.ui.PinImageManager.getResourceId(context, "pin_shield_1x")
+            val markId = kr.alltodo.ui.PinImageManager.getResourceId(context, "pin_mark_10")
+            val b = kr.alltodo.ui.createNaverPinBitmap(context, 0, shieldId, markId, android.graphics.Color.TRANSPARENT)
             if (b != null) {
                 marker.icon = OverlayImage.fromBitmap(b)
                 marker.anchor = android.graphics.PointF(0.5f, 1.0f)

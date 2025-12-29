@@ -1,0 +1,12 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="100dp"
+    android:height="125dp"
+    android:viewportWidth="100"
+    android:viewportHeight="125">
+
+  <!-- Centered Checkbox Frame -->
+  <!-- Adjusted to a cooler light red (#FFB3B3) to ensure it doesn't look orange on the red shield -->
+  <rect x="33" y="28" width="34" height="34" rx="4" ry="4" android:fillColor="#FFB3B3" android:strokeColor="white" android:strokeWidth="3" />
+
+</vector>

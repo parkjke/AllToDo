@@ -242,7 +242,7 @@ struct NaverMapView: UIViewRepresentable {
              let searchID = log.todo_id
              let descriptor = FetchDescriptor<PathItem>(
                  predicate: #Predicate<PathItem> { $0.todo_id == searchID },
-                 sortBy: [SortDescriptor(\.timestamp)]
+                 sortBy: [SortDescriptor<PathItem>(\.time)]
              )
              if let paths: [PathItem] = try? parent.modelContext.fetch(descriptor) {
                  let coords = paths.map { NMGLatLng(lat: $0.coordinate.latitude, lng: $0.coordinate.longitude) }
@@ -466,7 +466,7 @@ struct NaverMapView: UIViewRepresentable {
                     newUserClusterIdx = idx
                     
                     // Resolve Style
-                     let (baseName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
+                     let (baseName, markName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
                      let targetSize = CGSize(width: 36, height: 45)
                      var icon: NMFOverlayImage?
                      var anchor = CGPoint(x: 0.5, y: 1.0)
@@ -566,7 +566,7 @@ struct NaverMapView: UIViewRepresentable {
                 marker.position = finalCoord
                 if isUser { marker.userInfo = ["isUser": true] } // TAG
                 
-                let (baseName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
+                let (baseName, markName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
                 let targetSize = CGSize(width: 36, height: 45)
                 
                 if baseName == "PinCurrent" && count == 1 {

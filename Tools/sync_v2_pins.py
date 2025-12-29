@@ -1,111 +1,27 @@
 import os
-import subprocess
 import shutil
+import subprocess
 
 # Configuration
 PROJECT_ROOT = "/Volumes/Work/AllToDo"
-MARK_DIR = os.path.join(PROJECT_ROOT, "Icons/map_pin_1/mark") # Using mark folder (Hand design)
+MARK_DIR = os.path.join(PROJECT_ROOT, "Icons/map_pin_1/mark")
 SHIELD_DIR = os.path.join(PROJECT_ROOT, "Icons/map_pin_1/shield")
-MERGE_DIR = os.path.join(PROJECT_ROOT, "Icons/map_pin_1/merge")
 IOS_ASSET_DIR = os.path.join(PROJECT_ROOT, "AllToDo-iOS/AllToDo/Assets.xcassets")
 ANDROID_DRAWABLE_DIR = os.path.join(PROJECT_ROOT, "AllToDo-Android/app/src/main/res/drawable")
+CONVERT_SCRIPT = os.path.join(PROJECT_ROOT, "Tools/convert_svg_xml.py")
 
-# Pin Mappings (ID -> Name)
-PINS = {
-    "00": "PinCurrent",
-    "01": "PinHistory",
-    "02": "PinSaved",
-    "10": "PinTodoReady",
-    "12": "PinTodoDone",
-    "13": "PinTodoFail",
-    "14": "PinTodoCancel",
-    "20": "PinReceiveReady",
-    "21": "PinReceiveReject",
-    "24": "PinReceiveDone"
-}
-
-def ensure_dirs():
-    if not os.path.exists(MERGE_DIR):
-        os.makedirs(MERGE_DIR)
-    if not os.path.exists(MARK_DIR):
-        os.makedirs(MARK_DIR)
-
-def merge_svgs():
-    print("Merging Marks and Shields...")
-    for pid in PINS.keys():
-        mark_path = os.path.join(MARK_DIR, f"pin_mark_{pid}.svg")
+def sync_ios_components():
+    print("Syncing iOS Components (Shields & Marks)...")
+    
+    # helper to create imageset
+    def create_imageset(name, src_path, dest_parent):
+        imageset_dir = os.path.join(dest_parent, f"{name}.imageset")
+        if not os.path.exists(imageset_dir):
+            os.makedirs(imageset_dir)
+            
+        dest_file = os.path.join(imageset_dir, f"{name}.svg")
+        shutil.copy(src_path, dest_file)
         
-        # Determine shield file based on PID prefix
-        if pid.startswith("0"):
-            shield_name = "pin_shield_0X.svg"
-        elif pid.startswith("1"):
-            shield_name = "pin_shield_1X.svg"
-        elif pid.startswith("2"):
-            shield_name = "pin_shield_2X.svg"
-        else:
-            shield_name = f"pin_shield_{pid}.svg" # Fallback
-            
-        shield_path = os.path.join(SHIELD_DIR, shield_name)
-        output_path = os.path.join(MERGE_DIR, f"pin_merge_{pid}.svg")
-
-        if not os.path.exists(mark_path):
-            print(f"  [Skip] {pid} (Missing mark file)")
-            continue
-        if not os.path.exists(shield_path):
-            print(f"  [Skip] {pid} (Missing shield file)")
-            continue
-
-        try:
-            with open(shield_path, 'r') as f:
-                shield_content = f.read()
-            with open(mark_path, 'r') as f:
-                mark_content = f.read()
-
-            # Simple SVG merging: inject mark content before the closing </svg> of shield
-            # This assumes standard SVG structure. A more robust parser might be needed for complex cases.
-            # We strip the outer <svg> tags from mark_content for embedding
-            
-            mark_body = mark_content
-            # Remove XML declaration if present
-            if "<?xml" in mark_body:
-                mark_body = mark_body.split("?>", 1)[1]
-            
-            # Remove <svg ...> and </svg>
-            start_tag_end = mark_body.find(">")
-            if (start_tag_end != -1):
-                 mark_body = mark_body[start_tag_end+1:]
-            
-            mark_body = mark_body.replace("</svg>", "")
-            
-            # center/scale mark if needed is handled in the mark SVG itself usually, 
-            # or we wrap it in a group.
-            # For this task, we assume mark SVGs are designed to overlay correctly.
-            
-            final_svg = shield_content.replace("</svg>", f"\n<g id='mark'>{mark_body}</g>\n</svg>")
-            
-            with open(output_path, 'w') as f:
-                f.write(final_svg)
-            
-            print(f"  [Merge] Created: pin_merge_{pid}.svg")
-            
-        except Exception as e:
-            print(f"  [Error] Failed to merge {pid}: {e}")
-
-def sync_ios():
-    print("Syncing to iOS Assets...")
-    for pid, name in PINS.items():
-        merge_path = os.path.join(MERGE_DIR, f"pin_merge_{pid}.svg")
-        if not os.path.exists(merge_path):
-            continue
-            
-        asset_folder = os.path.join(IOS_ASSET_DIR, f"{name}.imageset")
-        if not os.path.exists(asset_folder):
-            os.makedirs(asset_folder)
-            
-        dest_path = os.path.join(asset_folder, f"{name}.svg")
-        shutil.copy(merge_path, dest_path)
-        
-        # Create/Update Contents.json
         contents_json = """{
   "images" : [
     {
@@ -118,27 +34,63 @@ def sync_ios():
     "version" : 1
   }
 }""" % name
-        with open(os.path.join(asset_folder, "Contents.json"), 'w') as f:
+        with open(os.path.join(imageset_dir, "Contents.json"), 'w') as f:
             f.write(contents_json)
-        
-        print(f"  [iOS] Updated: {name}")
 
-def sync_android():
-    print("Syncing to Android Drawables...")
-    # For Android, we need XML vector drawables. 
-    # Since we can't easily convert complex SVG to Vector XML automatically with python standard libs without tools,
-    # and the user task involves heavily customized XMLs for complex marks,
-    # we will SKIP automatic overwriting of the hand-crafted XMLs for now, 
-    # OR we could just copy SVGs if we were using coil-svg, but we are using VectorDrawables.
+    # 1. Sync Shields
+    dest_shields = os.path.join(IOS_ASSET_DIR, "Components") 
+    # Create nested folder structure manually or flat list in Components?
+    # Let's put them in 'Components' grouping visually in Xcode if possible, but physically flat or nested.
+    # To keep it simple, we just put them in Assets.xcassets/Components/Shields
     
-    # However, the previous tool DID try to sync. 
-    # Given the high complexity of v3.9 marks (gradients, masks, etc), 
-    # we rely on the manual XML edits I've been doing in the 'write_to_file' steps for Android.
-    # So this script will mainly focus on iOS sync which uses the SVGs directly.
-    print("  [Android] Skipping auto-sync (Manual XML editing preferred for complex v3 designs)")
+    shields_target = os.path.join(IOS_ASSET_DIR, "Components/Shields")
+    if not os.path.exists(shields_target):
+        os.makedirs(shields_target)
+        
+    for f in os.listdir(SHIELD_DIR):
+        if f.endswith(".svg"):
+            name = os.path.splitext(f)[0]
+            create_imageset(name, os.path.join(SHIELD_DIR, f), shields_target)
+            print(f"  [iOS] Shield: {name}")
+
+    # 2. Sync Marks
+    marks_target = os.path.join(IOS_ASSET_DIR, "Components/Marks")
+    if not os.path.exists(marks_target):
+        os.makedirs(marks_target)
+        
+    for f in os.listdir(MARK_DIR):
+        if f.endswith(".svg"):
+            name = os.path.splitext(f)[0]
+            create_imageset(name, os.path.join(MARK_DIR, f), marks_target)
+            print(f"  [iOS] Mark: {name}")
+
+
+def sync_android_components():
+    print("Syncing Android Components (Shields & Marks)...")
+    if not os.path.exists(CONVERT_SCRIPT):
+        print("  [Error] Convert script not found!")
+        return
+
+    # Helper
+    def convert_and_copy(src_path, dest_name):
+        dest_path = os.path.join(ANDROID_DRAWABLE_DIR, dest_name)
+        # Call conversion script
+        subprocess.run(["python3", CONVERT_SCRIPT, src_path, dest_path], check=True)
+
+    # 1. Sync Shields
+    for f in os.listdir(SHIELD_DIR):
+        if f.endswith(".svg"):
+            name = os.path.splitext(f)[0].lower() # Android resources must be lowercase
+            convert_and_copy(os.path.join(SHIELD_DIR, f), f"{name}.xml")
+            print(f"  [Android] Shield: {name}")
+
+    # 2. Sync Marks
+    for f in os.listdir(MARK_DIR):
+        if f.endswith(".svg"):
+            name = os.path.splitext(f)[0].lower()
+            convert_and_copy(os.path.join(MARK_DIR, f), f"{name}.xml")
+            print(f"  [Android] Mark: {name}")
 
 if __name__ == "__main__":
-    ensure_dirs()
-    merge_svgs()
-    # sync_ios() # Paused for design review
-    # sync_android() # Paused for design review
+    sync_ios_components()
+    sync_android_components()

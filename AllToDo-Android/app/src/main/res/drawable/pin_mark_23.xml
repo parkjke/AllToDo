@@ -1,0 +1,38 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="100dp"
+    android:height="125dp"
+    android:viewportWidth="100"
+    android:viewportHeight="125">
+
+  <!-- Dual-bubble layout (consistent position/scale) -->
+  <group  android:translateX="20.81" android:translateY="18.2" android:scaleX="0.75" android:scaleY="0.75">
+    <!-- Path 1: Gray Back Bubble -->
+    <path android:pathData="M64.9854 14.5239L43.8574 14.5239C34.3872 14.5239 28.916 20.1489 28.916 29.4434L28.916 45.7031C28.916 48.579 29.4398 51.0994 30.4466 53.2066L23.313 59.502C21.8848 60.7544 21.0498 61.3916 19.8413 61.3916C18.1714 61.3916 17.1826 60.2051 17.1826 58.3154L17.1826 50.7568L15.5347 50.7568C7.58057 50.7568 3.14209 46.2524 3.14209 38.3862L3.14209 15.9741C3.14209 8.10791 7.58057 3.58154 15.5347 3.58154L52.6465 3.58154C60.1173 3.58154 64.4652 7.57189 64.9854 14.5239Z" 
+          android:fillColor="#CCCCCC" android:fillAlpha="1.0"/>
+    
+    <!-- Path 2: White Front Bubble -->
+    <group  android:translateX="60" android:translateY="45" android:scaleX="1.15" android:scaleY="1.15">
+      <path android:pathData="M43.8574 57.063L54.646 57.063L63.9185 64.9951C65.3247 66.2256 66.1597 66.8628 67.3022 66.8628C68.9722 66.8628 69.917 65.6763 69.917 63.8525L69.917 57.063L70.9058 57.063C78.3765 57.063 82.3315 53.042 82.3315 45.6592L82.3315 29.4434C82.3315 22.0605 78.3765 18.0176 70.9058 18.0176L43.8574 18.0176C36.3647 18.0176 32.4097 22.0605 32.4097 29.4434L32.4097 45.7031C32.4097 53.064 36.3647 57.063 43.8574 57.063Z" 
+            android:fillColor="#FFFFFF" android:fillAlpha="1.0"/>
+    </group>
+  </group>
+
+  <!-- WAVY ARROW - Balanced Position: Adjusted x to 13 to avoid being too far left. -->
+  <group  android:translateX="13" android:translateY="26" android:scaleX="0.22" android:scaleY="0.22">
+    <!-- Path: Hill -> Valley -> Smooth Horizontal reaching neck -->
+    <path android:pathData="M 20,110 C 50,10 110,10 140,85 C 170,160 215,160 240,110 C 255,80 265,80 290,80 L 310,80" 
+          android:strokeColor="#000000" android:strokeWidth="12" android:fillColor="none" android:strokeLineCap="round" />
+    
+    <!-- Sharp Arrowhead: Positioned exactly at path end (310) -->
+    <path android:pathData="M 310,105 L 350,80 L 310,55 Z" 
+          android:fillColor="#000000" android:strokeColor="#000000" android:strokeWidth="1" android:strokeLineJoin="round" />
+    
+    <!-- Start Dot (Blue) -->
+    <path android:pathData="M 2.0,110.0 a 18.0,18.0 0 1,0 36.0,0 a 18.0,18.0 0 1,0 -36.0,0"  android:fillColor="#3478B4" android:strokeColor="#000000" android:strokeWidth="10"  />
+    
+    <!-- Middle Dot (Green) -->
+    <path android:pathData="M 118.0,85.0 a 22.0,22.0 0 1,0 44.0,0 a 22.0,22.0 0 1,0 -44.0,0"  android:fillColor="#34C759" android:strokeColor="#000000" android:strokeWidth="10"  />
+  </group>
+
+</vector>

@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="100dp"
+    android:height="125dp"
+    android:viewportWidth="100"
+    android:viewportHeight="125">
+
+  <!-- Wanderer Path (2 Turns, Dashed) - Shifted up by 5 units -->
+  <path android:pathData="M50,70 Q85,70 50,50 Q15,50 50,30" 
+        android:fillColor="none" 
+        android:strokeColor="white" 
+        android:strokeWidth="3" 
+        stroke-dasharray="0.1 6" 
+        android:strokeLineCap="round" />
+
+  <!-- Starting Point: Red Solid Dot with White Border - Shifted up by 5 units -->
+  <path android:pathData="M 45.5,70.0 a 4.5,4.5 0 1,0 9.0,0 a 4.5,4.5 0 1,0 -9.0,0"  android:fillColor="#FF3B30" android:strokeColor="white" android:strokeWidth="1.5"  />
+
+  <!-- Current Point: Large White Solid Dot (No border) - Shifted up by 5 units -->
+  <path android:pathData="M 41.0,30.0 a 9.0,9.0 0 1,0 18.0,0 a 9.0,9.0 0 1,0 -18.0,0"  android:fillColor="white"  />
+
+</vector>

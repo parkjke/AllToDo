@@ -44,10 +44,20 @@ struct UserProfileView: View {
                     HStack {
                         // Blue Pin Icon (Left)
                         Button(action: { showPinGallery = true }) {
-                            Image("PinReceiveReady")
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 44, height: 44)
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color(.secondarySystemBackground))
+                                    .frame(width: 50, height: 50)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                    )
+                                
+                                Image(uiImage: PinImageHelper.shared.getAssetImage(named: "pin_shield_0X") ?? UIImage())
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(height: 32)
+                            }
                         }
                         .buttonStyle(PlainButtonStyle())
                         

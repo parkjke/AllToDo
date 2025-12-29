@@ -1,0 +1,20 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="100dp"
+    android:height="125dp"
+    android:viewportWidth="100"
+    android:viewportHeight="125">
+
+  <!-- Centered Checkbox Frame (34x34) -->
+  <rect x="33" y="28" width="34" height="34" rx="4" ry="4" android:fillColor="none" android:strokeColor="white" android:strokeWidth="3" />
+  
+  <!-- Red Brush Stroke (Slash) from Top-Right to Bottom-Left -->
+  <path android:pathData="M72,18 
+           C65,22 45,45 28,72 
+           C35,68 55,40 72,18 Z" 
+        android:fillColor="#FF3B30" 
+        android:strokeColor="#FF3B30" 
+        android:strokeWidth="1.5" 
+        android:strokeLineJoin="round" />
+
+</vector>

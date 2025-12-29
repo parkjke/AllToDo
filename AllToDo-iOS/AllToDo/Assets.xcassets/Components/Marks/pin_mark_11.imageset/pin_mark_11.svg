@@ -1,0 +1,13 @@
+<svg width="100" height="90" viewBox="0 0 100 90" xmlns="http://www.w3.org/2000/svg">
+  <!-- Checkbox Frame (Translucent, same as mark 10 checkmark) -->
+  <rect x="25" y="32" width="34" height="34" rx="4" ry="4" fill="none" stroke="white" stroke-width="3" opacity="0.4" />
+  
+  <!-- "Edgy" Translucent Check Mark -->
+  <path d="M33,42 L46,55 L72,25" 
+        fill="none" 
+        stroke="white" 
+        stroke-width="6" 
+        stroke-linecap="round" 
+        stroke-linejoin="round" 
+        opacity="0.4" />
+</svg>

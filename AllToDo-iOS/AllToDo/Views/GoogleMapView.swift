@@ -169,7 +169,7 @@ struct GoogleMapView: UIViewRepresentable {
                 } else { continue }
                 
                 // 2. Use PinImageHelper for cached/standardized icon
-                marker.icon = PinImageHelper.shared.fetchBasePin(named: item.imageName)
+                marker.icon = PinImageHelper.shared.fetchCompositePin(shieldName: item.shieldName, markName: item.markName)
                 
                 // Ground Anchor: Tip is at center-bottom
                 marker.groundAnchor = CGPoint(x: 0.5, y: 1.0)
@@ -532,15 +532,15 @@ struct GoogleMapView: UIViewRepresentable {
                      newUserClusterIdx = idx
                      
                      // Resolve Style
-                     let (baseName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
+                     let (shieldName, markName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
                      var icon: UIImage?
                      var anchor = CGPoint(x: 0.5, y: 1.0)
                      
                      if items.count == 1 {
-                         icon = PinImageHelper.shared.fetchBasePin(named: userItem.imageName)
+                         icon = PinImageHelper.shared.fetchCompositePin(shieldName: userItem.shieldName, markName: userItem.markName)
                      } else {
                          anchor = CGPoint(x: 0.4, y: 1.0)
-                         icon = PinImageHelper.shared.createShieldPin(imageName: baseName, color: color, count: count)
+                         icon = PinImageHelper.shared.createShieldPin(shieldName: shieldName, markName: markName, color: color, count: count)
                      }
                      
                      newUserMarkerData = (finalCoordinate, icon, anchor)
@@ -601,11 +601,11 @@ struct GoogleMapView: UIViewRepresentable {
                   if items.count == 1, let item = items.first {
                       marker.position = item.location ?? finalCoordinate
                       marker.groundAnchor = CGPoint(x: 0.5, y: 1.0)
-                      marker.icon = PinImageHelper.shared.fetchBasePin(named: item.imageName)
+                      marker.icon = PinImageHelper.shared.fetchCompositePin(shieldName: item.shieldName, markName: item.markName)
                   } else {
-                      let (baseName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
+                      let (shieldName, markName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
                       marker.groundAnchor = CGPoint(x: 0.4, y: 1.0)
-                      marker.icon = PinImageHelper.shared.createShieldPin(imageName: baseName, color: color, count: count)
+                      marker.icon = PinImageHelper.shared.createShieldPin(shieldName: shieldName, markName: markName, color: color, count: count)
                   }
                   
                   marker.map = mapView
@@ -692,7 +692,7 @@ struct GoogleMapView: UIViewRepresentable {
              let searchID = log.todo_id
              let descriptor = FetchDescriptor<PathItem>(
                  predicate: #Predicate<PathItem> { $0.todo_id == searchID },
-                 sortBy: [SortDescriptor<PathItem>(\.timestamp, order: .forward)]
+                 sortBy: [SortDescriptor<PathItem>(\.time, order: .forward)]
              )
              if let paths = try? parent.modelContext.fetch(descriptor) {
                  let path = GMSMutablePath()

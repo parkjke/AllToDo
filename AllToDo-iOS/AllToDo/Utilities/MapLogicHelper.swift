@@ -112,10 +112,10 @@ struct MapLogicHelper {
 
     // ... (rest of the file)
 
-    /// Resolves the cluster style (icon base name and color) based on the items in the cluster.
+    /// Resolves the cluster style (shield, mark, color) based on the items in the cluster.
     /// - Parameter items: List of UnifiedMapItem in the cluster
-    /// - Returns: Tuple of (baseName, color, count)
-    static func resolveClusterStyle(items: [UnifiedMapItem]) -> (baseName: String, color: UIColor, count: Int) {
+    /// - Returns: Tuple of (shieldName, markName, color, count)
+    static func resolveClusterStyle(items: [UnifiedMapItem]) -> (shieldName: String, markName: String, color: UIColor, count: Int) {
         var userLocationFound = false
         var blueCount = 0   // Server Todo / Message (Type 20)
         var greenCount = 0  // Local Todo (Ready + Done) (Type 10)
@@ -133,32 +133,39 @@ struct MapLogicHelper {
             }
         }
         
-        var baseName = "PinTodoReady" // Default
+        var shieldName = "pin_shield_1X" // Default Shield (Todo)
+        var markName = "pin_mark_10"     // Default Mark (Exclamation)
+        var color: UIColor = .allToDoGreen
         
         if userLocationFound {
-            baseName = "PinCurrent"
+            shieldName = "pin_shield_0X"
+            markName = "pin_mark_00"
+            color = .red
         } else {
             let counts = [
-                ("PinReceiveReady", blueCount),
-                ("PinTodoReady", greenCount),
-                ("PinHistory", redCount)
+                (type: "blue", count: blueCount),
+                (type: "green", count: greenCount),
+                (type: "red", count: redCount)
             ]
             
-            if let maxItem = counts.max(by: { $0.1 < $1.1 }), maxItem.1 > 0 {
-                baseName = maxItem.0
+            if let maxItem = counts.max(by: { $0.count < $1.count }), maxItem.count > 0 {
+                switch maxItem.type {
+                case "blue":
+                    shieldName = "pin_shield_2X"
+                    markName = "pin_mark_20"
+                    color = .systemBlue
+                case "red":
+                    shieldName = "pin_shield_0X"
+                    markName = "pin_mark_01"
+                    color = .red
+                default: // green
+                    shieldName = "pin_shield_1X"
+                    markName = "pin_mark_10"
+                    color = .allToDoGreen
+                }
             }
         }
         
-        // Color Resolution (Matching PinImageHelper requirements)
-        let color: UIColor
-        if baseName == "PinHistory" || baseName == "PinCurrent" {
-            color = .red
-        } else if baseName == "PinReceiveReady" {
-            color = .systemBlue
-        } else {
-            color = .allToDoGreen
-        }
-        
-        return (baseName, color, items.count)
+        return (shieldName, markName, color, items.count)
     }
 }

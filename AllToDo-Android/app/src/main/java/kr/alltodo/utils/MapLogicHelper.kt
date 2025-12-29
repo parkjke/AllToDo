@@ -23,19 +23,15 @@ object MapLogicHelper {
         val centerDate = if (showHistoryMode) selectedDate else anchorDate
         val calendar = Calendar.getInstance()
         calendar.time = centerDate
+        // iOS Logic: +/- 24 hours from enter date
         calendar.add(Calendar.HOUR, -24)
         val minTime = calendar.timeInMillis
         
-        calendar.time = centerDate
-        calendar.add(Calendar.HOUR, 24 + 24) // Restore +24h (Total +48h window was iOS logic? iOS code says +/- 24h)
-        // iOS: min = center - 24h, max = center + 24h
-        // Let's stick to iOS Logic strictly:
         calendar.time = centerDate
         calendar.add(Calendar.HOUR, 24)
         val maxTime = calendar.timeInMillis
         
         // 1. Path Existence OR Location Filter
-        // [FIX] Include items that have a path OR valid coordinates (Point Todo)
         val withLocation = allItems.filter { 
             (it.no_of_path > 0) || (it.latitude != null && it.latitude != 0.0) 
         }
@@ -43,8 +39,7 @@ object MapLogicHelper {
         // 2. Time Window Filter (±24h)
         val timeFiltered = withLocation.filter { item ->
             // Use begin_time or date_time(parsed) or created_at
-            // iOS Logic used Date comparison
-            val itemTime = item.begin_time ?: item.created_at // specific logic might be needed for string date_time
+            val itemTime = item.begin_time ?: item.created_at
             itemTime in minTime..maxTime
         }
         
@@ -99,10 +94,11 @@ object MapLogicHelper {
         return PartitionResult(near, farCount)
     }
     
-    // MARK: - Cluster Styling
+    // MARK: - Cluster Styling (Dynamic)
     
     data class ClusterStyle(
-        val baseResId: Int,
+        val shieldName: String,
+        val markName: String,
         val color: Int,
         val count: Int
     )
@@ -111,45 +107,50 @@ object MapLogicHelper {
         var userLocationFound = false
         var blueCount = 0   // Server 20
         var greenCount = 0  // Local 10
-        var redCount = 0    // History 00 or User
+        var redCount = 0    // History 00
         
         for (item in items) {
             when (item) {
                 is UnifiedItem.CurrentLocation -> userLocationFound = true
                 is UnifiedItem.Todo -> {
-                    if (item.item.source != "local") blueCount++ // Server
-                    else greenCount++ // Local
+                    if (item.item.type == "20") blueCount++ // Server
+                    else if (item.item.type == "00") redCount++
+                    else greenCount++ // Local (10)
                 }
                 is UnifiedItem.History -> redCount++
             }
         }
         
-        var baseResId = R.drawable.pin_todo_ready
+        var shieldName = "pin_shield_1x"
+        var markName = "pin_mark_10"
+        var color = Color.parseColor("#00C7BE") // AllToDo Green (Teal)
         
         if (userLocationFound) {
-            baseResId = R.drawable.pin_current
+            shieldName = "pin_shield_0x"
+            markName = "pin_mark_00"
+            color = Color.RED
         } else {
-            // Priority: Blue > Green > Red (History)
-            // Logic copied from iOS:
-            // counts = [("PinReceiveReady", blue), ("PinTodoReady", green), ("PinHistory", red)]
-            // maxItem = counts.max
+            // Priority: Blue > Green > Red based on COUNT
+            // counts = [(Blue, blueCount), (Green, greenCount), (Red, redCount)]
             
             if (blueCount >= greenCount && blueCount >= redCount && blueCount > 0) {
-                 baseResId = R.drawable.pin_receive_ready
-            } else if (greenCount >= redCount && greenCount > 0) {
-                 baseResId = R.drawable.pin_todo_ready
-            } else if (redCount > 0) {
-                 baseResId = R.drawable.pin_history
+                 shieldName = "pin_shield_2x"
+                 markName = "pin_mark_20"
+                 color = Color.BLUE
+            } else if (redCount > greenCount && redCount > 0) {
+                 shieldName = "pin_shield_0x"
+                 markName = "pin_mark_01"
+                 color = Color.RED
+            } else {
+                 // Default Green
+                 shieldName = "pin_shield_1x"
+                 // Check if Todo Done? Not easily accessible here without inspecting all items. 
+                 // Default to Ready (10) for cluster.
+                 markName = "pin_mark_10"
+                 color = Color.parseColor("#00C7BE")
             }
         }
         
-        // Color Resolution
-        val color = when (baseResId) {
-            R.drawable.pin_history, R.drawable.pin_current -> Color.RED
-            R.drawable.pin_receive_ready -> Color.BLUE // System Blue-ish
-            else -> Color.parseColor("#00C7BE") // AllToDo Green (Teal)
-        }
-        
-        return ClusterStyle(baseResId, color, items.size)
+        return ClusterStyle(shieldName, markName, color, items.size)
     }
 }

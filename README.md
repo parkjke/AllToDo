@@ -84,6 +84,21 @@ npm run dev
 # Open http://localhost:5173
 ```
 
+### 🎨 How to Update Map Pins
+If you modify the SVG assets in `Icons/map_pin_1/mark` or `shield`:
+
+1. **Run the Sync Script:**
+   ```bash
+   python3 Tools/sync_v2_pins.py
+   ```
+   This script will automatically:
+   - Convert SVGs to the required formats.
+   - Deploy `mark` and `shield` assets to iOS (`Assets.xcassets`) and Android (`res/drawable`) directories.
+
+2. **Verify in App:**
+   - Launch the app and open the **Pin Gallery** (via My Info) to regenerate and view the updated pins.
+
+
 ---
 
 ## 🇰🇷 Korean
@@ -111,6 +126,22 @@ npm run dev
 | **`/AllToDo-iOS`** | iOS 앱 | Swift, SwiftUI, Naver Map SDK |
 | **`/AllToDo-Backend`** | 백엔드 서버 | Python, FastAPI, PostgreSQL |
 | **`/AllToDo-Landing`** | 웹 랜딩 페이지 | Vanilla JS, Vite |
+
+### 🎨 지도 핀 아이콘 업데이트 방법
+`Icons/map_pin_1/mark` 또는 `shield` 폴더의 SVG 디자인을 수정한 경우, 다음 절차를 따르세요.
+
+1. **동기화 스크립트 실행:**
+   터미널에서 다음 명령어를 실행합니다.
+   ```bash
+   python3 Tools/sync_v2_pins.py
+   ```
+   이 스크립트는 자동으로 다음 작업을 수행합니다:
+   - SVG 파일을 각 플랫폼에 맞는 포맷으로 변환합니다.
+   - iOS (`Assets.xcassets`) 및 Android (`res/drawable`) 프로젝트 폴더로 `mark`와 `shield` 자산을 각각 배포합니다.
+
+2. **앱에서 확인:**
+   - 앱을 실행하고 **내 정보 > 핀 갤러리** 메뉴로 진입하여 [핀 재생성] 버튼을 누르면 업데이트된 디자인이 즉시 반영됩니다.
+
 
 ---
 

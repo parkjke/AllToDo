@@ -214,9 +214,14 @@ fun KakaoMapContent(
                  val firstItem = cluster.items.first()
                  
                  val (b, ax, ay) = if (isSingle) {
-                     Triple(kr.alltodo.ui.createKakaoPinBitmap(context, 0, kr.alltodo.R.drawable.pin_current, android.graphics.Color.TRANSPARENT), 0.5f, 0.5f)
+                     val shieldId = kr.alltodo.ui.PinImageManager.getResourceId(context, firstItem.shieldName)
+                     val markId = kr.alltodo.ui.PinImageManager.getResourceId(context, firstItem.markName)
+                     Triple(kr.alltodo.ui.createKakaoPinBitmap(context, 0, shieldId, markId, android.graphics.Color.TRANSPARENT), 0.5f, 0.5f)
                  } else {
-                     Triple(kr.alltodo.ui.createKakaoPinBitmap(context, cluster.count, kr.alltodo.R.drawable.pin_current, android.graphics.Color.RED), 0.33f, 1.0f)
+                     val style = kr.alltodo.utils.MapLogicHelper.resolveClusterStyle(cluster.items)
+                     val shieldId = kr.alltodo.ui.PinImageManager.getResourceId(context, style.shieldName)
+                     val markId = kr.alltodo.ui.PinImageManager.getResourceId(context, style.markName)
+                     Triple(kr.alltodo.ui.createKakaoPinBitmap(context, cluster.count, shieldId, markId, style.color), 0.33f, 1.0f)
                  }
                  newUserBitmap = b
                  newUserAnchor = Pair(ax, ay)
@@ -290,9 +295,14 @@ fun KakaoMapContent(
                 var styles = labelManager.getLabelStyles(styleId)
                 if (styles == null) {
                     val (b, ax, ay) = if (isSingle) {
-                        Triple(kr.alltodo.ui.createKakaoPinBitmap(context, 0, kr.alltodo.R.drawable.pin_current, android.graphics.Color.TRANSPARENT), 0.5f, 0.5f)
+                        val shieldId = kr.alltodo.ui.PinImageManager.getResourceId(context, firstItem.shieldName)
+                        val markId = kr.alltodo.ui.PinImageManager.getResourceId(context, firstItem.markName)
+                        Triple(kr.alltodo.ui.createKakaoPinBitmap(context, 0, shieldId, markId, android.graphics.Color.TRANSPARENT), 0.5f, 0.5f)
                     } else {
-                        Triple(kr.alltodo.ui.createKakaoPinBitmap(context, cluster.count, kr.alltodo.R.drawable.pin_current, android.graphics.Color.RED), 0.33f, 1.0f)
+                        val style = kr.alltodo.utils.MapLogicHelper.resolveClusterStyle(cluster.items)
+                        val shieldId = kr.alltodo.ui.PinImageManager.getResourceId(context, style.shieldName)
+                        val markId = kr.alltodo.ui.PinImageManager.getResourceId(context, style.markName)
+                        Triple(kr.alltodo.ui.createKakaoPinBitmap(context, cluster.count, shieldId, markId, style.color), 0.33f, 1.0f)
                     }
                     if (b != null) {
                          styles = labelManager.addLabelStyles(LabelStyles.from(styleId, LabelStyle.from(b).setAnchorPoint(ax, ay)))
@@ -315,37 +325,17 @@ fun KakaoMapContent(
                 
                     if (styles == null) {
                     val (bitmap, anchorX, anchorY) = if (isSingle) {
-                        val resId = firstItem.getPinResId()
-                        val b = kr.alltodo.ui.createKakaoPinBitmap(context, 0, resId, android.graphics.Color.TRANSPARENT)
-                        // [FIX] Update Anchor for Single Pin too (it has 0 padding in logic? No, PinImageManager adds padding even for 0 count? 
-                        // Let's check PinImageManager. createClusterPin always adds padding.
-                        // So 0.35f is correct for Single too if it goes through createClusterPin.
+                        val shieldId = kr.alltodo.ui.PinImageManager.getResourceId(context, firstItem.shieldName)
+                        val markId = kr.alltodo.ui.PinImageManager.getResourceId(context, firstItem.markName)
+                        val b = kr.alltodo.ui.createKakaoPinBitmap(context, 0, shieldId, markId, android.graphics.Color.TRANSPARENT)
                         Triple(b, 0.35f, 1.0f)
                     } else {
-                         // (Color Logic...)
-                        var hasUserLocation = false
-                        var hasHistory = false
-                        var hasServerTodo = false
-                        var hasUserTodo = false
-                        cluster.items.forEach { 
-                            when(it) {
-                                is UnifiedItem.CurrentLocation -> hasUserLocation = true
-                                is UnifiedItem.History -> hasHistory = true
-                                is UnifiedItem.Todo -> {
-                                    if (it.item.source != "local") hasServerTodo = true
-                                    else hasUserTodo = true
-                                }
-                            }
-                        }
-                        val (resId, badgeColor) = when {
-                            hasUserLocation -> kr.alltodo.R.drawable.pin_current to android.graphics.Color.RED
-                            hasUserTodo -> kr.alltodo.R.drawable.pin_todo_ready to android.graphics.Color.parseColor("#00AA00")
-                            hasServerTodo -> kr.alltodo.R.drawable.pin_receive_ready to android.graphics.Color.BLUE
-                            else -> kr.alltodo.R.drawable.pin_history to android.graphics.Color.RED
-                        }
-                        val b = kr.alltodo.ui.createKakaoPinBitmap(context, cluster.count, resId, badgeColor) 
-                        // [FIX] Anchor 0.35f aligns with new Padding logic for Scale 0.7
-                        Triple(b, 0.35f, 1.0f)
+                         val style = kr.alltodo.utils.MapLogicHelper.resolveClusterStyle(cluster.items)
+                         val shieldId = kr.alltodo.ui.PinImageManager.getResourceId(context, style.shieldName)
+                         val markId = kr.alltodo.ui.PinImageManager.getResourceId(context, style.markName)
+                         
+                         val b = kr.alltodo.ui.createKakaoPinBitmap(context, cluster.count, shieldId, markId, style.color) 
+                         Triple(b, 0.35f, 1.0f)
                     }
                     
                     if (bitmap != null) {
@@ -387,7 +377,10 @@ fun KakaoMapContent(
             val styleId = "creating_todo"
             var styles = labelManager.getLabelStyles(styleId)
             if (styles == null) {
-                val b = kr.alltodo.ui.createKakaoPinBitmap(context, 0, kr.alltodo.R.drawable.pin_todo_ready, android.graphics.Color.TRANSPARENT)
+                val shieldId = kr.alltodo.ui.PinImageManager.getResourceId(context, "pin_shield_1x")
+                val markId = kr.alltodo.ui.PinImageManager.getResourceId(context, "pin_mark_10")
+                val b = kr.alltodo.ui.createKakaoPinBitmap(context, 0, shieldId, markId, android.graphics.Color.TRANSPARENT)
+                
                 if (b != null) {
                     styles = labelManager.addLabelStyles(LabelStyles.from(styleId, LabelStyle.from(b).setAnchorPoint(0.5f, 1.0f)))
                 }

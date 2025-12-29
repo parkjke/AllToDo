@@ -375,7 +375,7 @@ struct KakaoMapView: UIViewRepresentable {
              labelIdToClusterItems.removeAll()
              for (idx, item) in allItems.enumerated() {
                  guard let loc = item.location else { continue }
-                 let (baseName, color, _) = MapLogicHelper.resolveClusterStyle(items: [item])
+                 let (baseName, markName, color, _) = MapLogicHelper.resolveClusterStyle(items: [item])
                  let styleID = "RawStyle_\(baseName)"
                  
                  if !registeredStyleIDs.contains(styleID) {
@@ -456,7 +456,7 @@ struct KakaoMapView: UIViewRepresentable {
                 var finalLat = c.lat
                 
                 // Style
-                let (baseName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
+                let (baseName, markName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
                 let colorHex = color.cgColor.components?.map { String(format: "%02X", Int($0 * 255)) }.joined() ?? "000000"
                 let styleID = "Style_\(baseName)_\(count)_\(colorHex)"
                 
@@ -652,7 +652,7 @@ struct KakaoMapView: UIViewRepresentable {
             let searchID = item.todo_id
             let descriptor = FetchDescriptor<PathItem>(
                 predicate: #Predicate<PathItem> { $0.todo_id == searchID },
-                sortBy: [SortDescriptor<PathItem>(\.timestamp, order: .forward)]
+                sortBy: [SortDescriptor<PathItem>(\.time, order: .forward)]
             )
             
             if let paths = try? parent.modelContext.fetch(descriptor), !paths.isEmpty {
@@ -713,7 +713,7 @@ struct KakaoMapView: UIViewRepresentable {
             let searchID = item.todo_id
             let descriptor = FetchDescriptor<PathItem>(
                 predicate: #Predicate<PathItem> { $0.todo_id == searchID },
-                sortBy: [SortDescriptor(\.timestamp)]
+                sortBy: [SortDescriptor<PathItem>(\.time)]
             )
             if let paths = try? parent.modelContext.fetch(descriptor), !paths.isEmpty {
                 // [FIX] Use GeomUtils for integer-based Fit Bounds

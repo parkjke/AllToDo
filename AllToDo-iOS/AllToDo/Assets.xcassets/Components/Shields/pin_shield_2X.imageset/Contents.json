@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "pin_shield_2X.svg",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

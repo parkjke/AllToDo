@@ -282,34 +282,22 @@ fun GoogleMapContent(
             // Determine Icon
             val iconDescriptor = if (isSingle && firstItem != null) {
                 // Formatting Single Item
-                bitmapDescriptorFromVector(context, firstItem.getPinResId(), 40)
+                val shieldId = kr.alltodo.ui.PinImageManager.getResourceId(context, firstItem.shieldName)
+                val markId = kr.alltodo.ui.PinImageManager.getResourceId(context, firstItem.markName)
+                
+                val bitmap = kr.alltodo.ui.PinImageManager.fetchCompositePin(context, shieldId, markId)
+                if (bitmap != null) com.google.android.gms.maps.model.BitmapDescriptorFactory.fromBitmap(bitmap)
+                else com.google.android.gms.maps.model.BitmapDescriptorFactory.defaultMarker()
             } else {
                 // Cluster Item
                 // [FIX] Priority Logic: UserLocation > History > Server(Blue) > User(Green)
-                var hasUserLocation = false
-                var hasHistory = false
-                var hasServerTodo = false // Blue
-                var hasUserTodo = false   // Green
+                // Dynamic Style
+                val style = kr.alltodo.utils.MapLogicHelper.resolveClusterStyle(cluster.items)
+                val shieldId = kr.alltodo.ui.PinImageManager.getResourceId(context, style.shieldName)
+                val markId = kr.alltodo.ui.PinImageManager.getResourceId(context, style.markName)
                 
-                cluster.items.forEach { item ->
-                    when(item) {
-                        is UnifiedItem.CurrentLocation -> hasUserLocation = true
-                        is UnifiedItem.History -> hasHistory = true
-                        is UnifiedItem.Todo -> {
-                            if (item.item.source != "local") hasServerTodo = true
-                            else hasUserTodo = true
-                        }
-                    }
-                }
-                
-                val (resId, badgeColor) = when {
-                    hasUserLocation -> kr.alltodo.R.drawable.pin_current to android.graphics.Color.RED
-                    hasUserTodo -> kr.alltodo.R.drawable.pin_todo_ready to android.graphics.Color.parseColor("#00AA00")
-                    hasServerTodo -> kr.alltodo.R.drawable.pin_receive_ready to android.graphics.Color.BLUE 
-                    else -> kr.alltodo.R.drawable.pin_history to android.graphics.Color.RED 
-                }
                 // [FIX] Use Cached Cluster Bitmap to prevent flickering & show Badge
-                kr.alltodo.ui.getCachedClusterBitmap(context, cluster.count, resId, badgeColor)
+                kr.alltodo.ui.getCachedClusterBitmap(context, cluster.count, shieldId, markId, style.color)
             }
             
             // [FIX] Add Marker with Stable State and Key

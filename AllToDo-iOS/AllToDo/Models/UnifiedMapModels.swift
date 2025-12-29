@@ -47,18 +47,41 @@ enum UnifiedMapItem: Identifiable {
     }
     
     // [NEW] Asset Image Name Mapping (Refined)
-    var imageName: String {
+    // [NEW] Dynamic Component Mapping
+    var shieldName: String {
         switch self {
         case .todo(let item):
-            if item.is_completed { return "PinTodoDone" }
-            return "PinTodoReady"
+             // Standard TODO uses 1X Shield
+            return "pin_shield_1X"
         case .history:
-            return "PinHistory"
+            // History uses 0X Shield
+            return "pin_shield_0X"
         case .serverMessage:
-            return "PinReceiveReady"
+            // Server Message uses 2X Shield
+            return "pin_shield_2X"
         case .userLocation:
-            return "PinCurrent"
+             // Current location uses 0X Shield (or custom)
+            return "pin_shield_0X"
         }
+    }
+    
+    var markName: String {
+        switch self {
+        case .todo(let item):
+            if item.is_completed { return "pin_mark_12" } // Check Mark
+            return "pin_mark_10" // Exclamation
+        case .history:
+            return "pin_mark_01" // Footsteps
+        case .serverMessage:
+            return "pin_mark_20" // Envelope
+        case .userLocation:
+            return "pin_mark_00" // Current Position (Nav Arrow)
+        }
+    }
+    
+    // Legacy mapping (computed for backward compatibility)
+    var imageName: String {
+        return "Legacy_Pin" // Should not be used directly anymore
     }
 
 

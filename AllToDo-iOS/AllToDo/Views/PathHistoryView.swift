@@ -95,7 +95,7 @@ struct PathHistoryView: View {
         let searchID = item.todo_id
         let descriptor = FetchDescriptor<PathItem>(
             predicate: #Predicate<PathItem> { $0.todo_id == searchID },
-            sortBy: [SortDescriptor<PathItem>(\.timestamp, order: .forward)]
+            sortBy: [SortDescriptor<PathItem>(\.time, order: .forward)]
         )
         
         if let paths = try? modelContext.fetch(descriptor) {
@@ -199,10 +199,10 @@ struct ApplePathMapView: UIViewRepresentable {
              }
              
              // [FIX] Use History Pin Icon (Prioritize Asset)
-             if let img = PinImageHelper.shared.fetchBasePin(named: "PinHistory") {
+             if let img = PinImageHelper.shared.fetchCompositePin(shieldName: "pin_shield_0X", markName: "pin_mark_01") {
                  view?.image = img
              } else {
-                 view?.image = PinImageHelper.shared.createShieldPin(imageName: "PinTodoReady", color: .red)
+                 view?.image = PinImageHelper.shared.createShieldPin(shieldName: "pin_shield_1X", markName: "pin_mark_10", color: .red)
              }
              
              // [FIX] Text is Debug Only -> Restore Label support
@@ -269,19 +269,19 @@ struct GooglePathMapView: UIViewRepresentable {
         // Markers
         let start = GMSMarker(position: coordinates.first!)
         start.title = "Start"
-        if let img = PinImageHelper.shared.fetchBasePin(named: "PinHistory") {
+        if let img = PinImageHelper.shared.fetchCompositePin(shieldName: "pin_shield_0X", markName: "pin_mark_01") {
             start.icon = img
         } else {
-             start.icon = PinImageHelper.shared.createShieldPin(imageName: "PinTodoReady", color: .red)
+             start.icon = PinImageHelper.shared.createShieldPin(shieldName: "pin_shield_1X", markName: "pin_mark_10", color: .red)
         }
         start.map = uiView
         
         let end = GMSMarker(position: coordinates.last!)
         end.title = "End"
-        if let img = PinImageHelper.shared.fetchBasePin(named: "PinHistory") {
+        if let img = PinImageHelper.shared.fetchCompositePin(shieldName: "pin_shield_0X", markName: "pin_mark_01") {
             end.icon = img
         } else {
-            end.icon = PinImageHelper.shared.createShieldPin(imageName: "PinTodoReady", color: .red)
+            end.icon = PinImageHelper.shared.createShieldPin(shieldName: "pin_shield_1X", markName: "pin_mark_10", color: .red)
         }
         end.map = uiView
         
@@ -364,10 +364,10 @@ struct NaverPathMapView: UIViewRepresentable {
         // 3. Draw Markers (Start/End)
         let start = NMFMarker(position: points.first!)
         start.captionText = "시작"
-        if let img = PinImageHelper.shared.fetchBasePin(named: "PinHistory") {
+        if let img = PinImageHelper.shared.fetchCompositePin(shieldName: "pin_shield_0X", markName: "pin_mark_01") {
             start.iconImage = NMFOverlayImage(image: img)
         } else {
-            if let fallback = PinImageHelper.shared.createShieldPin(imageName: "PinTodoReady", color: .red) {
+            if let fallback = PinImageHelper.shared.createShieldPin(shieldName: "pin_shield_1X", markName: "pin_mark_10", color: .red) {
                 start.iconImage = NMFOverlayImage(image: fallback)
             }
         }
@@ -376,10 +376,10 @@ struct NaverPathMapView: UIViewRepresentable {
         
         let end = NMFMarker(position: points.last!)
         end.captionText = "종료"
-        if let img = PinImageHelper.shared.fetchBasePin(named: "PinHistory") {
+        if let img = PinImageHelper.shared.fetchCompositePin(shieldName: "pin_shield_0X", markName: "pin_mark_01") {
             end.iconImage = NMFOverlayImage(image: img)
         } else {
-             if let fallback = PinImageHelper.shared.createShieldPin(imageName: "PinTodoReady", color: .red) {
+             if let fallback = PinImageHelper.shared.createShieldPin(shieldName: "pin_shield_1X", markName: "pin_mark_10", color: .red) {
                  end.iconImage = NMFOverlayImage(image: fallback)
              }
         }
@@ -548,11 +548,11 @@ struct KakaoPathMapView: UIViewRepresentable {
             
             // [FIX] Prioritize Asset with Rasterization
             let image: UIImage
-            if let asset = PinImageHelper.shared.fetchBasePin(named: "PinHistory") { 
+            if let asset = PinImageHelper.shared.fetchCompositePin(shieldName: "pin_shield_0X", markName: "pin_mark_01") { 
                 image = asset
             }
             else { 
-                image = PinImageHelper.shared.createShieldPin(imageName: "PinTodoReady", color: .red) ?? UIImage()
+                image = PinImageHelper.shared.createShieldPin(shieldName: "pin_shield_1X", markName: "pin_mark_10", color: .red) ?? UIImage()
             }
             
             let iconStyle = PoiIconStyle(symbol: image, anchorPoint: CGPoint(x: 0.5, y: 1.0))

@@ -10,41 +10,51 @@ sealed class UnifiedItem {
     abstract val latitude: Double
     abstract val longitude: Double
     abstract val timestamp: Long
+    
+    // [NEW] Dynamic Composition Properties
+    open val shieldName: String get() = "pin_shield_1x"
+    open val markName: String get() = "pin_mark_10"
 
     data class Todo(val item: TodoItem) : UnifiedItem() {
         override val latitude get() = item.latitude ?: 0.0
         override val longitude get() = item.longitude ?: 0.0
         override val timestamp get() = item.created_at
+        
+        override val shieldName: String
+            get() {
+                 if (item.source != "local") {
+                     // Server (20)
+                     return "pin_shield_2x"
+                 }
+                 return "pin_shield_1x" // Local (10)
+            }
+            
+        override val markName: String
+            get() {
+                 if (item.source != "local") {
+                     return "pin_mark_20"
+                 }
+                 // Local
+                 return if (item.completed) "pin_mark_12" else "pin_mark_10"
+            }
     }
 
     data class History(val item: TodoItem) : UnifiedItem() {
         override val latitude get() = item.latitude ?: 0.0
         override val longitude get() = item.longitude ?: 0.0
         override val timestamp get() = item.begin_time ?: item.created_at
+        
+        override val shieldName get() = "pin_shield_0x"
+        override val markName get() = "pin_mark_01"
     }
 
     data class CurrentLocation(val lat: Double, val lon: Double) : UnifiedItem() {
         override val latitude get() = lat
         override val longitude get() = lon
         override val timestamp get() = System.currentTimeMillis()
-    }
-    
-    fun getPinResId(): Int {
-        return when (this) {
-            is Todo -> {
-                if (item.source != "local") {
-                    // Receive
-                    if (item.completed) kr.alltodo.R.drawable.pin_receive_done
-                    else kr.alltodo.R.drawable.pin_receive_ready
-                } else {
-                    // Local Todo
-                    if (item.completed) kr.alltodo.R.drawable.pin_todo_done
-                    else kr.alltodo.R.drawable.pin_todo_ready
-                }
-            }
-            is History -> kr.alltodo.R.drawable.pin_history
-            is CurrentLocation -> kr.alltodo.R.drawable.pin_current
-        }
+        
+        override val shieldName get() = "pin_shield_0x"
+        override val markName get() = "pin_mark_00"
     }
 }
 
@@ -75,70 +85,27 @@ fun createRedDotBitmap(): Bitmap {
     return bitmap
 }
 
-// Cache for Diamond Pins
-private val diamondBitmapCache = android.util.LruCache<String, Bitmap>(50)
-
-fun generateDiamondPin(color: Int, count: Int): Bitmap? {
-    val key = "$color-$count"
-    val cached = diamondBitmapCache.get(key)
-    if (cached != null) return cached
-
-    val width = 100
-    val height = 120
-    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(bitmap)
-
-    val paint = Paint().apply {
-        isAntiAlias = true
-        style = Paint.Style.FILL
-        setColor(color)
-    }
-
-    val path = android.graphics.Path()
-    path.moveTo(width / 2f, 0f)
-    path.lineTo(width.toFloat(), height * 0.4f)
-    path.lineTo(width / 2f, height.toFloat())
-    path.lineTo(0f, height * 0.4f)
-    path.close()
-
-    canvas.drawPath(path, paint)
-
-    if (count > 1) {
-        paint.color = android.graphics.Color.WHITE
-        val cx = width / 2f
-        val cy = height * 0.4f
-        val r = width / 4f
-        canvas.drawCircle(cx, cy, r, paint)
-
-        paint.color = color
-        paint.textSize = 30f
-        paint.textAlign = Paint.Align.CENTER
-        val txt = if (count > 9) "9+" else count.toString()
-        val bounds = android.graphics.Rect()
-        paint.getTextBounds(txt, 0, txt.length, bounds)
-        canvas.drawText(txt, cx, cy - bounds.exactCenterY(), paint)
-    } else {
-        paint.color = android.graphics.Color.WHITE
-        canvas.drawCircle(width / 2f, height * 0.4f, width / 8f, paint)
-    }
-
-    diamondBitmapCache.put(key, bitmap)
-    return bitmap
-}
-
 // [FIX] Bitmap Cache to prevent UI Freeze
 private val bitmapCache = android.util.LruCache<String, Bitmap>(100) // Cache last 100 icons
 
-// [FIX] Use Provider Check or Scale if needed, but for now cache uses Scale.
-fun getCachedClusterBitmap(context: android.content.Context, count: Int, baseResId: Int, badgeColor: Int, scale: Float = 1.0f): com.google.android.gms.maps.model.BitmapDescriptor {
-    val key = "$count-$baseResId-$badgeColor-$scale"
+// [FIX] Update signature for Dynamic Composition
+fun getCachedClusterBitmap(
+    context: android.content.Context, 
+    count: Int, 
+    shieldResId: Int, 
+    markResId: Int,
+    badgeColor: Int, 
+    scale: Float = 1.0f
+): com.google.android.gms.maps.model.BitmapDescriptor {
+    val key = "cluster-$count-$shieldResId-$markResId-$badgeColor-$scale"
     val cached = bitmapCache.get(key)
     
     val bitmap = if (cached != null) {
         cached
     } else {
         // Create new based on Scale
-        val newBitmap = PinImageManager.createClusterPin(context, baseResId, count, badgeColor, scale) ?: return com.google.android.gms.maps.model.BitmapDescriptorFactory.defaultMarker()
+        val newBitmap = PinImageManager.fetchCompositePin(context, shieldResId, markResId, count, badgeColor, scale) 
+            ?: createRedDotBitmap()
         bitmapCache.put(key, newBitmap)
         newBitmap
     }
@@ -147,20 +114,19 @@ fun getCachedClusterBitmap(context: android.content.Context, count: Int, baseRes
 }
 
 // [NEW] Google Pin (Standard)
-fun createGooglePinBitmap(context: android.content.Context, count: Int, baseResId: Int, badgeColor: Int): Bitmap {
-    return PinImageManager.createClusterPin(context, baseResId, count, badgeColor, 1.0f) ?: createRedDotBitmap()
+// Takes ResIDs directly (resolved by Caller)
+fun createGooglePinBitmap(context: android.content.Context, count: Int, shieldResId: Int, markResId: Int, badgeColor: Int): Bitmap {
+    return PinImageManager.fetchCompositePin(context, shieldResId, markResId, count, badgeColor, 1.0f) ?: createRedDotBitmap()
 }
 
-// [NEW] Kakao Pin (Uses Pre-scaled Bitmap Resource, No Runtime Image Scaling)
-fun createKakaoPinBitmap(context: android.content.Context, count: Int, baseResId: Int, badgeColor: Int): Bitmap {
-    // val scale = 0.85f // [ROLLBACK INFO] Old value
-    val scale = 0.7f // [NEW] Adjusted to 0.7 as requested
-    
-    return PinImageManager.createClusterPin(context, baseResId, count, badgeColor, scale) ?: createRedDotBitmap()
+// [NEW] Kakao Pin
+fun createKakaoPinBitmap(context: android.content.Context, count: Int, shieldResId: Int, markResId: Int, badgeColor: Int): Bitmap {
+    val scale = 0.7f // Adjusted
+    return PinImageManager.fetchCompositePin(context, shieldResId, markResId, count, badgeColor, scale) ?: createRedDotBitmap()
 }
 
-// [NEW] Naver Pin (Current: 1.0f for user scaling)
-fun createNaverPinBitmap(context: android.content.Context, count: Int, baseResId: Int, badgeColor: Int): Bitmap {
-    val scale = 1.0f // [NEW] Set to 1.0 as requested
-    return PinImageManager.createClusterPin(context, baseResId, count, badgeColor, scale) ?: createRedDotBitmap()
+// [NEW] Naver Pin
+fun createNaverPinBitmap(context: android.content.Context, count: Int, shieldResId: Int, markResId: Int, badgeColor: Int): Bitmap {
+    val scale = 1.0f 
+    return PinImageManager.fetchCompositePin(context, shieldResId, markResId, count, badgeColor, scale) ?: createRedDotBitmap()
 }

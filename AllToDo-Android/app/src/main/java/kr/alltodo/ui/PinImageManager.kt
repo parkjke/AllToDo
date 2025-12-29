@@ -15,148 +15,86 @@ import java.nio.charset.StandardCharsets
 
 object PinImageManager {
     private const val TAG = "PinImageManager"
-    private const val HEADER_SIGNATURE = "ALLTODO_V6" // [FIX] V6: iOS Style Badge Alignment
+    private const val HEADER_SIGNATURE = "ALLTODO_V7_DYN" // [FIX] V7: Dynamic Composition
     private const val TARGET_WIDTH_DP = 40 // Standard Pin Width
     private const val TARGET_HEIGHT_DP = 50 // Standard Pin Height
 
     // Cache in memory
-    private val bitmapCache = mutableMapOf<Int, Bitmap>()
+    private val bitmapCache = mutableMapOf<String, Bitmap>()
 
-    // Mapping: Drawable Res ID -> Basename (No extension)
-    private val managedPins = mapOf(
-        R.drawable.pin_current to "pin_current_v1",
-        R.drawable.pin_history to "pin_history_v1",
-        R.drawable.pin_todo_ready to "pin_todo_ready_v1",
-        R.drawable.pin_todo_done to "pin_todo_done_v1",
-        R.drawable.pin_receive_ready to "pin_receive_ready_v1",
-        R.drawable.pin_receive_done to "pin_receive_done_v1"
-    )
-
-    fun initialize(context: Context) {
-        val pinsDir = File(context.filesDir, "pins")
-        if (!pinsDir.exists()) {
-            pinsDir.mkdirs()
-        }
-
-        val density = context.resources.displayMetrics.density
-        // Suffix ensures specific bitmap for this screen density
-        val densitySuffix = "_d$density.png" 
-
-        managedPins.forEach { (resId, basename) ->
-            val filename = "$basename$densitySuffix"
-            val file = File(pinsDir, filename)
-            var bitmap: Bitmap? = null
-
-            if (file.exists()) {
-                bitmap = loadBitmapWithParity(file)
-            }
-            if (bitmap == null) {
-                bitmap = createBitmapFromVector(context, resId)
-                if (bitmap != null) {
-                    saveBitmapWithParity(file, bitmap)
-                }
-            }
-            if (bitmap != null) {
-                bitmapCache[resId] = bitmap
-            }
-        }
-    }
-
-    fun clearCacheAndRebuild(context: Context) {
+    fun clearCache(context: Context) {
         bitmapCache.clear()
         val pinsDir = File(context.filesDir, "pins")
         if (pinsDir.exists()) {
             pinsDir.listFiles()?.forEach { it.delete() }
         }
-        initialize(context)
     }
 
-    fun getPinBitmap(resId: Int): Bitmap? {
-        return bitmapCache[resId]
-    }
-
-    private fun loadBitmapWithParity(file: File): Bitmap? {
-        try {
-            FileInputStream(file).use { fis ->
-                val headerBytes = ByteArray(HEADER_SIGNATURE.length)
-                val read = fis.read(headerBytes)
-                if (read != HEADER_SIGNATURE.length) return null
-
-                val signature = String(headerBytes, StandardCharsets.UTF_8)
-                if (signature != HEADER_SIGNATURE) return null
-
-                return BitmapFactory.decodeStream(fis)
-            }
-        } catch (e: Exception) {
-            return null
+    // New Dynamic Composition Function
+    fun fetchCompositePin(
+        context: Context,
+        shieldResId: Int,
+        markResId: Int,
+        count: Int = 0,
+        badgeColor: Int = 0,
+        scale: Float = 1.0f
+    ): Bitmap? {
+        val density = context.resources.displayMetrics.density
+        // Cache Key including all parameters
+        val cacheKey = "comp_${shieldResId}_${markResId}_${count}_${badgeColor}_${scale}_d$density"
+        
+        // 1. Memory Cache Check
+        if (bitmapCache.containsKey(cacheKey)) {
+            return bitmapCache[cacheKey]
         }
-    }
 
-    private fun saveBitmapWithParity(file: File, bitmap: Bitmap) {
-        try {
-            FileOutputStream(file).use { fos ->
-                fos.write(HEADER_SIGNATURE.toByteArray(StandardCharsets.UTF_8))
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos)
+        // 2. Disk Cache Check
+        val pinsDir = File(context.filesDir, "pins")
+        if (!pinsDir.exists()) pinsDir.mkdirs()
+        val file = File(pinsDir, "$cacheKey.png")
+        
+        var bitmap: Bitmap? = null
+        if (file.exists()) {
+            bitmap = loadBitmapWithParity(file)
+            if (bitmap != null) {
+                bitmapCache[cacheKey] = bitmap
+                return bitmap
             }
-        } catch (e: Exception) {
         }
-    }
 
-    fun getPinList(): List<Pair<Int, String>> {
-        return managedPins.toList()
-    }
-
-    fun createBitmapFromVector(context: Context, resId: Int, densityMultiplier: Float? = null): Bitmap? {
-        try {
-            val drawable = ContextCompat.getDrawable(context, resId) ?: return null
-            
-            val density = densityMultiplier ?: context.resources.displayMetrics.density
-            val w = (TARGET_WIDTH_DP * density).toInt()
-            val h = (TARGET_HEIGHT_DP * density).toInt()
-            
-            val intrW = drawable.intrinsicWidth
-            val intrH = drawable.intrinsicHeight
-            val finalW: Int
-            val finalH: Int
-            
-            if (intrW > 0 && intrH > 0) {
-                 val aspect = intrW.toFloat() / intrH.toFloat()
-                 if (aspect > 1) { // Wide
-                     finalW = w
-                     finalH = (w / aspect).toInt()
-                 } else { // Tall
-                     finalH = h
-                     finalW = (h * aspect).toInt()
-                 }
-            } else {
-                finalW = w
-                finalH = h
-            }
-
-            val bitmap = Bitmap.createBitmap(finalW, finalH, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(bitmap)
-            drawable.setBounds(0, 0, canvas.width, canvas.height)
-            drawable.draw(canvas)
-            return bitmap
-        } catch (e: Exception) {
-            return null
+        // 3. Generate New Composite Bitmap
+        bitmap = createCompositeBitmap(context, shieldResId, markResId, count, badgeColor, scale)
+        
+        if (bitmap != null) {
+            bitmapCache[cacheKey] = bitmap
+            saveBitmapWithParity(file, bitmap)
         }
+        
+        return bitmap
     }
 
-    fun createClusterPin(context: Context, resId: Int, count: Int, badgeColor: Int, scale: Float): Bitmap? {
+    private fun createCompositeBitmap(
+        context: Context,
+        shieldResId: Int,
+        markResId: Int,
+        count: Int,
+        badgeColor: Int,
+        scale: Float
+    ): Bitmap? {
         val density = context.resources.displayMetrics.density
         
         // Base Size (40x50 dp) * Scale
         val pinW = (TARGET_WIDTH_DP * density * scale).toInt()
         val pinH = (TARGET_HEIGHT_DP * density * scale).toInt()
         
-        // Padding for Badge (Badge can overflow the 40x50 box)
+        // Padding for Badge (Badge is top-right, similar to iOS logic)
+        // iOS BadgeSize is 20pt. Here we approximate relative to density.
         val badgeRadius = 10f * density * scale
         val borderThickness = 1.5f * density * scale
         val totalBadgeRadius = badgeRadius + borderThickness
         
-        // [FIX] Use 2.0x padding to be absolutely safe against clipping
-        val padding = (totalBadgeRadius * 2.0f).toInt() 
+        // Use safe padding to avoid clipping
+        val padding = (totalBadgeRadius * 1.5f).toInt()
         
         val sizeW = pinW + padding
         val sizeH = pinH + padding
@@ -164,31 +102,65 @@ object PinImageManager {
         val bitmap = Bitmap.createBitmap(sizeW, sizeH, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         
-        // 1. Base Icon
-        val baseBitmap = getPinBitmap(resId) ?: createBitmapFromVector(context, resId)
-        if (baseBitmap != null) {
-            val srcRect = Rect(0, 0, baseBitmap.width, baseBitmap.height)
-            // Draw pin at left-bottom of the expanded canvas
-            // destRect stays at bottom-left (x=0, y=padding)
-            val destRect = Rect(0, padding, pinW, pinH + padding)
+        // 1. Draw Shield (Base)
+        // Shield is drawn at bottom-left of the canvas area allocated for the pin,
+        // but since we have padding, we offset strictly by padding for Y if we want it aligned top-ish?
+        // Let's stick to the previous coordinate system:
+        // Pin is 40x50. Padded canvas is larger.
+        // We place the Pin at (0, padding).
+        val destRect = Rect(0, padding, pinW, pinH + padding)
+        
+        val shieldDrawable = ContextCompat.getDrawable(context, shieldResId) ?: return null
+        shieldDrawable.setBounds(destRect.left, destRect.top, destRect.right, destRect.bottom)
+        shieldDrawable.draw(canvas)
+        
+        // 2. Draw Mark (Foreground)
+        // Logic from iOS:
+        // markTargetHeight = size.height * 0.58
+        // markY = (size.height * 0.32) - (markTargetHeight / 2)
+        // NOTE: iOS 'markY' is relative to Top-Left of Shield Image.
+        
+        val markDrawable = ContextCompat.getDrawable(context, markResId)
+        if (markDrawable != null) {
+            val markIntrW = markDrawable.intrinsicWidth.toFloat()
+            val markIntrH = markDrawable.intrinsicHeight.toFloat()
             
-            // [FIX] Ensure clean paint for bitmap
-            val bitmapPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.FILTER_BITMAP_FLAG)
-            canvas.drawBitmap(baseBitmap, srcRect, destRect, bitmapPaint)
-        } else {
-            return null
+            if (markIntrW > 0 && markIntrH > 0) {
+                val targetHeight = pinH * 0.58f
+                val markScaleFactor = targetHeight / markIntrH
+                val targetWidth = markIntrW * markScaleFactor
+                
+                val markX = (pinW - targetWidth) / 2f
+                // 32% from top of Shield
+                val markCenterY = pinH * 0.32f
+                val markY = markCenterY - (targetHeight / 2f)
+                
+                // Adjust for canvas padding
+                val fnX = markX
+                val fnY = markY + padding
+                
+                val markRect = Rect(
+                    fnX.toInt(),
+                    fnY.toInt(),
+                    (fnX + targetWidth).toInt(),
+                    (fnY + targetHeight).toInt()
+                )
+                
+                markDrawable.setBounds(markRect.left, markRect.top, markRect.right, markRect.bottom)
+                markDrawable.draw(canvas)
+            }
         }
         
-        // 2. Badge (iOS Style: Top-Right of the Pin)
+        // 3. Draw Badge (Top-Right)
         if (count > 0) {
-            // [FIX] Use fresh paint for badge elements to avoid state pollution
             val badgePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
                 style = android.graphics.Paint.Style.FILL
             }
             
-            // Center of Badge:
-            // Calculate overlap to ensure it sits on the corner
-            val overlap = 3 * density * scale // Increased overlap slightly for tightness
+            // Center of Badge: Top-Right corner of the Shield frame
+            // Overlap slightly for visual connection
+            val overlap = 3 * density * scale 
+            // Shield Top-Right is at (pinW, padding)
             val cx = pinW.toFloat() - overlap
             val cy = padding.toFloat() + overlap
             
@@ -206,22 +178,46 @@ object PinImageManager {
                 textAlign = android.graphics.Paint.Align.CENTER
                 typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
             }
-
-            // [FIX] Robust Text Sizing
+            
             val calculatedSize = 10f * density * scale
-            val minSize = 9f * density // Minimum legible size
+            val minSize = 9f * density
             textPaint.textSize = if (calculatedSize < minSize) minSize else calculatedSize
             
             val text = if (count > 99) "99+" else count.toString()
             val bounds = android.graphics.Rect()
             textPaint.getTextBounds(text, 0, text.length, bounds)
-            
-            // Vertical Centering
             val yOff = bounds.height() / 2f - bounds.bottom
             
             canvas.drawText(text, cx, cy + yOff, textPaint)
         }
         
         return bitmap
+    }
+    
+    // Helpers
+    private fun loadBitmapWithParity(file: File): Bitmap? {
+        try {
+            FileInputStream(file).use { fis ->
+                val headerBytes = ByteArray(HEADER_SIGNATURE.length)
+                val read = fis.read(headerBytes)
+                if (read != HEADER_SIGNATURE.length) return null
+                if (String(headerBytes, StandardCharsets.UTF_8) != HEADER_SIGNATURE) return null
+                return BitmapFactory.decodeStream(fis)
+            }
+        } catch (e: Exception) { return null }
+    }
+
+    private fun saveBitmapWithParity(file: File, bitmap: Bitmap) {
+        try {
+            FileOutputStream(file).use { fos ->
+                fos.write(HEADER_SIGNATURE.toByteArray(StandardCharsets.UTF_8))
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos)
+            }
+        } catch (e: Exception) {}
+    }
+    
+    // Utility to get ResID by name
+    fun getResourceId(context: Context, name: String): Int {
+         return context.resources.getIdentifier(name, "drawable", context.packageName)
     }
 }
