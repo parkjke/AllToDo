@@ -5,34 +5,32 @@
     android:viewportWidth="100"
     android:viewportHeight="125">
 
-  <!-- Base Halo/Shadow for context (Shifted up with the feet) -->
-  <ellipse cx="50" cy="55" rx="30" ry="10" android:fillColor="#000000" android:fillAlpha="0.2"/>
+  <!-- Base Halo -->
+  <ellipse cx="50" cy="55" rx="35" ry="10" android:fillColor="#000000" android:fillAlpha="0.15"/>
 
-  <!-- Left Foot (Deep Arch) -->
-  <group  android:translateX="35" android:translateY="30" android:rotation="-15">
-    <!-- Sole with Deep Arch -->
-    <!-- The path draws the heel, cuts in deep for the arch, then widens for the ball of the foot -->
-    <path android:pathData="M4,4 C-1,4 -6,10 -6,16 C-6,21 -2,22 1,24 C-1,26 -4,29 -4,34 C-4,38 -1,40 3,40 C7,40 10,38 10,34 C10,29 7,26 6,24 C8,22 10,18 10,14 C10,8 8,4 4,4 Z" android:fillColor="white" android:strokeColor="#333333" android:strokeWidth="1"/>
-    
-    <!-- Toes (Rounded and distinct) -->
-    <ellipse cx="-4" cy="2" rx="2.2" ry="3" android:fillColor="white" android:strokeColor="#333333" android:strokeWidth="1"/>
-    <ellipse cx="-0.5" cy="-0.5" rx="1.8" ry="2.4" android:fillColor="white" android:strokeColor="#333333" android:strokeWidth="1"/>
-    <ellipse cx="2.5" cy="0.5" rx="1.6" ry="2.2" android:fillColor="white" android:strokeColor="#333333" android:strokeWidth="1"/>
-    <ellipse cx="5" cy="1.5" rx="1.4" ry="2" android:fillColor="white" android:strokeColor="#333333" android:strokeWidth="1"/>
-    <ellipse cx="7.5" cy="3" rx="1.2" ry="1.8" android:fillColor="white" android:strokeColor="#333333" android:strokeWidth="1"/>
-  </group>
+  <!-- Chunky & Iconic Footprints (High Visibility + Identity) -->
+  <group  android:translateX="50" android:translateY="40" android:scaleX="1.5" android:scaleY="1.5">
+    <!-- Left Foot -->
+    <group  android:translateX="40" android:translateY="35" android:rotation="-15">
+       <!-- Fat Sole (Max width for small scale) -->
+       <path android:pathData="M0,-8 C6,-8 9,0 9,8 C9,16 5,20 0,20 C-5,20 -9,16 -9,8 C-9,0 -6,-8 0,-8 Z" android:fillColor="white" />
+       <!-- 4 Large, Bold Toes (Shifted to be prominent) -->
+       <path android:pathData="M -9.5,-11.0 a 3.5,3.5 0 1,0 7.0,0 a 3.5,3.5 0 1,0 -7.0,0"  android:fillColor="white"  />
+       <path android:pathData="M -5.2,-14.0 a 4.2,4.2 0 1,0 8.4,0 a 4.2,4.2 0 1,0 -8.4,0"  android:fillColor="white"  />
+       <path android:pathData="M 1.2000000000000002,-13.0 a 3.8,3.8 0 1,0 7.6,0 a 3.8,3.8 0 1,0 -7.6,0"  android:fillColor="white"  />
+       <path android:pathData="M 5.8,-8.0 a 3.2,3.2 0 1,0 6.4,0 a 3.2,3.2 0 1,0 -6.4,0"  android:fillColor="white"  />
+    </group>
 
-  <!-- Right Foot (Deep Arch) -->
-  <group  android:translateX="65" android:translateY="20" android:rotation="15">
-    <!-- Sole with Deep Arch -->
-    <path android:pathData="M4,4 C-1,4 -6,10 -6,16 C-6,21 -2,22 1,24 C-1,26 -4,29 -4,34 C-4,38 -1,40 3,40 C7,40 10,38 10,34 C10,29 7,26 6,24 C8,22 10,18 10,14 C10,8 8,4 4,4 Z" android:fillColor="white" android:strokeColor="#333333" android:strokeWidth="1"/>
-    
-    <!-- Toes -->
-    <ellipse cx="-4" cy="2" rx="2.2" ry="3" android:fillColor="white" android:strokeColor="#333333" android:strokeWidth="1"/>
-    <ellipse cx="-0.5" cy="-0.5" rx="1.8" ry="2.4" android:fillColor="white" android:strokeColor="#333333" android:strokeWidth="1"/>
-    <ellipse cx="2.5" cy="0.5" rx="1.6" ry="2.2" android:fillColor="white" android:strokeColor="#333333" android:strokeWidth="1"/>
-    <ellipse cx="5" cy="1.5" rx="1.4" ry="2" android:fillColor="white" android:strokeColor="#333333" android:strokeWidth="1"/>
-    <ellipse cx="7.5" cy="3" rx="1.2" ry="1.8" android:fillColor="white" android:strokeColor="#333333" android:strokeWidth="1"/>
+    <!-- Right Foot -->
+    <group  android:translateX="62" android:translateY="22" android:rotation="15">
+       <!-- Fat Sole -->
+       <path android:pathData="M0,-8 C6,-8 9,0 9,8 C9,16 5,20 0,20 C-5,20 -9,16 -9,8 C-9,0 -6,-8 0,-8 Z" android:fillColor="white" />
+       <!-- 4 Large, Bold Toes -->
+       <path android:pathData="M -9.5,-11.0 a 3.5,3.5 0 1,0 7.0,0 a 3.5,3.5 0 1,0 -7.0,0"  android:fillColor="white"  />
+       <path android:pathData="M -5.2,-14.0 a 4.2,4.2 0 1,0 8.4,0 a 4.2,4.2 0 1,0 -8.4,0"  android:fillColor="white"  />
+       <path android:pathData="M 1.2000000000000002,-13.0 a 3.8,3.8 0 1,0 7.6,0 a 3.8,3.8 0 1,0 -7.6,0"  android:fillColor="white"  />
+       <path android:pathData="M 5.8,-8.0 a 3.2,3.2 0 1,0 6.4,0 a 3.2,3.2 0 1,0 -6.4,0"  android:fillColor="white"  />
+    </group>
   </group>
 
 </vector>

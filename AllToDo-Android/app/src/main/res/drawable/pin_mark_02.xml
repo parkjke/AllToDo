@@ -6,23 +6,23 @@
     android:viewportHeight="125">
 
   <!-- Trapezoid Base (Gray 7) - Shifted up by 5 units -->
-  <path android:pathData="M35,58 L65,58 L75,68 L25,68 Z" android:fillColor="#8E8E93" />
+  <path android:pathData="M35,53 L65,53 L75,63 L25,63 Z" android:fillColor="#8E8E93" />
 
-  <!-- Path: Wandering Trail (Scaled & Shifted up by 5 units) -->
-  <group  android:translateX="0" android:translateY="0">
-    <!-- Path: Wandering Trail -->
+  <!-- Path: Wandering Trail (Bolder & Shifted up) -->
+  <group  android:translateX="0" android:translateY="-5">
+    <!-- Bolder Trail Path (Stroke 6, Dash 0.1 10) -->
     <path android:pathData="M50,58 Q85,58 50,44 Q15,44 50,30" 
           android:fillColor="none" 
           android:strokeColor="white" 
-          android:strokeWidth="3" 
-          stroke-dasharray="0.1 6" 
+          android:strokeWidth="6" 
+          stroke-dasharray="0.1 10" 
           android:strokeLineCap="round" />
 
-    <!-- Starting Point: Blue Solid Dot - Shifted up by 5 units -->
-    <path android:pathData="M 45.5,58.0 a 4.5,4.5 0 1,0 9.0,0 a 4.5,4.5 0 1,0 -9.0,0"  android:fillColor="#007AFF" android:strokeColor="white" android:strokeWidth="1.5"  />
+    <!-- Starting Point: Blue Solid Dot (Enlarged to r=6) -->
+    <path android:pathData="M 44.0,58.0 a 6.0,6.0 0 1,0 12.0,0 a 6.0,6.0 0 1,0 -12.0,0"  android:fillColor="#007AFF" android:strokeColor="white" android:strokeWidth="2"  />
 
-    <!-- Current Point: Large White Solid Dot - Shifted up by 5 units -->
-    <path android:pathData="M 41.0,30.0 a 9.0,9.0 0 1,0 18.0,0 a 9.0,9.0 0 1,0 -18.0,0"  android:fillColor="white"  />
+    <!-- Current Point: Large White Solid Dot (Enlarged to r=11) -->
+    <path android:pathData="M 39.0,30.0 a 11.0,11.0 0 1,0 22.0,0 a 11.0,11.0 0 1,0 -22.0,0"  android:fillColor="white"  />
   </group>
 
 </vector>

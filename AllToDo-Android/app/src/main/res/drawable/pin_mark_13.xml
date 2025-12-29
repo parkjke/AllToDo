@@ -5,16 +5,14 @@
     android:viewportWidth="100"
     android:viewportHeight="125">
 
-  <!-- Centered Checkbox Frame (34x34) -->
-  <rect x="33" y="28" width="34" height="34" rx="4" ry="4" android:fillColor="none" android:strokeColor="white" android:strokeWidth="3" />
+  <!-- Checkbox Frame (Bold: 42x42, Stroke 7) -->
+  <rect x="29" y="21" width="42" height="42" rx="5" ry="5" android:fillColor="none" android:strokeColor="white" android:strokeWidth="7" />
   
-  <!-- Red Brush Stroke (Slash) from Top-Right to Bottom-Left -->
-  <path android:pathData="M72,18 
-           C65,22 45,45 28,72 
-           C35,68 55,40 72,18 Z" 
-        android:fillColor="#FF3B30" 
+  <!-- Bold Red Slash (Diagonal across the center) -->
+  <path android:pathData="M68,24 L32,60" 
+        android:fillColor="none" 
         android:strokeColor="#FF3B30" 
-        android:strokeWidth="1.5" 
-        android:strokeLineJoin="round" />
+        android:strokeWidth="11" 
+        android:strokeLineCap="round" />
 
 </vector>

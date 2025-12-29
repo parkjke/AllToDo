@@ -12,21 +12,22 @@
         fill="url(#mainGradient)" filter="url(#shadowBottom)"/>
   <!-- Mark 22 -->
   <g id="mark_22">
-<!-- Same position and scale as the finalized pin 21 -->
-  <g transform="translate(20.81, 18.2) scale(0.75)">
+<!-- Standardized Dual-bubble layout (Matches latest mark 24 scale/position) -->
+  <g transform="translate(18, 16) scale(0.85)">
     <!-- Path 1: Gray Back Bubble -->
     <path d="M64.9854 14.5239L43.8574 14.5239C34.3872 14.5239 28.916 20.1489 28.916 29.4434L28.916 45.7031C28.916 48.579 29.4398 51.0994 30.4466 53.2066L23.313 59.502C21.8848 60.7544 21.0498 61.3916 19.8413 61.3916C18.1714 61.3916 17.1826 60.2051 17.1826 58.3154L17.1826 50.7568L15.5347 50.7568C7.58057 50.7568 3.14209 46.2524 3.14209 38.3862L3.14209 15.9741C3.14209 8.10791 7.58057 3.58154 15.5347 3.58154L52.6465 3.58154C60.1173 3.58154 64.4652 7.57189 64.9854 14.5239Z" 
-          fill="#CCCCCC" fill-opacity="1.0"/>
-    <!-- Path 2: White Front Bubble + Green Check Mark -->
+          fill="#CCCCCC" fill-opacity="1.0" />
+    
+    <!-- Path 2: White Front Bubble + Bold Green Check -->
     <g transform="translate(60, 45) scale(1.15) translate(-70, -50)">
       <path d="M43.8574 57.063L54.646 57.063L63.9185 64.9951C65.3247 66.2256 66.1597 66.8628 67.3022 66.8628C68.9722 66.8628 69.917 65.6763 69.917 63.8525L69.917 57.063L70.9058 57.063C78.3765 57.063 82.3315 53.042 82.3315 45.6592L82.3315 29.4434C82.3315 22.0605 78.3765 18.0176 70.9058 18.0176L43.8574 18.0176C36.3647 18.0176 32.4097 22.0605 32.4097 29.4434L32.4097 45.7031C32.4097 53.064 36.3647 57.063 43.8574 57.063Z" 
-            fill="#FFFFFF" fill-opacity="1.0"/>
-      <!-- Green Check Mark Overlay (Mid-range Green & Shifted Right 1.5 units) -->
+            fill="#FFFFFF" fill-opacity="1.0" />
+      <!-- Green Check Mark Overlay (Mid-range Green & Shifted for balance) -->
       <g transform="translate(58.8, 37.5)">
         <path d="M-10,0 L-3,7 L10,-6" 
               fill="none" 
               stroke="#2FB344" 
-              stroke-width="8" 
+              stroke-width="11" 
               stroke-linecap="round" 
               stroke-linejoin="round" />
       </g>

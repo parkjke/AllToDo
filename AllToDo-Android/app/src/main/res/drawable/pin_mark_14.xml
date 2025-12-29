@@ -5,8 +5,7 @@
     android:viewportWidth="100"
     android:viewportHeight="125">
 
-  <!-- Centered Checkbox Frame -->
-  <!-- Adjusted to a cooler light red (#FFB3B3) to ensure it doesn't look orange on the red shield -->
-  <rect x="33" y="28" width="34" height="34" rx="4" ry="4" android:fillColor="#FFB3B3" android:strokeColor="white" android:strokeWidth="3" />
+  <!-- Bold Checkbox Frame (42x42, Stroke 7, Filled) -->
+  <rect x="29" y="21" width="42" height="42" rx="5" ry="5" android:fillColor="#FFB3B3" android:strokeColor="white" android:strokeWidth="7" />
 
 </vector>

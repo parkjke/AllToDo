@@ -11,19 +11,23 @@
   <path d="M10,15 Q50,5 90,15 Q100,40 95,65 Q75,80 50,120 Q25,80 5,65 Q0,40 10,15 Z" 
         fill="url(#mainGradient)" filter="url(#shadowBottom)"/>
   <!-- Mark 01 -->
-  <g id="mark_01">
-<!-- Wanderer Path (2 Turns, Dashed) - Shifted up by 5 units -->
-  <path d="M50,70 Q85,70 50,50 Q15,50 50,30" 
-        fill="none" 
-        stroke="white" 
-        stroke-width="3" 
-        stroke-dasharray="0.1 6" 
-        stroke-linecap="round" />
-
-  <!-- Starting Point: Red Solid Dot with White Border - Shifted up by 5 units -->
-  <circle cx="50" cy="70" r="4.5" fill="#FF3B30" stroke="white" stroke-width="1.5" />
-
-  <!-- Current Point: Large White Solid Dot (No border) - Shifted up by 5 units -->
-  <circle cx="50" cy="30" r="9" fill="white" />
+  <g id="mark_01" transform="translate(0, 10)">
+<!-- Arrow Design Refined - Centered at Y=32 -->
+  <g transform="translate(50, 32) scale(0.8) translate(-50, -40)">
+    <!-- Movement Path (Thick Curved Line) -->
+    <path d="M20,65 
+             C35,65 45,35 60,35 
+             C70,35 80,25 80,25" 
+          fill="none" stroke="white" stroke-width="10" stroke-linecap="round" />
+    
+    <!-- Start Point A: Extra Large White Circle (r=13) -->
+    <circle cx="20" cy="65" r="13" fill="white" />
+    
+    <!-- Start Point Center: Red Dot (r=10) - User Request -->
+    <circle cx="20" cy="65" r="10" fill="#FF3B30" />
+    
+    <!-- End Point B: Extra Large Arrow Head -->
+    <path d="M65,5 L105,25 L75,55 Z" fill="white" />
+  </g>
   </g>
 </svg>

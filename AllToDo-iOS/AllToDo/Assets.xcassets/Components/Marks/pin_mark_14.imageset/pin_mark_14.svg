@@ -1,5 +1,0 @@
-<svg width="100" height="90" viewBox="0 0 100 90" xmlns="http://www.w3.org/2000/svg">
-  <!-- Centered Checkbox Frame -->
-  <!-- Adjusted to a cooler light red (#FFB3B3) to ensure it doesn't look orange on the red shield -->
-  <rect x="33" y="28" width="34" height="34" rx="4" ry="4" fill="#FFB3B3" stroke="white" stroke-width="3" />
-</svg>

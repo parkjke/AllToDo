@@ -1,27 +1,20 @@
-<svg width="100" height="90" viewBox="0 0 100 90" xmlns="http://www.w3.org/2000/svg">
-  <!-- Trapezoid Base (Gray 7) - Shifted up by 5 units -->
-  <path d="M35,58 L65,58 L75,68 L25,68 Z" fill="#8E8E93" />
-
-  <!-- Path: Wandering Trail (Scaled & Shifted up by 5 units) -->
-  <g transform="translate(0, 0)">
-    <!-- Path: Wandering Trail -->
-    <path d="M50,58 Q85,58 50,44 Q15,44 50,30" 
-          fill="none" 
-          stroke="white" 
-          stroke-width="3" 
-          stroke-dasharray="0.1 6" 
-          stroke-linecap="round" />
-
-    <!-- Starting Point: Blue Solid Dot - Shifted up by 5 units -->
-    <circle cx="50" cy="58" r="4.5" fill="#007AFF" stroke="white" stroke-width="1.5" />
-
-    <!-- Current Point: Large White Solid Dot - Shifted up by 5 units -->
-    <circle cx="50" cy="30" r="9" fill="white" />
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="100" height="125" viewBox="0 0 100 125" preserveAspectRatio="xMidYMid meet">
+  <!-- 02 Mark: Identical to 01 but Green Dot & shifted Down-Left -->
+  <!-- Shifted X: 47 (Left 3), Y: 39 (Down 7 from center 32) -->
+  <g transform="translate(47, 39) scale(0.8) translate(-50, -40)">
+    <!-- Movement Path (Thick Curved Line) -->
+    <path d="M20,65 
+             C35,65 45,35 60,35 
+             C70,35 80,25 80,25" 
+          fill="none" stroke="white" stroke-width="10" stroke-linecap="round" />
+    
+    <!-- Start Point A: Extra Large White Circle (r=13) -->
+    <circle cx="20" cy="65" r="13" fill="white" />
+    
+    <!-- Start Point Center: Green Dot (r=10) - User Request -->
+    <circle cx="20" cy="65" r="10" fill="#2FB344" />
+    
+    <!-- End Point B: Extra Large Arrow Head -->
+    <path d="M65,5 L105,25 L75,55 Z" fill="white" />
   </g>
 </svg>
-
-
-
-
-
-

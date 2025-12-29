@@ -7,7 +7,7 @@ SHIELD_DIR = os.path.join(BASE_DIR, "shield")
 MERGE_DIR = os.path.join(BASE_DIR, "merge")
 
 GROUPS = {
-    "0": ["01", "02"], # 00 skipped (manually done)
+    "0": ["00", "01", "02"],
     "1": ["10", "11", "12", "13", "14"],
     "2": ["20", "21", "22", "23", "24"]
 }
@@ -16,11 +16,23 @@ def read_svg_content(filepath):
     with open(filepath, 'r') as f:
         content = f.read()
     # Extract everything inside <svg ...> ... </svg>
-    # Also capture viewBox if needed, but assuming mark fits shield viewBox for now
     match = re.search(r'<svg[^>]*>(.*)</svg>', content, re.DOTALL)
     if match:
         return match.group(1).strip()
     return ""
+
+def transform_mark(mark_id, mark_content):
+    # Pin 00, 01, 02, 10-14, 20-24 are custom/positioned -> No X translation needed
+    if mark_id in ["00", "01", "02", "10", "11", "12", "13", "14", "20", "21", "22", "23", "24"]:
+        transform_attr = ""
+        # Exception for foot 01: shift up/left relative to current SVG
+        if mark_id == "01":
+            transform_attr = ' transform="translate(0, 10)"'
+    else:
+        # Default for simple icons: center them
+        transform_attr = ' transform="translate(15, 18)"'
+    
+    return f'  <g id="mark_{mark_id}"{transform_attr}>\n{mark_content}\n  </g>'
 
 def create_merged_svg(mark_id, shield_suffix):
     mark_path = os.path.join(MARK_DIR, f"pin_mark_{mark_id}.svg")
@@ -33,14 +45,14 @@ def create_merged_svg(mark_id, shield_suffix):
 
     shield_content = read_svg_content(shield_path)
     mark_content = read_svg_content(mark_path)
+    
+    transformed_mark = transform_mark(mark_id, mark_content)
 
     # Shield is 100x125. We use that as the base viewBox.
     svg_template = f"""<svg width="200" height="250" viewBox="0 0 100 125" xmlns="http://www.w3.org/2000/svg">
 {shield_content}
   <!-- Mark {mark_id} -->
-  <g id="mark_{mark_id}">
-{mark_content}
-  </g>
+{transformed_mark}
 </svg>"""
 
     with open(output_path, 'w') as f:

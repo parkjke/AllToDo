@@ -12,8 +12,7 @@
         fill="url(#mainGradient)" filter="url(#shadowBottom)"/>
   <!-- Mark 14 -->
   <g id="mark_14">
-<!-- Centered Checkbox Frame -->
-  <!-- Adjusted to a cooler light red (#FFB3B3) to ensure it doesn't look orange on the red shield -->
-  <rect x="33" y="28" width="34" height="34" rx="4" ry="4" fill="#FFB3B3" stroke="white" stroke-width="3" />
+<!-- Bold Checkbox Frame (42x42, Stroke 7, Filled) -->
+  <rect x="29" y="21" width="42" height="42" rx="5" ry="5" fill="#FFB3B3" stroke="white" stroke-width="7" />
   </g>
 </svg>

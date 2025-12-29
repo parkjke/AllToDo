@@ -5,18 +5,16 @@
     android:viewportWidth="100"
     android:viewportHeight="125">
 
-  <!-- Wanderer Path (2 Turns, Dashed) - Shifted up by 5 units -->
-  <path android:pathData="M50,70 Q85,70 50,50 Q15,50 50,30" 
-        android:fillColor="none" 
-        android:strokeColor="white" 
-        android:strokeWidth="3" 
-        stroke-dasharray="0.1 6" 
-        android:strokeLineCap="round" />
-
-  <!-- Starting Point: Red Solid Dot with White Border - Shifted up by 5 units -->
-  <path android:pathData="M 45.5,70.0 a 4.5,4.5 0 1,0 9.0,0 a 4.5,4.5 0 1,0 -9.0,0"  android:fillColor="#FF3B30" android:strokeColor="white" android:strokeWidth="1.5"  />
-
-  <!-- Current Point: Large White Solid Dot (No border) - Shifted up by 5 units -->
-  <path android:pathData="M 41.0,30.0 a 9.0,9.0 0 1,0 18.0,0 a 9.0,9.0 0 1,0 -18.0,0"  android:fillColor="white"  />
+  <!-- Footprint Path: Downward curve with 5 dots -->
+  <!-- Start Dot (Red, r=7.2) -->
+  <path android:pathData="M 12.8,55.0 a 7.2,7.2 0 1,0 14.4,0 a 7.2,7.2 0 1,0 -14.4,0"  android:fillColor="#FF3B30"  />
+  
+  <!-- Intermediary Dots (White, r=8.6) -->
+  <path android:pathData="M 19.4,42.0 a 8.6,8.6 0 1,0 17.2,0 a 8.6,8.6 0 1,0 -17.2,0"  android:fillColor="white"  />
+  <path android:pathData="M 29.4,32.0 a 8.6,8.6 0 1,0 17.2,0 a 8.6,8.6 0 1,0 -17.2,0"  android:fillColor="white"  />
+  <path android:pathData="M 39.4,24.0 a 8.6,8.6 0 1,0 17.2,0 a 8.6,8.6 0 1,0 -17.2,0"  android:fillColor="white"  />
+  
+  <!-- End Dot (White, Larger, r=8.6) -->
+  <path android:pathData="M 46.4,20.0 a 8.6,8.6 0 1,0 17.2,0 a 8.6,8.6 0 1,0 -17.2,0"  android:fillColor="white"  />
 
 </vector>

@@ -116,61 +116,11 @@ class PinImageHelper {
         try? finalData.write(to: fileUrl)
     }
     
-    /// 베이스 핀(Shield)과 마크(Mark)를 합성하여 반환합니다. (동적 생성 및 캐싱)
-    func fetchCompositePin(shieldName: String, markName: String, size: CGSize = CGSize(width: 40, height: 50)) -> UIImage? {
-        let cacheKey = "composite-\(shieldName)-\(markName)-\(Int(size.width))x\(Int(size.height))"
-        
-        // 1. 메모리 캐시 확인
-        if let cachedImage = PinImageHelper.imageCache[cacheKey] {
-            return cachedImage
-        }
-        
-        // 2. 디스크 캐시 확인
-        if let diskImage = loadFromDisk(key: cacheKey) {
-            PinImageHelper.imageCache[cacheKey] = diskImage
-            return diskImage
-        }
-        
-        // 3. 새로 생성 (합성)
-        guard let shieldImage = getAssetImage(named: shieldName),
-              let markImage = getAssetImage(named: markName) else {
-            return nil
-        }
-        
-        // 캔버스 생성 및 합성 (기기 해상도 고려)
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = UIScreen.main.scale
-        let renderer = UIGraphicsImageRenderer(size: size, format: format)
-        
-        let finalImage = renderer.image { context in
-            // A. Shield 그리기 (배경)
-            shieldImage.draw(in: CGRect(origin: .zero, size: size))
-            
-            // B. Mark 그리기 (전경) - 쉴드 상단 정렬 (Visual Center)
-            // Bubble Area is top ~40pt. Center is ~20pt (40% of 50)
-            
-            let markTargetHeight = size.height * 0.52 // Reduced from 0.58 for padding
-            let markScale = markTargetHeight / markImage.size.height
-            let markTargetWidth = markImage.size.width * markScale
-            
-            // Center X: 50%
-            // Center Y: 40% (20pt from top, visual center of bubble)
-            let markX = (size.width - markTargetWidth) / 2
-            let markY = (size.height * 0.40) - (markTargetHeight / 2)
-            
-            markImage.draw(in: CGRect(x: markX, y: markY, width: markTargetWidth, height: markTargetHeight))
-        }
-        
-        // 캐싱
-        PinImageHelper.imageCache[cacheKey] = finalImage
-        saveToDisk(key: cacheKey, image: finalImage)
-        
-        return finalImage
-    }
+
     
     // Legacy support (Deprecated ideally, but kept for build safety)
     func fetchBasePin(named imageName: String, size: CGSize = CGSize(width: 40, height: 50)) -> UIImage? {
-        return fetchCompositePin(shieldName: imageName, markName: "PinMark_00", size: size) // Fallback
+        return fetchCompositePin(shieldName: imageName, markName: "pin_mark_00", size: size) // Fallback
     }
     
     /// 베이스 이미지 위에 클러스터 숫자를 나타내는 뱃지를 합성합니다.

@@ -1,14 +1,13 @@
 <svg width="100" height="90" viewBox="0 0 100 90" xmlns="http://www.w3.org/2000/svg">
-  <!-- Checkbox Frame -->
-  <rect x="25" y="32" width="34" height="34" rx="4" ry="4" fill="none" stroke="white" stroke-width="3" />
+  <!-- Checkbox Frame (Bold: 42x42, Stroke 7) -->
+  <rect x="29" y="21" width="42" height="42" rx="5" ry="5" fill="none" stroke="white" stroke-width="7" />
   
-  <!-- "Edgy" Translucent Check Mark (Shortened tail, more space from shield) -->
-  <!-- Checkmark is shifted and scaled to stay within safe bounds -->
-  <path d="M33,42 L46,55 L72,25" 
+  <!-- Check Mark: Adjusted tail length to touch/slightly overlap the box edge -->
+  <path d="M40.5,43.5 L47.5,50.5 L68,30" 
         fill="none" 
         stroke="white" 
-        stroke-width="6" 
+        stroke-width="9" 
         stroke-linecap="round" 
         stroke-linejoin="round" 
-        opacity="0.4" />
+        opacity="0.3" />
 </svg>
