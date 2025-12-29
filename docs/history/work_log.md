@@ -1,16 +1,7 @@
 ## 2025-12-29
-### v3 Meaningful Pin Design & Refinement (23, 24)
-- **23 (Wavy Arrow) 조형 고도화**:
-  - **이미지 기반 정밀 재조형**: 사용자가 제공한 이미지를 바탕으로 Hill -> Valley -> Straight Neck 구조의 역동적인 조형을 1:1로 구현했습니다.
-  - **곡선 평탄화 및 부드러운 전환 (Tangent Optimization)**: 너무 심한 구불거림을 줄여 평탄화하고, 곡선이 직선 목 부위와 만나는 지점의 베지어 제어점을 수평 정렬하여 시각적인 꺾임 현상을 완벽히 해결했습니다.
-  - **목 길이 및 화살표 머리 최적화**: 직선 목 구간의 길이를 반복적으로 조정하여 이미지와 동일한 비례를 완성했습니다. 화살표 머리를 뒤로 보내고 경로선이 이를 정확히 관통하도록 물리적 정합(Snapping)을 적용했습니다.
-  - **최종 배치**: 쉴드 내 안정적인 안착을 위해 전체 스케일을 0.22배로 조정하고, 최종 위치를 (x:13, y:26)으로 확정하여 머지했습니다.
-- **24 (Read Receipt) 생성**:
-  - 이중 말풍선(Dual-bubble) 구조 내부에 파란색 더블 체크(Double Check) 마크를 배치하여 '읽음 확인' 또는 '완료된 대화'의 의미를 시각화했습니다. 쉴드 상단 영역의 65% 비중을 차지하도록 정밀 배치했습니다.
-- [x] `pin_mark_23.svg` 이미지 기반 완전 재조형 및 곡률 평탄화
-- [x] Pin 01 & 02 전체 마크 위치 소폭 상향(5단위) 조정 완료
 - [x] `merge_pins.py` 실행하여 최종 쉴드 결합 완료
-- [x] `pin_merge_01.svg` & `pin_merge_02.svg` 최종 결과물 확인 완료
+- [x] 프로젝트 구조 정리 (mark_v2, map_pin_2 삭제)
+- [x] GitHub 업데이트 및 작업 로그 최신화 완료
 
 ## 2025-12-28
 ### iOS Pin Rendering Stabilization & Integer Geometry Integration
@@ -95,10 +86,8 @@
 
 
 ### 2025-12-29
-- **Pin 01 & 02 (History/Saved)**: 전체 마크 뭉치를 위로 5단위 이동시켜(y축 보정) 쉴드 내에서의 시각적 중앙 정렬을 개선했습니다. 02번의 경우 파란색 시작점과 사다리꼴 기반 조형을 유지하며 함께 이동했습니다.
-- **Pin 24 (Read Receipt)**: 기존 조형을 유지하며 두 물풍선 중앙에 각각 22번 스타일의 녹색 체크마크(stroke: #2FB344)를 추가했습니다.
 - **Cleanup**: 더 이상 사용되지 않는 초기 디자인 폴더인 `Icons/map_pin_1/mark_v2` 및 `Icons/map_pin_2` 디렉토리를 완전히 삭제하여 프로젝트 구조를 정리했습니다.
-- **Merge**: `merge_pins.py`를 실행하여 쉴드와 결합된 `pin_merge_01.svg` 및 `pin_merge_02.svg`를 최종 생성했습니다. This resolves the visual discrepancy where pins appeared smaller after the initial animation.
+- **Merge**: `merge_pins.py`를 실행하여 쉴드와 합성된 최종 SVG 결과를 생성했습니다.
   - Adjusted `PinImageHelper` to respect the input `baseImage` size dynamically instead of hardcoding to 32x40, allowing map-specific sizing (e.g., Naver's larger pins).
 - **Zoom Level Standardization**:
   - Updated `GoogleMap` and `KakaoMap` launch animation sequences.
