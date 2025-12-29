@@ -1,7 +1,7 @@
 <svg width="100" height="90" viewBox="0 0 100 90" xmlns="http://www.w3.org/2000/svg">
-  <!-- Following the finalized position and scale of the dual-bubble (21/22) for consistency -->
+  <!-- Finalized layout (21/22 consistency) -->
   <g transform="translate(20.81, 18.2) scale(0.75)">
-    <!-- Path 1: Gray Back Bubble (User's high-fidelity path) -->
+    <!-- Path 1: Gray Back Bubble -->
     <path d="M64.9854 14.5239L43.8574 14.5239C34.3872 14.5239 28.916 20.1489 28.916 29.4434L28.916 45.7031C28.916 48.579 29.4398 51.0994 30.4466 53.2066L23.313 59.502C21.8848 60.7544 21.0498 61.3916 19.8413 61.3916C18.1714 61.3916 17.1826 60.2051 17.1826 58.3154L17.1826 50.7568L15.5347 50.7568C7.58057 50.7568 3.14209 46.2524 3.14209 38.3862L3.14209 15.9741C3.14209 8.10791 7.58057 3.58154 15.5347 3.58154L52.6465 3.58154C60.1173 3.58154 64.4652 7.57189 64.9854 14.5239Z" 
           fill="#CCCCCC" fill-opacity="1.0"/>
     
@@ -10,33 +10,37 @@
       <path d="M43.8574 57.063L54.646 57.063L63.9185 64.9951C65.3247 66.2256 66.1597 66.8628 67.3022 66.8628C68.9722 66.8628 69.917 65.6763 69.917 63.8525L69.917 57.063L70.9058 57.063C78.3765 57.063 82.3315 53.042 82.3315 45.6592L82.3315 29.4434C82.3315 22.0605 78.3765 18.0176 70.9058 18.0176L43.8574 18.0176C36.3647 18.0176 32.4097 22.0605 32.4097 29.4434L32.4097 45.7031C32.4097 53.064 36.3647 57.063 43.8574 57.063Z" 
             fill="#FFFFFF" fill-opacity="1.0"/>
       
-      <!-- FAITHFUL TRACING OF NEW GREEN CAR IMAGE -->
-      <g transform="translate(57, 36) scale(0.6)">
-        <!-- Car Body Path: Dark Green (#1E703A) -->
-        <path d="M-38,20 
-                 L-38,15 L-35,12 
-                 C-25,5 -10,0 10,0 
-                 L35,2 C45,4 65,12 75,22 
-                 L75,26 L-38,26 Z" 
-              fill="#1E703A" />
+      <!-- HIGH-FIDELITY CAR SILHOUETTE (Based on uploaded image) -->
+      <g transform="translate(57, 36) scale(0.55) translate(-5, -5)">
+        <!-- Main Car Body -->
+        <path d="M-40,15 
+                 C-35,10 -20,1 -5,0 
+                 L35,0 
+                 C50,0 65,5 75,12 
+                 L78,15 L78,25 
+                 L55,25 
+                 C50,15 35,15 30,25 
+                 L-15,25 
+                 C-20,15 -35,15 -40,25 
+                 L-45,25 L-45,18 Z" 
+              fill="#333333" />
         
-        <!-- Windows and Pillar (Tracing the white cutouts) -->
-        <path d="M-5,3 L25,3 C30,3 35,5 45,12 L-5,12 Z" 
-              fill="#FFFFFF" fill-opacity="0.5" />
-        <rect x="23" y="2" width="4" height="11" fill="#1E703A" /> <!-- Center Pillar -->
-        
-        <!-- Headlight Detail (White wedge) -->
-        <path d="M55,15 L68,18 L60,20 Z" fill="#FFFFFF" fill-opacity="0.8" />
-        
-        <!-- Wheels (Circular cutouts with white stroke effect) -->
-        <circle cx="-16" cy="26" r="10" fill="#1E703A" stroke="#FFFFFF" stroke-width="2" />
-        <circle cx="48" cy="26" r="10" fill="#1E703A" stroke="#FFFFFF" stroke-width="2" />
-        
-        <!-- Speed Lines (Trailing from back) -->
-        <g stroke="#1E703A" stroke-width="3" stroke-linecap="round">
-          <line x1="-58" y1="5" x2="-38" y2="5" />
-          <line x1="-68" y1="12" x2="-45" y2="12" />
-          <line x1="-75" y1="19" x2="-48" y2="19" />
+        <!-- Windows (Detailed layout from image) -->
+        <path d="M-8,3 L15,3 L15,13 L-13,13 C-10,8 -5,4 -8,3 Z" fill="#FFFFFF" fill-opacity="0.4" />
+        <path d="M18,3 L40,3 C45,3 52,6 60,13 L18,13 Z" fill="#FFFFFF" fill-opacity="0.4" />
+
+        <!-- Headlight cutout -->
+        <path d="M60,10 L75,15 L65,15 Z" fill="#FFFFFF" fill-opacity="0.6" />
+
+        <!-- Wheels (Cutout style from image) -->
+        <circle cx="-27.5" cy="27.5" r="9" fill="#333333" />
+        <circle cx="42.5" cy="27.5" r="9" fill="#333333" />
+
+        <!-- Speed Lines (Trailing motion exactly as image) -->
+        <g stroke="#CCCCCC" stroke-width="4" stroke-linecap="round">
+          <line x1="-70" y1="5" x2="-45" y2="5" />
+          <line x1="-80" y1="14" x2="-48" y2="14" />
+          <line x1="-90" y1="23" x2="-52" y2="23" />
         </g>
       </g>
     </g>
