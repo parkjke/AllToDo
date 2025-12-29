@@ -10,33 +10,30 @@
       <path d="M43.8574 57.063L54.646 57.063L63.9185 64.9951C65.3247 66.2256 66.1597 66.8628 67.3022 66.8628C68.9722 66.8628 69.917 65.6763 69.917 63.8525L69.917 57.063L70.9058 57.063C78.3765 57.063 82.3315 53.042 82.3315 45.6592L82.3315 29.4434C82.3315 22.0605 78.3765 18.0176 70.9058 18.0176L43.8574 18.0176C36.3647 18.0176 32.4097 22.0605 32.4097 29.4434L32.4097 45.7031C32.4097 53.064 36.3647 57.063 43.8574 57.063Z" 
             fill="#FFFFFF" fill-opacity="1.0"/>
       
-      <!-- SLEEK SPORTS CAR RE-DESIGN (Lower profile, aggressive wedge) -->
+      <!-- SIMPLE PORSCHE 911 SILHOUETTE (Iconic flyline) -->
       <g transform="translate(57, 36) scale(0.6)">
-        <!-- Car Body Path -->
-        <path d="M-45,20 
-                 L-45,15 L-40,15 
-                 L-42,11 L-35,11 
-                 C-25,5 -10,0 15,0 
-                 L35,2 C45,4 55,10 65,20 
-                 L65,24 L-45,24 Z" 
+        <!-- Car Body Path: Defined by the smooth continuous curve from roof to tail -->
+        <path d="M-40,20 
+                 L-40,16 
+                 C-40,12 -35,8 -25,5 
+                 C-15,2 0,0 15,3 
+                 C30,6 45,12 55,20 
+                 L55,24 L-40,24 Z" 
               fill="#333333" />
         
-        <!-- Windows and Roofline (Very low and tapered) -->
-        <path d="M-10,3 L15,3 C22,3 28,5 35,12 L-10,12 Z" 
-              fill="#FFFFFF" fill-opacity="0.4" />
+        <!-- Cabin/Window curve -->
+        <path d="M-10,4 C0,2 15,3 25,8 L28,12 L-10,12 Z" 
+              fill="#FFFFFF" fill-opacity="0.5" />
         
-        <!-- Wheels (Slightly larger for sports look) -->
-        <circle cx="-25" cy="24" r="7" fill="#111111" stroke="#FFFFFF" stroke-width="1.5" />
-        <circle cx="35" cy="24" r="7" fill="#111111" stroke="#FFFFFF" stroke-width="1.5" />
-        
-        <!-- Brake Caliper Detail -->
-        <path d="M30,17 A7,7 0 0 1 34,18" stroke="#EF4444" stroke-width="3" fill="none" />
+        <!-- Wheels (Simple circles) -->
+        <circle cx="-25" cy="24" r="6.5" fill="#111111" stroke="#FFFFFF" stroke-width="1.5" />
+        <circle cx="35" cy="24" r="6.5" fill="#111111" stroke="#FFFFFF" stroke-width="1.5" />
 
-        <!-- Simple Horizontal Speed Lines (Trailing motion) -->
+        <!-- Speed Lines (Trailing motion) -->
         <g stroke="#CCCCCC" stroke-width="3" stroke-linecap="round">
-          <line x1="-70" y1="5" x2="-52" y2="5" />
-          <line x1="-85" y1="12" x2="-55" y2="12" />
-          <line x1="-75" y1="19" x2="-53" y2="19" />
+          <line x1="-65" y1="6" x2="-48" y2="6" />
+          <line x1="-75" y1="14" x2="-52" y2="14" />
+          <line x1="-70" y1="21" x2="-50" y2="21" />
         </g>
       </g>
     </g>
