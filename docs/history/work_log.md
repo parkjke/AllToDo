@@ -1,20 +1,16 @@
 ## 2025-12-29
-### v3 Meaningful Pin Design & Refinement (01, 02, 10-14)
-- **히스토리 마크 (01, Wandering Dot)**:
-  - '돌아다니는 점' 메타포를 도입했습니다. 흰색 테두리가 있는 빨간색 시작점, 지그재그 점선 경로, 그리고 테두리 없는 큰 흰색 현재점으로 구성하여 이동의 궤적을 직관적으로 표현했습니다.
-- **저장 마크 (02, Translucent Drum)**:
-  - '반투명 드럼통' 메타포를 도입했습니다. 01번의 히스토리 디자인이 짧고 투명한 원통 안에 '반쯤 잠겨(Half-submerged)' 있는 레이어링 효과를 구현하여, 저장된 장소의 정적 가치와 이동의 동적 가치를 통합했습니다.
-- **할 일 마크 변주 (10-14, Checkbox Variants)**:
-  - **10 (Edgy)**: 네모 프레임을 엣지 있게 뚫고 나오는 반투명 체크 마크. 프레임 테두리와의 여백을 정교하게 조정했습니다.
-  - **11 (Translucent)**: 프레임과 체크 마크 모두 반투명하게 처리하여 배경과의 조화를 강조했습니다.
-  - **12 (Solid)**: 프레임과 체크 마크 모두 불투명한 순백색으로 강한 가시성을 확보했습니다.
-  - **13 (Slashed)**: 중앙 정렬된 프레임에 빨간색 붓 터치 형태의 슬래시(Slash)를 넣어 취소/제외의 의미를 시각화했습니다.
-  - **14 (Filled)**: 중앙 정렬된 프레임 내부를 연한 빨강(`#FFB3B3`)으로 채워, 빨간색 쉴드 위에서도 명확히 구분되는 '채워진 할 일' 상태를 구현했습니다.
-- **메시지 및 거절 마크 (20-21, Message & Rejection)**:
-  - **20 (Unknown/Message)**: '피어오르는 물풍선' 형태의 메시지 수신 메타포를 도입했습니다. 직접 제작하신 패스를 기반으로 순백색으로 정제하고, 쉴드 상단 2/3 영역의 50% 크기로 정밀 배치했습니다.
-  - **21 (Rejection)**: 20번의 메시지 메타포를 이중으로 겹치고 위쪽 말풍선을 15% 키워 강조한 뒤, 선명한 빨간색 X를 정중앙에 배치하여 거절의 의미를 완성했습니다. 쉴드 내 구도를 위해 우측 및 하단으로 미세 조정(3 units)을 거쳤습니다.
-- **디자인 시스템 및 자동화**:
-  - `merge_pins.py`를 통해 Shield(배경)와 Mark(심볼)를 자동으로 합성하는 워크플로우를 확립하고, 모든 V3 핀(01, 02, 10-14, 20, 21)에 대한 시각적 검증과 GitHub 동기화를 완료했습니다.
+### v3 Meaningful Pin Design & Refinement (23, 24)
+- **23 (Wavy Arrow) 조형 고도화**:
+  - **이미지 기반 정밀 재조형**: 사용자가 제공한 이미지를 바탕으로 Hill -> Valley -> Straight Neck 구조의 역동적인 조형을 1:1로 구현했습니다.
+  - **곡선 평탄화 및 부드러운 전환 (Tangent Optimization)**: 너무 심한 구불거림을 줄여 평탄화하고, 곡선이 직선 목 부위와 만나는 지점의 베지어 제어점을 수평 정렬하여 시각적인 꺾임 현상을 완벽히 해결했습니다.
+  - **목 길이 및 화살표 머리 최적화**: 직선 목 구간의 길이를 반복적으로 조정하여 이미지와 동일한 비례를 완성했습니다. 화살표 머리를 뒤로 보내고 경로선이 이를 정확히 관통하도록 물리적 정합(Snapping)을 적용했습니다.
+  - **최종 배치**: 쉴드 내 안정적인 안착을 위해 전체 스케일을 0.22배로 조정하고, 최종 위치를 (x:13, y:26)으로 확정하여 머지했습니다.
+- **24 (Read Receipt) 생성**:
+  - 이중 말풍선(Dual-bubble) 구조 내부에 파란색 더블 체크(Double Check) 마크를 배치하여 '읽음 확인' 또는 '완료된 대화'의 의미를 시각화했습니다. 쉴드 상단 영역의 65% 비중을 차지하도록 정밀 배치했습니다.
+- [x] `pin_mark_23.svg` 이미지 기반 완전 재조형 및 곡률 평탄화
+- [x] Pin 01 & 02 전체 마크 위치 소폭 상향(5단위) 조정 완료
+- [x] `merge_pins.py` 실행하여 최종 쉴드 결합 완료
+- [x] `pin_merge_01.svg` & `pin_merge_02.svg` 최종 결과물 확인 완료
 
 ## 2025-12-28
 ### iOS Pin Rendering Stabilization & Integer Geometry Integration
@@ -98,10 +94,11 @@
   - **Auto-Center**: Implemented camera animation to automatically center the map on a tapped pin across all providers (Apple, Naver, Google, Kakao). This ensures the callout ("Water Balloon") has enough space to appear without being clipped by the screen edge.
 
 
-## 2025-12-18
-### iOS Map Visuals & Logic Refinement
-- **Unified Pin Sizes**:
-  - Updated `NaverMap` pin rendering to use **48x60** size for both initial "Raw" rendering and subsequent "WASM Cluster" rendering. This resolves the visual discrepancy where pins appeared smaller after the initial animation.
+### 2025-12-29
+- **Pin 01 & 02 (History/Saved)**: 전체 마크 뭉치를 위로 5단위 이동시켜(y축 보정) 쉴드 내에서의 시각적 중앙 정렬을 개선했습니다. 02번의 경우 파란색 시작점과 사다리꼴 기반 조형을 유지하며 함께 이동했습니다.
+- **Pin 24 (Read Receipt)**: 기존 조형을 유지하며 두 물풍선 중앙에 각각 22번 스타일의 녹색 체크마크(stroke: #2FB344)를 추가했습니다.
+- **Cleanup**: 더 이상 사용되지 않는 초기 디자인 폴더인 `Icons/map_pin_1/mark_v2` 및 `Icons/map_pin_2` 디렉토리를 완전히 삭제하여 프로젝트 구조를 정리했습니다.
+- **Merge**: `merge_pins.py`를 실행하여 쉴드와 결합된 `pin_merge_01.svg` 및 `pin_merge_02.svg`를 최종 생성했습니다. This resolves the visual discrepancy where pins appeared smaller after the initial animation.
   - Adjusted `PinImageHelper` to respect the input `baseImage` size dynamically instead of hardcoding to 32x40, allowing map-specific sizing (e.g., Naver's larger pins).
 - **Zoom Level Standardization**:
   - Updated `GoogleMap` and `KakaoMap` launch animation sequences.

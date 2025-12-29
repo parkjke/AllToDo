@@ -12,29 +12,24 @@
         fill="url(#mainGradient)" filter="url(#shadowBottom)"/>
   <!-- Mark 02 -->
   <g id="mark_02">
-<!-- Shorter Translucent Drum (Cylinder) - Entire Assembly Shifted Down Slightly -->
+<!-- Trapezoid Base (Gray 7) - Shifted up by 5 units -->
+  <path d="M35,58 L65,58 L75,68 L25,68 Z" fill="#8E8E93" />
 
-  <!-- 1. Back Rim (Inside top edge) - Shifted from 38 to 40 -->
-  <path d="M30,40 A20,5 0 0 1 70,40" fill="none" stroke="#8E8E93" stroke-width="0.8" stroke-opacity="0.3" />
+  <!-- Path: Wandering Trail (Scaled & Shifted up by 5 units) -->
+  <g transform="translate(0, 0)">
+    <!-- Path: Wandering Trail -->
+    <path d="M50,58 Q85,58 50,44 Q15,44 50,30" 
+          fill="none" 
+          stroke="white" 
+          stroke-width="3" 
+          stroke-dasharray="0.1 6" 
+          stroke-linecap="round" />
 
-  <!-- 2. Submerged Part of 01 Design (Translucent) - Shifted from -3 to -1 -->
-  <g transform="translate(0, -1) scale(0.65) translate(26.9, 0)" opacity="0.4">
-    <path d="M50,75 Q85,75 50,61" fill="none" stroke="white" stroke-width="3" stroke-dasharray="0.1 6" stroke-linecap="round" />
-    <circle cx="50" cy="75" r="4.5" fill="#FF3B30" stroke="white" stroke-width="1.5" />
+    <!-- Starting Point: Blue Solid Dot - Shifted up by 5 units -->
+    <circle cx="50" cy="58" r="4.5" fill="#007AFF" stroke="white" stroke-width="1.5" />
+
+    <!-- Current Point: Large White Solid Dot - Shifted up by 5 units -->
+    <circle cx="50" cy="30" r="9" fill="white" />
   </g>
-
-  <!-- 3. Short Drum Body - Shifted from 38 to 40 -->
-  <path d="M30,40 Q30,60 50,60 Q70,60 70,40 L70,40 Q70,60 50,60 Q30,60 30,40 Z" fill="#8E8E93" fill-opacity="0.4" />
-  <rect x="30" y="40" width="40" height="20" fill="#8E8E93" fill-opacity="0.35" />
-  <ellipse cx="50" cy="60" rx="20" ry="5" fill="#8E8E93" fill-opacity="0.45" />
-
-  <!-- 4. Floating Part of 01 Design (Solid) - Shifted from -3 to -1 -->
-  <g transform="translate(0, -1) scale(0.65) translate(26.9, 0)">
-    <path d="M50,61 Q15,55 50,35" fill="none" stroke="white" stroke-width="3" stroke-dasharray="0.1 6" stroke-linecap="round" />
-    <circle cx="50" cy="35" r="9" fill="white" />
-  </g>
-
-  <!-- 5. Front Rim (Top edge) - Shifted from 38 to 40 -->
-  <path d="M30,40 A20,5 0 0 0 70,40" fill="none" stroke="#8E8E93" stroke-width="1" stroke-opacity="0.5" stroke-linecap="round" />
   </g>
 </svg>
