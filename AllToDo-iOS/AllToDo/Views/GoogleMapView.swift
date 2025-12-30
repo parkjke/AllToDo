@@ -160,6 +160,7 @@ struct GoogleMapView: UIViewRepresentable {
         // [NEW] Raw Renderer for Google Maps
         func renderRawItems(mapView: GMSMapView, allItems: [UnifiedMapItem]) {
             mapView.clear()
+            self.markers.removeAll() // [FIX] Reset state
             for item in allItems {
                 let marker = WasmClusterMarker()
                 marker.items = [item]
@@ -175,6 +176,9 @@ struct GoogleMapView: UIViewRepresentable {
                 // Ground Anchor: Tip is at center-bottom
                 marker.groundAnchor = CGPoint(x: 0.5, y: 1.0)
                 marker.map = mapView
+                
+                // [FIX] Track Raw Markers so renderClusters can remove them later
+                self.markers.append(marker)
             }
         }
         
@@ -748,10 +752,10 @@ struct GoogleMapView: UIViewRepresentable {
             // 2. Check visibility
             guard visible && points.count >= 2 else { return }
             
-            // 3. Render new trail
+            // 3. Render new trail (Convert Int32 -> Double)
             let path = GMSMutablePath()
             for p in points {
-                path.add(CLLocationCoordinate2D(latitude: p.latitude, longitude: p.longitude))
+                path.add(CLLocationCoordinate2D(latitude: Double(p.latitude)/100_000.0, longitude: Double(p.longitude)/100_000.0))
             }
             
             let polyline = GMSPolyline(path: path)

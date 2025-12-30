@@ -969,8 +969,8 @@ struct AppleMapView: UIViewRepresentable {
             
             guard visible && points.count >= 2 else { return }
             
-            // 2. Render new trail
-            var coords = points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+            // 2. Render new trail (Convert Int32 -> Double)
+            var coords = points.map { CLLocationCoordinate2D(latitude: Double($0.latitude)/100_000.0, longitude: Double($0.longitude)/100_000.0) }
             let polyline = ActiveRecordingPolyline(coordinates: &coords, count: coords.count)
             mapView.addOverlay(polyline)
         }
@@ -1070,7 +1070,7 @@ struct ClusterListCallout: View {
     private func itemRow(_ item: UnifiedMapItem) -> some View {
         HStack(spacing: 8) {
             // [Col 1] Map Icon
-            if case .history(let t) = item {
+            if case .history(let t) = item, t.no_of_path > 1 {
                 Button(action: { onSelectLog(t) }) {
                     Image(systemName: "map.fill")
                         .font(.system(size: fontSize))

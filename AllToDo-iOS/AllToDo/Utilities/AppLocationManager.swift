@@ -5,8 +5,8 @@ import Combine
 import SwiftData
 
 struct PathPoint: Codable {
-    var latitude: Double
-    var longitude: Double
+    var latitude: Int32
+    var longitude: Int32
     var timestamp: Date
 }
 
@@ -47,11 +47,11 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         let rawPoints = pendingBuffer
         pendingBuffer.removeAll()
         
-        // 1. Convert to Int32 for WASM (scaled by 1e5)
+        // 1. Convert to Int32 for WASM (Already Int32)
         var intPoints: [Int32] = []
         for p in rawPoints {
-            intPoints.append(Int32(p.latitude * 100_000))
-            intPoints.append(Int32(p.longitude * 100_000))
+            intPoints.append(p.latitude)
+            intPoints.append(p.longitude)
         }
         
         // 2. Call WASM Compression
@@ -61,8 +61,8 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         var newPoints: [PathPoint] = []
         if compressedInts.count % 2 == 0 {
             for i in stride(from: 0, to: compressedInts.count, by: 2) {
-                let lat = Double(compressedInts[i]) / 100_000.0
-                let lon = Double(compressedInts[i+1]) / 100_000.0
+                let lat = compressedInts[i]
+                let lon = compressedInts[i+1]
                 let originalTimestamp = rawPoints.first?.timestamp ?? Date() 
                 newPoints.append(PathPoint(latitude: lat, longitude: lon, timestamp: originalTimestamp))
             }
@@ -78,19 +78,26 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
     private func savePointsToDatabase(_ points: [PathPoint]) {
         guard !points.isEmpty else { return }
         
-        // Use shared container to create context for real-time saving
+
+        
+        // [OPTIMIZATION] 30m Path Optimization
+        // Use Integer-based GeomUtils
+        let isShortPath = GeomUtils.isShortPath(points: points, thresholdUnits: 30)
+        
+        // Use shared container
         let context = ModelContext(AllToDoApp.sharedModelContainer)
         
         // A. Ensure Trip (ToDoItem) exists
         if currentTripID == nil {
             let startLoc = points.first!
+            // Use Integer Initializer
             let newTrip = ToDoItem(
                 todo_name: "자동 기록 경로 (\(Date().formatted(.dateTime.hour().minute())))",
-                no_of_path: points.count
+                no_of_path: points.count,
+                type: "00",
+                int_lat: Int(startLoc.latitude),
+                int_long: Int(startLoc.longitude)
             )
-            newTrip.type = "00"
-            newTrip.latitude = startLoc.latitude
-            newTrip.longitude = startLoc.longitude
 
             context.insert(newTrip)
             currentTripID = newTrip.todo_id
@@ -99,16 +106,26 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         
         guard let tripID = currentTripID else { return }
         
+        if isShortPath {
+             // Simply save the Trip (Path Header) without path points if it's just a jitter
+             // But wait, if we don't save points, we should probably update the trip's location to the latest?
+             // Or just leave it.
+             // Ideally we should update the trip count to 1?
+             // For now, just save context.
+             do { try context.save() } catch { print("Error saving short path trip: \(error)") }
+             return
+        }
+        
         // B. Insert PathItems
         for p in points {
-            let item = PathItem(todo_id: tripID, latitude: p.latitude, longitude: p.longitude, time: p.timestamp)
+            // Use Integer Initializer
+            let item = PathItem(todo_id: tripID, int_lat: Int(p.latitude), int_long: Int(p.longitude), time: p.timestamp)
             context.insert(item)
         }
         
         // C. Commit
         do {
             try context.save()
-            // print(">>> Continuous Persistence: Saved \(points.count) pts to DB")
         } catch {
             print(">>> Continuous Persistence Error: \(error)")
         }
@@ -126,6 +143,26 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         
         locationManager.pausesLocationUpdatesAutomatically = false 
         locationManager.allowsBackgroundLocationUpdates = true 
+        
+        // [FIX] Initial Location Fallback Strategy
+        // 1. Try Last Saved Location
+        let lastLat = UserDefaults.standard.double(forKey: "last_latitude")
+        let lastLon = UserDefaults.standard.double(forKey: "last_longitude")
+        
+        if lastLat != 0.0 && lastLon != 0.0 {
+            self.currentLocation = CLLocation(
+                coordinate: CLLocationCoordinate2D(latitude: lastLat, longitude: lastLon),
+                altitude: 0, horizontalAccuracy: 0, verticalAccuracy: 0, timestamp: Date()
+            )
+            print(">>> AppLocationManager: Initialized with Last Saved Location")
+        } else {
+            // 2. Fallback to Gwanghwamun
+            self.currentLocation = CLLocation(
+                coordinate: CLLocationCoordinate2D(latitude: 37.5760222, longitude: 126.9769000),
+                altitude: 0, horizontalAccuracy: 0, verticalAccuracy: 0, timestamp: Date()
+            )
+            print(">>> AppLocationManager: Initialized with Gwanghwamun Default")
+        }
         
         locationManager.requestWhenInUseAuthorization()
         locationManager.startUpdatingLocation()
@@ -168,7 +205,7 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         debugStatus = "Recording..."
     }
     
-    func endSession() async -> (start: Date, end: Date, midLat: Double, midLon: Double, points: [PathPoint])? {
+    func endSession() async -> (start: Date, end: Date, midLat: Int, midLon: Int, points: [PathPoint])? {
         // [FIX] In "Continuous" mode, we don't strictly "end" but we can close the current trip
         guard isRecording else { return nil }
         debugStatus = "Stopping..."
@@ -176,7 +213,9 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         await processBuffer()
         
         if processedSessionPoints.isEmpty, let current = currentLocation {
-            let point = PathPoint(latitude: current.coordinate.latitude, longitude: current.coordinate.longitude, timestamp: Date())
+            let latInt = Int32(current.coordinate.latitude * 100_000)
+            let lonInt = Int32(current.coordinate.longitude * 100_000)
+            let point = PathPoint(latitude: latInt, longitude: lonInt, timestamp: Date())
             processedSessionPoints.append(point)
         }
         
@@ -187,12 +226,10 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         
         let start = processedSessionPoints.first?.timestamp ?? Date()
         let end = processedSessionPoints.last?.timestamp ?? Date()
-        let latSum = processedSessionPoints.reduce(0.0) { $0 + $1.latitude }
-        let lonSum = processedSessionPoints.reduce(0.0) { $0 + $1.longitude }
-        let count = Double(processedSessionPoints.count)
+
         
-        let midLat = latSum / count
-        let midLon = lonSum / count
+        // [FIX] Use shared GeomUtils for centroid calculation
+        let (intMidLat, intMidLon) = GeomUtils.calculateCentroid(from: processedSessionPoints)
         
         // [NEW] Cache Midpoint in DB
         if let tripID = currentTripID {
@@ -201,14 +238,15 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
             let descriptor = FetchDescriptor<ToDoItem>()
             if let trips = try? context.fetch(descriptor),
                let trip = trips.first(where: { $0.todo_id == tripIDCopy }) {
-                trip.latitude = midLat
-                trip.longitude = midLon
+                // [FIX] Assign scaled average directly to int storage
+                trip.int_lat = intMidLat
+                trip.int_long = intMidLon
                 try? context.save()
                 print(">>> endSession: Cached midpoint for trip \(tripIDCopy)")
             }
         }
         
-        let result = (start: start, end: end, midLat: midLat, midLon: midLon, points: processedSessionPoints)
+        let result = (start: start, end: end, midLat: intMidLat, midLon: intMidLon, points: processedSessionPoints)
         
         // Close session for UI trail
         isRecording = true // Keep it on for next points but reset UI trail
@@ -259,7 +297,9 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         }
         
         if isRecording {
-            let data = PathPoint(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude, timestamp: location.timestamp)
+            let latInt = Int32(location.coordinate.latitude * 100_000)
+            let lonInt = Int32(location.coordinate.longitude * 100_000)
+            let data = PathPoint(latitude: latInt, longitude: lonInt, timestamp: location.timestamp)
             pendingBuffer.append(data)
             
             if pendingBuffer.count >= 5 {

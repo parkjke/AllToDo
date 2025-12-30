@@ -134,6 +134,9 @@ struct ApplePathMapView: UIViewRepresentable {
     }
     
     func updateUIView(_ uiView: MKMapView, context: Context) {
+        // [FIX] Update coordinator's parent reference to access latest state (color/width)
+        context.coordinator.parent = self
+        
         // [FIX] Detect changes in coordinates, color, or width to trigger redraw
         let colorChanged = context.coordinator.lastColor != color
         let widthChanged = context.coordinator.lastWidth != width
@@ -362,13 +365,15 @@ struct NaverPathMapView: UIViewRepresentable {
         }
         
         // 3. Draw Markers (Start/End)
+        let headerSize = CGSize(width: 36, height: 45) // Naver Scale 0.9x
+        
         let start = NMFMarker(position: points.first!)
         start.captionText = "시작"
-        if let img = PinImageHelper.shared.fetchPin(type: "01") {
-            start.iconImage = NMFOverlayImage(image: img)
+        if let img = PinImageHelper.shared.fetchPin(type: "01"), let resized = img.resized(to: headerSize) {
+            start.iconImage = NMFOverlayImage(image: resized)
         } else {
-            if let fallback = PinImageHelper.shared.fetchPin(type: "10") {
-                start.iconImage = NMFOverlayImage(image: fallback)
+            if let fallback = PinImageHelper.shared.fetchPin(type: "10"), let resized = fallback.resized(to: headerSize)  {
+                start.iconImage = NMFOverlayImage(image: resized)
             }
         }
         start.mapView = map
@@ -376,36 +381,35 @@ struct NaverPathMapView: UIViewRepresentable {
         
         let end = NMFMarker(position: points.last!)
         end.captionText = "종료"
-        if let img = PinImageHelper.shared.fetchPin(type: "01") {
-            end.iconImage = NMFOverlayImage(image: img)
+        if let img = PinImageHelper.shared.fetchPin(type: "01"), let resized = img.resized(to: headerSize) {
+            end.iconImage = NMFOverlayImage(image: resized)
         } else {
-             if let fallback = PinImageHelper.shared.fetchPin(type: "10") {
-                 end.iconImage = NMFOverlayImage(image: fallback)
+             if let fallback = PinImageHelper.shared.fetchPin(type: "10"), let resized = fallback.resized(to: headerSize) {
+                 end.iconImage = NMFOverlayImage(image: resized)
              }
         }
         end.mapView = map
         context.coordinator.endMarker = end
         
-        // 4. Fit Bounds (Only once or if needed? Usually once is better for UX)
-        // For PathHistory, we fit to the entire path.
-        let bounds = NMGLatLngBounds(southWest: points.first!, northEast: points.last!)
-        var finalBounds = bounds
-        points.forEach { finalBounds = finalBounds.expand(toPoint: $0) }
-        
-        // Minimum span check
-        let minDelta = 0.003
-        if (finalBounds.northEast.lat - finalBounds.southWest.lat) < minDelta || 
-           (finalBounds.northEast.lng - finalBounds.southWest.lng) < minDelta {
-            let centerLat = (finalBounds.northEast.lat + finalBounds.southWest.lat) / 2
-            let centerLon = (finalBounds.northEast.lng + finalBounds.southWest.lng) / 2
-            finalBounds = NMGLatLngBounds(
-                southWest: NMGLatLng(lat: centerLat - minDelta/2, lng: centerLon - minDelta/2),
-                northEast: NMGLatLng(lat: centerLat + minDelta/2, lng: centerLon + minDelta/2)
-            )
+        // 4. Fit Bounds (Using GeomUtils for correct Min/Max)
+        // Convert to PathPoint (Int32) for GeomUtils
+        let pathPoints = coordinates.map { 
+            PathPoint(latitude: Int32($0.latitude * 100_000), longitude: Int32($0.longitude * 100_000), timestamp: Date()) 
         }
         
+        let intRect = GeomUtils.calculateIntBoundingBox(from: pathPoints, paddingPercent: 15) // 15% padding
+        
+        let southWest = NMGLatLng(lat: Double(intRect.minLat) / 100_000.0, lng: Double(intRect.minLon) / 100_000.0)
+        let northEast = NMGLatLng(lat: Double(intRect.maxLat) / 100_000.0, lng: Double(intRect.maxLon) / 100_000.0)
+        
+        let finalBounds = NMGLatLngBounds(southWest: southWest, northEast: northEast)
+        
         let update = NMFCameraUpdate(fit: finalBounds, paddingInsets: UIEdgeInsets(top: 50, left: 50, bottom: 50, right: 50))
-        map.moveCamera(update)
+        
+        // [FIX] Delay camera update to ensure map layout is ready
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            map.moveCamera(update)
+        }
     }
 }
 
@@ -419,6 +423,7 @@ struct KakaoPathMapView: UIViewRepresentable {
     
     func makeUIView(context: Context) -> KMViewContainer {
         let view = KMViewContainer(frame: UIScreen.main.bounds)
+        view.backgroundColor = UIColor.white.withAlphaComponent(0.01) // [FIX] Required
         context.coordinator.createController(view)
         return view
     }
@@ -441,6 +446,10 @@ struct KakaoPathMapView: UIViewRepresentable {
             controller = KMController(viewContainer: view)
             controller?.delegate = self
             controller?.prepareEngine()
+            
+            // [FIX] Force layout update
+            view.setNeedsLayout()
+            view.layoutIfNeeded()
         }
 
         func checkEngineActivation() {
@@ -457,6 +466,7 @@ struct KakaoPathMapView: UIViewRepresentable {
              
              if hasDrawn {
                  if let mapView = controller?.getView("pathmap") as? KakaoMap {
+                     // mapView.layoutIfNeeded() // [REMOVE] Not available on KakaoMap object
                      renderPath(mapView: mapView)
                  }
              }
@@ -484,7 +494,7 @@ struct KakaoPathMapView: UIViewRepresentable {
             guard !coordinates.isEmpty, coordinates.count >= 2 else { return }
             
             let manager = mapView.getShapeManager()
-            let layer = manager.getShapeLayer(layerID: "pathLayer") ?? manager.addShapeLayer(layerID: "pathLayer", zOrder: 0)
+            let layer = manager.getShapeLayer(layerID: "pathLayer") ?? manager.addShapeLayer(layerID: "pathLayer", zOrder: 1000) // [FIX] Z-Order 1000
             guard let shapeLayer = layer else { return }
             
             // Clean up old
@@ -498,7 +508,8 @@ struct KakaoPathMapView: UIViewRepresentable {
             else { uiColor = UIColor(selectedColor) }
             
             let colorHex = uiColor.cgColor.components?.map { String(format: "%02X", Int($0 * 255)) }.joined() ?? "FF0000"
-            let styleID = "redPolyline_\(colorHex)_\(selectedWidth)"
+            // [FIX] Use unique ID to force style update (prevent Kakao caching old style)
+            let styleID = "redPolyline_\(colorHex)_\(selectedWidth)_\(Date().timeIntervalSince1970)"
             
             let style = PolylineStyle(styles: [
                 PerLevelPolylineStyle(bodyColor: uiColor, bodyWidth: UInt(selectedWidth * 2), strokeColor: UIColor.clear, strokeWidth: 0, level: 0)
@@ -511,6 +522,7 @@ struct KakaoPathMapView: UIViewRepresentable {
             
             if let shape = shapeLayer.addMapPolylineShape(options) {
                  shape.show()
+                 print(">>> PATH HISTORY: Kakao Path Rendered - \(coordinates.count) points")
             }
             
             // Fit Bounds
@@ -549,10 +561,10 @@ struct KakaoPathMapView: UIViewRepresentable {
             // [FIX] Prioritize Asset with Rasterization
             let image: UIImage
             if let asset = PinImageHelper.shared.fetchPin(type: "01") { 
-                 image = asset
+                 image = asset.resized(to: CGSize(width: 28, height: 35)) ?? asset
             }
             else { 
-                image = PinImageHelper.shared.fetchPin(type: "10") ?? UIImage()
+                image = PinImageHelper.shared.fetchPin(type: "10")?.resized(to: CGSize(width: 28, height: 35)) ?? UIImage()
             }
             
             let iconStyle = PoiIconStyle(symbol: image, anchorPoint: CGPoint(x: 0.5, y: 1.0))

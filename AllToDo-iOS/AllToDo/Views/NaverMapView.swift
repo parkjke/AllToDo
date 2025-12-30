@@ -291,8 +291,8 @@ struct NaverMapView: UIViewRepresentable {
             // 2. Check visibility
             guard visible && points.count >= 2 else { return }
             
-            // 3. Render new trail
-            let coords = points.map { NMGLatLng(lat: $0.latitude, lng: $0.longitude) }
+            // 3. Render new trail (Convert Int32 -> Double)
+            let coords = points.map { NMGLatLng(lat: Double($0.latitude)/100_000.0, lng: Double($0.longitude)/100_000.0) }
             let path = NMFPath()
             path.path = NMGLineString(points: coords)
             path.color = UIColor(red: 1.0, green: 0.34, blue: 0.13, alpha: 1.0) // Orange Red

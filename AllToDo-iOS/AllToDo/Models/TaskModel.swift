@@ -82,6 +82,31 @@ final class ToDoItem {
         self.is_completed = is_completed
         self.source = source
     }
+
+    // [NEW] Integer-based Initializer
+    init(
+        todo_id: UUID = UUID(),
+        todo_name: String,
+        no_of_path: Int = 0,
+        type: String = "10",
+        int_lat: Int,
+        int_long: Int
+    ) {
+        self.todo_id = todo_id
+        self.todo_name = todo_name
+        self.is_exist_person = false
+        self.date_time = nil
+        self.memo = ""
+        self.no_of_path = no_of_path
+        self.begin_time = nil
+        self.end_time = nil
+        self.type = type
+        self.created_at = Int64(Date().timeIntervalSince1970 * 1000)
+        self.int_lat = int_lat
+        self.int_long = int_long
+        self.is_completed = false
+        self.source = "local"
+    }
 }
 
 // MARK: - 2. PathItem Table
@@ -99,6 +124,14 @@ final class PathItem {
         self.time = time
     }
     
+    // [NEW] Integer-based Initializer
+    init(todo_id: UUID, int_lat: Int, int_long: Int, time: Date = Date()) {
+        self.todo_id = todo_id
+        self.int_lat = int_lat
+        self.int_long = int_long
+        self.time = time
+    }
+    
     var coordinate: CLLocationCoordinate2D {
         return CLLocationCoordinate2D(
             latitude: Double(int_lat) / 100_000.0,
@@ -106,6 +139,8 @@ final class PathItem {
         )
     }
 }
+
+
 
 // MARK: - 3. AddressBookItem Table
 @Model

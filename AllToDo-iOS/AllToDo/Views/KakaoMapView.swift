@@ -373,6 +373,7 @@ struct KakaoMapView: UIViewRepresentable {
              guard let layer = labelManager.addLabelLayer(option: LabelLayerOptions(layerID: "todoLayer", competitionType: .none, competitionUnit: .poi, orderType: .rank, zOrder: 20000)) else { return }
              
              labelIdToClusterItems.removeAll()
+             var newRawIDs: Set<String> = [] // [FIX] Track Raw Pins
              for (idx, item) in allItems.enumerated() {
                  guard let loc = item.location else { continue }
                  let (pinType, color, _) = MapLogicHelper.resolveClusterStyle(items: [item])
@@ -398,8 +399,12 @@ struct KakaoMapView: UIViewRepresentable {
                  if let poi = layer.addPoi(option: options, at: MapPoint(longitude: loc.longitude, latitude: loc.latitude)) {
                      poi.clickable = true
                      poi.show()
+                     // [FIX] Track Raw ID for cleanup
+                     newRawIDs.insert(poiID)
                  }
              }
+             // [FIX] Update Tracker
+             self.activePoiIDs = newRawIDs
         }
 
         @MainActor
@@ -410,17 +415,23 @@ struct KakaoMapView: UIViewRepresentable {
             guard let validLayer = layer else { return }
             
             labelIdToClusterItems.removeAll()
-            let clusterCount = clusterResult.count / 3
-            var clusters: [[UnifiedMapItem]] = Array(repeating: [], count: clusterCount)
             
-            // 1. Parse Centroids
-            struct Centroid { let lat: Double; let lon: Double; let count: Int }
-            var centroids: [Centroid] = []
+            // 1. Prepare Data Structure
+            struct ClusterGroup {
+                var centroidLat: Double
+                var centroidLon: Double
+                var items: [UnifiedMapItem] = []
+            }
+            
+            let clusterCount = clusterResult.count / 3
+            var clusterGroups: [ClusterGroup] = []
+            
+            // Parse Centroids
             for i in 0..<clusterCount {
                 let lat = Double(clusterResult[i*3]) / 100_000.0
                 let lon = Double(clusterResult[i*3+1]) / 100_000.0
-                let count = Int(clusterResult[i*3+2])
-                centroids.append(Centroid(lat: lat, lon: lon, count: count))
+                // count is unused here as we recalculate from assigned items
+                clusterGroups.append(ClusterGroup(centroidLat: lat, centroidLon: lon))
             }
             
             // 2. Assign items to centroids
@@ -435,41 +446,57 @@ struct KakaoMapView: UIViewRepresentable {
                 
                 var bestIdx = -1
                 var minDist = Double.greatestFiniteMagnitude
-                for (idx, c) in centroids.enumerated() {
-                    let dLat = itemLat - c.lat
-                    let dLon = itemLon - c.lon
+                for (idx, group) in clusterGroups.enumerated() {
+                    let dLat = itemLat - group.centroidLat
+                    let dLon = itemLon - group.centroidLon
                     let dist = dLat*dLat + dLon*dLon
                     if dist < minDist { minDist = dist; bestIdx = idx }
                 }
-                if bestIdx >= 0 { clusters[bestIdx].append(item) }
+                if bestIdx >= 0 { clusterGroups[bestIdx].items.append(item) }
             }
             
-            // 3. Render (Diffing)
+            // 3. Filter & Sort for Stability (Avoid "Jumping" Pins)
+            // [FIX] Sort by Latitude (desc) then Longitude (asc) to ensure 'poi_0' is always top-left
+            // usage of enumerated index as ID requires stable order.
+            var validClusters = clusterGroups.filter { !$0.items.isEmpty }
+            validClusters.sort {
+                if abs($0.centroidLat - $1.centroidLat) > 0.00001 {
+                    return $0.centroidLat > $1.centroidLat // North to South
+                }
+                return $0.centroidLon < $1.centroidLon // West to East
+            }
+            
+            // 4. Render (Diffing)
             var newPoiIDs: Set<String> = []
+            let userPoiID = "UserPoi"
             
-            // Identify User Cluster
-            var userClusterIdx = -1
-            var userPoiID = "UserPoi"
-            
-            for (idx, items) in clusters.enumerated() {
-                guard !items.isEmpty else { continue }
-                let c = centroids[idx]
-                var finalLon = c.lon
-                var finalLat = c.lat
+            for (idx, group) in validClusters.enumerated() {
+                var finalLon = group.centroidLon
+                var finalLat = group.centroidLat
+                let items = group.items
                 
                 // Style
                 let (pinType, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
                 let colorHex = color.cgColor.components?.map { String(format: "%02X", Int($0 * 255)) }.joined() ?? "000000"
+                
+                // [FIX] Check for single item to use precise location (visual accuracy)
+                if count == 1 {
+                    switch items[0] {
+                    case .todo(let t): if let l = t.location { finalLat = l.latitude; finalLon = l.longitude }
+                    case .history(let l): finalLat = l.latitude; finalLon = l.longitude
+                    case .userLocation(let coord): finalLat = coord.latitude; finalLon = coord.longitude
+                    default: break
+                    }
+                }
+                
                 let styleID = "Style_\(pinType)_\(count)_\(colorHex)"
                 
                 // Check if this cluster contains user
                 var isUser = false
-                if let userItem = items.first(where: { if case .userLocation = $0 { return true }; return false }),
-                   let userCoord = userItem.location {
-                    finalLon = userCoord.longitude
-                    finalLat = userCoord.latitude
+                if let _ = items.first(where: { if case .userLocation = $0 { return true }; return false }) {
+                    // For User Cluster, we might want to prioritize user location? 
+                    // Usually user is single, but if clustered, use centroid (or user loc provided by single check above)
                     isUser = true
-                    userClusterIdx = idx
                 }
                 
                 // Determine POI ID
@@ -483,17 +510,17 @@ struct KakaoMapView: UIViewRepresentable {
                     let targetSize = CGSize(width: 28, height: 35)
                     let finalImage: UIImage?
                     if count > 1 {
-                        // [FIX] Use fetchPin + applyBadge directly
-                        if let baseImage = PinImageHelper.shared.fetchPin(type: pinType) { // baseName is reused as type
-                             finalImage = PinImageHelper.shared.applyBadge(to: baseImage, count: count, badgeColor: color, badgeSize: 14).rasterized()
+                        if let baseImage = PinImageHelper.shared.fetchPin(type: pinType),
+                           let resizedBase = baseImage.resized(to: targetSize) {
+                             finalImage = PinImageHelper.shared.applyBadge(to: resizedBase, count: count, badgeColor: color, badgeSize: 14).rasterized()
                         } else { finalImage = nil }
                     } else {
-                         // [FIX] Use fetchPin
-                         finalImage = PinImageHelper.shared.fetchPin(type: pinType)
+                         if let baseImage = PinImageHelper.shared.fetchPin(type: pinType) {
+                             finalImage = baseImage.resized(to: targetSize)
+                         } else { finalImage = nil }
                     }
                     
                     if let img = finalImage {
-                        // [FIX] Anchor Logic
                         // Badged: Base(28) + 10 = 38. Tip at 14. Anchor = 14/38.
                         // Unbadged: Base(28). Tip at 14. Anchor = 14/28 = 0.5.
                         let anchorX = count > 1 ? (14.0 / 38.0) : 0.5
@@ -506,9 +533,7 @@ struct KakaoMapView: UIViewRepresentable {
                 // Add or Move
                 if let existingPoi = validLayer.getPoi(poiID: poiID) {
                     // Reuse (Move + Style Update)
-                    // Move
-                    existingPoi.moveAt(MapPoint(longitude: finalLon, latitude: finalLat), duration: 300)
-                    // Style
+                    existingPoi.moveAt(MapPoint(longitude: finalLon, latitude: finalLat), duration: 200) // 200ms smoothing
                     existingPoi.changeStyle(styleID: styleID, enableTransition: false)
                     existingPoi.show()
                 } else {
@@ -522,7 +547,7 @@ struct KakaoMapView: UIViewRepresentable {
                 }
             }
             
-            // 4. Cleanup Old POIs (Visual Diffing cleanup)
+            // 5. Cleanup Old POIs
             for oldID in activePoiIDs {
                 if !newPoiIDs.contains(oldID) {
                     validLayer.removePoi(poiID: oldID)
@@ -697,15 +722,17 @@ struct KakaoMapView: UIViewRepresentable {
             
             guard visible && points.count >= 2 else { return }
             
-            let coords = points.map { MapPoint(longitude: $0.longitude, latitude: $0.latitude) }
+            // Convert Int32 -> MapPoint (Double)
+            let coords = points.map { MapPoint(longitude: Double($0.longitude)/100_000.0, latitude: Double($0.latitude)/100_000.0) }
+            
             let styleID = "ActiveTrailStyle"
+            // Re-register only if needed (Optimized)
+            // Re-register only if needed (Optimized)
+            // Note: getPolylineStyleSet API missing. Just adding.
             let style = PolylineStyle(styles: [
-                // Thinned to 3pt as requested (UInt constraint)
                 PerLevelPolylineStyle(bodyColor: UIColor(red: 1.0, green: 0.34, blue: 0.13, alpha: 1.0), bodyWidth: 3, strokeColor: .clear, strokeWidth: 0, level: 0)
             ])
             manager.addPolylineStyleSet(PolylineStyleSet(styleSetID: styleID, styles: [style]))
-
-
             
             let options = MapPolylineShapeOptions(shapeID: "activeTrail", styleID: styleID, zOrder: 0)
             options.polylines.append(MapPolyline(line: coords, styleIndex: 0))

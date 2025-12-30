@@ -153,7 +153,7 @@ struct ContentView: View {
         }
         .onChange(of: scenePhase) { oldPhase, newPhase in
             switch newPhase {
-            case .background, .inactive:
+            case .background: // [FIX] Removed .inactive to prevent endSession on Control Center/Notif Center
                 backgroundStartTime = Date()
                 // [FIX] Store session and last representative location on exit
                 Task {
