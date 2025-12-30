@@ -115,7 +115,10 @@ struct MapLogicHelper {
     /// Resolves the cluster style (shield, mark, color) based on the items in the cluster.
     /// - Parameter items: List of UnifiedMapItem in the cluster
     /// - Returns: Tuple of (shieldName, markName, color, count)
-    static func resolveClusterStyle(items: [UnifiedMapItem]) -> (shieldName: String, markName: String, color: UIColor, count: Int) {
+    /// Resolves the cluster style (pin type, color) based on the items in the cluster.
+    /// - Parameter items: List of UnifiedMapItem in the cluster
+    /// - Returns: Tuple of (pinType, color, count)
+    static func resolveClusterStyle(items: [UnifiedMapItem]) -> (pinType: String, color: UIColor, count: Int) {
         var userLocationFound = false
         var blueCount = 0   // Server Todo / Message (Type 20)
         var greenCount = 0  // Local Todo (Ready + Done) (Type 10)
@@ -133,13 +136,11 @@ struct MapLogicHelper {
             }
         }
         
-        var shieldName = "pin_shield_1X" // Default Shield (Todo)
-        var markName = "pin_mark_10"     // Default Mark (Exclamation)
+        var pinType = "10" // Default (Local Todo)
         var color: UIColor = .allToDoGreen
         
         if userLocationFound {
-            shieldName = "pin_shield_0X"
-            markName = "pin_mark_00"
+            pinType = "00" // User Location
             color = .red
         } else {
             let counts = [
@@ -151,21 +152,18 @@ struct MapLogicHelper {
             if let maxItem = counts.max(by: { $0.count < $1.count }), maxItem.count > 0 {
                 switch maxItem.type {
                 case "blue":
-                    shieldName = "pin_shield_2X"
-                    markName = "pin_mark_20"
+                    pinType = "20"
                     color = .systemBlue
                 case "red":
-                    shieldName = "pin_shield_0X"
-                    markName = "pin_mark_01"
+                    pinType = "01" // History
                     color = .red
                 default: // green
-                    shieldName = "pin_shield_1X"
-                    markName = "pin_mark_10"
+                    pinType = "10"
                     color = .allToDoGreen
                 }
             }
         }
         
-        return (shieldName, markName, color, items.count)
+        return (pinType, color, items.count)
     }
 }

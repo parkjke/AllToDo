@@ -174,8 +174,16 @@ struct NaverMapView: UIViewRepresentable {
                 // Naver Scale: 0.9x (36x45)
                 let targetSize = CGSize(width: 36, height: 45)
                 
-                if let img = PinImageHelper.shared.fetchBasePin(named: item.imageName, size: targetSize) {
-                    marker.iconImage = NMFOverlayImage(image: img)
+                // UnifiedMapItem definition check:
+                // case todo(ToDoItem) -> item.shieldName / item.markName are computable properties
+                // but simpler to use MapLogicHelper if needed. However, UnifiedMapItem has them directly.
+                
+                // [FIX] Use fetchPin
+                if let img = PinImageHelper.shared.fetchPin(type: item.type) {
+                     // Naver requires resizing if needed, but PinImageHelper returns correct assets.
+                     // If adjustment needed:
+                    let resized = img.resized(to: targetSize)
+                    marker.iconImage = NMFOverlayImage(image: resized ?? img)
                     marker.anchor = CGPoint(x: 0.5, y: 1.0)
                 }
                 
@@ -466,21 +474,23 @@ struct NaverMapView: UIViewRepresentable {
                     newUserClusterIdx = idx
                     
                     // Resolve Style
-                     let (baseName, markName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
+                     let (pinType, markName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
                      let targetSize = CGSize(width: 36, height: 45)
                      var icon: NMFOverlayImage?
                      var anchor = CGPoint(x: 0.5, y: 1.0)
                      
-                     if baseName == "PinCurrent" && count == 1 {
+                     if pinType == .userLocation && count == 1 {
                          icon = NMFOverlayImage(name: "PinCurrent")
                          anchor = CGPoint(x: 0.5, y: 0.5)
                      } else {
                          anchor = CGPoint(x: 18.0 / 46.0, y: 1.0)
-                         if let baseImage = PinImageHelper.shared.fetchBasePin(named: baseName, size: targetSize) {
+                         // [FIX] Use fetchPin
+                         if let baseImage = PinImageHelper.shared.fetchPin(type: pinType) {
+                             let resizedBaseImage = baseImage.resized(to: targetSize)
                              if count > 1 {
-                                 icon = NMFOverlayImage(image: PinImageHelper.shared.applyBadge(to: baseImage, count: count, badgeColor: color, badgeSize: 18))
+                                 icon = NMFOverlayImage(image: PinImageHelper.shared.applyBadge(to: resizedBaseImage ?? baseImage, count: count, badgeColor: color, badgeSize: 18))
                              } else {
-                                 icon = NMFOverlayImage(image: baseImage)
+                                 icon = NMFOverlayImage(image: resizedBaseImage ?? baseImage)
                              }
                          }
                      }
@@ -575,11 +585,13 @@ struct NaverMapView: UIViewRepresentable {
                     marker.anchor = CGPoint(x: 0.5, y: 0.5)
                 } else {
                     marker.anchor = CGPoint(x: 18.0 / 46.0, y: 1.0)
-                    if let baseImage = PinImageHelper.shared.fetchBasePin(named: baseName, size: targetSize) {
+                    // [FIX] Use fetchPin
+                    if let baseImage = PinImageHelper.shared.fetchPin(type: pinType) { // pinType string usually matches map_pin_XX suffix
+                        let resizedBaseImage = baseImage.resized(to: targetSize)
                         if count > 1 {
-                            marker.iconImage = NMFOverlayImage(image: PinImageHelper.shared.applyBadge(to: baseImage, count: count, badgeColor: color, badgeSize: 18))
+                            marker.iconImage = NMFOverlayImage(image: PinImageHelper.shared.applyBadge(to: resizedBaseImage ?? baseImage, count: count, badgeColor: color, badgeSize: 18))
                         } else {
-                            marker.iconImage = NMFOverlayImage(image: baseImage)
+                            marker.iconImage = NMFOverlayImage(image: resizedBaseImage ?? baseImage)
                         }
                     }
                 }

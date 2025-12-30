@@ -786,26 +786,37 @@ struct AppleMapView: UIViewRepresentable {
                     }
                 }
                 btn.items = items
-                let (shieldName, markName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
+                let (pinType, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
                 
-                if let img = PinImageHelper.shared.createShieldPin(shieldName: shieldName, markName: markName, color: color, count: count, badgeSize: 20) {
-                    imageView.image = img
-                    view.frame = CGRect(origin: .zero, size: img.size)
-                    view.centerOffset = CGPoint(x: -5, y: 30) // (20-25, 60-30)
+                // [FIX] Use fetchPin + applyBadge directly
+                if let baseImage = PinImageHelper.shared.fetchPin(type: pinType) {
+                    var finalImage = baseImage
+                    if count > 1 {
+                        finalImage = PinImageHelper.shared.applyBadge(to: baseImage, count: count, badgeColor: color, badgeSize: 20)
+                    }
+                    imageView.image = finalImage
+                    view.frame = CGRect(origin: .zero, size: finalImage.size)
+                    view.centerOffset = CGPoint(x: -5, y: 30) // Adjusted override
                 }
             } else if let wasmCluster = annotation as? WasmClusterAnnotation {
                 let items = wasmCluster.items
                 btn.items = items
-                let (shieldName, markName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
+                let (pinType, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
                 
-                if let img = PinImageHelper.shared.createShieldPin(shieldName: shieldName, markName: markName, color: color, count: count, badgeSize: 20) {
-                    imageView.image = img
-                    view.frame = CGRect(origin: .zero, size: img.size)
-                    view.centerOffset = CGPoint(x: -5, y: 30) // (20-25, 60-30)
+                // [FIX] Use fetchPin + applyBadge directly
+                if let baseImage = PinImageHelper.shared.fetchPin(type: pinType) {
+                    var finalImage = baseImage
+                    if count > 1 {
+                        finalImage = PinImageHelper.shared.applyBadge(to: baseImage, count: count, badgeColor: color, badgeSize: 20)
+                    }
+                    imageView.image = finalImage
+                    view.frame = CGRect(origin: .zero, size: finalImage.size)
+                    view.centerOffset = CGPoint(x: -5, y: 30) // Adjusted override
                 }
             } else if let unified = annotation as? UnifiedAnnotation, let item = unified.item {
                 btn.items = [item]
-                if let img = PinImageHelper.shared.fetchCompositePin(shieldName: item.shieldName, markName: item.markName) {
+                // [FIX] Use fetchPin
+                if let img = PinImageHelper.shared.fetchPin(type: item.type) {
                     imageView.image = img
                     view.frame = CGRect(origin: .zero, size: img.size)
                     view.centerOffset = CGPoint(x: 0, y: -25) // (20-20, 50-25) -> Shift Up by 25

@@ -199,10 +199,10 @@ struct ApplePathMapView: UIViewRepresentable {
              }
              
              // [FIX] Use History Pin Icon (Prioritize Asset)
-             if let img = PinImageHelper.shared.fetchCompositePin(shieldName: "pin_shield_0X", markName: "pin_mark_01") {
+             if let img = PinImageHelper.shared.fetchPin(type: "01") { // History Type 01
                  view?.image = img
              } else {
-                 view?.image = PinImageHelper.shared.createShieldPin(shieldName: "pin_shield_1X", markName: "pin_mark_10", color: .red)
+                 view?.image = PinImageHelper.shared.fetchPin(type: "10") // Default Type 10
              }
              
              // [FIX] Text is Debug Only -> Restore Label support
@@ -269,19 +269,19 @@ struct GooglePathMapView: UIViewRepresentable {
         // Markers
         let start = GMSMarker(position: coordinates.first!)
         start.title = "Start"
-        if let img = PinImageHelper.shared.fetchCompositePin(shieldName: "pin_shield_0X", markName: "pin_mark_01") {
+        if let img = PinImageHelper.shared.fetchPin(type: "01") {
             start.icon = img
         } else {
-             start.icon = PinImageHelper.shared.createShieldPin(shieldName: "pin_shield_1X", markName: "pin_mark_10", color: .red)
+             start.icon = PinImageHelper.shared.fetchPin(type: "10")
         }
         start.map = uiView
         
         let end = GMSMarker(position: coordinates.last!)
         end.title = "End"
-        if let img = PinImageHelper.shared.fetchCompositePin(shieldName: "pin_shield_0X", markName: "pin_mark_01") {
+        if let img = PinImageHelper.shared.fetchPin(type: "01") {
             end.icon = img
         } else {
-            end.icon = PinImageHelper.shared.createShieldPin(shieldName: "pin_shield_1X", markName: "pin_mark_10", color: .red)
+            end.icon = PinImageHelper.shared.fetchPin(type: "10")
         }
         end.map = uiView
         
@@ -364,10 +364,10 @@ struct NaverPathMapView: UIViewRepresentable {
         // 3. Draw Markers (Start/End)
         let start = NMFMarker(position: points.first!)
         start.captionText = "시작"
-        if let img = PinImageHelper.shared.fetchCompositePin(shieldName: "pin_shield_0X", markName: "pin_mark_01") {
+        if let img = PinImageHelper.shared.fetchPin(type: "01") {
             start.iconImage = NMFOverlayImage(image: img)
         } else {
-            if let fallback = PinImageHelper.shared.createShieldPin(shieldName: "pin_shield_1X", markName: "pin_mark_10", color: .red) {
+            if let fallback = PinImageHelper.shared.fetchPin(type: "10") {
                 start.iconImage = NMFOverlayImage(image: fallback)
             }
         }
@@ -376,10 +376,10 @@ struct NaverPathMapView: UIViewRepresentable {
         
         let end = NMFMarker(position: points.last!)
         end.captionText = "종료"
-        if let img = PinImageHelper.shared.fetchCompositePin(shieldName: "pin_shield_0X", markName: "pin_mark_01") {
+        if let img = PinImageHelper.shared.fetchPin(type: "01") {
             end.iconImage = NMFOverlayImage(image: img)
         } else {
-             if let fallback = PinImageHelper.shared.createShieldPin(shieldName: "pin_shield_1X", markName: "pin_mark_10", color: .red) {
+             if let fallback = PinImageHelper.shared.fetchPin(type: "10") {
                  end.iconImage = NMFOverlayImage(image: fallback)
              }
         }
@@ -548,11 +548,11 @@ struct KakaoPathMapView: UIViewRepresentable {
             
             // [FIX] Prioritize Asset with Rasterization
             let image: UIImage
-            if let asset = PinImageHelper.shared.fetchCompositePin(shieldName: "pin_shield_0X", markName: "pin_mark_01") { 
-                image = asset
+            if let asset = PinImageHelper.shared.fetchPin(type: "01") { 
+                 image = asset
             }
             else { 
-                image = PinImageHelper.shared.createShieldPin(shieldName: "pin_shield_1X", markName: "pin_mark_10", color: .red) ?? UIImage()
+                image = PinImageHelper.shared.fetchPin(type: "10") ?? UIImage()
             }
             
             let iconStyle = PoiIconStyle(symbol: image, anchorPoint: CGPoint(x: 0.5, y: 1.0))

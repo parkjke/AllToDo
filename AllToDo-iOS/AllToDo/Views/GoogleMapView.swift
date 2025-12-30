@@ -169,7 +169,8 @@ struct GoogleMapView: UIViewRepresentable {
                 } else { continue }
                 
                 // 2. Use PinImageHelper for cached/standardized icon
-                marker.icon = PinImageHelper.shared.fetchCompositePin(shieldName: item.shieldName, markName: item.markName)
+                // [FIX] Use fetchPin
+                marker.icon = PinImageHelper.shared.fetchPin(type: item.type)
                 
                 // Ground Anchor: Tip is at center-bottom
                 marker.groundAnchor = CGPoint(x: 0.5, y: 1.0)
@@ -537,10 +538,18 @@ struct GoogleMapView: UIViewRepresentable {
                      var anchor = CGPoint(x: 0.5, y: 1.0)
                      
                      if items.count == 1 {
-                         icon = PinImageHelper.shared.fetchCompositePin(shieldName: userItem.shieldName, markName: userItem.markName)
+                         // [FIX] Use fetchPin
+                         icon = PinImageHelper.shared.fetchPin(type: userItem.type)
                      } else {
                          anchor = CGPoint(x: 0.4, y: 1.0)
-                         icon = PinImageHelper.shared.createShieldPin(shieldName: shieldName, markName: markName, color: color, count: count)
+                         // [FIX] Use fetchPin + applyBadge directly
+                         if let baseImage = PinImageHelper.shared.fetchPin(type: shieldName) { // shieldName var name recycled for type
+                             if count > 1 {
+                                 icon = PinImageHelper.shared.applyBadge(to: baseImage, count: count, badgeColor: color, badgeSize: 20)
+                             } else {
+                                 icon = baseImage
+                             }
+                         } else { icon = nil }
                      }
                      
                      newUserMarkerData = (finalCoordinate, icon, anchor)
@@ -601,11 +610,19 @@ struct GoogleMapView: UIViewRepresentable {
                   if items.count == 1, let item = items.first {
                       marker.position = item.location ?? finalCoordinate
                       marker.groundAnchor = CGPoint(x: 0.5, y: 1.0)
-                      marker.icon = PinImageHelper.shared.fetchCompositePin(shieldName: item.shieldName, markName: item.markName)
+                      // [FIX] Use fetchPin
+                      marker.icon = PinImageHelper.shared.fetchPin(type: item.type)
                   } else {
-                      let (shieldName, markName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
+                      let (pinType, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
                       marker.groundAnchor = CGPoint(x: 0.4, y: 1.0)
-                      marker.icon = PinImageHelper.shared.createShieldPin(shieldName: shieldName, markName: markName, color: color, count: count)
+                      // [FIX] Use fetchPin + applyBadge directly
+                      if let baseImage = PinImageHelper.shared.fetchPin(type: pinType) {
+                          if count > 1 {
+                              marker.icon = PinImageHelper.shared.applyBadge(to: baseImage, count: count, badgeColor: color, badgeSize: 20)
+                          } else {
+                              marker.icon = baseImage
+                          }
+                      } else { marker.icon = nil }
                   }
                   
                   marker.map = mapView

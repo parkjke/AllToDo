@@ -1,228 +1,235 @@
 import SwiftUI
 
 struct PinGalleryView: View {
-    let columns = [
-        GridItem(.adaptive(minimum: 100))
+    // 13 types found in Assets
+    let allTypes = [
+        "00", "01", "02",
+        "10", "11", "12", "13", "14",
+        "20", "21", "22", "23", "24"
     ]
     
-    // Test Data Definition
-    struct GalleryItem: Hashable, Identifiable {
-        let id = UUID()
-        let name: String
-        let shield: String
-        let mark: String
-        let color: UIColor
-    }
+    // Target types for Section 2 & 3
+    let targetTypes = ["00", "10", "20"]
     
-    let baseItems: [GalleryItem] = [
-        GalleryItem(name: "Todo Ready", shield: "pin_shield_1X", mark: "pin_mark_10", color: .allToDoGreen),
-        GalleryItem(name: "Todo Done", shield: "pin_shield_1X", mark: "pin_mark_12", color: .allToDoGreen),
-        GalleryItem(name: "History", shield: "pin_shield_0X", mark: "pin_mark_01", color: .red),
-        GalleryItem(name: "Server Msg", shield: "pin_shield_2X", mark: "pin_mark_20", color: .systemBlue),
-        GalleryItem(name: "Current", shield: "pin_shield_0X", mark: "pin_mark_00", color: .red),
-        GalleryItem(name: "Pin 23", shield: "pin_shield_2X", mark: "pin_mark_23", color: .systemBlue)
-    ]
-    
-    let testCounts = [1, 5, 10, 99]
-    
-    // [NEW] Trigger for Regeneration
-    @State private var refreshID = UUID()
+    // Layout
+    let columns = [GridItem(.adaptive(minimum: 80, maximum: 100), spacing: 20)]
     
     var body: some View {
         NavigationView {
-                ScrollView {
-                    VStack(spacing: 30) {
-                        // Main Header
-                        VStack(spacing: 8) {
-                            Text("📌 핀 디자인 검증 갤러리")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                            Text("Dynamic Composition v4.0")
-                                .font(.caption)
-                                .foregroundColor(.blue)
-                                .padding(.bottom, 5)
-                            Text("iOS와 Android 간 핀 렌더링 일관성(크기, 뱃지 위치, 중심점)을 확인하는 도구입니다.")
-                                .font(.caption)
-                                .multilineTextAlignment(.center)
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal)
-                        }
-                        .padding(.top)
-                        
-                        // Section 1: Base Composite Assets
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text("1. 동적 합성 (Base Composite)")
-                                .font(.headline)
-                                .padding(.horizontal)
-                            Text("Shield와 Mark가 런타임에 합성됩니다.")
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                                .padding(.horizontal)
-                            
-                            LazyVGrid(columns: columns, spacing: 20) {
-                                ForEach(baseItems, id: \.self) { item in
-                                    VStack {
-                                        if let img = generateBasePin(item: item) {
-                                            Image(uiImage: img)
-                                                .resizable()
-                                                .scaledToFit()
-                                                .frame(width: 40, height: 50)
-                                                .border(Color.blue.opacity(0.3)) // Border to see bounds
-                                            Text(item.name).font(.caption).foregroundColor(.gray)
-                                        } else {
-                                            Text("Fail\n\(item.name)")
-                                                .font(.caption)
-                                                .foregroundColor(.red)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        
-                        Divider()
-                        
-                        // Section 2: Badged Pins (Overhang Test)
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text("2. 뱃지 오버행 (Overhang)")
-                                .font(.headline)
-                                .padding(.horizontal)
-                            Text("✅ 정상: 붉은색 뱃지가 핀 우측 상단으로 튀어나와야 합니다.")
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                                .padding(.horizontal)
-                            
-                            LazyVGrid(columns: columns, spacing: 30) {
-                                ForEach(testItems) { testItem in
-                                    VStack {
-                                        if let img = generateBadgePin(item: testItem.baseItem, count: testItem.count) {
-                                            Image(uiImage: img)
-                                                .border(Color.red.opacity(0.3)) // Canvas Border
-                                            Text("+\(testItem.count)")
-                                                .font(.caption)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        
-                        Divider()
-                        
-                        // Section 3: Anchor Point Verification
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text("3. 앵커 포인트 (중심점) 확인")
-                                .font(.headline)
-                                .padding(.horizontal)
-                            Text("🔴 빨간 점 = 지도 좌표 (Anchor 0.4, 1.0)")
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                                .padding(.horizontal)
-                            
-                            LazyVGrid(columns: columns, spacing: 40) {
-                                ForEach(baseItems, id: \.self) { item in
-                                    ZStack(alignment: .topLeading) {
-                                        // The Anchor Dot (Simulated Map Point)
-                                        Circle()
-                                            .fill(Color.red)
-                                            .frame(width: 4, height: 4)
-                                            .position(x: 50, y: 50) // Center of cell
-                                            .zIndex(10)
-                                        
-                                        // The Pin
-                                        if let img = generateBadgePin(item: item, count: 5) {
-                                            // Visual Logic (Same as before):
-                                            // Anchor (0.4, 1.0) -> relative to image (0,0) is (width*0.4, height*1.0)
-                                            // We align that point to Cell Center (50, 50)
-                                            
-                                            // Image Frame Calculation
-                                            // Let img size be W, H
-                                            // Anchor Point in Image: Ax = 0.4*W, Ay = 1.0*H
-                                            // Target Position in Cell: Tx = 50, Ty = 50
-                                            // Image Origin (TopLeft) in Cell: Ox = Tx - Ax, Oy = Ty - Ay
-                                            // SwiftUI .position places the CENTER of the view.
-                                            // Image Center: Cx = W/2, Cy = H/2
-                                            // Position to set: Px = Ox + Cx, Py = Oy + Cy
-                                            // Px = Tx - Ax + Cx = 50 - 0.4W + 0.5W = 50 + 0.1W
-                                            // Py = Ty - Ay + Cy = 50 - H + 0.5H = 50 - 0.5H
-                                            
-                                            let W = img.size.width
-                                            let H = img.size.height
-                                            let Px = 50 + (0.1 * W)
-                                            let Py = 50 - (0.5 * H)
-                                            
-                                            Image(uiImage: img)
-                                                .position(x: Px, y: Py)
-                                        }
-                                    }
-                                    .frame(width: 100, height: 100)
-                                    .background(Color.gray.opacity(0.1))
-                                }
+            ScrollView {
+                VStack(spacing: 40) {
+                    headerView
+                    
+                    // Section 1: All Bitmap Pins
+                    VStack(alignment: .leading) {
+                        SectionHeader(title: "1. All Bitmap Pins", subtitle: "Assets.xcassets 내의 모든 map_pin_XX 정적 이미지")
+                        LazyVGrid(columns: columns, spacing: 20) {
+                            ForEach(allTypes, id: \.self) { type in
+                                PinCell(type: type)
                             }
                         }
                     }
-                    .padding()
-                    .id(refreshID) // Force Redraw
-                }
-                .navigationTitle("Pin Gallery")
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button(action: regeneratePins) {
-                            HStack {
-                                Image(systemName: "arrow.clockwise")
-                                Text("Regenerate")
+                    .padding(.horizontal)
+                    
+                    Divider()
+                    
+                    // Section 2: Badged Pins + Anchor
+                    VStack(alignment: .leading) {
+                        SectionHeader(title: "2. Badged Pins + Anchor", subtitle: "뱃지(Count: 5) 적용 및 지도 좌표(Anchor) 빨간 점 표시")
+                        HStack(spacing: 30) {
+                            ForEach(targetTypes, id: \.self) { type in
+                                AnchorPinCell(type: type, count: 5, showBadge: true)
                             }
                         }
+                        .frame(maxWidth: .infinity)
                     }
+                    .padding(.horizontal)
+                    
+                    Divider()
+                    
+                    // Section 3: Raw Pins + Anchor
+                    VStack(alignment: .leading) {
+                        SectionHeader(title: "3. Raw Pins + Anchor", subtitle: "뱃지 없음, 지도 좌표(Anchor) 빨간 점 표시")
+                        HStack(spacing: 30) {
+                            ForEach(targetTypes, id: \.self) { type in
+                                AnchorPinCell(type: type, count: 0, showBadge: false)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .padding(.horizontal)
                 }
-        }
-    }
-    
-    // MARK: - Logic
-    
-    func regeneratePins() {
-        // 1. Clear Helper Cache
-        PinImageHelper.shared.clearCache()
-        
-        // 2. Trigger UI Refresh
-        withAnimation {
-            refreshID = UUID()
-        }
-        
-        let generator = UIImpactFeedbackGenerator(style: .medium)
-        generator.impactOccurred()
-    }
-    
-    func generateBasePin(item: GalleryItem) -> UIImage? {
-        return PinImageHelper.shared.fetchCompositePin(shieldName: item.shield, markName: item.mark)
-    }
-    
-    func generateBadgePin(item: GalleryItem, count: Int) -> UIImage? {
-        return PinImageHelper.shared.createShieldPin(
-            shieldName: item.shield,
-            markName: item.mark,
-            color: item.color,
-            count: count
-        )
-    }
-    
-    // Helper Data for Unique IDs
-    struct PinTestItem: Identifiable {
-        let id = UUID()
-        let baseItem: GalleryItem
-        let count: Int
-    }
-    
-    var testItems: [PinTestItem] {
-        var items: [PinTestItem] = []
-        for item in baseItems {
-            for count in testCounts {
-                items.append(PinTestItem(baseItem: item, count: count))
+                .padding(.vertical)
             }
+            .navigationTitle("Pin Gallery")
+            .navigationBarTitleDisplayMode(.inline)
         }
-        return items
+    }
+    
+    var headerView: some View {
+        VStack(spacing: 8) {
+            Text("📌 Pin Gallery Refactored")
+                .font(.title2.bold())
+            Text("Static Asset Verification")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
     }
 }
 
-// Preview Provider
+// MARK: - Subviews
+
+struct SectionHeader: View {
+    let title: String
+    let subtitle: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.headline)
+            Text(subtitle)
+                .font(.caption)
+                .foregroundColor(.gray)
+        }
+        .padding(.bottom, 10)
+    }
+}
+
+struct PinCell: View {
+    let type: String
+    
+    var body: some View {
+        VStack {
+            if let params = getPinParameters(type: type) {
+                // Resize for display consistency (simulating map sizing)
+                Image(uiImage: params.image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 45) // Native height approx
+                    .shadow(radius: 1)
+                
+                Text(type)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .monospacedDigit()
+            } else {
+                Image(systemName: "exclamationmark.triangle")
+                    .foregroundColor(.red)
+                Text("Missing: \(type)")
+                    .font(.caption2)
+            }
+        }
+        .frame(height: 80)
+        .frame(maxWidth: .infinity)
+        .background(Color.gray.opacity(0.05))
+        .cornerRadius(8)
+    }
+    
+    func getPinParameters(type: String) -> (image: UIImage, anchor: CGPoint)? {
+        guard let img = PinImageHelper.shared.fetchPin(type: type) else { return nil }
+        // Default Anchor for Naver (as reference)
+        // x: 18.0 / 46.0 ~= 0.39, y: 1.0 (Bottom)
+        let anchor = CGPoint(x: 18.0 / 46.0, y: 1.0)
+        return (img, anchor)
+    }
+}
+
+struct AnchorPinCell: View {
+    let type: String
+    let count: Int
+    let showBadge: Bool
+    
+    var body: some View {
+        VStack {
+            ZStack(alignment: .topLeading) {
+                // 1. Reference Box (Light Gray)
+                Rectangle()
+                    .fill(Color.gray.opacity(0.1))
+                    .frame(width: 80, height: 80)
+                    .overlay(
+                        Rectangle().stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                    )
+                
+                // 2. Center Crosshair (The "Map Coordinate")
+                Path { path in
+                    path.move(to: CGPoint(x: 40, y: 0))
+                    path.addLine(to: CGPoint(x: 40, y: 80))
+                    path.move(to: CGPoint(x: 0, y: 40))
+                    path.addLine(to: CGPoint(x: 80, y: 40))
+                }
+                .stroke(Color.blue.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4]))
+                
+                // 3. The Red Dot (The Map Coordinate Point)
+                Circle()
+                    .fill(Color.red)
+                    .frame(width: 4, height: 4)
+                    .position(x: 40, y: 40)
+                    .zIndex(100)
+                
+                // 4. The Pin Image (Positioned relative to Red Dot using Anchor)
+                if let params = getPinExample() {
+                    let img = params.image
+                    let anchor = params.anchor
+                    
+                    // Calculation:
+                    // We want the image's "Anchor Point" to be at (40, 40).
+                    // Image Size
+                    let w = img.size.width
+                    let h = img.size.height
+                    
+                    // Offsets
+                    // If AnchorX is 0.5, we shift left by 0.5 * W.
+                    // If AnchorY is 1.0, we shift up by 1.0 * H.
+                    let offsetX = -1 * anchor.x * w
+                    let offsetY = -1 * anchor.y * h
+                    
+                    // SwiftUI Image Layout
+                    // Position places the CENTER of the view.
+                    // So we need to calculate where the CENTER should be.
+                    // Target TopLeft = (40 + offsetX, 40 + offsetY)
+                    // CenterX = TargetTopLeftX + w/2
+                    // CenterY = TargetTopLeftY + h/2
+                    
+                    let targetCx = 40 + offsetX + (w/2)
+                    let targetCy = 40 + offsetY + (h/2)
+                    
+                    Image(uiImage: img)
+                        .position(x: targetCx, y: targetCy)
+                }
+            }
+            .frame(width: 80, height: 80)
+            
+            Text(type)
+                .font(.caption)
+                .bold()
+        }
+    }
+    
+    func getPinExample() -> (image: UIImage, anchor: CGPoint)? {
+        guard let base = PinImageHelper.shared.fetchPin(type: type) else { return nil }
+        
+        // Naver Anchor Logic (Standard for this project)
+        let anchor = CGPoint(x: 18.0 / 46.0, y: 1.0)
+        
+        // Colors mapping
+        var badgeColor: UIColor = .red
+        if type == "10" { badgeColor = .allToDoGreen } // Local todo default? check logic
+        else if type == "20" { badgeColor = .systemBlue }
+        
+        // Resize for Retina/consistency (Naver size 36x45)
+        let targetSize = CGSize(width: 36, height: 45)
+        guard let resized = base.resized(to: targetSize) else { return nil }
+        
+        if showBadge {
+            let badged = PinImageHelper.shared.applyBadge(to: resized, count: count, badgeColor: badgeColor, badgeSize: 18)
+            return (badged, anchor)
+        } else {
+            return (resized, anchor)
+        }
+    }
+}
+
+// Preview
 struct PinGalleryView_Previews: PreviewProvider {
     static var previews: some View {
         PinGalleryView()

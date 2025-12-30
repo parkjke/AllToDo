@@ -375,16 +375,17 @@ struct KakaoMapView: UIViewRepresentable {
              labelIdToClusterItems.removeAll()
              for (idx, item) in allItems.enumerated() {
                  guard let loc = item.location else { continue }
-                 let (baseName, markName, color, _) = MapLogicHelper.resolveClusterStyle(items: [item])
-                 let styleID = "RawStyle_\(baseName)"
+                 let (pinType, color, _) = MapLogicHelper.resolveClusterStyle(items: [item])
+                 let styleID = "RawStyle_\(pinType)"
                  
                  if !registeredStyleIDs.contains(styleID) {
                       // Kakao Scale: 0.7x (28x35)
-                      let targetSize = CGSize(width: 28, height: 35)
-                      if let finalImage = PinImageHelper.shared.fetchBasePin(named: baseName, size: targetSize) {
-                          // W=28, Overhang=8 => Total W=36. Tip X=14. Anchor X = 14/36
+                      // Use fetchPin directly
+                      if let baseImage = PinImageHelper.shared.fetchPin(type: pinType) {
+                          let resized = baseImage.resized(to: CGSize(width: 28, height: 35))
+                          // W=28, Overhang=8 => Total W=36. Tip X=14. Anchor X = 14/36 (Approx 0.38)
                           let anchorX = 14.0 / 36.0
-                          labelManager.addPoiStyle(PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: PoiIconStyle(symbol: finalImage, anchorPoint: CGPoint(x: anchorX, y: 1.0)), level: 0)]))
+                          labelManager.addPoiStyle(PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: PoiIconStyle(symbol: resized ?? baseImage, anchorPoint: CGPoint(x: anchorX, y: 1.0)), level: 0)]))
                           registeredStyleIDs.insert(styleID)
                       }
                  }
@@ -481,11 +482,13 @@ struct KakaoMapView: UIViewRepresentable {
                     let targetSize = CGSize(width: 28, height: 35)
                     let finalImage: UIImage?
                     if count > 1 {
-                        if let baseImage = PinImageHelper.shared.fetchBasePin(named: baseName, size: targetSize) {
+                        // [FIX] Use fetchPin + applyBadge directly
+                        if let baseImage = PinImageHelper.shared.fetchPin(type: baseName) { // baseName is reused as type
                              finalImage = PinImageHelper.shared.applyBadge(to: baseImage, count: count, badgeColor: color, badgeSize: 14).rasterized()
                         } else { finalImage = nil }
                     } else {
-                         finalImage = PinImageHelper.shared.fetchBasePin(named: baseName, size: targetSize)
+                         // [FIX] Use fetchPin
+                         finalImage = PinImageHelper.shared.fetchPin(type: baseName)
                     }
                     
                     if let img = finalImage {
