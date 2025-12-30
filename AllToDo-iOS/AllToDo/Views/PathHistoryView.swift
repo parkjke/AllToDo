@@ -21,7 +21,7 @@ struct PathHistoryView: View {
     
     @Environment(\.modelContext) private var modelContext
     @AppStorage("selectedMapProvider") private var mapProvider: MapProvider = .apple
-    @State private var pathCoordinates: [CLLocationCoordinate2D] = []
+    @State private var pathItems: [PathItem] = [] // [FIX] Use Int32 Model directly
     
     // For Apple Maps
     @State private var region: MKCoordinateRegion = MKCoordinateRegion()
@@ -39,16 +39,17 @@ struct PathHistoryView: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             Group {
-                if !pathCoordinates.isEmpty {
+                let _ = print(">>> PATH HISTORY BODY: count=\(pathItems.count), provider=\(mapProvider)")
+                if !pathItems.isEmpty {
                     switch mapProvider {
                     case .apple:
-                        ApplePathMapView(coordinates: pathCoordinates, region: region, color: selectedColor, width: selectedWidth)
+                        ApplePathMapView(items: pathItems, region: region, color: selectedColor, width: selectedWidth)
                     case .google:
-                        GooglePathMapView(coordinates: pathCoordinates, color: selectedColor, width: selectedWidth)
+                        GooglePathMapView(items: pathItems, color: selectedColor, width: selectedWidth)
                     case .kakao:
-                         KakaoPathMapView(coordinates: pathCoordinates, color: selectedColor, width: selectedWidth)
+                         KakaoPathMapView(items: pathItems, color: selectedColor, width: selectedWidth)
                     case .naver:
-                         NaverPathMapView(coordinates: pathCoordinates, color: selectedColor, width: selectedWidth)
+                         NaverPathMapView(items: pathItems, color: selectedColor, width: selectedWidth)
                     }
                 } else {
                      ProgressView("Loading Path...")
@@ -97,31 +98,16 @@ struct PathHistoryView: View {
             predicate: #Predicate<PathItem> { $0.todo_id == searchID },
             sortBy: [SortDescriptor<PathItem>(\.time, order: .forward)]
         )
-        
-        if let paths = try? modelContext.fetch(descriptor) {
-            self.pathCoordinates = paths.map { $0.coordinate }
-            
-            // [FIX] [사용자 요구사항] 정수로 영역을 계산하고 공간을 줌
-            if !paths.isEmpty {
-                let rect = GeomUtils.calculateIntBoundingBox(from: paths, paddingPercent: 20)
-                
-                let center = CLLocationCoordinate2D(
-                    latitude: Double(rect.minLat + rect.maxLat) / 200_000.0,
-                    longitude: Double(rect.minLon + rect.maxLon) / 200_000.0
-                )
-                
-                let latDelta = Double(rect.maxLat - rect.minLat) / 100_000.0
-                let lonDelta = Double(rect.maxLon - rect.minLon) / 100_000.0
-                
-                self.region = MKCoordinateRegion(center: center, span: MKCoordinateSpan(latitudeDelta: latDelta, longitudeDelta: lonDelta))
-            }
-        }
+        // path 가 없으면 경로 표시할 수 없으니 여기가 실행될 이유가 없어 단순화 한다.(2025)
+        let paths = (try? modelContext.fetch(descriptor)) ?? []
+        print(">>> PATH HISTORY: Loaded \(paths.count) points for ID: \(searchID)") // [DEBUG LOG]
+        self.pathItems = paths // [FIX] Assign Raw Items
     }
 }
 
 // MARK: - Apple Maps Implementation
 struct ApplePathMapView: UIViewRepresentable {
-    var coordinates: [CLLocationCoordinate2D]
+    var items: [PathItem]
     var region: MKCoordinateRegion
     var color: Color
     var width: CGFloat
@@ -140,28 +126,41 @@ struct ApplePathMapView: UIViewRepresentable {
         // [FIX] Detect changes in coordinates, color, or width to trigger redraw
         let colorChanged = context.coordinator.lastColor != color
         let widthChanged = context.coordinator.lastWidth != width
-        let coordsChanged = context.coordinator.lastCoordinates.count != coordinates.count
+        let itemsChanged = context.coordinator.lastItemCount != items.count
         
-        if coordsChanged || colorChanged || widthChanged {
-            context.coordinator.lastCoordinates = coordinates
+        if itemsChanged || colorChanged || widthChanged {
+            context.coordinator.lastItemCount = items.count
             context.coordinator.lastColor = color
             context.coordinator.lastWidth = width
             
             // Re-apply region ONLY if coordinates changed significantly or first time
-            if coordsChanged {
-                uiView.setRegion(region, animated: true)
+            if itemsChanged && !items.isEmpty {
+                // [FIX] Calculate Region Internally (User Request)
+                let rect = GeomUtils.calculateIntBoundingBox(from: items, paddingPercent: 20)
+                
+                let centerLat = Double(rect.minLat + rect.maxLat) / 200_000.0
+                let centerLon = Double(rect.minLon + rect.maxLon) / 200_000.0
+                let center = CLLocationCoordinate2D(latitude: centerLat, longitude: centerLon)
+                
+                let latDelta = Double(rect.maxLat - rect.minLat) / 100_000.0
+                let lonDelta = Double(rect.maxLon - rect.minLon) / 100_000.0
+                let span = MKCoordinateSpan(latitudeDelta: latDelta, longitudeDelta: lonDelta)
+                
+                let newRegion = MKCoordinateRegion(center: center, span: span)
+                uiView.setRegion(newRegion, animated: true)
             }
             
             uiView.removeOverlays(uiView.overlays)
             uiView.removeAnnotations(uiView.annotations)
             
-            if !self.coordinates.isEmpty {
-                var coords = self.coordinates
+            if !self.items.isEmpty {
+                // [FIX] Int32 -> Double Conversion (Late Binding)
+                var coords = self.items.map { CLLocationCoordinate2D(latitude: Double($0.int_lat) / 100_000.0, longitude: Double($0.int_long) / 100_000.0) }
                 let polyline = MKPolyline(coordinates: &coords, count: coords.count)
                 uiView.addOverlay(polyline)
                 
-                let start = MKPointAnnotation(); start.coordinate = self.coordinates.first!; start.title = "시작"
-                let end = MKPointAnnotation(); end.coordinate = self.coordinates.last!; end.title = "종료"
+                let start = MKPointAnnotation(); start.coordinate = coords.first!; start.title = "시작"
+                let end = MKPointAnnotation(); end.coordinate = coords.last!; end.title = "종료"
                 uiView.addAnnotations([start, end])
             }
         }
@@ -171,7 +170,7 @@ struct ApplePathMapView: UIViewRepresentable {
     
     class Coordinator: NSObject, MKMapViewDelegate {
         var parent: ApplePathMapView
-        var lastCoordinates: [CLLocationCoordinate2D] = []
+        var lastItemCount: Int = 0
         var lastColor: Color?
         var lastWidth: CGFloat?
         
@@ -240,7 +239,7 @@ struct ApplePathMapView: UIViewRepresentable {
 
 // MARK: - Google Maps Implementation
 struct GooglePathMapView: UIViewRepresentable {
-    var coordinates: [CLLocationCoordinate2D]
+    var items: [PathItem]
     var color: Color
     var width: CGFloat
     
@@ -254,7 +253,12 @@ struct GooglePathMapView: UIViewRepresentable {
     func updateUIView(_ uiView: GMSMapView, context: Context) {
         uiView.clear()
         
-        guard !coordinates.isEmpty else { return }
+        guard !items.isEmpty else { return }
+        
+        // [FIX] Late Binding Conversion (Int32 -> Double)
+        let coordinates: [CLLocationCoordinate2D] = items.map {
+            CLLocationCoordinate2D(latitude: Double($0.int_lat) / 100_000.0, longitude: Double($0.int_long) / 100_000.0)
+        }
         
         // Path
         let path = GMSMutablePath()
@@ -268,7 +272,6 @@ struct GooglePathMapView: UIViewRepresentable {
         polyline.strokeWidth = width
         polyline.map = uiView
         
-        // Markers
         // Markers
         let start = GMSMarker(position: coordinates.first!)
         start.title = "Start"
@@ -321,7 +324,7 @@ struct GooglePathMapView: UIViewRepresentable {
 
 // MARK: - Naver Maps Implementation
 struct NaverPathMapView: UIViewRepresentable {
-    var coordinates: [CLLocationCoordinate2D]
+    var items: [PathItem]
     var color: Color
     var width: CGFloat
     
@@ -347,8 +350,10 @@ struct NaverPathMapView: UIViewRepresentable {
         context.coordinator.startMarker?.mapView = nil
         context.coordinator.endMarker?.mapView = nil
         
-        guard !coordinates.isEmpty else { return }
-        let points = coordinates.map { NMGLatLng(lat: $0.latitude, lng: $0.longitude) }
+        guard !items.isEmpty else { return }
+        
+        // [FIX] Late Binding Conversion
+        let points = items.map { NMGLatLng(lat: Double($0.int_lat)/100_000.0, lng: Double($0.int_long)/100_000.0) }
         
         // 2. Draw Polyline
         let path = NMFPath()
@@ -391,13 +396,9 @@ struct NaverPathMapView: UIViewRepresentable {
         end.mapView = map
         context.coordinator.endMarker = end
         
-        // 4. Fit Bounds (Using GeomUtils for correct Min/Max)
-        // Convert to PathPoint (Int32) for GeomUtils
-        let pathPoints = coordinates.map { 
-            PathPoint(latitude: Int32($0.latitude * 100_000), longitude: Int32($0.longitude * 100_000), timestamp: Date()) 
-        }
-        
-        let intRect = GeomUtils.calculateIntBoundingBox(from: pathPoints, paddingPercent: 15) // 15% padding
+        // 4. Fit Bounds (Using GeomUtils directly with PathItems)
+        // [OPTIMIZATION] No need to convert back to PathPoint!
+        let intRect = GeomUtils.calculateIntBoundingBox(from: items, paddingPercent: 15) // 15% padding
         
         let southWest = NMGLatLng(lat: Double(intRect.minLat) / 100_000.0, lng: Double(intRect.minLon) / 100_000.0)
         let northEast = NMGLatLng(lat: Double(intRect.maxLat) / 100_000.0, lng: Double(intRect.maxLon) / 100_000.0)
@@ -417,11 +418,13 @@ struct NaverPathMapView: UIViewRepresentable {
 // Note: Kakao SDK v2 typically expects one controller. 
 // If this fails, consider falling back to Apple Map for this view.
 struct KakaoPathMapView: UIViewRepresentable {
-    var coordinates: [CLLocationCoordinate2D]
+    var items: [PathItem]
     var color: Color
     var width: CGFloat
     
     func makeUIView(context: Context) -> KMViewContainer {
+        print("\(Date()) >>> kakaomap start: \(items.count) points") // [User Request] Debug Log
+        // 여기에서 paths 를 GeomUtils 을 사용해 영역을 계산하고 fit bounds 를 사용해 지도를 설정한다.
         let view = KMViewContainer(frame: UIScreen.main.bounds)
         view.backgroundColor = UIColor.white.withAlphaComponent(0.01) // [FIX] Required
         context.coordinator.createController(view)
@@ -430,19 +433,26 @@ struct KakaoPathMapView: UIViewRepresentable {
     
     func updateUIView(_ uiView: KMViewContainer, context: Context) {
         context.coordinator.checkEngineActivation()
-        context.coordinator.drawPath(coordinates, color: color, width: width)
+        context.coordinator.drawPath(items, color: color, width: width)
     }
     
-    func makeCoordinator() -> Coordinator { Coordinator() }
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
     
-    class Coordinator: NSObject, MapControllerDelegate {
+    class Coordinator: NSObject, MapControllerDelegate, KakaoMapEventDelegate {
+        var parent: KakaoPathMapView
         var controller: KMController?
-        var coordinates: [CLLocationCoordinate2D] = []
-        var selectedColor: Color = .red
-        var selectedWidth: CGFloat = 8.0
+        weak var viewContainer: KMViewContainer? // [FIX] Store container
+        var items: [PathItem] = []
+        var selectedColor: Color = .red // [FIX] Default Red
+        var selectedWidth: CGFloat = 6   // [FIX] Default 6
         var hasDrawn = false
         
+        init(_ parent: KakaoPathMapView) {
+            self.parent = parent
+        }
+        
         func createController(_ view: KMViewContainer) {
+            self.viewContainer = view // [FIX] Capture container
             controller = KMController(viewContainer: view)
             controller?.delegate = self
             controller?.prepareEngine()
@@ -451,7 +461,7 @@ struct KakaoPathMapView: UIViewRepresentable {
             view.setNeedsLayout()
             view.layoutIfNeeded()
         }
-
+        
         func checkEngineActivation() {
             guard let controller = controller else { return }
             if controller.isEnginePrepared && !controller.isEngineActive {
@@ -459,24 +469,30 @@ struct KakaoPathMapView: UIViewRepresentable {
             }
         }
         
-        func drawPath(_ coords: [CLLocationCoordinate2D], color: Color, width: CGFloat) {
-             self.coordinates = coords
-             self.selectedColor = color
-             self.selectedWidth = width
+        func drawPath(_ newItems: [PathItem], color: Color, width: CGFloat) {
+             let itemsChanged = newItems.count != self.items.count
+             let colorChanged = color != self.selectedColor
+             let widthChanged = width != self.selectedWidth
              
-             if hasDrawn {
-                 if let mapView = controller?.getView("pathmap") as? KakaoMap {
-                     // mapView.layoutIfNeeded() // [REMOVE] Not available on KakaoMap object
-                     renderPath(mapView: mapView)
+             if itemsChanged || colorChanged || widthChanged {
+                 self.items = newItems
+                 self.selectedColor = color
+                 self.selectedWidth = width
+                 
+                 if hasDrawn {
+                     if let mapView = controller?.getView("pathmap") as? KakaoMap {
+                         renderPath(mapView: mapView)
+                     }
                  }
              }
         }
         
         // Delegate
         func addViews() {
-            // [FIX] Default position: Start from path's first point to avoid Gwanghwamun flicker
-            let startCoord = coordinates.first ?? CLLocationCoordinate2D(latitude: 37.566691, longitude: 126.978365)
-            let defaultPosition = MapPoint(longitude: startCoord.longitude, latitude: startCoord.latitude)
+            let defaultPosition: MapPoint
+            let rect = GeomUtils.calculateCentroid(from: items)
+            defaultPosition = MapPoint(longitude: rect.centerLon, latitude: rect.centerLat)
+
             let mapviewInfo = MapviewInfo(viewName: "pathmap", viewInfoName: "map", defaultPosition: defaultPosition, defaultLevel: 14)
             controller?.addView(mapviewInfo)
         }
@@ -487,11 +503,38 @@ struct KakaoPathMapView: UIViewRepresentable {
             hasDrawn = true
             mapView.isEnabled = true
             
+            // [FIX] Force sync View Rect immediately (Safety for Gesture Coordinates)
+            if let container = self.viewContainer {
+                mapView.viewRect = container.bounds
+            }
+            
+            mapView.eventDelegate = self
+            
             renderPath(mapView: mapView)
         }
         
+        // MARK: - KakaoMapEventDelegate
+        @objc func poiDidTapped(kakaoMap: KakaoMap, layerID: String, poiID: String, position: MapPoint) {
+            print(">>> SUCCESS: poiDidTapped")
+        }
+
+        @objc func terrainDidTapped(kakaoMap: KakaoMap, position: MapPoint) {
+            print(">>> SUCCESS: terrainDidTapped")
+        }
+
+        @objc func terrainDidLongPressed(kakaoMap: KakaoMap, position: MapPoint) {
+            print(">>> SUCCESS: terrainDidLongPressed")
+        }
+
+        // [FIX] Handle Container Resize for Gesture Coordinate Sync
+        func containerDidResize(_ size: CGSize) {
+            if let mapView = controller?.getView("pathmap") as? KakaoMap {
+                mapView.viewRect = CGRect(origin: .zero, size: size)
+            }
+        }
+        
         private func renderPath(mapView: KakaoMap) {
-            guard !coordinates.isEmpty, coordinates.count >= 2 else { return }
+            guard !items.isEmpty, items.count >= 2 else { return }
             
             let manager = mapView.getShapeManager()
             let layer = manager.getShapeLayer(layerID: "pathLayer") ?? manager.addShapeLayer(layerID: "pathLayer", zOrder: 1000) // [FIX] Z-Order 1000
@@ -516,40 +559,62 @@ struct KakaoPathMapView: UIViewRepresentable {
             ])
             manager.addPolylineStyleSet(PolylineStyleSet(styleSetID: styleID, styles: [style]))
             
-            let points = coordinates.map { MapPoint(longitude: $0.longitude, latitude: $0.latitude) }
+            // [FIX] Convert Int32 -> MapPoint
+            let points = items.map { MapPoint(longitude: Double($0.int_long)/100_000.0, latitude: Double($0.int_lat)/100_000.0) }
+            
             let options = MapPolylineShapeOptions(shapeID: "historyLine", styleID: styleID, zOrder: 1000)
             options.polylines.append(MapPolyline(line: points, styleIndex: 0))
             
             if let shape = shapeLayer.addMapPolylineShape(options) {
                  shape.show()
-                 print(">>> PATH HISTORY: Kakao Path Rendered - \(coordinates.count) points")
+                 print(">>> PATH HISTORY: Kakao Path Rendered - \(items.count) points")
             }
             
-            // Fit Bounds
-            let minLat = coordinates.map{$0.latitude}.min()!
-            let maxLat = coordinates.map{$0.latitude}.max()!
-            let minLon = coordinates.map{$0.longitude}.min()!
-            let maxLon = coordinates.map{$0.longitude}.max()!
+            // Fit Bounds (Using GeomUtils directly with PathItem)
+            let intRect = GeomUtils.calculateIntBoundingBox(from: items, paddingPercent: 20) // [FIX] Increase padding to 20%
             
-            let finalMinLat = (maxLat - minLat < 0.003) ? ((maxLat + minLat)/2 - 0.0015) : minLat
-            let finalMaxLat = (maxLat - minLat < 0.003) ? ((maxLat + minLat)/2 + 0.0015) : maxLat
-            let finalMinLon = (maxLon - minLon < 0.003) ? ((maxLon + minLon)/2 - 0.0015) : minLon
-            let finalMaxLon = (maxLon - minLon < 0.003) ? ((maxLon + minLon)/2 + 0.0015) : maxLon
+            let southWest = MapPoint(longitude: Double(intRect.minLon) / 100_000.0, latitude: Double(intRect.minLat) / 100_000.0)
+            let northEast = MapPoint(longitude: Double(intRect.maxLon) / 100_000.0, latitude: Double(intRect.maxLat) / 100_000.0)
             
-            let rect = AreaRect(southWest: MapPoint(longitude: finalMinLon, latitude: finalMinLat), 
-                                northEast: MapPoint(longitude: finalMaxLon, latitude: finalMaxLat))
+            let rect = AreaRect(southWest: southWest, northEast: northEast)
             
-            // [FIX] Ensure camera move happens after a tiny delay to override default Gwanghwamun centering
+            // [FIX] Ensure camera move happens after layout (Sheet animation ~0.3s)
+            // Use recursive retry if view size is 0 (layout pending)
+            func fitBoundsWithRetry(count: Int) {
+                if mapView.viewRect.width > 0 && mapView.viewRect.height > 0 {
+                    let now = Date()
+                    // [FIX] Use CameraUpdate.make(area: rect) immediately
+                    mapView.moveCamera(CameraUpdate.make(area: rect))
+                    print(">>> KAKAO MAP: [\(now)] Executing Camera Move. Bounds Valid (\(mapView.viewRect.size))")
+                } else {
+                    if count > 0 {
+                        // print(">>> KAKAO MAP: View zero size. Retrying in 0.1s... (\(count))")
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            fitBoundsWithRetry(count: count - 1)
+                        }
+                    } else {
+                        print(">>> KAKAO MAP: Failed to fit bounds after retries. View still zero size.")
+                    }
+                }
+            }
+            
+            // [FIX] Start retrying immediately (wait 0.1s for safety, not 0.5s)
+            // Faster response
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                mapView.moveCamera(CameraUpdate.make(area: rect))
+                fitBoundsWithRetry(count: 10)
             }
             
             // Add Pins
-            addPins(mapView: mapView, coordinates: coordinates)
+            addPins(mapView: mapView, items: items)
         }
         
-        func addPins(mapView: KakaoMap, coordinates: [CLLocationCoordinate2D]) {
-            guard let start = coordinates.first, let end = coordinates.last else { return }
+        func addPins(mapView: KakaoMap, items: [PathItem]) {
+            guard let startItem = items.first, let endItem = items.last else { return }
+            
+            // Convert to Local Coords
+            let start = MapPoint(longitude: Double(startItem.int_long)/100_000.0, latitude: Double(startItem.int_lat)/100_000.0)
+            let end = MapPoint(longitude: Double(endItem.int_long)/100_000.0, latitude: Double(endItem.int_lat)/100_000.0)
+            
             let manager = mapView.getLabelManager()
             let layer = manager.getLabelLayer(layerID: "pathPins") ?? manager.addLabelLayer(option: LabelLayerOptions(layerID: "pathPins", competitionType: .none, competitionUnit: .poi, orderType: .rank, zOrder: 1000))
             
@@ -574,8 +639,8 @@ struct KakaoPathMapView: UIViewRepresentable {
             // KakaoMap lifecycle: Styles are per-controller.
             
             // Add POIs
-            layer?.addPoi(option: PoiOptions(styleID: styleID, poiID: "start"), at: MapPoint(longitude: start.longitude, latitude: start.latitude))?.show()
-            layer?.addPoi(option: PoiOptions(styleID: styleID, poiID: "end"), at: MapPoint(longitude: end.longitude, latitude: end.latitude))?.show()
+            layer?.addPoi(option: PoiOptions(styleID: styleID, poiID: "start"), at: start)?.show()
+            layer?.addPoi(option: PoiOptions(styleID: styleID, poiID: "end"), at: end)?.show()
         }
     }
 }

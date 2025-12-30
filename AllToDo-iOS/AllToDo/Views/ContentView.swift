@@ -207,7 +207,14 @@ struct ContentView: View {
 
     // MARK: - Computed Properties / Helper Views
     var sortedAllItems: [UnifiedMapItem] {
-        viewModel.cachedMapItems.sorted { getItemDate($0) > getItemDate($1) }
+        viewModel.cachedMapItems.sorted { 
+            let d1 = getItemDate($0)
+            let d2 = getItemDate($1)
+            if d1 == d2 {
+                return $0.id.uuidString > $1.id.uuidString
+            }
+            return d1 > d2
+        }
     }
 
     var statusWidget: some View {
@@ -286,8 +293,16 @@ struct ContentView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 20))
                         .preferredColorScheme((mapProvider == .apple || mapProvider == .google) ? nil : .light)
                         
-                            .padding(.top, -1)
+                        // [FIX] Restore Tail
+                        CalloutTriangle()
+                            .fill(Color(.systemBackground))
+                            .frame(width: 18, height: 12)
+                            .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1) // Match bubble shadow if any
+                            .padding(.top, -1.5) // Slight overlap to merge
+                            .zIndex(10) // On top of border
                     }
+                    .shadow(color: .black.opacity(0.15), radius: 5, x: 0, y: 2) // Global shadow
+                    .padding(.top, -1)
                     .frame(width: 320, height: 0, alignment: .bottom) // [사용자 원천기술] 하단 고정 상단 확장
                     .position(x: (viewModel.tapPosition?.x ?? 0) + mapXOffset, y: (viewModel.tapPosition?.y ?? 0) + mapYOffset)
                     .transition(.scale.combined(with: .opacity))

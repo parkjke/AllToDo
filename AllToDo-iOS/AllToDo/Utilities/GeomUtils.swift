@@ -24,6 +24,22 @@ struct GeomUtils {
         
         return (totalLat / count, totalLon / count)
     }
+
+    /// [Overload] PathItem 배열의 중심점을 계산하여 Double 좌표로 반환 (For Map Initialization)
+    /// - Parameter points: PathItem 배열
+    /// - Returns: (centerLat: Double, centerLon: Double)
+    static func calculateCentroid(from points: [PathItem]) -> (centerLat: Double, centerLon: Double) {
+        guard !points.isEmpty else { return (37.566691, 126.978365) }
+        
+        let totalLat = points.reduce(0) { $0 + Int($1.int_lat) }
+        let totalLon = points.reduce(0) { $0 + Int($1.int_long) }
+        let count = points.count
+        
+        let avgLat = Double(totalLat / count) / 100_000.0
+        let avgLon = Double(totalLon / count) / 100_000.0
+        
+        return (avgLat, avgLon)
+    }
     
     /// 경로 포인트들을 모두 포함하는 정수 기반 영역을 계산하고 여백을 추가함 (For PathItem)
     /// - Parameters:

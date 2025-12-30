@@ -383,6 +383,10 @@ struct AppleMapView: UIViewRepresentable {
         // MARK: - WASM Clustering Integration
         
         func refreshWasmClusters(mapView: MKMapView) {
+            // [FIX] Performance: Do NOT update/render during launch animation (Zooming)
+            // Pins are already set by 'performLaunchAnimation' -> 'renderRawItems'
+            guard !isLaunchAnimating else { return }
+            
             // [FIX] Explicit Control: If launch not finished, Render RAW items immediately
             guard isWasmCluster else {
                 renderRawItems(mapView: mapView, allItems: parent.allItems)
@@ -632,6 +636,10 @@ struct AppleMapView: UIViewRepresentable {
         
         // MARK: - Launch Animation
         func performLaunchAnimation(mapView: MKMapView, userLocation: CLLocation?) {
+            // [FIX] Debounce: Ensure this only runs ONCE
+            guard firstRender else { return }
+            firstRender = false 
+            
             isLaunchAnimating = true
             
             // [FIX] Render Raw Items immediately before animation (Launch Integrity)

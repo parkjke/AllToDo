@@ -112,6 +112,7 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
              // Or just leave it.
              // Ideally we should update the trip count to 1?
              // For now, just save context.
+             print(">>> Continuous Persistence: Path too short, skipping points. (isShortPath=true)") // [DEBUG LOG]
              do { try context.save() } catch { print("Error saving short path trip: \(error)") }
              return
         }

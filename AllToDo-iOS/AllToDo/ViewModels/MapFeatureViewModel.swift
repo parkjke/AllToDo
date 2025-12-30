@@ -91,14 +91,22 @@ class MapFeatureViewModel: ObservableObject {
             // checkKoreaLocation removed
         )
         
+        // [FIX] Stable Sort (Date > UUID) to prevent Map Diffing Loop
+        let sortedTransformed = transformed.sorted {
+            let d1 = $0.date
+            let d2 = $1.date
+            if d1 == d2 { return $0.id.uuidString > $1.id.uuidString }
+            return d1 > d2
+        }
+        
         // [OPTIMIZATION] Sync Last Processed Location
         self.lastProcessedLocation = currentLocation
         
-        self.cachedMapItems = transformed
+        self.cachedMapItems = sortedTransformed
         
         // Partition for Display (Inside Korea vs Outside)
         if filterByKorea && !ignoreDistanceFilter {
-            let (near, count) = MapLogicHelper.partitionItemsByKorea(items: transformed)
+            let (near, count) = MapLogicHelper.partitionItemsByKorea(items: sortedTransformed)
             self.displayItems = near
             
             // Update Notification State
@@ -112,7 +120,7 @@ class MapFeatureViewModel: ObservableObject {
             }
         } else {
             // Show All
-            self.displayItems = transformed
+            self.displayItems = sortedTransformed
             self.showFarNotification = false
             self.farItemsCount = 0
         }
