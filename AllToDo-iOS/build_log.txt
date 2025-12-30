@@ -1,0 +1,1245 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -workspace /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo.xcworkspace -scheme AllToDo -destination generic/platform=iOS clean build
+
+2025-12-30 19:46:08.195 xcodebuild[16121:11543135] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+** CLEAN SUCCEEDED **
+
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (7 targets)
+    Target 'AllToDo' in project 'AllToDo'
+        ➜ Implicit dependency on target 'Pods-AllToDo' in project 'Pods' via file 'Pods_AllToDo.framework' in build phase 'Link Binary'
+    Target 'Pods-AllToDo' in project 'Pods'
+        ➜ Explicit dependency on target 'GoogleMaps' in project 'Pods'
+        ➜ Explicit dependency on target 'KakaoMapsSDK' in project 'Pods'
+        ➜ Explicit dependency on target 'NMapsGeometry' in project 'Pods'
+        ➜ Explicit dependency on target 'NMapsMap' in project 'Pods'
+    Target 'NMapsMap' in project 'Pods'
+        ➜ Explicit dependency on target 'NMapsGeometry' in project 'Pods'
+    Target 'NMapsGeometry' in project 'Pods' (no dependencies)
+    Target 'KakaoMapsSDK' in project 'Pods' (no dependencies)
+    Target 'GoogleMaps' in project 'Pods'
+        ➜ Explicit dependency on target 'GoogleMaps-GoogleMapsResources' in project 'Pods'
+    Target 'GoogleMaps-GoogleMapsResources' in project 'Pods' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/actool --print-asset-tag-combinations --output-format xml1 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Assets.xcassets
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -x objective-c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/libtool -V
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/actool --version --output-format xml1
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc --version
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld -version_details
+
+Build description signature: f99bc34b09059520659968821e4a362c
+Build description path: /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/XCBuildData/f99bc34b09059520659968821e4a362c.xcbuilddata
+ClangStatCache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk /Users/thinking/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphoneos26.2-23C53-3885c01c3e6b6a337905948deab2002e3794476bd08197c3e2abd9bb477ef7f7.sdkstatcache
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -o /Users/thinking/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphoneos26.2-23C53-3885c01c3e6b6a337905948deab2002e3794476bd08197c3e2abd9bb477ef7f7.sdkstatcache
+
+CreateBuildDirectory /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    builtin-create-build-directory /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex
+
+CreateBuildDirectory /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    builtin-create-build-directory /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products
+
+CreateBuildDirectory /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    builtin-create-build-directory /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos
+
+CreateBuildDirectory /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    builtin-create-build-directory /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules
+
+CreateBuildDirectory /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    builtin-create-build-directory /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules
+
+CreateBuildDirectory /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphoneos
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    builtin-create-build-directory /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphoneos
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-8699adb1dd336b26511df848a716bd42-VFS-iphoneos/all-product-headers.yaml
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-8699adb1dd336b26511df848a716bd42-VFS-iphoneos/all-product-headers.yaml
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo-3e4239374e436b3db5a2bf4c354750af-VFS-iphoneos/all-product-headers.yaml
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo-3e4239374e436b3db5a2bf4c354750af-VFS-iphoneos/all-product-headers.yaml
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/GoogleMaps.build/InputFileList-9801DC96C44A55EEBAB39A01F1BB925C-GoogleMaps-xcframeworks-input-files-c414837933b3f40f9c321cf759e691f0-resolved.xcfilelist (in target 'GoogleMaps' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/GoogleMaps.build/InputFileList-9801DC96C44A55EEBAB39A01F1BB925C-GoogleMaps-xcframeworks-input-files-c414837933b3f40f9c321cf759e691f0-resolved.xcfilelist
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/GoogleMaps.build/Script-9801DC96C44A55EEBAB39A01F1BB925C.sh (in target 'GoogleMaps' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/GoogleMaps.build/Script-9801DC96C44A55EEBAB39A01F1BB925C.sh
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/GoogleMaps.build/OutputFileList-9801DC96C44A55EEBAB39A01F1BB925C-GoogleMaps-xcframeworks-output-files-18ca364b8531225b8c1a46226c843343-resolved.xcfilelist (in target 'GoogleMaps' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/GoogleMaps.build/OutputFileList-9801DC96C44A55EEBAB39A01F1BB925C-GoogleMaps-xcframeworks-output-files-18ca364b8531225b8c1a46226c843343-resolved.xcfilelist
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/KakaoMapsSDK.build/Script-073C38C133623D002C7A8970845DB3EE.sh (in target 'KakaoMapsSDK' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/KakaoMapsSDK.build/Script-073C38C133623D002C7A8970845DB3EE.sh
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/KakaoMapsSDK.build/InputFileList-073C38C133623D002C7A8970845DB3EE-KakaoMapsSDK-xcframeworks-input-files-a1c4e7357beda67df66eeced9e5b1892-resolved.xcfilelist (in target 'KakaoMapsSDK' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/KakaoMapsSDK.build/InputFileList-073C38C133623D002C7A8970845DB3EE-KakaoMapsSDK-xcframeworks-input-files-a1c4e7357beda67df66eeced9e5b1892-resolved.xcfilelist
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/KakaoMapsSDK.build/OutputFileList-073C38C133623D002C7A8970845DB3EE-KakaoMapsSDK-xcframeworks-output-files-edd637536471d7c79ebad57f3aa3aaed-resolved.xcfilelist (in target 'KakaoMapsSDK' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/KakaoMapsSDK.build/OutputFileList-073C38C133623D002C7A8970845DB3EE-KakaoMapsSDK-xcframeworks-output-files-edd637536471d7c79ebad57f3aa3aaed-resolved.xcfilelist
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/NMapsMap.build/Script-B521269790554904B95202DE2D5AC59C.sh (in target 'NMapsMap' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/NMapsMap.build/Script-B521269790554904B95202DE2D5AC59C.sh
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/NMapsMap.build/OutputFileList-B521269790554904B95202DE2D5AC59C-NMapsMap-xcframeworks-output-files-6cbc0543e065a03a45bdcf428f933fcc-resolved.xcfilelist (in target 'NMapsMap' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/NMapsMap.build/OutputFileList-B521269790554904B95202DE2D5AC59C-NMapsMap-xcframeworks-output-files-6cbc0543e065a03a45bdcf428f933fcc-resolved.xcfilelist
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/NMapsMap.build/InputFileList-B521269790554904B95202DE2D5AC59C-NMapsMap-xcframeworks-input-files-85e3480acd18299777c6aadef5f3ac7c-resolved.xcfilelist (in target 'NMapsMap' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/NMapsMap.build/InputFileList-B521269790554904B95202DE2D5AC59C-NMapsMap-xcframeworks-input-files-85e3480acd18299777c6aadef5f3ac7c-resolved.xcfilelist
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/NMapsGeometry.build/OutputFileList-06DEA16D4139F67FC0E17642FDBEECD0-NMapsGeometry-xcframeworks-output-files-ff7bec0d90956814cf65af73ba7095f2-resolved.xcfilelist (in target 'NMapsGeometry' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/NMapsGeometry.build/OutputFileList-06DEA16D4139F67FC0E17642FDBEECD0-NMapsGeometry-xcframeworks-output-files-ff7bec0d90956814cf65af73ba7095f2-resolved.xcfilelist
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/NMapsGeometry.build/Script-06DEA16D4139F67FC0E17642FDBEECD0.sh (in target 'NMapsGeometry' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/NMapsGeometry.build/Script-06DEA16D4139F67FC0E17642FDBEECD0.sh
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/NMapsGeometry.build/InputFileList-06DEA16D4139F67FC0E17642FDBEECD0-NMapsGeometry-xcframeworks-input-files-8992ef4506f32be9543413801ffba70e-resolved.xcfilelist (in target 'NMapsGeometry' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/NMapsGeometry.build/InputFileList-06DEA16D4139F67FC0E17642FDBEECD0-NMapsGeometry-xcframeworks-input-files-8992ef4506f32be9543413801ffba70e-resolved.xcfilelist
+
+CreateBuildDirectory /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/NMapsGeometry
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    builtin-create-build-directory /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/NMapsGeometry
+
+CreateBuildDirectory /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/NMapsMap
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    builtin-create-build-directory /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/NMapsMap
+
+CreateBuildDirectory /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/KakaoMapsSDK
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    builtin-create-build-directory /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/KakaoMapsSDK
+
+CreateBuildDirectory /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/GoogleMaps
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    builtin-create-build-directory /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/GoogleMaps
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Pods_AllToDo.DependencyMetadataFileList (in target 'Pods-AllToDo' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Pods_AllToDo.DependencyMetadataFileList
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Pods_AllToDo-project-headers.hmap (in target 'Pods-AllToDo' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Pods_AllToDo-project-headers.hmap
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Pods_AllToDo.hmap (in target 'Pods-AllToDo' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Pods_AllToDo.hmap
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Pods_AllToDo.DependencyStaticMetadataFileList (in target 'Pods-AllToDo' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Pods_AllToDo.DependencyStaticMetadataFileList
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Pods_AllToDo-all-non-framework-target-headers.hmap (in target 'Pods-AllToDo' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Pods_AllToDo-all-non-framework-target-headers.hmap
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Pods_AllToDo-own-target-headers.hmap (in target 'Pods-AllToDo' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Pods_AllToDo-own-target-headers.hmap
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Pods_AllToDo-all-target-headers.hmap (in target 'Pods-AllToDo' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Pods_AllToDo-all-target-headers.hmap
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Pods_AllToDo-generated-files.hmap (in target 'Pods-AllToDo' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Pods_AllToDo-generated-files.hmap
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/e6072d4f65d7061329687fe24e3d63a7-common-args.resp (in target 'Pods-AllToDo' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/e6072d4f65d7061329687fe24e3d63a7-common-args.resp
+-target arm64-apple-ios16.0 '-std=gnu11' -fobjc-arc -fmodules -gmodules '-fmodules-cache-path=/Users/thinking/Library/Developer/Xcode/DerivedData/ModuleCache.noindex' '-fmodule-name=Pods_AllToDo' -fpascal-strings -O0 -fno-common '-DPOD_CONFIGURATION_DEBUG=1' '-DDEBUG=1' '-DCOCOAPODS=1' '-DOBJC_OLD_DISPATCH_PROTOTYPES=0' -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -g -iquote /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Pods_AllToDo-generated-files.hmap -I/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Pods_AllToDo-own-target-headers.hmap -I/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Pods_AllToDo-all-non-framework-target-headers.hmap -ivfsoverlay /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-8699adb1dd336b26511df848a716bd42-VFS-iphoneos/all-product-headers.yaml -iquote /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Pods_AllToDo-project-headers.hmap -I/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/include -I/Volumes/Work/AllToDo/AllToDo-iOS/Pods/Headers/Public -I/Volumes/Work/AllToDo/AllToDo-iOS/Pods/Headers/Public/GoogleMaps -I/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/DerivedSources-normal/arm64 -I/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/DerivedSources/arm64 -I/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/DerivedSources -F/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos -F/Volumes/Work/AllToDo/AllToDo-iOS/Pods/GoogleMaps/Maps/Frameworks -F/Volumes/Work/AllToDo/AllToDo-iOS/Pods/KakaoMapsSDK -F/Volumes/Work/AllToDo/AllToDo-iOS/Pods/NMapsGeometry/framework -F/Volumes/Work/AllToDo/AllToDo-iOS/Pods/NMapsMap/framework -F/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/GoogleMaps/Maps -F/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/KakaoMapsSDK -F/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/NMapsGeometry -F/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/NMapsMap
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/Pods_AllToDo.LinkFileList (in target 'Pods-AllToDo' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/Pods_AllToDo.LinkFileList
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/7187679823f38a2a940e0043cdf9d637-common-args.resp (in target 'Pods-AllToDo' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/7187679823f38a2a940e0043cdf9d637-common-args.resp
+-target arm64-apple-ios16.0 '-std=gnu11' -fmodules -gmodules '-fmodules-cache-path=/Users/thinking/Library/Developer/Xcode/DerivedData/ModuleCache.noindex' '-fmodule-name=Pods_AllToDo' -fpascal-strings -O0 -fno-common '-DPOD_CONFIGURATION_DEBUG=1' '-DDEBUG=1' '-DCOCOAPODS=1' -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -g -iquote /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Pods_AllToDo-generated-files.hmap -I/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Pods_AllToDo-own-target-headers.hmap -I/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Pods_AllToDo-all-non-framework-target-headers.hmap -ivfsoverlay /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-8699adb1dd336b26511df848a716bd42-VFS-iphoneos/all-product-headers.yaml -iquote /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Pods_AllToDo-project-headers.hmap -I/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/include -I/Volumes/Work/AllToDo/AllToDo-iOS/Pods/Headers/Public -I/Volumes/Work/AllToDo/AllToDo-iOS/Pods/Headers/Public/GoogleMaps -I/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/DerivedSources-normal/arm64 -I/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/DerivedSources/arm64 -I/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/DerivedSources -F/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos -F/Volumes/Work/AllToDo/AllToDo-iOS/Pods/GoogleMaps/Maps/Frameworks -F/Volumes/Work/AllToDo/AllToDo-iOS/Pods/KakaoMapsSDK -F/Volumes/Work/AllToDo/AllToDo-iOS/Pods/NMapsGeometry/framework -F/Volumes/Work/AllToDo/AllToDo-iOS/Pods/NMapsMap/framework -F/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/GoogleMaps/Maps -F/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/KakaoMapsSDK -F/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/NMapsGeometry -F/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/NMapsMap
+
+Copy /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/module.modulemap /Volumes/Work/AllToDo/AllToDo-iOS/Pods/Target\ Support\ Files/Pods-AllToDo/Pods-AllToDo.modulemap (in target 'Pods-AllToDo' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Volumes/Work/AllToDo/AllToDo-iOS/Pods/Target\ Support\ Files/Pods-AllToDo/Pods-AllToDo.modulemap /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/module.modulemap
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/DerivedSources/Pods_AllToDo_vers.c (in target 'Pods-AllToDo' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/DerivedSources/Pods_AllToDo_vers.c
+
+CpHeader /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/Pods_AllToDo.framework/Headers/Pods-AllToDo-umbrella.h /Volumes/Work/AllToDo/AllToDo-iOS/Pods/Target\ Support\ Files/Pods-AllToDo/Pods-AllToDo-umbrella.h (in target 'Pods-AllToDo' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Volumes/Work/AllToDo/AllToDo-iOS/Pods/Target\ Support\ Files/Pods-AllToDo/Pods-AllToDo-umbrella.h /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/Pods_AllToDo.framework/Headers
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Script-DE5C9705E2F06442E2575958.sh (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Script-DE5C9705E2F06442E2575958.sh
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Script-AFF5B721D04E9BB2D641827F.sh (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Script-AFF5B721D04E9BB2D641827F.sh
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Script-93C4F518D24BBAE2FF739526.sh (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Script-93C4F518D24BBAE2FF739526.sh
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/OutputFileList-AFF5B721D04E9BB2D641827F-Pods-AllToDo-resources-Debug-output-files-2d05a270ce708953933db3ab62dc530f-resolved.xcfilelist (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/OutputFileList-AFF5B721D04E9BB2D641827F-Pods-AllToDo-resources-Debug-output-files-2d05a270ce708953933db3ab62dc530f-resolved.xcfilelist
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/OutputFileList-93C4F518D24BBAE2FF739526-Pods-AllToDo-frameworks-Debug-output-files-93246339f58ab2f46ec410abfe78854a-resolved.xcfilelist (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/OutputFileList-93C4F518D24BBAE2FF739526-Pods-AllToDo-frameworks-Debug-output-files-93246339f58ab2f46ec410abfe78854a-resolved.xcfilelist
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Objects-normal/arm64/AllToDo_const_extract_protocols.json (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Objects-normal/arm64/AllToDo_const_extract_protocols.json
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Objects-normal/arm64/AllToDo.SwiftFileList (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Objects-normal/arm64/AllToDo.SwiftFileList
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Objects-normal/arm64/AllToDo.SwiftConstValuesFileList (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Objects-normal/arm64/AllToDo.SwiftConstValuesFileList
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Objects-normal/arm64/AllToDo.LinkFileList (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Objects-normal/arm64/AllToDo.LinkFileList
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Objects-normal/arm64/AllToDo-OutputFileMap.json (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Objects-normal/arm64/AllToDo-OutputFileMap.json
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/InputFileList-AFF5B721D04E9BB2D641827F-Pods-AllToDo-resources-Debug-input-files-0ca297d114e1c5d537c7465da3c3e246-resolved.xcfilelist (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/InputFileList-AFF5B721D04E9BB2D641827F-Pods-AllToDo-resources-Debug-input-files-0ca297d114e1c5d537c7465da3c3e246-resolved.xcfilelist
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/InputFileList-93C4F518D24BBAE2FF739526-Pods-AllToDo-frameworks-Debug-input-files-9c51eb08a80fd59224716a9a1b558ae5-resolved.xcfilelist (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/InputFileList-93C4F518D24BBAE2FF739526-Pods-AllToDo-frameworks-Debug-input-files-9c51eb08a80fd59224716a9a1b558ae5-resolved.xcfilelist
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo.hmap (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo.hmap
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo.DependencyStaticMetadataFileList (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo.DependencyStaticMetadataFileList
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo.DependencyMetadataFileList (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo.DependencyMetadataFileList
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/DerivedSources/Entitlements.plist (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/DerivedSources/Entitlements.plist
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo-project-headers.hmap (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo-project-headers.hmap
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo-own-target-headers.hmap (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo-own-target-headers.hmap
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo-generated-files.hmap (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo-generated-files.hmap
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo-all-target-headers.hmap (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo-all-target-headers.hmap
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo-all-non-framework-target-headers.hmap (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo-all-non-framework-target-headers.hmap
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo-DebugDylibPath-normal-arm64.txt (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo-DebugDylibPath-normal-arm64.txt
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo-DebugDylibInstallName-normal-arm64.txt (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo-DebugDylibInstallName-normal-arm64.txt
+
+MkDir /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/Pods_AllToDo.framework/Headers (in target 'Pods-AllToDo' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    /bin/mkdir -p /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/Pods_AllToDo.framework/Headers
+
+MkDir /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/Pods_AllToDo.framework (in target 'Pods-AllToDo' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    /bin/mkdir -p /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/Pods_AllToDo.framework
+
+MkDir /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    /bin/mkdir -p /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app
+
+MkDir /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app/Frameworks (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    /bin/mkdir -p /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app/Frameworks
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/GoogleMaps-GoogleMapsResources.build/GoogleMapsResources-all-target-headers.hmap (in target 'GoogleMaps-GoogleMapsResources' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/GoogleMaps-GoogleMapsResources.build/GoogleMapsResources-all-target-headers.hmap
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/GoogleMaps-GoogleMapsResources.build/GoogleMapsResources-all-non-framework-target-headers.hmap (in target 'GoogleMaps-GoogleMapsResources' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/GoogleMaps-GoogleMapsResources.build/GoogleMapsResources-all-non-framework-target-headers.hmap
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/GoogleMaps-GoogleMapsResources.build/GoogleMapsResources.hmap (in target 'GoogleMaps-GoogleMapsResources' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/GoogleMaps-GoogleMapsResources.build/GoogleMapsResources.hmap
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/GoogleMaps-GoogleMapsResources.build/GoogleMapsResources.DependencyStaticMetadataFileList (in target 'GoogleMaps-GoogleMapsResources' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/GoogleMaps-GoogleMapsResources.build/GoogleMapsResources.DependencyStaticMetadataFileList
+
+MkDir /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/GoogleMaps/GoogleMapsResources.bundle (in target 'GoogleMaps-GoogleMapsResources' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    /bin/mkdir -p /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/GoogleMaps/GoogleMapsResources.bundle
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/GoogleMaps-GoogleMapsResources.build/GoogleMapsResources-generated-files.hmap (in target 'GoogleMaps-GoogleMapsResources' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/GoogleMaps-GoogleMapsResources.build/GoogleMapsResources-generated-files.hmap
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/GoogleMaps-GoogleMapsResources.build/GoogleMapsResources-own-target-headers.hmap (in target 'GoogleMaps-GoogleMapsResources' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/GoogleMaps-GoogleMapsResources.build/GoogleMapsResources-own-target-headers.hmap
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/GoogleMaps-GoogleMapsResources.build/GoogleMapsResources-project-headers.hmap (in target 'GoogleMaps-GoogleMapsResources' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/GoogleMaps-GoogleMapsResources.build/GoogleMapsResources-project-headers.hmap
+
+WriteAuxiliaryFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/GoogleMaps-GoogleMapsResources.build/GoogleMapsResources.DependencyMetadataFileList (in target 'GoogleMaps-GoogleMapsResources' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    write-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/GoogleMaps-GoogleMapsResources.build/GoogleMapsResources.DependencyMetadataFileList
+
+Copy /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/Pods_AllToDo.framework/Modules/module.modulemap /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/module.modulemap (in target 'Pods-AllToDo' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/module.modulemap /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/Pods_AllToDo.framework/Modules
+
+PhaseScriptExecution [CP]\ Copy\ XCFrameworks /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/NMapsGeometry.build/Script-06DEA16D4139F67FC0E17642FDBEECD0.sh (in target 'NMapsGeometry' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    /bin/sh -c /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/NMapsGeometry.build/Script-06DEA16D4139F67FC0E17642FDBEECD0.sh
+Selected xcframework slice ios-arm64
+rsync --delete -av --filter P .*.?????? --links --filter "- CVS/" --filter "- .svn/" --filter "- .git/" --filter "- .hg/" "/Volumes/Work/AllToDo/AllToDo-iOS/Pods/NMapsGeometry/framework/NMapsGeometry.xcframework/ios-arm64/*" "/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/NMapsGeometry"
+Transfer starting: 22 files
+NMapsGeometry.framework/
+NMapsGeometry.framework/Info.plist
+NMapsGeometry.framework/NMapsGeometry
+NMapsGeometry.framework/PrivacyInfo.xcprivacy
+NMapsGeometry.framework/Headers/
+NMapsGeometry.framework/Headers/NMGBounds.h
+NMapsGeometry.framework/Headers/NMGConstants.h
+NMapsGeometry.framework/Headers/NMGGeometry.h
+NMapsGeometry.framework/Headers/NMGLatLng.h
+NMapsGeometry.framework/Headers/NMGLatLngBounds.h
+NMapsGeometry.framework/Headers/NMGLineString.h
+NMapsGeometry.framework/Headers/NMGMultiPolygon.h
+NMapsGeometry.framework/Headers/NMGPoint.h
+NMapsGeometry.framework/Headers/NMGPolygon.h
+NMapsGeometry.framework/Headers/NMGSegment.h
+NMapsGeometry.framework/Headers/NMGTm128.h
+NMapsGeometry.framework/Headers/NMGUtils.h
+NMapsGeometry.framework/Headers/NMGUtmk.h
+NMapsGeometry.framework/Headers/NMGWebMercatorCoord.h
+NMapsGeometry.framework/Headers/NMapsGeometry.h
+NMapsGeometry.framework/Modules/
+NMapsGeometry.framework/Modules/module.modulemap
+
+sent 161266 bytes  received 456 bytes  22777746 bytes/sec
+total size is 158773  speedup is 0.98
+Copied /Volumes/Work/AllToDo/AllToDo-iOS/Pods/NMapsGeometry/framework/NMapsGeometry.xcframework/ios-arm64 to /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/NMapsGeometry
+
+PhaseScriptExecution [CP]\ Copy\ XCFrameworks /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/KakaoMapsSDK.build/Script-073C38C133623D002C7A8970845DB3EE.sh (in target 'KakaoMapsSDK' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    /bin/sh -c /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/KakaoMapsSDK.build/Script-073C38C133623D002C7A8970845DB3EE.sh
+Selected xcframework slice ios-arm64
+rsync --delete -av --filter P .*.?????? --links --filter "- CVS/" --filter "- .svn/" --filter "- .git/" --filter "- .hg/" "/Volumes/Work/AllToDo/AllToDo-iOS/Pods/KakaoMapsSDK/KakaoMapsSDK.xcframework/ios-arm64/*" "/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/KakaoMapsSDK"
+Transfer starting: 19 files
+KakaoMapsSDK.framework/
+KakaoMapsSDK.framework/Info.plist
+KakaoMapsSDK.framework/KakaoMapsSDK
+KakaoMapsSDK.framework/PrivacyInfo.xcprivacy
+KakaoMapsSDK.framework/Headers/
+KakaoMapsSDK.framework/Headers/ApiEnums.h
+KakaoMapsSDK.framework/Headers/ApiStructs.h
+KakaoMapsSDK.framework/Headers/KMController.h
+KakaoMapsSDK.framework/Headers/KMViewContainer.h
+KakaoMapsSDK.framework/Headers/KakaoMapsSDK-Swift.h
+KakaoMapsSDK.framework/Headers/KakaoMapsSDK.h
+KakaoMapsSDK.framework/Headers/NativeEventDelegate.h
+KakaoMapsSDK.framework/Modules/
+KakaoMapsSDK.framework/Modules/module.modulemap
+KakaoMapsSDK.framework/Modules/KakaoMapsSDK.swiftmodule/
+KakaoMapsSDK.framework/Modules/KakaoMapsSDK.swiftmodule/arm64-apple-ios.abi.json
+KakaoMapsSDK.framework/Modules/KakaoMapsSDK.swiftmodule/arm64-apple-ios.private.swiftinterface
+KakaoMapsSDK.framework/Modules/KakaoMapsSDK.swiftmodule/arm64-apple-ios.swiftdoc
+KakaoMapsSDK.framework/Modules/KakaoMapsSDK.swiftmodule/arm64-apple-ios.swiftinterface
+
+sent 20508126 bytes  received 374 bytes  189717853 bytes/sec
+total size is 20503379  speedup is 1.00
+Copied /Volumes/Work/AllToDo/AllToDo-iOS/Pods/KakaoMapsSDK/KakaoMapsSDK.xcframework/ios-arm64 to /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/KakaoMapsSDK
+
+CpResource /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/GoogleMaps/GoogleMapsResources.bundle/GoogleMaps.bundle /Volumes/Work/AllToDo/AllToDo-iOS/Pods/GoogleMaps/Maps/Resources/GoogleMapsResources/GoogleMaps.bundle (in target 'GoogleMaps-GoogleMapsResources' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Volumes/Work/AllToDo/AllToDo-iOS/Pods/GoogleMaps/Maps/Resources/GoogleMapsResources/GoogleMaps.bundle /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/GoogleMaps/GoogleMapsResources.bundle
+
+ProcessInfoPlistFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/GoogleMaps/GoogleMapsResources.bundle/Info.plist /Volumes/Work/AllToDo/AllToDo-iOS/Pods/Target\ Support\ Files/GoogleMaps/ResourceBundle-GoogleMapsResources-GoogleMaps-Info.plist (in target 'GoogleMaps-GoogleMapsResources' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    builtin-infoPlistUtility /Volumes/Work/AllToDo/AllToDo-iOS/Pods/Target\ Support\ Files/GoogleMaps/ResourceBundle-GoogleMapsResources-GoogleMaps-Info.plist -producttype com.apple.product-type.bundle -expandbuildsettings -format binary -platform iphoneos -requiredArchitecture arm64 -o /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/GoogleMaps/GoogleMapsResources.bundle/Info.plist
+
+RegisterExecutionPolicyException /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/GoogleMaps/GoogleMapsResources.bundle (in target 'GoogleMaps-GoogleMapsResources' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    builtin-RegisterExecutionPolicyException /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/GoogleMaps/GoogleMapsResources.bundle
+
+Touch /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/GoogleMaps/GoogleMapsResources.bundle (in target 'GoogleMaps-GoogleMapsResources' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    /usr/bin/touch -c /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/GoogleMaps/GoogleMapsResources.bundle
+
+PhaseScriptExecution [CP]\ Copy\ XCFrameworks /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/GoogleMaps.build/Script-9801DC96C44A55EEBAB39A01F1BB925C.sh (in target 'GoogleMaps' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    /bin/sh -c /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/GoogleMaps.build/Script-9801DC96C44A55EEBAB39A01F1BB925C.sh
+Selected xcframework slice ios-arm64
+rsync --delete -av --filter P .*.?????? --links --filter "- CVS/" --filter "- .svn/" --filter "- .git/" --filter "- .hg/" "/Volumes/Work/AllToDo/AllToDo-iOS/Pods/GoogleMaps/Maps/Frameworks/GoogleMaps.xcframework/ios-arm64/*" "/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/GoogleMaps/Maps"
+Transfer starting: 67 files
+GoogleMaps.framework/
+GoogleMaps.framework/GoogleMaps
+GoogleMaps.framework/Headers/
+GoogleMaps.framework/Headers/GMSAccessibilityLabels.h
+GoogleMaps.framework/Headers/GMSAddress.h
+GoogleMaps.framework/Headers/GMSAdvancedMarker.h
+GoogleMaps.framework/Headers/GMSCALayer.h
+GoogleMaps.framework/Headers/GMSCameraPosition.h
+GoogleMaps.framework/Headers/GMSCameraUpdate.h
+GoogleMaps.framework/Headers/GMSCircle.h
+GoogleMaps.framework/Headers/GMSCollisionBehavior.h
+GoogleMaps.framework/Headers/GMSCompatabilityMacros.h
+GoogleMaps.framework/Headers/GMSCoordinateBounds+GoogleMaps.h
+GoogleMaps.framework/Headers/GMSCoordinateBounds.h
+GoogleMaps.framework/Headers/GMSDatasetFeature.h
+GoogleMaps.framework/Headers/GMSDatasetFeatureLayer.h
+GoogleMaps.framework/Headers/GMSDeprecationMacros.h
+GoogleMaps.framework/Headers/GMSFeature.h
+GoogleMaps.framework/Headers/GMSFeatureLayer.h
+GoogleMaps.framework/Headers/GMSFeatureStyle.h
+GoogleMaps.framework/Headers/GMSGeocoder.h
+GoogleMaps.framework/Headers/GMSGeometryUtils.h
+GoogleMaps.framework/Headers/GMSGroundOverlay.h
+GoogleMaps.framework/Headers/GMSIndoorBuilding.h
+GoogleMaps.framework/Headers/GMSIndoorDisplay.h
+GoogleMaps.framework/Headers/GMSIndoorLevel.h
+GoogleMaps.framework/Headers/GMSMapID.h
+GoogleMaps.framework/Headers/GMSMapLayer.h
+GoogleMaps.framework/Headers/GMSMapStyle.h
+GoogleMaps.framework/Headers/GMSMapView+Animation.h
+GoogleMaps.framework/Headers/GMSMapView.h
+GoogleMaps.framework/Headers/GMSMarker.h
+GoogleMaps.framework/Headers/GMSMarkerAnimation.h
+GoogleMaps.framework/Headers/GMSMarkerLayer.h
+GoogleMaps.framework/Headers/GMSMutablePath.h
+GoogleMaps.framework/Headers/GMSOrientation.h
+GoogleMaps.framework/Headers/GMSOverlay.h
+GoogleMaps.framework/Headers/GMSOverlayLayer.h
+GoogleMaps.framework/Headers/GMSPanorama.h
+GoogleMaps.framework/Headers/GMSPanoramaCamera.h
+GoogleMaps.framework/Headers/GMSPanoramaCameraUpdate.h
+GoogleMaps.framework/Headers/GMSPanoramaLayer.h
+GoogleMaps.framework/Headers/GMSPanoramaLink.h
+GoogleMaps.framework/Headers/GMSPanoramaService.h
+GoogleMaps.framework/Headers/GMSPanoramaSource.h
+GoogleMaps.framework/Headers/GMSPanoramaView.h
+GoogleMaps.framework/Headers/GMSPath.h
+GoogleMaps.framework/Headers/GMSPinImage.h
+GoogleMaps.framework/Headers/GMSPinImageGlyph.h
+GoogleMaps.framework/Headers/GMSPinImageOptions.h
+GoogleMaps.framework/Headers/GMSPlaceFeature.h
+GoogleMaps.framework/Headers/GMSPolygon.h
+GoogleMaps.framework/Headers/GMSPolygonLayer.h
+GoogleMaps.framework/Headers/GMSPolyline.h
+GoogleMaps.framework/Headers/GMSProjection.h
+GoogleMaps.framework/Headers/GMSServices.h
+GoogleMaps.framework/Headers/GMSStampStyle.h
+GoogleMaps.framework/Headers/GMSStrokeStyle.h
+GoogleMaps.framework/Headers/GMSStyleSpan.h
+GoogleMaps.framework/Headers/GMSSyncTileLayer.h
+GoogleMaps.framework/Headers/GMSTileLayer.h
+GoogleMaps.framework/Headers/GMSUISettings.h
+GoogleMaps.framework/Headers/GMSURLTileLayer.h
+GoogleMaps.framework/Headers/GoogleMaps.h
+GoogleMaps.framework/Headers/module.modulemap.bak
+GoogleMaps.framework/Modules/
+GoogleMaps.framework/Modules/module.modulemap
+
+sent 36124192 bytes  received 1446 bytes  173597491 bytes/sec
+total size is 36112064  speedup is 1.00
+Copied /Volumes/Work/AllToDo/AllToDo-iOS/Pods/GoogleMaps/Maps/Frameworks/GoogleMaps.xcframework/ios-arm64 to /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/GoogleMaps/Maps
+
+PhaseScriptExecution [CP]\ Copy\ XCFrameworks /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/NMapsMap.build/Script-B521269790554904B95202DE2D5AC59C.sh (in target 'NMapsMap' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    /bin/sh -c /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/NMapsMap.build/Script-B521269790554904B95202DE2D5AC59C.sh
+Selected xcframework slice ios-arm64
+rsync --delete -av --filter P .*.?????? --links --filter "- CVS/" --filter "- .svn/" --filter "- .git/" --filter "- .hg/" "/Volumes/Work/AllToDo/AllToDo-iOS/Pods/NMapsMap/framework/NMapsMap.xcframework/ios-arm64/*" "/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/NMapsMap"
+Transfer starting: 123 files
+NMapsMap.framework/
+NMapsMap.framework/Assets.car
+NMapsMap.framework/Info.plist
+NMapsMap.framework/LICENSE
+NMapsMap.framework/NMFInfoWindowDefaultTextSource.nib
+NMapsMap.framework/NMFLogoView.nib
+NMapsMap.framework/NMFScaleView.nib
+NMapsMap.framework/NMFZoomControlView.nib
+NMapsMap.framework/NMapsMap
+NMapsMap.framework/NOTICE
+NMapsMap.framework/PrivacyInfo.xcprivacy
+NMapsMap.framework/default.metallib
+NMapsMap.framework/Base.lproj/
+NMapsMap.framework/Base.lproj/Foundation.strings
+NMapsMap.framework/Headers/
+NMapsMap.framework/Headers/NMCBuilder.h
+NMapsMap.framework/Headers/NMCCluster.h
+NMapsMap.framework/Headers/NMCClusterMarkerInfo.h
+NMapsMap.framework/Headers/NMCClusterMarkerUpdater.h
+NMapsMap.framework/Headers/NMCClusterer.h
+NMapsMap.framework/Headers/NMCClustererUpdateCallback.h
+NMapsMap.framework/Headers/NMCClusteringKey.h
+NMapsMap.framework/Headers/NMCComplexBuilder.h
+NMapsMap.framework/Headers/NMCDefaultClusterMarkerUpdater.h
+NMapsMap.framework/Headers/NMCDefaultDistanceStrategy.h
+NMapsMap.framework/Headers/NMCDefaultLeafMarkerUpdater.h
+NMapsMap.framework/Headers/NMCDefaultMarkerManager.h
+NMapsMap.framework/Headers/NMCDefaultPositioningStrategy.h
+NMapsMap.framework/Headers/NMCDefaultTagMergeStrategy.h
+NMapsMap.framework/Headers/NMCDefaultThresholdStrategy.h
+NMapsMap.framework/Headers/NMCDistanceStrategy.h
+NMapsMap.framework/Headers/NMCLeaf.h
+NMapsMap.framework/Headers/NMCLeafMarkerInfo.h
+NMapsMap.framework/Headers/NMCLeafMarkerUpdater.h
+NMapsMap.framework/Headers/NMCMarkerInfo.h
+NMapsMap.framework/Headers/NMCMarkerManager.h
+NMapsMap.framework/Headers/NMCNode.h
+NMapsMap.framework/Headers/NMCPositioningStrategy.h
+NMapsMap.framework/Headers/NMCTagMergeStrategy.h
+NMapsMap.framework/Headers/NMCThresholdStrategy.h
+NMapsMap.framework/Headers/NMFArrowheadPath.h
+NMapsMap.framework/Headers/NMFAttribution.h
+NMapsMap.framework/Headers/NMFAttributionChangeDelegate.h
+NMapsMap.framework/Headers/NMFAuthManager.h
+NMapsMap.framework/Headers/NMFCameraCommon.h
+NMapsMap.framework/Headers/NMFCameraPosition.h
+NMapsMap.framework/Headers/NMFCameraUpdate.h
+NMapsMap.framework/Headers/NMFCameraUpdateParams.h
+NMapsMap.framework/Headers/NMFCircleOverlay.h
+NMapsMap.framework/Headers/NMFCompassView.h
+NMapsMap.framework/Headers/NMFFoundation.h
+NMapsMap.framework/Headers/NMFGeometry.h
+NMapsMap.framework/Headers/NMFGroundOverlay.h
+NMapsMap.framework/Headers/NMFIndoorLevel.h
+NMapsMap.framework/Headers/NMFIndoorLevelPickerView.h
+NMapsMap.framework/Headers/NMFIndoorRegion.h
+NMapsMap.framework/Headers/NMFIndoorSelection.h
+NMapsMap.framework/Headers/NMFIndoorSelectionDelegate.h
+NMapsMap.framework/Headers/NMFIndoorView.h
+NMapsMap.framework/Headers/NMFIndoorZone.h
+NMapsMap.framework/Headers/NMFInfoWindow.h
+NMapsMap.framework/Headers/NMFInfoWindowDefaultTextSource.h
+NMapsMap.framework/Headers/NMFLocationButton.h
+NMapsMap.framework/Headers/NMFLocationManager.h
+NMapsMap.framework/Headers/NMFLocationOverlay.h
+NMapsMap.framework/Headers/NMFMapView+IBAdditions.h
+NMapsMap.framework/Headers/NMFMapView.h
+NMapsMap.framework/Headers/NMFMapViewCameraDelegate.h
+NMapsMap.framework/Headers/NMFMapViewDelegate.h
+NMapsMap.framework/Headers/NMFMapViewLoadDelegate.h
+NMapsMap.framework/Headers/NMFMapViewOptionDelegate.h
+NMapsMap.framework/Headers/NMFMapViewRenderDelegate.h
+NMapsMap.framework/Headers/NMFMapViewTouchDelegate.h
+NMapsMap.framework/Headers/NMFMarker.h
+NMapsMap.framework/Headers/NMFMarkerConstants.h
+NMapsMap.framework/Headers/NMFMultipartPath.h
+NMapsMap.framework/Headers/NMFMyPositionMode.h
+NMapsMap.framework/Headers/NMFNaverMapView.h
+NMapsMap.framework/Headers/NMFOfflinePack.h
+NMapsMap.framework/Headers/NMFOfflineRegion.h
+NMapsMap.framework/Headers/NMFOfflineStorage.h
+NMapsMap.framework/Headers/NMFOverlay.h
+NMapsMap.framework/Headers/NMFOverlayImage.h
+NMapsMap.framework/Headers/NMFPath.h
+NMapsMap.framework/Headers/NMFPathColor.h
+NMapsMap.framework/Headers/NMFPickable.h
+NMapsMap.framework/Headers/NMFPolygonOverlay.h
+NMapsMap.framework/Headers/NMFPolylineOverlay.h
+NMapsMap.framework/Headers/NMFProjection.h
+NMapsMap.framework/Headers/NMFRendererOptions.h
+NMapsMap.framework/Headers/NMFScaleView.h
+NMapsMap.framework/Headers/NMFSymbol.h
+NMapsMap.framework/Headers/NMFTileCoverHelper.h
+NMapsMap.framework/Headers/NMFTileId.h
+NMapsMap.framework/Headers/NMFTypes.h
+NMapsMap.framework/Headers/NMFUtils.h
+NMapsMap.framework/Headers/NMFZoomControlView.h
+NMapsMap.framework/Headers/NMapsMap.h
+NMapsMap.framework/Headers/NSBundle+NMFAdditions.h
+NMapsMap.framework/Modules/
+NMapsMap.framework/Modules/module.modulemap
+NMapsMap.framework/NMFIndoorLevelPickerCell.nib/
+NMapsMap.framework/NMFIndoorLevelPickerCell.nib/objects-11.0+.nib
+NMapsMap.framework/NMFIndoorLevelPickerCell.nib/runtime.nib
+NMapsMap.framework/NMFIndoorLevelPickerView.nib/
+NMapsMap.framework/NMFIndoorLevelPickerView.nib/objects-11.0+.nib
+NMapsMap.framework/NMFIndoorLevelPickerView.nib/runtime.nib
+NMapsMap.framework/NMFNaverMapView.nib/
+NMapsMap.framework/NMFNaverMapView.nib/objects-11.0+.nib
+NMapsMap.framework/NMFNaverMapView.nib/runtime.nib
+NMapsMap.framework/en.lproj/
+NMapsMap.framework/en.lproj/Foundation.strings
+NMapsMap.framework/en.lproj/Localizable.strings
+NMapsMap.framework/ja.lproj/
+NMapsMap.framework/ja.lproj/Foundation.strings
+NMapsMap.framework/ja.lproj/Localizable.strings
+NMapsMap.framework/ko.lproj/
+NMapsMap.framework/ko.lproj/Foundation.strings
+NMapsMap.framework/ko.lproj/Foundation.stringsdict
+NMapsMap.framework/ko.lproj/Localizable.strings
+NMapsMap.framework/zh-Hans.lproj/
+NMapsMap.framework/zh-Hans.lproj/Foundation.strings
+NMapsMap.framework/zh-Hans.lproj/Localizable.strings
+
+sent 12943946 bytes  received 2550 bytes  134719001 bytes/sec
+total size is 12928541  speedup is 1.00
+Copied /Volumes/Work/AllToDo/AllToDo-iOS/Pods/NMapsMap/framework/NMapsMap.xcframework/ios-arm64 to /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/NMapsMap
+
+ProcessProductPackaging /Users/thinking/Library/Developer/Xcode/UserData/Provisioning\ Profiles/12c4c870-04e9-42c0-ac08-d8a36e3625d2.mobileprovision /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app/embedded.mobileprovision (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    builtin-productPackagingUtility /Users/thinking/Library/Developer/Xcode/UserData/Provisioning\ Profiles/12c4c870-04e9-42c0-ac08-d8a36e3625d2.mobileprovision -o /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app/embedded.mobileprovision
+
+ProcessProductPackaging "" /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo.app.xcent (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+    Entitlements:
+    
+    {
+    "application-identifier" = "M6265CEMXD.kr.alltodo";
+    "com.apple.developer.team-identifier" = M6265CEMXD;
+    "get-task-allow" = 1;
+}
+    
+    builtin-productPackagingUtility -entitlements -format xml -o /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo.app.xcent
+
+ProcessInfoPlistFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/Pods_AllToDo.framework/Info.plist /Volumes/Work/AllToDo/AllToDo-iOS/Pods/Target\ Support\ Files/Pods-AllToDo/Pods-AllToDo-Info.plist (in target 'Pods-AllToDo' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    builtin-infoPlistUtility /Volumes/Work/AllToDo/AllToDo-iOS/Pods/Target\ Support\ Files/Pods-AllToDo/Pods-AllToDo-Info.plist -producttype com.apple.product-type.framework -expandbuildsettings -format binary -platform iphoneos -requiredArchitecture arm64 -o /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/Pods_AllToDo.framework/Info.plist
+
+ScanDependencies /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/Pods_AllToDo_vers.o /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/DerivedSources/Pods_AllToDo_vers.c normal arm64 c com.apple.compilers.llvm.clang.1_0.compiler (in target 'Pods-AllToDo' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    
+    Using response file: /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/7187679823f38a2a940e0043cdf9d637-common-args.resp
+    
+    builtin-ScanDependencies -o /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/Pods_AllToDo_vers.o.scan -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -x c -ivfsstatcache /Users/thinking/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphoneos26.2-23C53-3885c01c3e6b6a337905948deab2002e3794476bd08197c3e2abd9bb477ef7f7.sdkstatcache -fmessage-length\=0 -fdiagnostics-show-note-include-stack -fmacro-backtrace-limit\=0 -fno-color-diagnostics -fmodules-prune-interval\=86400 -fmodules-prune-after\=345600 -fbuild-session-file\=/Users/thinking/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -fmodules-validate-once-per-build-session -Wnon-modular-include-in-framework-module -Werror\=non-modular-include-in-framework-module -Wno-trigraphs -Wno-missing-field-initializers -Wno-missing-prototypes -Werror\=return-type -Wdocumentation -Wunreachable-code -Werror\=deprecated-objc-isa-usage -Werror\=objc-root-class -Wno-missing-braces -Wparentheses -Wswitch -Wunused-function -Wno-unused-label -Wno-unused-parameter -Wunused-variable -Wunused-value -Wempty-body -Wuninitialized -Wconditional-uninitialized -Wno-unknown-pragmas -Wno-shadow -Wno-four-char-constants -Wno-conversion -Wconstant-conversion -Wint-conversion -Wbool-conversion -Wenum-conversion -Wno-float-conversion -Wnon-literal-null-conversion -Wobjc-literal-conversion -Wshorten-64-to-32 -Wpointer-sign -Wno-newline-eof -Wno-implicit-fallthrough -fstrict-aliasing -Wdeprecated-declarations -Wno-sign-conversion -Winfinite-recursion -Wcomma -Wblock-capture-autoreleasing -Wstrict-prototypes -Wno-semicolon-before-method-body -Wunguarded-availability -index-store-path /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Index.noindex/DataStore @/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/7187679823f38a2a940e0043cdf9d637-common-args.resp -MMD -MT dependencies -MF /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/Pods_AllToDo_vers.d --serialize-diagnostics /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/Pods_AllToDo_vers.dia -c /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/DerivedSources/Pods_AllToDo_vers.c -o /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/Pods_AllToDo_vers.o -index-unit-output-path /Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/Pods_AllToDo_vers.o
+
+ScanDependencies /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/Pods-AllToDo-dummy.o /Volumes/Work/AllToDo/AllToDo-iOS/Pods/Target\ Support\ Files/Pods-AllToDo/Pods-AllToDo-dummy.m normal arm64 objective-c com.apple.compilers.llvm.clang.1_0.compiler (in target 'Pods-AllToDo' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    
+    Using response file: /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/e6072d4f65d7061329687fe24e3d63a7-common-args.resp
+    
+    builtin-ScanDependencies -o /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/Pods-AllToDo-dummy.o.scan -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -x objective-c -ivfsstatcache /Users/thinking/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphoneos26.2-23C53-3885c01c3e6b6a337905948deab2002e3794476bd08197c3e2abd9bb477ef7f7.sdkstatcache -fmessage-length\=0 -fdiagnostics-show-note-include-stack -fmacro-backtrace-limit\=0 -fno-color-diagnostics -fmodules-prune-interval\=86400 -fmodules-prune-after\=345600 -fbuild-session-file\=/Users/thinking/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -fmodules-validate-once-per-build-session -Wnon-modular-include-in-framework-module -Werror\=non-modular-include-in-framework-module -Wno-trigraphs -Wno-missing-field-initializers -Wno-missing-prototypes -Werror\=return-type -Wdocumentation -Wunreachable-code -Wno-implicit-atomic-properties -Werror\=deprecated-objc-isa-usage -Wno-objc-interface-ivars -Werror\=objc-root-class -Wno-arc-repeated-use-of-weak -Wimplicit-retain-self -Wduplicate-method-match -Wno-missing-braces -Wparentheses -Wswitch -Wunused-function -Wno-unused-label -Wno-unused-parameter -Wunused-variable -Wunused-value -Wempty-body -Wuninitialized -Wconditional-uninitialized -Wno-unknown-pragmas -Wno-shadow -Wno-four-char-constants -Wno-conversion -Wconstant-conversion -Wint-conversion -Wbool-conversion -Wenum-conversion -Wno-float-conversion -Wnon-literal-null-conversion -Wobjc-literal-conversion -Wshorten-64-to-32 -Wpointer-sign -Wno-newline-eof -Wno-selector -Wno-strict-selector-match -Wundeclared-selector -Wdeprecated-implementations -Wno-implicit-fallthrough -fstrict-aliasing -Wprotocol -Wdeprecated-declarations -Wno-sign-conversion -Winfinite-recursion -Wcomma -Wblock-capture-autoreleasing -Wstrict-prototypes -Wno-semicolon-before-method-body -Wunguarded-availability -index-store-path /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Index.noindex/DataStore @/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/e6072d4f65d7061329687fe24e3d63a7-common-args.resp -MMD -MT dependencies -MF /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/Pods-AllToDo-dummy.d --serialize-diagnostics /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/Pods-AllToDo-dummy.dia -c /Volumes/Work/AllToDo/AllToDo-iOS/Pods/Target\ Support\ Files/Pods-AllToDo/Pods-AllToDo-dummy.m -o /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/Pods-AllToDo-dummy.o -index-unit-output-path /Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/Pods-AllToDo-dummy.o
+
+ProcessProductPackagingDER /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo.app.xcent /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo.app.xcent.der (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    /usr/bin/derq query -f xml -i /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo.app.xcent -o /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo.app.xcent.der --raw
+
+CompileC /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/Pods_AllToDo_vers.o /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/DerivedSources/Pods_AllToDo_vers.c normal arm64 c com.apple.compilers.llvm.clang.1_0.compiler (in target 'Pods-AllToDo' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    
+    Using response file: /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/7187679823f38a2a940e0043cdf9d637-common-args.resp
+    
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -x c -ivfsstatcache /Users/thinking/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphoneos26.2-23C53-3885c01c3e6b6a337905948deab2002e3794476bd08197c3e2abd9bb477ef7f7.sdkstatcache -fmessage-length\=0 -fdiagnostics-show-note-include-stack -fmacro-backtrace-limit\=0 -fno-color-diagnostics -fmodules-prune-interval\=86400 -fmodules-prune-after\=345600 -fbuild-session-file\=/Users/thinking/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -fmodules-validate-once-per-build-session -Wnon-modular-include-in-framework-module -Werror\=non-modular-include-in-framework-module -Wno-trigraphs -Wno-missing-field-initializers -Wno-missing-prototypes -Werror\=return-type -Wdocumentation -Wunreachable-code -Werror\=deprecated-objc-isa-usage -Werror\=objc-root-class -Wno-missing-braces -Wparentheses -Wswitch -Wunused-function -Wno-unused-label -Wno-unused-parameter -Wunused-variable -Wunused-value -Wempty-body -Wuninitialized -Wconditional-uninitialized -Wno-unknown-pragmas -Wno-shadow -Wno-four-char-constants -Wno-conversion -Wconstant-conversion -Wint-conversion -Wbool-conversion -Wenum-conversion -Wno-float-conversion -Wnon-literal-null-conversion -Wobjc-literal-conversion -Wshorten-64-to-32 -Wpointer-sign -Wno-newline-eof -Wno-implicit-fallthrough -fstrict-aliasing -Wdeprecated-declarations -Wno-sign-conversion -Winfinite-recursion -Wcomma -Wblock-capture-autoreleasing -Wstrict-prototypes -Wno-semicolon-before-method-body -Wunguarded-availability -index-store-path /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Index.noindex/DataStore @/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/7187679823f38a2a940e0043cdf9d637-common-args.resp -MMD -MT dependencies -MF /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/Pods_AllToDo_vers.d --serialize-diagnostics /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/Pods_AllToDo_vers.dia -c /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/DerivedSources/Pods_AllToDo_vers.c -o /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/Pods_AllToDo_vers.o -index-unit-output-path /Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/Pods_AllToDo_vers.o
+
+PrecompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/ptrauth-DNK4G32BBLBO9SQNRXVYCZEUX.scan
+    cd /
+    builtin-precompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/ptrauth-DNK4G32BBLBO9SQNRXVYCZEUX.scan
+
+PrecompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/_Builtin_stdarg-1AXQG55L1FMSNQCQ678LVUG0F.scan
+    cd /
+    builtin-precompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/_Builtin_stdarg-1AXQG55L1FMSNQCQ678LVUG0F.scan
+
+PrecompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/_Builtin_stddef-AGZ1OL7VARVK4QFOHT35I2119.scan
+    cd /
+    builtin-precompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/_Builtin_stddef-AGZ1OL7VARVK4QFOHT35I2119.scan
+
+PrecompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/ptrcheck-881PG6F64GXKEIQRX5Z218R8C.scan
+    cd /
+    builtin-precompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/ptrcheck-881PG6F64GXKEIQRX5Z218R8C.scan
+
+PrecompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/_AvailabilityInternal-119UXJIPZWC561B27509Y85M0.scan
+    cd /
+    builtin-precompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/_AvailabilityInternal-119UXJIPZWC561B27509Y85M0.scan
+
+PrecompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/_Builtin_stdbool-91HLQYQ2ODZUAVAGDE0GISPVF.scan
+    cd /
+    builtin-precompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/_Builtin_stdbool-91HLQYQ2ODZUAVAGDE0GISPVF.scan
+
+PrecompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/_Builtin_float-BAQUG4KKLELSKJQJ6H1YTK092.scan
+    cd /
+    builtin-precompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/_Builtin_float-BAQUG4KKLELSKJQJ6H1YTK092.scan
+
+PrecompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/_DarwinFoundation1-2XKDU272QZTC1J7K35CMLPXML.scan
+    cd /
+    builtin-precompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/_DarwinFoundation1-2XKDU272QZTC1J7K35CMLPXML.scan
+
+PrecompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/_Builtin_limits-7C60LH3WYQA4ED15O50PHKQDW.scan
+    cd /
+    builtin-precompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/_Builtin_limits-7C60LH3WYQA4ED15O50PHKQDW.scan
+
+PrecompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/_DarwinFoundation2-2KY26LWY6IAGFS3NAKZBTJ2YE.scan
+    cd /
+    builtin-precompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/_DarwinFoundation2-2KY26LWY6IAGFS3NAKZBTJ2YE.scan
+
+PrecompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/_Builtin_stdint-CROKK6RSOPYUIGK95V3NZQZM7.scan
+    cd /
+    builtin-precompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/_Builtin_stdint-CROKK6RSOPYUIGK95V3NZQZM7.scan
+
+PrecompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/_DarwinFoundation3-4IBCGZKULFTGQ6XRHJNCG3XAU.scan
+    cd /
+    builtin-precompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/_DarwinFoundation3-4IBCGZKULFTGQ6XRHJNCG3XAU.scan
+
+PrecompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/_Builtin_inttypes-69DMRBTWPQZAY7O01VLLDVUXL.scan
+    cd /
+    builtin-precompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/_Builtin_inttypes-69DMRBTWPQZAY7O01VLLDVUXL.scan
+
+PrecompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/Darwin-AP4ISJUQV9599RNAVT9ZUU8HO.scan
+    cd /
+    builtin-precompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/Darwin-AP4ISJUQV9599RNAVT9ZUU8HO.scan
+
+PrecompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/ObjectiveC-DKCGSG7UZ6YRHFFM11TGE8S9U.scan
+    cd /
+    builtin-precompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/ObjectiveC-DKCGSG7UZ6YRHFFM11TGE8S9U.scan
+
+PrecompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/os_object-BF6BKSCOK0BV8QYZIMFMWY2I5.scan
+    cd /
+    builtin-precompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/os_object-BF6BKSCOK0BV8QYZIMFMWY2I5.scan
+
+PrecompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/os_workgroup-A9A0LGSNB45BTDJJGW9FJJT6F.scan
+    cd /
+    builtin-precompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/os_workgroup-A9A0LGSNB45BTDJJGW9FJJT6F.scan
+
+PrecompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/Dispatch-DQZWTNM0YYJ4NEXMWZ49HNG2H.scan
+    cd /
+    builtin-precompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/Dispatch-DQZWTNM0YYJ4NEXMWZ49HNG2H.scan
+
+PrecompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/CoreFoundation-DTE4SDXT5J5ZJKVGTZZWUTF08.scan
+    cd /
+    builtin-precompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/CoreFoundation-DTE4SDXT5J5ZJKVGTZZWUTF08.scan
+
+PrecompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/XPC-UEC3GVOIJQBWGZA1LLAUZS1G.scan
+    cd /
+    builtin-precompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/XPC-UEC3GVOIJQBWGZA1LLAUZS1G.scan
+
+PrecompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/Security-AW0AUEXPLL784YMBGTIFBNDSW.scan
+    cd /
+    builtin-precompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/Security-AW0AUEXPLL784YMBGTIFBNDSW.scan
+
+PrecompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/CFNetwork-4VR9GGGLPD4AN805R86I5P8BX.scan
+    cd /
+    builtin-precompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/CFNetwork-4VR9GGGLPD4AN805R86I5P8BX.scan
+
+PrecompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/Foundation-9COQOJF423570ZOIHLVV4ZK96.scan
+    cd /
+    builtin-precompileModule /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/ExplicitPrecompiledModules/Foundation-9COQOJF423570ZOIHLVV4ZK96.scan
+
+CompileC /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/Pods-AllToDo-dummy.o /Volumes/Work/AllToDo/AllToDo-iOS/Pods/Target\ Support\ Files/Pods-AllToDo/Pods-AllToDo-dummy.m normal arm64 objective-c com.apple.compilers.llvm.clang.1_0.compiler (in target 'Pods-AllToDo' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    
+    Using response file: /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/e6072d4f65d7061329687fe24e3d63a7-common-args.resp
+    
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -x objective-c -ivfsstatcache /Users/thinking/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphoneos26.2-23C53-3885c01c3e6b6a337905948deab2002e3794476bd08197c3e2abd9bb477ef7f7.sdkstatcache -fmessage-length\=0 -fdiagnostics-show-note-include-stack -fmacro-backtrace-limit\=0 -fno-color-diagnostics -fmodules-prune-interval\=86400 -fmodules-prune-after\=345600 -fbuild-session-file\=/Users/thinking/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -fmodules-validate-once-per-build-session -Wnon-modular-include-in-framework-module -Werror\=non-modular-include-in-framework-module -Wno-trigraphs -Wno-missing-field-initializers -Wno-missing-prototypes -Werror\=return-type -Wdocumentation -Wunreachable-code -Wno-implicit-atomic-properties -Werror\=deprecated-objc-isa-usage -Wno-objc-interface-ivars -Werror\=objc-root-class -Wno-arc-repeated-use-of-weak -Wimplicit-retain-self -Wduplicate-method-match -Wno-missing-braces -Wparentheses -Wswitch -Wunused-function -Wno-unused-label -Wno-unused-parameter -Wunused-variable -Wunused-value -Wempty-body -Wuninitialized -Wconditional-uninitialized -Wno-unknown-pragmas -Wno-shadow -Wno-four-char-constants -Wno-conversion -Wconstant-conversion -Wint-conversion -Wbool-conversion -Wenum-conversion -Wno-float-conversion -Wnon-literal-null-conversion -Wobjc-literal-conversion -Wshorten-64-to-32 -Wpointer-sign -Wno-newline-eof -Wno-selector -Wno-strict-selector-match -Wundeclared-selector -Wdeprecated-implementations -Wno-implicit-fallthrough -fstrict-aliasing -Wprotocol -Wdeprecated-declarations -Wno-sign-conversion -Winfinite-recursion -Wcomma -Wblock-capture-autoreleasing -Wstrict-prototypes -Wno-semicolon-before-method-body -Wunguarded-availability -index-store-path /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Index.noindex/DataStore @/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/e6072d4f65d7061329687fe24e3d63a7-common-args.resp -MMD -MT dependencies -MF /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/Pods-AllToDo-dummy.d --serialize-diagnostics /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/Pods-AllToDo-dummy.dia -c /Volumes/Work/AllToDo/AllToDo-iOS/Pods/Target\ Support\ Files/Pods-AllToDo/Pods-AllToDo-dummy.m -o /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/Pods-AllToDo-dummy.o -index-unit-output-path /Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/Pods-AllToDo-dummy.o
+
+Libtool /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/Pods_AllToDo.framework/Pods_AllToDo normal (in target 'Pods-AllToDo' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/libtool -static -arch_only arm64 -D -syslibroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -L/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos -L/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.3.48.0.yq0QGq/Metal.xctoolchain/usr/lib/swift/iphoneos -L/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/usr/lib/swift -filelist /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/Pods_AllToDo.LinkFileList -framework Foundation -dependency_info /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/Pods-AllToDo.build/Objects-normal/arm64/Pods_AllToDo_libtool_dependency_info.dat -o /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/Pods_AllToDo.framework/Pods_AllToDo
+
+RegisterExecutionPolicyException /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/Pods_AllToDo.framework (in target 'Pods-AllToDo' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    builtin-RegisterExecutionPolicyException /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/Pods_AllToDo.framework
+
+Touch /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/Pods_AllToDo.framework (in target 'Pods-AllToDo' from project 'Pods')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS/Pods
+    /usr/bin/touch -c /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/Pods_AllToDo.framework
+
+PhaseScriptExecution [CP]\ Check\ Pods\ Manifest.lock /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Script-DE5C9705E2F06442E2575958.sh (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    /bin/sh -c /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Script-DE5C9705E2F06442E2575958.sh
+
+Ld /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app/__preview.dylib normal (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-ios26.1 -dynamiclib -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -O0 -L/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos -L/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.3.48.0.yq0QGq/Metal.xctoolchain/usr/lib/swift/iphoneos -L/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/usr/lib/swift -F/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos -F/Volumes/Work/AllToDo/AllToDo-iOS/Pods/GoogleMaps/Maps/Frameworks -F/Volumes/Work/AllToDo/AllToDo-iOS/Pods/KakaoMapsSDK -F/Volumes/Work/AllToDo/AllToDo-iOS/Pods/NMapsGeometry/framework -F/Volumes/Work/AllToDo/AllToDo-iOS/Pods/NMapsMap/framework -F/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/GoogleMaps/Maps -F/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/KakaoMapsSDK -F/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/NMapsGeometry -F/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/NMapsMap -install_name @rpath/AllToDo.debug.dylib -dead_strip -rdynamic -Xlinker -no_deduplicate -Xlinker -dependency_info -Xlinker /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Objects-normal/arm64/AllToDo_dependency_info.dat -Xlinker -no_adhoc_codesign -o /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app/__preview.dylib
+ld: warning: search path '/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.3.48.0.yq0QGq/Metal.xctoolchain/usr/lib/swift/iphoneos' not found
+
+CpResource /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app/wasm_glue.js /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Resources/wasm_glue.js (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Resources/wasm_glue.js /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app
+
+CpResource /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app/robust_cleanup.py /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/robust_cleanup.py (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/robust_cleanup.py /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app
+
+GenerateAssetSymbols /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Assets.xcassets (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    /Applications/Xcode.app/Contents/Developer/usr/bin/actool /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Assets.xcassets --compile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app --output-format human-readable-text --notices --warnings --export-dependency-info /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/assetcatalog_dependencies --output-partial-info-plist /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/assetcatalog_generated_info.plist --app-icon AppIcon --accent-color AccentColor --compress-pngs --enable-on-demand-resources YES --development-region en --target-device iphone --target-device ipad --minimum-deployment-target 26.1 --platform iphoneos --bundle-identifier kr.alltodo --generate-swift-asset-symbols /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/DerivedSources/GeneratedAssetSymbols.swift --generate-objc-asset-symbols /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/DerivedSources/GeneratedAssetSymbols.h --generate-asset-symbol-index /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/DerivedSources/GeneratedAssetSymbols-Index.plist
+/* com.apple.actool.document.warnings */
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Assets.xcassets:./ic_path_tracking.imageset/(null)[2d][ic_path_tracking.png]: warning: The image set "ic_path_tracking" has an unassigned child.
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Assets.xcassets:./ic_path_tracking.imageset/[universal][][][1x][][][][][][][][][][]: warning: The file "ic_path_toggle.png" for the image set "ic_path_tracking" does not exist.
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Assets.xcassets:./AppIcon.appiconset/[][iphone][38x38][][][2x][][][][][2d][icon 8.png]: warning: The app icon set "AppIcon" has 7 unassigned children.
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Assets.xcassets:./AppIcon.appiconset/[][iphone][76x76][][][2x][][][][][2d][icon 5.png]: warning: The file "icon 5.png" for the image set "AppIcon" does not exist.
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Assets.xcassets:./AppIcon.appiconset/[][iphone][38x38][][][3x][][][][][2d][icon 7.png]: warning: The file "icon 7.png" for the image set "AppIcon" does not exist.
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Assets.xcassets:./AppIcon.appiconset/[][iphone][68x68][][][2x][][][][][2d][icon 4.png]: warning: The file "icon 4.png" for the image set "AppIcon" does not exist.
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Assets.xcassets:./AppIcon.appiconset/[][iphone][38x38][][][2x][][][][][2d][icon 8.png]: warning: The file "icon 8.png" for the image set "AppIcon" does not exist.
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Assets.xcassets:./AppIcon.appiconset/[][iphone][64x64][][][3x][][][][][2d][icon 3.png]: warning: The file "icon 3.png" for the image set "AppIcon" does not exist.
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Assets.xcassets:./AppIcon.appiconset/[][iphone][64x64][][][2x][][][][][2d][icon 6.png]: warning: The file "icon 6.png" for the image set "AppIcon" does not exist.
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Assets.xcassets:./ic_path_tracking.imageset/(null)[2d][ic_path_tracking.png]: warning: The image set "ic_path_tracking" has an unassigned child.
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Assets.xcassets:./ic_path_tracking.imageset/[universal][][][1x][][][][][][][][][][]: warning: The file "ic_path_toggle.png" for the image set "ic_path_tracking" does not exist.
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Assets.xcassets:./AppIcon.appiconset/[][iphone][38x38][][][2x][][][][][2d][icon 8.png]: warning: The app icon set "AppIcon" has 7 unassigned children.
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Assets.xcassets:./AppIcon.appiconset/[][iphone][76x76][][][2x][][][][][2d][icon 5.png]: warning: The file "icon 5.png" for the image set "AppIcon" does not exist.
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Assets.xcassets:./AppIcon.appiconset/[][iphone][38x38][][][3x][][][][][2d][icon 7.png]: warning: The file "icon 7.png" for the image set "AppIcon" does not exist.
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Assets.xcassets:./AppIcon.appiconset/[][iphone][68x68][][][2x][][][][][2d][icon 4.png]: warning: The file "icon 4.png" for the image set "AppIcon" does not exist.
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Assets.xcassets:./AppIcon.appiconset/[][iphone][38x38][][][2x][][][][][2d][icon 8.png]: warning: The file "icon 8.png" for the image set "AppIcon" does not exist.
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Assets.xcassets:./AppIcon.appiconset/[][iphone][64x64][][][3x][][][][][2d][icon 3.png]: warning: The file "icon 3.png" for the image set "AppIcon" does not exist.
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Assets.xcassets:./AppIcon.appiconset/[][iphone][64x64][][][2x][][][][][2d][icon 6.png]: warning: The file "icon 6.png" for the image set "AppIcon" does not exist.
+/* com.apple.actool.compilation-results */
+/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/DerivedSources/GeneratedAssetSymbols-Index.plist
+/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/DerivedSources/GeneratedAssetSymbols.h
+/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/DerivedSources/GeneratedAssetSymbols.swift
+
+
+CpResource /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app/fix_switches_v2.py /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/fix_switches_v2.py (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/fix_switches_v2.py /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app
+
+CpResource /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app/fix_final_syntax.py /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/fix_final_syntax.py (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/fix_final_syntax.py /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app
+
+CpResource /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app/fix_google_naver.py /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/fix_google_naver.py (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/fix_google_naver.py /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app
+
+MkDir /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/assetcatalog_output/thinned (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    /bin/mkdir -p /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/assetcatalog_output/thinned
+
+MkDir /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/assetcatalog_output/unthinned (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    /bin/mkdir -p /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/assetcatalog_output/unthinned
+
+CpResource /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app/fix_corrupted_switches.py /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/fix_corrupted_switches.py (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/fix_corrupted_switches.py /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app
+
+CpResource /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app/fix_coord_binding.py /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/fix_coord_binding.py (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/fix_coord_binding.py /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app
+
+CpResource /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app/final_cleanup.py /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/final_cleanup.py (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/final_cleanup.py /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app
+
+CpResource /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app/fallback.wasm /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Resources/fallback.wasm (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Resources/fallback.wasm /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app
+
+CopyPlistFile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app/AllToDo-Info.plist /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/AllToDo-Info.plist (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    builtin-copyPlist --convert binary1 --outdir /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app -- /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/AllToDo-Info.plist
+
+CompileAssetCatalogVariant thinned /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/AllToDo.app /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Assets.xcassets (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    /Applications/Xcode.app/Contents/Developer/usr/bin/actool /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Assets.xcassets --compile /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/assetcatalog_output/thinned --output-format human-readable-text --notices --warnings --export-dependency-info /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/assetcatalog_dependencies_thinned --output-partial-info-plist /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/assetcatalog_generated_info.plist_thinned --app-icon AppIcon --accent-color AccentColor --compress-pngs --enable-on-demand-resources YES --development-region en --target-device iphone --target-device ipad --minimum-deployment-target 26.1 --platform iphoneos
+
+SwiftDriver AllToDo normal arm64 com.apple.xcode.tools.swift.compiler (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    builtin-SwiftDriver -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name AllToDo -Onone -enforce-exclusivity\=checked @/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Objects-normal/arm64/AllToDo.SwiftFileList -DDEBUG -D COCOAPODS -default-isolation\=MainActor -enable-bare-slash-regex -enable-upcoming-feature DisableOutwardActorInference -enable-upcoming-feature InferSendableFromCaptures -enable-upcoming-feature GlobalActorIsolatedTypesUsability -enable-upcoming-feature MemberImportVisibility -enable-upcoming-feature InferIsolatedConformances -enable-upcoming-feature NonisolatedNonsendingByDefault -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -target arm64-apple-ios26.1 -g -module-cache-path /Users/thinking/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Index.noindex/DataStore -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 5 -I /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos -F /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos -F /Volumes/Work/AllToDo/AllToDo-iOS/Pods/GoogleMaps/Maps/Frameworks -F /Volumes/Work/AllToDo/AllToDo-iOS/Pods/KakaoMapsSDK -F /Volumes/Work/AllToDo/AllToDo-iOS/Pods/NMapsGeometry/framework -F /Volumes/Work/AllToDo/AllToDo-iOS/Pods/NMapsMap/framework -F /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/GoogleMaps/Maps -F /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/KakaoMapsSDK -F /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/NMapsGeometry -F /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/NMapsMap -emit-localized-strings -emit-localized-strings-path /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Objects-normal/arm64 -c -j10 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/thinking/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphoneos26.2-23C53-3885c01c3e6b6a337905948deab2002e3794476bd08197c3e2abd9bb477ef7f7.sdkstatcache -output-file-map /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Objects-normal/arm64/AllToDo-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/thinking/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/thinking/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Objects-normal/arm64/AllToDo.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/thinking/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Objects-normal/arm64/AllToDo_const_extract_protocols.json -Xcc -iquote -Xcc /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo-generated-files.hmap -Xcc -I/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo-own-target-headers.hmap -Xcc -I/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo-all-non-framework-target-headers.hmap -Xcc -ivfsoverlay -Xcc /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo-3e4239374e436b3db5a2bf4c354750af-VFS-iphoneos/all-product-headers.yaml -Xcc -iquote -Xcc /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo-project-headers.hmap -Xcc -I/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/include -Xcc -I/Volumes/Work/AllToDo/AllToDo-iOS/Pods/Headers/Public -Xcc -I/Volumes/Work/AllToDo/AllToDo-iOS/Pods/Headers/Public/GoogleMaps -Xcc -I/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/DerivedSources-normal/arm64 -Xcc -I/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/DerivedSources/arm64 -Xcc -I/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/DerivedSources -Xcc -DDEBUG\=1 -Xcc -DCOCOAPODS\=1 -emit-objc-header -emit-objc-header-path /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Objects-normal/arm64/AllToDo-Swift.h -working-directory /Volumes/Work/AllToDo/AllToDo-iOS -experimental-emit-module-separately -disable-cmo
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules/KakaoMapsSDK-DG3A4ORP4FGLQDQUQDDNPIG7D.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules/GoogleMaps-CXTG6CZ2I7PTKMTTTYVRXB4NH.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules/NMapsGeometry-EQ0BP4RKLI7487YRDI0FGIE5W.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules/NMapsMap-1Q4G61TYBK04CG5SV9E3IYD7A.pcm
+<module-includes>:1:9: note: in file included from <module-includes>:1:
+1 | #import "Headers/NMapsMap.h"
+  |         `- note: in file included from <module-includes>:1:
+2 | 
+
+/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/NMapsMap/NMapsMap.framework/Headers/NMapsMap.h:9:9: note: in file included from /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/NMapsMap/NMapsMap.framework/Headers/NMapsMap.h:9:
+ 7 | FOUNDATION_EXPORT NMF_EXPORT const unsigned char NaverMapFrameworVersionString[];
+ 8 | 
+ 9 | #import "NMFUtils.h"
+   |         `- note: in file included from /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/NMapsMap/NMapsMap.framework/Headers/NMapsMap.h:9:
+10 | 
+11 | #import "NMFAuthManager.h"
+
+/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/NMapsMap/NMapsMap.framework/Headers/NMFUtils.h:13:35: warning: 'mainScreen' is deprecated: first deprecated in iOS 26.0 - Use a UIScreen instance found through context instead (i.e, view.window.windowScene.screen), or for properties like UIScreen.scale with trait equivalents, use a traitCollection found through context.
+11 |     dispatch_once(&onceToken, ^{
+12 |         screenFactor = [UIScreen instancesRespondToSelector:@selector(nativeScale)] ?
+13 |                        [[UIScreen mainScreen] nativeScale] : [[UIScreen mainScreen] scale];
+   |                                   `- warning: 'mainScreen' is deprecated: first deprecated in iOS 26.0 - Use a UIScreen instance found through context instead (i.e, view.window.windowScene.screen), or for properties like UIScreen.scale with trait equivalents, use a traitCollection found through context.
+14 |     });
+15 |     
+
+/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/UIKit.framework/Headers/UIScreen.h:57:49: note: property 'mainScreen' is declared deprecated here
+ 55 | 
+ 56 | @property(class, nonatomic, readonly) NSArray<UIScreen *> *screens API_DEPRECATED("Use UIApplication.shared.openSessions to find open sessions with scenes from other screens", ios(3.2, 16.0), visionos(1.0, 1.0)) API_UNAVAILABLE(watchos); // all screens currently attached to the device
+ 57 | @property(class, nonatomic, readonly) UIScreen *mainScreen API_DEPRECATED("Use a UIScreen instance found through context instead (i.e, view.window.windowScene.screen), or for properties like UIScreen.scale with trait equivalents, use a traitCollection found through context.", ios(2.0, 26.0), tvos(9.0, 26.0), visionos(1.0, 26.0)) API_UNAVAILABLE(watchos);
+    |                                                 |- note: property 'mainScreen' is declared deprecated here
+    |                                                 `- note: 'mainScreen' has been explicitly marked deprecated here
+ 58 | 
+ 59 | @property(nonatomic,readonly) CGRect  bounds;                // Bounds of entire screen in points
+
+<module-includes>:1:9: note: in file included from <module-includes>:1:
+1 | #import "Headers/NMapsMap.h"
+  |         `- note: in file included from <module-includes>:1:
+2 | 
+
+/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/NMapsMap/NMapsMap.framework/Headers/NMapsMap.h:9:9: note: in file included from /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/NMapsMap/NMapsMap.framework/Headers/NMapsMap.h:9:
+ 7 | FOUNDATION_EXPORT NMF_EXPORT const unsigned char NaverMapFrameworVersionString[];
+ 8 | 
+ 9 | #import "NMFUtils.h"
+   |         `- note: in file included from /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/NMapsMap/NMapsMap.framework/Headers/NMapsMap.h:9:
+10 | 
+11 | #import "NMFAuthManager.h"
+
+2 warnings generated.
+/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/NMapsMap/NMapsMap.framework/Headers/NMFUtils.h:13:73: warning: 'mainScreen' is deprecated: first deprecated in iOS 26.0 - Use a UIScreen instance found through context instead (i.e, view.window.windowScene.screen), or for properties like UIScreen.scale with trait equivalents, use a traitCollection found through context.
+11 |     dispatch_once(&onceToken, ^{
+12 |         screenFactor = [UIScreen instancesRespondToSelector:@selector(nativeScale)] ?
+13 |                        [[UIScreen mainScreen] nativeScale] : [[UIScreen mainScreen] scale];
+   |                                                                         `- warning: 'mainScreen' is deprecated: first deprecated in iOS 26.0 - Use a UIScreen instance found through context instead (i.e, view.window.windowScene.screen), or for properties like UIScreen.scale with trait equivalents, use a traitCollection found through context.
+14 |     });
+15 |     
+
+/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/UIKit.framework/Headers/UIScreen.h:57:49: note: property 'mainScreen' is declared deprecated here
+ 55 | 
+ 56 | @property(class, nonatomic, readonly) NSArray<UIScreen *> *screens API_DEPRECATED("Use UIApplication.shared.openSessions to find open sessions with scenes from other screens", ios(3.2, 16.0), visionos(1.0, 1.0)) API_UNAVAILABLE(watchos); // all screens currently attached to the device
+ 57 | @property(class, nonatomic, readonly) UIScreen *mainScreen API_DEPRECATED("Use a UIScreen instance found through context instead (i.e, view.window.windowScene.screen), or for properties like UIScreen.scale with trait equivalents, use a traitCollection found through context.", ios(2.0, 26.0), tvos(9.0, 26.0), visionos(1.0, 26.0)) API_UNAVAILABLE(watchos);
+    |                                                 |- note: property 'mainScreen' is declared deprecated here
+    |                                                 `- note: 'mainScreen' has been explicitly marked deprecated here
+ 58 | 
+ 59 | @property(nonatomic,readonly) CGRect  bounds;                // Bounds of entire screen in points
+
+SwiftExplicitDependencyCompileModuleFromInterface arm64 /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules/KakaoMapsSDK-1VVQEGDIBIS4R.swiftmodule
+
+SwiftEmitModule normal arm64 Emitting\ module\ for\ AllToDo (in target 'AllToDo' from project 'AllToDo')
+Failed frontend command:
+/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-frontend -frontend -emit-module -experimental-skip-non-inlinable-function-bodies-without-types /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Models/IntCoordinate.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Models/TaskModel.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Models/UnifiedMapModels.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/Wasm/WasmBundle.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/Wasm/WasmCrypto.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/Wasm/WasmManager.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/Wasm/WasmRuntime.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/Wasm/WasmStorage.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/Wasm/WebViewWasmRuntime.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/APIManager.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/APIService.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/BackgroundService.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/LocationManager.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/RemoteLogger.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/AppColors.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/AppConfig.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/AppLocationManager.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/GeomUtils.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/KoreanUtils.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/LiquidGlass.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/MapLogicHelper.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/OptimizationLogger.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/PinImageHelper.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/SmartLocationManager.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/ViewModels/AppViewModel.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/ViewModels/MapFeatureViewModel.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/Components/PathSettingsView.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/Components/RightSideControls.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/Components/TopLeftWidget.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/AppleMapView.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/BottomBar.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/ContentView.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/CreateTodoLayer.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/GoogleMapView.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/KakaoMapTEST.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/KakaoMapView.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/MapView.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/NaverMapView.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/PathHistoryView.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/PinGalleryView.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/TodoListSheet.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/UserProfileView.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/AllToDoApp.swift /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/DerivedSources/GeneratedAssetSymbols.swift -target arm64-apple-ios26.1 -module-can-import-version DeveloperToolsSupport 23.0.4 23.0.4 -module-can-import-version SwiftUI 7.2.5.1 7.2.5 -module-can-import-version UIKit 9126.2.4.1 9126.2.4 -disable-cross-import-overlay-search -swift-module-cross-import MapKit /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/MapKit.framework/Modules/MapKit.swiftcrossimport/SwiftUI.swiftoverlay -swift-module-cross-import SwiftData /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/SwiftData.framework/Modules/SwiftData.swiftcrossimport/CoreData.swiftoverlay -swift-module-cross-import SwiftData /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/SwiftData.framework/Modules/SwiftData.swiftcrossimport/SwiftUI.swiftoverlay -swift-module-cross-import WebKit /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Cryptexes/OS/System/Library/Frameworks/WebKit.framework/Modules/WebKit.swiftcrossimport/SwiftUI.swiftoverlay -swift-module-cross-import WebKit /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/WebKit.framework/Modules/WebKit.swiftcrossimport/SwiftUI.swiftoverlay -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins/libFoundationMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server\#FoundationMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins/libObservationMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server\#ObservationMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins/libPreviewsMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server\#PreviewsMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins/libSwiftDataMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server\#SwiftDataMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins/libSwiftMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server\#SwiftMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server\#SwiftUIMacros -disable-implicit-swift-modules -Xcc -fno-implicit-modules -Xcc -fno-implicit-module-maps -explicit-swift-module-map-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Objects-normal/arm64/AllToDo-dependencies-1.json -Xllvm -aarch64-use-tbi -enable-objc-interop -stack-check -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -I /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos -F /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos -F /Volumes/Work/AllToDo/AllToDo-iOS/Pods/GoogleMaps/Maps/Frameworks -F /Volumes/Work/AllToDo/AllToDo-iOS/Pods/KakaoMapsSDK -F /Volumes/Work/AllToDo/AllToDo-iOS/Pods/NMapsGeometry/framework -F /Volumes/Work/AllToDo/AllToDo-iOS/Pods/NMapsMap/framework -F /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/GoogleMaps/Maps -F /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/KakaoMapsSDK -F /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/NMapsGeometry -F /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/XCFrameworkIntermediates/NMapsMap -no-color-diagnostics -Xcc -fno-color-diagnostics -enable-testing -g -debug-info-format\=dwarf -dwarf-version\=5 -module-cache-path /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -swift-version 5 -enforce-exclusivity\=checked -Onone -D DEBUG -D COCOAPODS -serialize-debugging-options -const-gather-protocols-file /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Objects-normal/arm64/AllToDo_const_extract_protocols.json -enable-upcoming-feature DisableOutwardActorInference -enable-upcoming-feature InferSendableFromCaptures -enable-upcoming-feature GlobalActorIsolatedTypesUsability -enable-upcoming-feature MemberImportVisibility -enable-upcoming-feature InferIsolatedConformances -enable-upcoming-feature NonisolatedNonsendingByDefault -enable-experimental-feature DebugDescriptionMacro -enable-bare-slash-regex -default-isolation\=MainActor -empty-abi-descriptor -validate-clang-modules-once -clang-build-session-file /Users/thinking/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -working-directory -Xcc /Volumes/Work/AllToDo/AllToDo-iOS -enable-anonymous-context-mangled-names -file-compilation-dir /Volumes/Work/AllToDo/AllToDo-iOS -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -Xcc -ivfsstatcache -Xcc /Users/thinking/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphoneos26.2-23C53-3885c01c3e6b6a337905948deab2002e3794476bd08197c3e2abd9bb477ef7f7.sdkstatcache -Xcc -I/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/swift-overrides.hmap -Xcc -iquote -Xcc /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo-generated-files.hmap -Xcc -I/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo-own-target-headers.hmap -Xcc -I/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo-all-non-framework-target-headers.hmap -Xcc -ivfsoverlay -Xcc /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo-3e4239374e436b3db5a2bf4c354750af-VFS-iphoneos/all-product-headers.yaml -Xcc -iquote -Xcc /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/AllToDo-project-headers.hmap -Xcc -I/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Products/Debug-iphoneos/include -Xcc -I/Volumes/Work/AllToDo/AllToDo-iOS/Pods/Headers/Public -Xcc -I/Volumes/Work/AllToDo/AllToDo-iOS/Pods/Headers/Public/GoogleMaps -Xcc -I/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/DerivedSources-normal/arm64 -Xcc -I/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/DerivedSources/arm64 -Xcc -I/Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/DerivedSources -Xcc -DDEBUG\=1 -Xcc -DCOCOAPODS\=1 -no-auto-bridging-header-chaining -module-name AllToDo -frontend-parseable-output -disable-clang-spi -target-sdk-version 26.2 -target-sdk-name iphoneos26.2 -clang-target arm64-apple-ios26.2 -in-process-plugin-server-path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/libSwiftInProcPluginServer.dylib -emit-module-doc-path /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Objects-normal/arm64/AllToDo.swiftdoc -emit-module-source-info-path /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Objects-normal/arm64/AllToDo.swiftsourceinfo -emit-objc-header-path /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Objects-normal/arm64/AllToDo-Swift.h -serialize-diagnostics-path /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Objects-normal/arm64/AllToDo-primary-emit-module.dia -emit-dependencies-path /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Objects-normal/arm64/AllToDo-primary-emit-module.d -o /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Objects-normal/arm64/AllToDo.swiftmodule -emit-abi-descriptor-path /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/Objects-normal/arm64/AllToDo.abi.json
+
+EmitSwiftModule normal arm64 (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/KakaoMapView.swift:277:14: warning: instance method 'containerDidResize' nearly matches optional requirement 'containerDidResized' of protocol 'MapControllerDelegate'
+        func containerDidResize(_ size: CGSize) {
+             ^
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/KakaoMapView.swift:277:14: note: rename to 'containerDidResized' to satisfy this requirement
+        func containerDidResize(_ size: CGSize) {
+             ^~~~~~~~~~~~~~~~~~
+             containerDidResized
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/KakaoMapView.swift:277:14: note: move 'containerDidResize' to an extension to silence this warning
+        func containerDidResize(_ size: CGSize) {
+             ^
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/KakaoMapView.swift:277:14: note: make 'containerDidResize' private to silence this warning
+        func containerDidResize(_ size: CGSize) {
+             ^
+        private 
+KakaoMapsSDK.MapControllerDelegate.containerDidResized:2:15: note: requirement 'containerDidResized' declared here
+optional func containerDidResized(_ size: CGSize)}
+              ^
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/KakaoMapView.swift:450:17: warning: variable 'userClusterIdx' was written to, but never read
+            var userClusterIdx = -1
+                ^
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/KakaoMapView.swift:451:17: warning: variable 'userPoiID' was never mutated; consider changing to 'let' constant
+            var userPoiID = "UserPoi"
+            ~~~ ^
+            let
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/KakaoMapView.swift:482:25: warning: initialization of immutable value 'targetSize' was never used; consider replacing with assignment to '_' or removing it
+                    let targetSize = CGSize(width: 28, height: 35)
+                    ~~~~^~~~~~~~~~
+                    _
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/NaverMapView.swift:482:37: error: type 'String' has no member 'userLocation'
+                     if pinType == .userLocation && count == 1 {
+                                   ~^~~~~~~~~~~~
+
+SwiftCompile normal arm64 Compiling\ TopLeftWidget.swift,\ AppleMapView.swift,\ BottomBar.swift,\ ContentView.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/Components/TopLeftWidget.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/AppleMapView.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/BottomBar.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/ContentView.swift (in target 'AllToDo' from project 'AllToDo')
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/Components/TopLeftWidget.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/AppleMapView.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/BottomBar.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/ContentView.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 Compiling\ AppViewModel.swift,\ MapFeatureViewModel.swift,\ PathSettingsView.swift,\ RightSideControls.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/ViewModels/AppViewModel.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/ViewModels/MapFeatureViewModel.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/Components/PathSettingsView.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/Components/RightSideControls.swift (in target 'AllToDo' from project 'AllToDo')
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/ViewModels/AppViewModel.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/ViewModels/MapFeatureViewModel.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/Components/PathSettingsView.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/Components/RightSideControls.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 Compiling\ IntCoordinate.swift,\ TaskModel.swift,\ UnifiedMapModels.swift,\ WasmBundle.swift,\ WasmCrypto.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Models/IntCoordinate.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Models/TaskModel.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Models/UnifiedMapModels.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/Wasm/WasmBundle.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/Wasm/WasmCrypto.swift (in target 'AllToDo' from project 'AllToDo')
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Models/IntCoordinate.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Models/TaskModel.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Models/UnifiedMapModels.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/Wasm/WasmBundle.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/Wasm/WasmCrypto.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 Compiling\ APIService.swift,\ BackgroundService.swift,\ LocationManager.swift,\ RemoteLogger.swift,\ AppColors.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/APIService.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/BackgroundService.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/LocationManager.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/RemoteLogger.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/AppColors.swift (in target 'AllToDo' from project 'AllToDo')
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/APIService.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/BackgroundService.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/LocationManager.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/RemoteLogger.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/AppColors.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 Compiling\ CreateTodoLayer.swift,\ GoogleMapView.swift,\ KakaoMapTEST.swift,\ KakaoMapView.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/CreateTodoLayer.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/GoogleMapView.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/KakaoMapTEST.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/KakaoMapView.swift (in target 'AllToDo' from project 'AllToDo')
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/CreateTodoLayer.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/GoogleMapView.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/KakaoMapTEST.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/KakaoMapView.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 Compiling\ AppConfig.swift,\ AppLocationManager.swift,\ GeomUtils.swift,\ KoreanUtils.swift,\ LiquidGlass.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/AppConfig.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/AppLocationManager.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/GeomUtils.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/KoreanUtils.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/LiquidGlass.swift (in target 'AllToDo' from project 'AllToDo')
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/AppConfig.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/AppLocationManager.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/GeomUtils.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/KoreanUtils.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/LiquidGlass.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 Compiling\ WasmManager.swift,\ WasmRuntime.swift,\ WasmStorage.swift,\ WebViewWasmRuntime.swift,\ APIManager.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/Wasm/WasmManager.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/Wasm/WasmRuntime.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/Wasm/WasmStorage.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/Wasm/WebViewWasmRuntime.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/APIManager.swift (in target 'AllToDo' from project 'AllToDo')
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/Wasm/WasmManager.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/Wasm/WasmManager.swift:199:17: warning: initialization of immutable value 'duration' was never used; consider replacing with assignment to '_' or removing it
+            let duration = Date().timeIntervalSince(start) * 1000
+            ~~~~^~~~~~~~
+            _
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/Wasm/WasmRuntime.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/Wasm/WasmStorage.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/Wasm/WebViewWasmRuntime.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/Wasm/WebViewWasmRuntime.swift:24:35: warning: 'init(contentsOf:)' was deprecated in iOS 18: Use `init(contentsOf:encoding:)` instead
+           let glueContent = try? String(contentsOf: glueURL) {
+                                  ^
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/APIManager.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 Compiling\ MapLogicHelper.swift,\ OptimizationLogger.swift,\ PinImageHelper.swift,\ SmartLocationManager.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/MapLogicHelper.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/OptimizationLogger.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/PinImageHelper.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/SmartLocationManager.swift (in target 'AllToDo' from project 'AllToDo')
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/MapLogicHelper.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/OptimizationLogger.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/PinImageHelper.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/PinImageHelper.swift:43:33: warning: 'main' was deprecated in iOS 26.0: Use a UIScreen instance found through context instead (i.e, view.window.windowScene.screen), or for properties like UIScreen.scale with trait equivalents, use a traitCollection found through context.
+        format.scale = UIScreen.main.scale // 고해상도 유지
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/PinImageHelper.swift:93:52: warning: 'main' was deprecated in iOS 26.0: Use a UIScreen instance found through context instead (i.e, view.window.windowScene.screen), or for properties like UIScreen.scale with trait equivalents, use a traitCollection found through context.
+        return UIImage(data: data, scale: UIScreen.main.scale)
+                                                   ^
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/SmartLocationManager.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 Compiling\ TodoListSheet.swift,\ UserProfileView.swift,\ AllToDoApp.swift,\ GeneratedAssetSymbols.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/TodoListSheet.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/UserProfileView.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/AllToDoApp.swift /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/DerivedSources/GeneratedAssetSymbols.swift (in target 'AllToDo' from project 'AllToDo')
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/TodoListSheet.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/UserProfileView.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/AllToDoApp.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Users/thinking/Library/Developer/Xcode/DerivedData/AllToDo-dpowdcqrcyrydwgnhugjekczmeig/Build/Intermediates.noindex/AllToDo.build/Debug-iphoneos/AllToDo.build/DerivedSources/GeneratedAssetSymbols.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftDriverJobDiscovery normal arm64 Compiling APIService.swift, BackgroundService.swift, LocationManager.swift, RemoteLogger.swift, AppColors.swift (in target 'AllToDo' from project 'AllToDo')
+
+SwiftCompile normal arm64 Compiling\ MapView.swift,\ NaverMapView.swift,\ PathHistoryView.swift,\ PinGalleryView.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/MapView.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/NaverMapView.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/PathHistoryView.swift /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/PinGalleryView.swift (in target 'AllToDo' from project 'AllToDo')
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/MapView.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/NaverMapView.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/PathHistoryView.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftCompile normal arm64 /Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/PinGalleryView.swift (in target 'AllToDo' from project 'AllToDo')
+    cd /Volumes/Work/AllToDo/AllToDo-iOS
+    
+
+SwiftDriverJobDiscovery normal arm64 Compiling MapLogicHelper.swift, OptimizationLogger.swift, PinImageHelper.swift, SmartLocationManager.swift (in target 'AllToDo' from project 'AllToDo')
+
+SwiftDriverJobDiscovery normal arm64 Compiling AppConfig.swift, AppLocationManager.swift, GeomUtils.swift, KoreanUtils.swift, LiquidGlass.swift (in target 'AllToDo' from project 'AllToDo')
+
+SwiftDriverJobDiscovery normal arm64 Compiling WasmManager.swift, WasmRuntime.swift, WasmStorage.swift, WebViewWasmRuntime.swift, APIManager.swift (in target 'AllToDo' from project 'AllToDo')
+
+SwiftDriverJobDiscovery normal arm64 Compiling AppViewModel.swift, MapFeatureViewModel.swift, PathSettingsView.swift, RightSideControls.swift (in target 'AllToDo' from project 'AllToDo')
+
+/Volumes/Work/AllToDo/AllToDo-iOS/Pods/Pods.xcodeproj: warning: The iOS deployment target 'IPHONEOS_DEPLOYMENT_TARGET' is set to 9.0, but the range of supported deployment target versions is 12.0 to 26.2.99. (in target 'NMapsMap' from project 'Pods')
+/Volumes/Work/AllToDo/AllToDo-iOS/Pods/Pods.xcodeproj: warning: The iOS deployment target 'IPHONEOS_DEPLOYMENT_TARGET' is set to 9.0, but the range of supported deployment target versions is 12.0 to 26.2.99. (in target 'NMapsGeometry' from project 'Pods')
+/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo.xcodeproj: warning: The Copy Bundle Resources build phase contains this target's Info.plist file '/Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/AllToDo-Info.plist'. (in target 'AllToDo' from project 'AllToDo')
+** BUILD FAILED **
+
+
+The following build commands failed:
+	SwiftEmitModule normal arm64 Emitting\ module\ for\ AllToDo (in target 'AllToDo' from project 'AllToDo')
+	EmitSwiftModule normal arm64 (in target 'AllToDo' from project 'AllToDo')
+	Building workspace AllToDo with scheme AllToDo
+(3 failures)

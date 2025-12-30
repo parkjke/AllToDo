@@ -7,6 +7,7 @@ enum UnifiedMapItem: Identifiable {
     case history(ToDoItem)
     case serverMessage(String)
     case userLocation(CLLocationCoordinate2D)
+
     
     var id: UUID {
         switch self {
@@ -14,6 +15,7 @@ enum UnifiedMapItem: Identifiable {
         case .history(let item): return item.todo_id
         case .serverMessage: return UUID()
         case .userLocation: return UUID()
+
         }
     }
     
@@ -23,6 +25,7 @@ enum UnifiedMapItem: Identifiable {
         case .history(let item): return item.begin_time ?? Date(timeIntervalSince1970: Double(item.created_at) / 1000.0)
         case .serverMessage: return Date()
         case .userLocation: return Date()
+
         }
     }
     
@@ -34,6 +37,7 @@ enum UnifiedMapItem: Identifiable {
             return item.coordinate
         case .serverMessage: return nil
         case .userLocation(let coord): return coord
+
         }
     }
     
@@ -43,6 +47,7 @@ enum UnifiedMapItem: Identifiable {
         case .history(let item): return item.todo_name
         case .serverMessage(let msg): return msg
         case .userLocation: return "현재 위치"
+
         }
     }
     
@@ -54,6 +59,7 @@ enum UnifiedMapItem: Identifiable {
         case .history: return "pin_shield_0X"
         case .serverMessage: return "pin_shield_2X"
         case .userLocation: return "pin_shield_0X"
+
         }
     }
 
@@ -61,6 +67,7 @@ enum UnifiedMapItem: Identifiable {
     var type: String {
         switch self {
         case .todo(let item):
+            if item.type == "25" { return "25" }
             return item.is_completed ? "12" : "10"
         case .history:
             return "01"
@@ -74,6 +81,7 @@ enum UnifiedMapItem: Identifiable {
     var markName: String {
         switch self {
         case .todo(let item):
+            if item.type == "25" { return "pin_mark_25" }
             if item.is_completed { return "pin_mark_12" } // Check Mark
             return "pin_mark_10" // Exclamation
         case .history:

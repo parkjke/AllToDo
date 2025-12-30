@@ -796,7 +796,7 @@ struct AppleMapView: UIViewRepresentable {
                     }
                     imageView.image = finalImage
                     view.frame = CGRect(origin: .zero, size: finalImage.size)
-                    view.centerOffset = CGPoint(x: -5, y: 30) // Adjusted override
+                    view.centerOffset = CGPoint(x: 5, y: -30) // Adjusted override: Anchor (0.4, 1.0)
                 }
             } else if let wasmCluster = annotation as? WasmClusterAnnotation {
                 let items = wasmCluster.items

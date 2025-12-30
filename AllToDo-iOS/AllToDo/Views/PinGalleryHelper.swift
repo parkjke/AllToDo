@@ -143,23 +143,16 @@ struct MapProviderPinCell: View {
             
             if isBadged {
                 let badged = PinImageHelper.shared.applyBadge(to: base, count: count, badgeColor: badgeColor, badgeSize: 20)
-                // Assuming L799 centerOffset is correct, let's reverse engineer anchor
-                // offset = (-5, 30)
                 let w = badged.size.width
                 let h = badged.size.height
                 
-                // Coord is at ViewCenter - offset? No.
-                // Apple Doc: "Positive values move the view down and right."
-                // So View Center is moved (-5, 30) from Coord.
-                // Coord is at (ViewCenter.x - (-5), ViewCenter.y - 30) 
-                // Coord = (ViewCenter.x + 5, ViewCenter.y - 30)
+                // [FIX] Corrected offset for Apple Badged Pin
+                // Target: Anchor (0.4, 1.0) => Offset (5, -30)
+                // Ax = 0.5 - (5/50) = 0.4
+                // Ay = 0.5 - (-30/60) = 1.0
                 
-                // Normalized Anchor:
-                // Ax = (W/2 + 5) / W
-                // Ay = (H/2 - 30) / H
-                
-                let ax = (w/2.0 + 5.0) / w
-                let ay = (h/2.0 - 30.0) / h
+                let ax = (w/2.0 - 5.0) / w
+                let ay = (h/2.0 + 30.0) / h
                 
                 return (badged, CGPoint(x: ax, y: ay))
             } else {

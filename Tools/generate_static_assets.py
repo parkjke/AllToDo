@@ -11,7 +11,8 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "Pins")
 MARKS = [
     "00", "01", "02",
     "10", "11", "12", "13", "14",
-    "20", "21", "22", "23", "24"
+    "20", "21", "22", "23", "24",
+    "25"
 ]
 
 def create_imageset(name):

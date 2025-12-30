@@ -2,15 +2,16 @@
 import SwiftUI
 
 struct PinGalleryView: View {
-    // 13 types found in Assets
+    // 13 types found in Assets + new 25
     let allTypes = [
         "00", "01", "02",
         "10", "11", "12", "13", "14",
-        "20", "21", "22", "23", "24"
+        "20", "21", "22", "23", "24",
+        "25"
     ]
     
     // Target types for Section 2 & 3
-    let targetTypes = ["00", "10", "20"]
+    let targetTypes = ["00", "10", "20", "25"]
     
     // Layout
     let columns = [GridItem(.adaptive(minimum: 80, maximum: 100), spacing: 20)]

@@ -1,0 +1,46 @@
+<svg width="200" height="250" viewBox="0 0 100 125" xmlns="http://www.w3.org/2000/svg">
+<defs>
+    <linearGradient id="mainGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#007AFF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0040DD;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadowBottom" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="3" stdDeviation="2" flood-color="#000000" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+  <path d="M10,15 Q50,5 90,15 Q100,40 95,65 Q75,80 50,120 Q25,80 5,65 Q0,40 10,15 Z" 
+        fill="url(#mainGradient)" filter="url(#shadowBottom)"/>
+  <!-- Mark 25 -->
+  <g id="mark_25">
+<!-- Pin 25: "Exploded Bomb" / "Cancel" Symbol -->
+  <!-- Red Fill with Orange Core -->
+  
+  <g transform="translate(50, 50) scale(1.0)">
+    <!-- Outer Explosion (Red) -->
+    <!-- Gray 3 Stroke maintained for consistency -->
+    <path d="M 0,-30 
+             L 10,-15 L 25,-25 
+             L 20,-5 L 35,5 
+             L 15,15 L 20,30 
+             L 0,20 
+             L -20,30 L -15,15 
+             L -35,5 L -20,-5 
+             L -25,-25 L -10,-15 Z" 
+          fill="#FF3B30" stroke="#C7C7CC" stroke-width="2.5" stroke-linejoin="round" />
+          
+    <!-- Inner Explosion / Core (Orange) -->
+    <!-- Scaled down 0.5 -->
+    <g transform="scale(0.5)">
+      <path d="M 0,-30 
+               L 10,-15 L 25,-25 
+               L 20,-5 L 35,5 
+               L 15,15 L 20,30 
+               L 0,20 
+               L -20,30 L -15,15 
+               L -35,5 L -20,-5 
+               L -25,-25 L -10,-15 Z" 
+            fill="#FF9500" stroke="none" />
+    </g>
+  </g>
+  </g>
+</svg>
