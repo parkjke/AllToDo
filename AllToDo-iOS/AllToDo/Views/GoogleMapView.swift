@@ -533,7 +533,7 @@ struct GoogleMapView: UIViewRepresentable {
                      newUserClusterIdx = idx
                      
                      // Resolve Style
-                     let (shieldName, markName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
+                     let (pinType, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
                      var icon: UIImage?
                      var anchor = CGPoint(x: 0.5, y: 1.0)
                      
@@ -543,7 +543,7 @@ struct GoogleMapView: UIViewRepresentable {
                      } else {
                          anchor = CGPoint(x: 0.4, y: 1.0)
                          // [FIX] Use fetchPin + applyBadge directly
-                         if let baseImage = PinImageHelper.shared.fetchPin(type: shieldName) { // shieldName var name recycled for type
+                         if let baseImage = PinImageHelper.shared.fetchPin(type: pinType) {
                              if count > 1 {
                                  icon = PinImageHelper.shared.applyBadge(to: baseImage, count: count, badgeColor: color, badgeSize: 20)
                              } else {

@@ -1,3 +1,4 @@
+#if DEBUG
 import SwiftUI
 
 struct PinGalleryView: View {
@@ -58,6 +59,44 @@ struct PinGalleryView: View {
                         .frame(maxWidth: .infinity)
                     }
                     .padding(.horizontal)
+                    
+                    Divider()
+                    
+                    // Section 4: Map Provider Simulation
+                    VStack(alignment: .leading) {
+                        SectionHeader(title: "4. Map Provider Preview", subtitle: "각 지도 SDK별 렌더링 시뮬레이션 (Resize & Anchor)")
+                        
+                        // Header Row
+                        HStack(spacing: 20) {
+                            Text("Engine").font(.caption).bold().frame(width: 50, alignment: .leading)
+                            Text("00 (Raw)").font(.caption).frame(maxWidth: .infinity)
+                            Text("10 (Raw)").font(.caption).frame(maxWidth: .infinity)
+                            Text("20 (Badged)").font(.caption).frame(maxWidth: .infinity)
+                        }
+                        .padding(.horizontal)
+                        
+                        Divider()
+                        
+                        // Rows
+                        VStack(spacing: 16) {
+                            ForEach(MapProviderPinCell.Provider.allCases, id: \.self) { provider in
+                                HStack(spacing: 20) {
+                                    Text(provider.rawValue)
+                                        .font(.caption2).bold()
+                                        .frame(width: 50, alignment: .leading)
+                                        .foregroundColor(providerColor(provider))
+                                    
+                                    MapProviderPinCell(provider: provider, type: "00", count: 1)
+                                        .frame(maxWidth: .infinity)
+                                    MapProviderPinCell(provider: provider, type: "10", count: 1)
+                                        .frame(maxWidth: .infinity)
+                                    MapProviderPinCell(provider: provider, type: "20", count: 5)
+                                        .frame(maxWidth: .infinity)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
                 }
                 .padding(.vertical)
             }
@@ -73,6 +112,14 @@ struct PinGalleryView: View {
             Text("Static Asset Verification")
                 .font(.caption)
                 .foregroundColor(.secondary)
+        }
+    }
+    func providerColor(_ provider: MapProviderPinCell.Provider) -> Color {
+        switch provider {
+        case .apple: return .primary
+        case .google: return .blue
+        case .naver: return Color(red: 0.02, green: 0.82, blue: 0.33) // Naver Green
+        case .kakao: return Color(red: 0.98, green: 0.88, blue: 0.01) // Kakao Yellow (Use dark background or shadow if needed, but here simple text)
         }
     }
 }
@@ -222,9 +269,11 @@ struct AnchorPinCell: View {
         
         if showBadge {
             let badged = PinImageHelper.shared.applyBadge(to: resized, count: count, badgeColor: badgeColor, badgeSize: 18)
-            return (badged, anchor)
+            return (badged, anchor) // Badged Anchor (0.39)
         } else {
-            return (resized, anchor)
+            // [FIX] Unbadged Anchor should be centered (0.5)
+            let centeredAnchor = CGPoint(x: 0.5, y: 1.0)
+            return (resized, centeredAnchor)
         }
     }
 }
@@ -235,3 +284,4 @@ struct PinGalleryView_Previews: PreviewProvider {
         PinGalleryView()
     }
 }
+#endif

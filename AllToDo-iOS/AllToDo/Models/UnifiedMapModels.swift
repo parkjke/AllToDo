@@ -50,18 +50,24 @@ enum UnifiedMapItem: Identifiable {
     // [NEW] Dynamic Component Mapping
     var shieldName: String {
         switch self {
+        case .todo: return "pin_shield_1X"
+        case .history: return "pin_shield_0X"
+        case .serverMessage: return "pin_shield_2X"
+        case .userLocation: return "pin_shield_0X"
+        }
+    }
+
+    // [NEW] Direct Type Mapping for Static Assets
+    var type: String {
+        switch self {
         case .todo(let item):
-             // Standard TODO uses 1X Shield
-            return "pin_shield_1X"
+            return item.is_completed ? "12" : "10"
         case .history:
-            // History uses 0X Shield
-            return "pin_shield_0X"
+            return "01"
         case .serverMessage:
-            // Server Message uses 2X Shield
-            return "pin_shield_2X"
+            return "20"
         case .userLocation:
-             // Current location uses 0X Shield (or custom)
-            return "pin_shield_0X"
+            return "00"
         }
     }
     

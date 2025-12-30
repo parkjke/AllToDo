@@ -13,7 +13,9 @@ struct UserProfileView: View {
     @AppStorage("maxPopupItems") private var maxPopupItems = 5
     @AppStorage("popupFontSize") private var popupFontSize = 1
     @AppStorage("selectedMapProvider") private var mapProvider: MapProvider = .apple
+    #if DEBUG
     @State private var showPinGallery = false
+    #endif
     @State private var showDeleteAlert = false
     @Environment(\.modelContext) private var modelContext
     
@@ -43,6 +45,7 @@ struct UserProfileView: View {
                 Section {
                     HStack {
                         // Blue Pin Icon (Left)
+                        #if DEBUG
                         Button(action: { showPinGallery = true }) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 12)
@@ -53,13 +56,15 @@ struct UserProfileView: View {
                                             .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                                     )
                                 
-                                Image(uiImage: PinImageHelper.shared.getAssetImage(named: "pin_shield_0X") ?? UIImage())
+                                // [FIX] Use fetchPin
+                                Image(uiImage: PinImageHelper.shared.fetchPin(type: "00") ?? UIImage())
                                     .resizable()
                                     .scaledToFit()
                                     .frame(height: 32)
                             }
                         }
                         .buttonStyle(PlainButtonStyle())
+                        #endif
                         
                         Spacer()
                         
@@ -152,10 +157,12 @@ struct UserProfileView: View {
         }
         .onAppear(perform: loadUserInfo)
         .onDisappear(perform: saveUserInfo)
+        #if DEBUG
         .sheet(isPresented: $showPinGallery) {
             PinGalleryView()
                 .preferredColorScheme((mapProvider == .apple || mapProvider == .google) ? nil : .light)
         }
+        #endif
 
     }
     

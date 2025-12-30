@@ -383,8 +383,9 @@ struct KakaoMapView: UIViewRepresentable {
                       // Use fetchPin directly
                       if let baseImage = PinImageHelper.shared.fetchPin(type: pinType) {
                           let resized = baseImage.resized(to: CGSize(width: 28, height: 35))
-                          // W=28, Overhang=8 => Total W=36. Tip X=14. Anchor X = 14/36 (Approx 0.38)
-                          let anchorX = 14.0 / 36.0
+                          // Kakao Scale: 0.7x (28x35) for Base
+                          // Unbadged (Raw) -> Center Anchor (0.5)
+                          let anchorX = 0.5
                           labelManager.addPoiStyle(PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: PoiIconStyle(symbol: resized ?? baseImage, anchorPoint: CGPoint(x: anchorX, y: 1.0)), level: 0)]))
                           registeredStyleIDs.insert(styleID)
                       }
@@ -457,9 +458,9 @@ struct KakaoMapView: UIViewRepresentable {
                 var finalLat = c.lat
                 
                 // Style
-                let (baseName, markName, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
+                let (pinType, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
                 let colorHex = color.cgColor.components?.map { String(format: "%02X", Int($0 * 255)) }.joined() ?? "000000"
-                let styleID = "Style_\(baseName)_\(count)_\(colorHex)"
+                let styleID = "Style_\(pinType)_\(count)_\(colorHex)"
                 
                 // Check if this cluster contains user
                 var isUser = false
@@ -483,16 +484,19 @@ struct KakaoMapView: UIViewRepresentable {
                     let finalImage: UIImage?
                     if count > 1 {
                         // [FIX] Use fetchPin + applyBadge directly
-                        if let baseImage = PinImageHelper.shared.fetchPin(type: baseName) { // baseName is reused as type
+                        if let baseImage = PinImageHelper.shared.fetchPin(type: pinType) { // baseName is reused as type
                              finalImage = PinImageHelper.shared.applyBadge(to: baseImage, count: count, badgeColor: color, badgeSize: 14).rasterized()
                         } else { finalImage = nil }
                     } else {
                          // [FIX] Use fetchPin
-                         finalImage = PinImageHelper.shared.fetchPin(type: baseName)
+                         finalImage = PinImageHelper.shared.fetchPin(type: pinType)
                     }
                     
                     if let img = finalImage {
-                        let anchorX = 14.0 / (count > 1 ? 38.0 : 36.0) // Approx
+                        // [FIX] Anchor Logic
+                        // Badged: Base(28) + 10 = 38. Tip at 14. Anchor = 14/38.
+                        // Unbadged: Base(28). Tip at 14. Anchor = 14/28 = 0.5.
+                        let anchorX = count > 1 ? (14.0 / 38.0) : 0.5
                         let anchor = CGPoint(x: anchorX, y: 1.0)
                         labelManager.addPoiStyle(PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: PoiIconStyle(symbol: img, anchorPoint: anchor), level: 0)]))
                         registeredStyleIDs.insert(styleID)
