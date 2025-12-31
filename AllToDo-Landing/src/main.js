@@ -1,12 +1,12 @@
 
 const images = [
-    './AllToDo-Landing/assets/bg_mobile_1.png',
-    './AllToDo-Landing/assets/bg_mobile_2.png',
-    './AllToDo-Landing/assets/bg_mobile_3.png',
-    './AllToDo-Landing/assets/bg_dashboard.png',
-    './AllToDo-Landing/assets/bg_mobile_4.png',
-    './AllToDo-Landing/assets/bg_mobile_5.png',
-    './AllToDo-Landing/assets/bg_mobile_6.png'
+    './assets/bg_mobile_1.png',
+    './assets/bg_mobile_2.png',
+    './assets/bg_mobile_3.png',
+    './assets/bg_dashboard.png',
+    './assets/bg_mobile_4.png',
+    './assets/bg_mobile_5.png',
+    './assets/bg_mobile_6.png'
 ];
 
 function initBackground() {
