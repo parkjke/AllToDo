@@ -47,9 +47,6 @@ jobs:
       - name: Verify Build Output
         run: ls -la dist
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
       - name: Tar dist directory
         run: tar -cvf artifact.tar -C dist .
 
@@ -59,7 +56,7 @@ jobs:
           name: github-pages
           path: artifact.tar
           retention-days: 1
-
+          
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
