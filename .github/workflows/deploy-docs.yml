@@ -24,10 +24,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Create Artifact Archive
+        run: |
+          tar \
+            --dereference --hard-dereference \
+            --directory docs/ \
+            -cvf artifact.tar \
+            .
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
         with:
-          path: 'docs/'
+          name: github-pages
+          path: artifact.tar
+          retention-days: 1
+          if-no-files-found: error
 
       - name: Deploy to GitHub Pages
         id: deployment
