@@ -1,3 +1,20 @@
+## 2026-01-01
+### Web Deployment Refactor & Android Map Stabilization
+- **Web Landing Page Deployment Strategy (Final)**:
+  - **Refactor**: Renamed build output directory from `docs` to **`dist`** to follow standard conventions and avoid conflict with project documentation.
+  - **Documentation Restoration**: Restored the original `docs/` folder containing project specifications and history logs (which were temporarily displaced).
+  - **Manual CI Workflow**: Implemented `.github/workflows/deploy-docs.yml` to manually archive the `dist` folder using `tar` and upload it to GitHub Pages, bypassing the buggy "root folder" detection of the default action.
+  - **Result**: `alltodo.kr` domain verification complete, automated deployment pipeline established (`npm run build` -> `git push` -> CI deploys `dist`).
+
+- **Android Google Map Stabilization**:
+  - **Freeze Fix**: Resolved the UI freeze issue on Google Map loading by ensuring correct initialization sequence and clearing corrupted cache via clean install.
+  - **Logging**: Added detailed logs to `MapBeginSequence` and `GoogleMapContent` to track lifecycle states.
+
+- **Path Recording "Blue Dot" Feedback**:
+  - **Issue**: Visual lag between actual user location and the optimized (RDP-processed) path line causing "is it recording?" uncertainty.
+  - **Solution**: Implemented an immediate "Blue Dot" trail for the last 20 raw location points on all map engines (Naver/Google/Kakao).
+  - **Implementation**: Used `Circle` overlay (Google), `Marker` with dot bitmap (Naver), and `Label` (Kakao) to render the trail effectively.
+
 ## 2025-12-31
 ### Path History Refinement & KakaoMap Standalone Implementation
 - **KakaoPathMapView 독립 구현 (`PathHistoryView.swift`)**:
