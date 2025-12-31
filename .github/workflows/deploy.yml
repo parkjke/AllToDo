@@ -36,11 +36,14 @@ jobs:
       - name: Build
         run: npm run build
         
+      - name: Verify Build Output
+        run: ls -la dist
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           # Upload dist repository
-          path: './dist'
+          path: 'dist'
 
       - name: Deploy to GitHub Pages
         id: deployment
