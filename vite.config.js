@@ -4,5 +4,6 @@ export default defineConfig({
     server: {
         port: 5177, // 여기서 포트를 변경할 수 있습니다.
         host: true  // 네트워크 호스트 허용 (선택 사항)
-    }
+    },
+    base: '/AllToDo/' // GitHub Pages 레포지토리 이름 설정
 })

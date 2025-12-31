@@ -80,9 +80,11 @@ Open the root directory `/AllToDo` in your terminal.
 npm install
 
 # Run Dev Server
+# Run Dev Server
 npm run dev
-# Open http://localhost:5173
+# Open http://localhost:5177
 ```
+> 상세 설정 가이드는 [Home Page Setting](./docs/home-page-setting.md) 문서를 참고하세요.
 
 ### 🎨 How to Update Map Pins
 If you modify the SVG assets in `Icons/map_pin_1/mark` or `shield`:
