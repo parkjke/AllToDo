@@ -26,7 +26,7 @@ jobs:
 
       - name: Create Artifact Archive
         run: |
-          cd docs
+          cd dist
           tar \
             --dereference --hard-dereference \
             -cvf ../artifact.tar \
