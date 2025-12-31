@@ -30,10 +30,19 @@ jobs:
           node-version: 20
           
       - name: Install dependencies
-        run: npm install
+        run: |
+          npm uninstall vite
+          npm install vite@5.4.11 --save-dev
+          npm install
+
+      - name: Environment Debug
+        run: |
+          node -v
+          npm -v
+          ls -la node_modules/.bin/vite
 
       - name: Build
-        run: npm run build
+        run: npx vite build --outDir dist --debug
         
       - name: Verify Build Output
         run: ls -la dist
