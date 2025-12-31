@@ -26,10 +26,10 @@ jobs:
 
       - name: Create Artifact Archive
         run: |
+          cd docs
           tar \
             --dereference --hard-dereference \
-            --directory docs/ \
-            -cvf artifact.tar \
+            -cvf ../artifact.tar \
             .
 
       - name: Upload Artifact
