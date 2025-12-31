@@ -19,7 +19,7 @@
     </aapt:attr>
   </path>
   <!-- v3 Path & Clock -->
-  <path android:pathData="M25,60 C30,40 70,70 75,30" android:strokeColor="#FFFFFF" android:strokeWidth="4" android:strokeDashArray="1, 8" android:strokeLineCap="round" android:fillColor="#00000000"/>
+  <path android:pathData="M25,60 C30,40 70,70 75,30" android:strokeColor="#FFFFFF" android:strokeWidth="4" android:strokeLineCap="round" android:fillColor="#00000000"/>
   <path android:pathData="M75,30m-12,0a12,12 0,1 1,24 0a12,12 0,1 1,-24 0" android:fillColor="#1AFFFFFF" android:strokeColor="#FFFFFF" android:strokeWidth="3"/>
   <path android:pathData="M75,16m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" android:strokeColor="#FFFFFF" android:strokeWidth="1.5" android:fillColor="#00000000"/>
   <!-- Hands -->

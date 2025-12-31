@@ -9,8 +9,8 @@ import java.util.Calendar
 class LocationRepository @Inject constructor(private val locationDao: LocationDao) {
     suspend fun saveLocation(latitude: Double, longitude: Double) {
         val location = LocationEntity(
-            latitude = latitude,
-            longitude = longitude,
+            int_lat = (latitude * 100_000).toInt(),
+            int_long = (longitude * 100_000).toInt(),
             timestamp = System.currentTimeMillis()
         )
         locationDao.insertLocation(location)

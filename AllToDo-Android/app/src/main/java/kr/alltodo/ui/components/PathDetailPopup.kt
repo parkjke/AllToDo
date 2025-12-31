@@ -65,15 +65,20 @@ fun PathDetailPopup(
                                      val labelManager = map.labelManager
                                      val labelLayer = labelManager?.getLayer("pathLabels") ?: labelManager?.addLayer(LabelLayerOptions.from("pathLabels"))
                                      
-                                     // End: History Pin (Used for both Start & End)
-                                     val historyBitmap = kr.alltodo.ui.PinImageManager.getPinBitmap(kr.alltodo.R.drawable.pin_history)
-                                     if (historyBitmap != null) {
-                                         val historyStyle = labelManager?.addLabelStyles(LabelStyles.from(LabelStyle.from(historyBitmap).setAnchorPoint(0.5f, 1.0f)))
-                                         if (historyStyle != null) {
-                                             // Start Marker
-                                             labelLayer?.addLabel(LabelOptions.from(pathPoints.first()).setStyles(historyStyle))
-                                             // End Marker
-                                             labelLayer?.addLabel(LabelOptions.from(pathPoints.last()).setStyles(historyStyle))
+                                     // Start/End Markers using Static Pins
+                                     val startPin = kr.alltodo.ui.PinImageManager.fetchStaticPin(ctx, "01")
+                                     val endPin = kr.alltodo.ui.PinImageManager.fetchStaticPin(ctx, "02")
+                                     
+                                     if (startPin != null) {
+                                         val startStyle = labelManager?.addLabelStyles(LabelStyles.from(LabelStyle.from(startPin).setAnchorPoint(0.5f, 1.0f)))
+                                         if (startStyle != null) {
+                                             labelLayer?.addLabel(LabelOptions.from(pathPoints.first()).setStyles(startStyle))
+                                         }
+                                     }
+                                     if (endPin != null) {
+                                         val endStyle = labelManager?.addLabelStyles(LabelStyles.from(LabelStyle.from(endPin).setAnchorPoint(0.5f, 1.0f)))
+                                         if (endStyle != null) {
+                                             labelLayer?.addLabel(LabelOptions.from(pathPoints.last()).setStyles(endStyle))
                                          }
                                      }
 

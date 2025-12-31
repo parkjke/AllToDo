@@ -33,7 +33,7 @@ object MapLogicHelper {
         
         // 1. Path Existence OR Location Filter
         val withLocation = allItems.filter { 
-            (it.no_of_path > 0) || (it.latitude != null && it.latitude != 0.0) 
+            (it.no_of_path > 0) || (it.int_lat != null && it.int_lat != 0) 
         }
         
         // 2. Time Window Filter (±24h)
@@ -64,8 +64,9 @@ object MapLogicHelper {
 
     // MARK: - Geo Partitioning (Korea Rule)
     
-    fun isInKorea(lat: Double, lon: Double): Boolean {
-        return lat in 32.0..44.0 && lon in 123.0..133.0
+    fun isInKorea(intLat: Int, intLng: Int): Boolean {
+        // Bounds: Lat 32.0..44.0, Lon 123.0..133.0
+        return intLat in 3200000..4400000 && intLng in 12300000..13300000
     }
     
     data class PartitionResult(
@@ -84,7 +85,7 @@ object MapLogicHelper {
                 continue
             }
             
-            if (isInKorea(item.latitude, item.longitude)) {
+            if (isInKorea(item.intLat, item.intLng)) {
                 near.add(item)
             } else {
                 farCount++
@@ -94,11 +95,10 @@ object MapLogicHelper {
         return PartitionResult(near, farCount)
     }
     
-    // MARK: - Cluster Styling (Dynamic)
+    // MARK: - Cluster Styling (Static Bitmaps)
     
     data class ClusterStyle(
-        val shieldName: String,
-        val markName: String,
+        val pinId: String,
         val color: Int,
         val count: Int
     )
@@ -107,13 +107,13 @@ object MapLogicHelper {
         var userLocationFound = false
         var blueCount = 0   // Server 20
         var greenCount = 0  // Local 10
-        var redCount = 0    // History 00
+        var redCount = 0    // History 00 / History 01
         
         for (item in items) {
             when (item) {
                 is UnifiedItem.CurrentLocation -> userLocationFound = true
                 is UnifiedItem.Todo -> {
-                    if (item.item.type == "20") blueCount++ // Server
+                    if (item.item.source != "local") blueCount++ // Server
                     else if (item.item.type == "00") redCount++
                     else greenCount++ // Local (10)
                 }
@@ -121,36 +121,27 @@ object MapLogicHelper {
             }
         }
         
-        var shieldName = "pin_shield_1x"
-        var markName = "pin_mark_10"
-        var color = Color.parseColor("#00C7BE") // AllToDo Green (Teal)
+        var pinId = "10"
+        var color = Color.parseColor("#00C7BE") // AllToDo Green
         
         if (userLocationFound) {
-            shieldName = "pin_shield_0x"
-            markName = "pin_mark_00"
+            pinId = "00"
             color = Color.RED
         } else {
             // Priority: Blue > Green > Red based on COUNT
-            // counts = [(Blue, blueCount), (Green, greenCount), (Red, redCount)]
-            
             if (blueCount >= greenCount && blueCount >= redCount && blueCount > 0) {
-                 shieldName = "pin_shield_2x"
-                 markName = "pin_mark_20"
+                 pinId = "20"
                  color = Color.BLUE
             } else if (redCount > greenCount && redCount > 0) {
-                 shieldName = "pin_shield_0x"
-                 markName = "pin_mark_01"
+                 pinId = "01"
                  color = Color.RED
             } else {
                  // Default Green
-                 shieldName = "pin_shield_1x"
-                 // Check if Todo Done? Not easily accessible here without inspecting all items. 
-                 // Default to Ready (10) for cluster.
-                 markName = "pin_mark_10"
+                 pinId = "10" 
                  color = Color.parseColor("#00C7BE")
             }
         }
         
-        return ClusterStyle(shieldName, markName, color, items.size)
+        return ClusterStyle(pinId, color, items.size)
     }
 }

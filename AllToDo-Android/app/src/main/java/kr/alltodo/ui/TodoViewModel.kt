@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Job // [FIX] Added
 import kotlinx.coroutines.delay // [FIX] Added
@@ -132,11 +133,11 @@ class TodoViewModel @Inject constructor(
              val minTime = targetTime - oneDay
              val maxTime = targetTime + oneDay
 
-             val filteredLogItems = historyItems.filter { (it.begin_time ?: it.created_at) in minTime .. maxTime }
+             val filteredLogItems = historyItems.filter { (it.int_lat != null) && (it.begin_time ?: it.created_at) in minTime .. maxTime }
                  .map { kr.alltodo.ui.UnifiedItem.History(it) }
              
              // [RESTORED] Apply 24h filter to Todos as requested
-             val filteredTodoItems = normalTodos.filter { it.created_at in minTime .. maxTime }
+             val filteredTodoItems = normalTodos.filter { (it.int_lat != null) && it.created_at in minTime .. maxTime }
                  .map { kr.alltodo.ui.UnifiedItem.Todo(it) }
              
              // [DEBUG LOGGING] Log only if counts changed or immediate
@@ -233,14 +234,9 @@ class TodoViewModel @Inject constructor(
 
         viewModelScope.launch(Dispatchers.Default) {
              // 1. Prepare Points for WASM
-             // [lat, lng, lat, lng...] * 100000
              val flatPoints = items.flatMap { item ->
-                 val lat = item.latitude
-                 val lng = item.longitude
-                 // [DEBUG] Check individual item coordinates
-
-                 if (lat != null && lng != null && lat != 0.0) {
-                     listOf((lat * 100_000).toInt(), (lng * 100_000).toInt())
+                 if (item.intLat != 0) {
+                     listOf(item.intLat, item.intLng)
                  } else {
                      emptyList()
                  }
@@ -253,21 +249,10 @@ class TodoViewModel @Inject constructor(
                  return@launch
              }
 
-             // [FIX] Delayed Clustering Check
-             // If disabled (Initial Launch), skip WASM and show raw items
+             // 2. Clustering Check
              if (!_isClusteringEnabled.value) {
-                 val rawClusters = mutableListOf<PinClusterItem>()
-                 items.forEach { item ->
-                     val lat = item.latitude
-                     val lng = item.longitude
-                     if (lat != null && lng != null && lng != 0.0) {
-                         val list = ArrayList<UnifiedItem>()
-                         list.add(item)
-                         rawClusters.add(PinClusterItem(lat, lng, 1, list))
-                     }
-                 }
-                 withContext(Dispatchers.Main) {
-                     _clusteredItems.value = rawClusters
+                 _clusteredItems.value = items.map { item ->
+                      PinClusterItem(item.intLat, item.intLng, 1, listOf(item))
                  }
                  return@launch
              }
@@ -290,23 +275,11 @@ class TodoViewModel @Inject constructor(
              }
              
              
-             // [FIX] Fallback for WASM Failure (or Self-Test Failure) or Empty Result despite valid inputs
-             if (clustersFlat.isEmpty() && flatPoints.isNotEmpty()) {
-                 // Fallback: Create 1 item per valid point
-                 val fallbackClusters = mutableListOf<PinClusterItem>()
-                 items.forEach { item ->
-                     val lat = item.latitude
-                     val lng = item.longitude
-                     if (lat != null && lng != null && lng != 0.0) { // Should match validation logic
-                         val list = ArrayList<UnifiedItem>()
-                         list.add(item)
-                         fallbackClusters.add(PinClusterItem(lat, lng, 1, list))
-                     }
+             // Fallback
+             if (clustersFlat.isEmpty()) {
+                  _clusteredItems.value = items.map { item ->
+                      PinClusterItem(item.intLat, item.intLng, 1, listOf(item))
                  }
-                 withContext(Dispatchers.Main) {
-                     _clusteredItems.value = fallbackClusters
-                 }
-                 System.out.println(">>> WASM [TodoViewModel] Fallback Triggered (Empty Result from WASM)")
                  return@launch
              }
              
@@ -315,8 +288,8 @@ class TodoViewModel @Inject constructor(
              
              // Parse Clusters
              for (i in 0 until clustersFlat.size step 3) {
-                 val cLat = clustersFlat[i] / 100_000.0
-                 val cLng = clustersFlat[i+1] / 100_000.0
+                 val cLat = clustersFlat[i]
+                 val cLng = clustersFlat[i+1]
                  val count = clustersFlat[i+2]
                  
                  // Find items belonging to this cluster
@@ -332,23 +305,24 @@ class TodoViewModel @Inject constructor(
              // Optimization: Prepare cluster centers list first?
              if (newClusters.isNotEmpty()) {
                  items.forEach { item ->
-                     val lat = item.latitude
-                     val lng = item.longitude
-                     if (lat != null && lng != null) {
+                     val lat = item.intLat
+                     val lng = item.intLng
+                     // Null check removed (non-nullable Integer-First)
+                     if (true) {
                          // Find nearest cluster
                          var minDist = Double.MAX_VALUE
                          var bestCluster: PinClusterItem? = null
                          
                          for (cluster in newClusters) {
-                             val dLat = cluster.latitude - lat
-                             val dLng = cluster.longitude - lng
-                             val distSq = dLat*dLat + dLng*dLng
+                             val dLat = cluster.intLat - lat
+                             val dLng = cluster.intLng - lng
+                             val distSq = dLat.toLong()*dLat + dLng.toLong()*dLng
                              if (distSq < minDist) {
-                                 minDist = distSq
+                                 minDist = distSq.toDouble()
                                  bestCluster = cluster
                              }
                          }
-                                                  (bestCluster?.items as? MutableList)?.add(item)
+                                                  (bestCluster?.items as? MutableList<UnifiedItem>)?.add(item)
                       }
                   }
               }
@@ -357,7 +331,7 @@ class TodoViewModel @Inject constructor(
               val finalClusters = newClusters.map { cluster ->
                   val userLoc = cluster.items.find { it is UnifiedItem.CurrentLocation }
                   if (userLoc != null) {
-                      cluster.copy(latitude = userLoc.latitude, longitude = userLoc.longitude)
+                      cluster.copy(intLat = userLoc.intLat, intLng = userLoc.intLng)
                   } else {
                       cluster
                   }
@@ -461,8 +435,6 @@ class TodoViewModel @Inject constructor(
                         no_of_path = pointCount,
                         int_lat = (avgLat * 100_000).toInt(),
                         int_long = (avgLon * 100_000).toInt(),
-                        latitude = avgLat,
-                        longitude = avgLon,
                         begin_time = start,
                         end_time = endTime,
                         created_at = System.currentTimeMillis()
@@ -474,8 +446,8 @@ class TodoViewModel @Inject constructor(
                     val pathItems = finalPoints.map { p ->
                         kr.alltodo.data.PathItem(
                             todo_id = todoId,
-                            int_long = (p.longitude * 100_000).toInt(),
-                            int_lat = (p.latitude * 100_000).toInt(),
+                            int_long = p.int_long,
+                            int_lat = p.int_lat,
                             time = p.timestamp // Use location's timestamp
                         )
                     }
@@ -524,9 +496,9 @@ class TodoViewModel @Inject constructor(
              // Reconstruct
              val newProcessed = mutableListOf<LocationEntity>()
              for (i in 0 until compressedFlat.size step 2) {
-                 val lat = compressedFlat[i] / 100_000.0
-                 val lng = (compressedFlat.getOrNull(i+1) ?: 0) / 100_000.0
-                 newProcessed.add(LocationEntity(latitude = lat, longitude = lng, timestamp = System.currentTimeMillis()))
+                 val latInt = compressedFlat[i]
+                 val lngInt = (compressedFlat.getOrNull(i+1) ?: 0)
+                 newProcessed.add(LocationEntity(int_lat = latInt, int_long = lngInt, timestamp = System.currentTimeMillis()))
              }
              
              // Add to main list (Thread safe access needed? ViewModel is Main Thread usually, but we are in Default. 
@@ -566,9 +538,17 @@ class TodoViewModel @Inject constructor(
     }
     
     fun fetchPathForHistory(todo: TodoItem) {
+        _selectedHistoryPath.value = emptyList() // Clear old path
         viewModelScope.launch {
-            todoRepository.getPathsForTodo(todo.todo_id).collect { paths ->
+            try {
+                // Use first() to get the current snapshot and terminate the flow
+                val paths = todoRepository.getPathsForTodo(todo.todo_id).first()
                 _selectedHistoryPath.value = paths
+                val firstPts = paths.take(3).map { "(${it.int_lat},${it.int_long})" }
+                println(">>> fetchPathForHistory: Loaded ${paths.size} points for ${todo.todo_id}. Sample: $firstPts")
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _selectedHistoryPath.value = emptyList()
             }
         }
     }
@@ -583,8 +563,6 @@ class TodoViewModel @Inject constructor(
                 source = "local",
                 int_lat = (latitude * 100_000).toInt(),
                 int_long = (longitude * 100_000).toInt(),
-                latitude = latitude,
-                longitude = longitude,
                 person = person,
                 date_time = if (date != null && time != null) "$date $time" else date ?: time,
                 memo = memo,
@@ -621,10 +599,8 @@ class TodoViewModel @Inject constructor(
                 todo_name = "위치 할 일",
                 completed = false,
                 source = "local",
-                int_lat = (location.latitude * 100_000).toInt(),
-                int_long = (location.longitude * 100_000).toInt(),
-                latitude = location.latitude,
-                longitude = location.longitude,
+                int_lat = location.int_lat,
+                int_long = location.int_long,
                 created_at = System.currentTimeMillis()
             )
             todoRepository.insert(newTodo)
@@ -650,8 +626,8 @@ class TodoViewModel @Inject constructor(
         
         lastRecordedTime = now
         val entity = LocationEntity(
-            latitude = latitude,
-            longitude = longitude,
+            int_lat = (latitude * 100_000).toInt(),
+            int_long = (longitude * 100_000).toInt(),
             timestamp = now
         )
         

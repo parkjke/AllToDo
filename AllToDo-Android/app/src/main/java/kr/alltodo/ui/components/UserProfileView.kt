@@ -116,7 +116,7 @@ fun UserProfileView(
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            painter = androidx.compose.ui.res.painterResource(kr.alltodo.R.drawable.pin_todo_ready),
+                            painter = androidx.compose.ui.res.painterResource(kr.alltodo.R.drawable.map_pin_01),
                             contentDescription = "핀 보관함",
                             tint = Color.Unspecified,
                             modifier = Modifier.size(28.dp)

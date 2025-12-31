@@ -13,7 +13,7 @@ import androidx.room.RoomDatabase
         AddressBookItem::class,
         PathItem::class
     ], 
-    version = 5, // Increment version for schema change
+    version = 6, // Increment version for schema change (Double -> Integer coordinates)
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

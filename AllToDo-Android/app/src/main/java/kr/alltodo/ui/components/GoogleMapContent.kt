@@ -62,9 +62,13 @@ fun GoogleMapContent(
             zoomControlsEnabled = false,
             compassEnabled = false,
             myLocationButtonEnabled = false,
-            mapToolbarEnabled = false // [FIX] Hide Google Map Button
+            mapToolbarEnabled = false,
+            scrollGesturesEnabled = true, // [FIX] Ensure gestures are enabled
+            zoomGesturesEnabled = true    // [FIX] Ensure gestures are enabled
         )
     }
+    
+    // [DEBUG] Entry Log
 
     val properties = remember {
         MapProperties(
@@ -171,23 +175,15 @@ fun GoogleMapContent(
         onMapLongClick = { latLng ->
              onMapLongClick(com.kakao.vectormap.LatLng.from(latLng.latitude, latLng.longitude))
         },
-        onMapLoaded = onMapLoaded,
+        onMapLoaded = {
+            onMapLoaded()
+        },
         contentPadding = PaddingValues(bottom = (contentPaddingBottom / context.resources.displayMetrics.density).dp)
     ) {
         // [FIX] Use SideEffect/LaunchedEffect to track projection/rotation without breaking internal listeners
-        LaunchedEffect(cameraPositionState.isMoving, cameraPositionState.position) {
-             // Update projection and rotation whenever camera moves
-             // We need access to the GoogleMap object?
-             // Accessing map inside LaunchedEffect is tricky if it's not state.
-             // But we have `onMapLoaded`? No.
-             // Wait, without `MapEffect`, we don't have the `GoogleMap` instance easily unless we capture it?
-        }
-        
-        // Wait, standard way is using `MapEffect` to capture map instance, but NOT setting listeners.
-        // We can set projection in OnMapLoaded or use a snapshotFlow on the map object if exposed?
-        // Actually, we can use `cameraPositionState.projection`? No, it doesn't expose projection.
         
         MapEffect(Unit) { map ->
+            System.out.println(">>> [GoogleMapContent] MapEffect: Got GoogleMap Instance")
             googleMapInstance = map
         }
 
@@ -236,12 +232,12 @@ fun GoogleMapContent(
              }
         }
         
-        // [NEW] Show Creating Todo Pin (Green)
+        // [NEW] Show Creating Todo Pin (Static Bitmap 10)
         if (creatingTodoLocation != null) {
-            val icon = bitmapDescriptorFromVector(context, kr.alltodo.R.drawable.pin_todo_ready, 40)
+            val bitmap = kr.alltodo.ui.createGooglePinBitmap(context, 0, "10", android.graphics.Color.TRANSPARENT)
             Marker(
                 state = MarkerState(position = creatingTodoLocation),
-                icon = icon,
+                icon = com.google.android.gms.maps.model.BitmapDescriptorFactory.fromBitmap(bitmap),
                 anchor = Offset(0.5f, 1.0f)
             )
         }
@@ -251,9 +247,13 @@ fun GoogleMapContent(
         val markerStates = remember { mutableStateMapOf<String, com.google.maps.android.compose.MarkerState>() }
         val currentKeys = mutableSetOf<String>()
         
-        filteredItems.forEach { cluster ->
+
+        System.out.println(">>> [GoogleMapContent] Processing Cluster Markers: ${filteredItems.size}")
+        
+        filteredItems.forEachIndexed { idx, cluster ->
+            if (idx == 0) System.out.println(">>> [GoogleMapContent] Marker[0] at ${cluster.latitude},${cluster.longitude} count=${cluster.count}")
             val isSingle = cluster.count == 1
-            val firstItem = cluster.items.firstOrNull()
+            val firstItem = cluster.items.firstOrNull() as? UnifiedItem.Todo
             
             // Generate Stable ID
             // User Pin: "UserPin"
@@ -280,24 +280,15 @@ fun GoogleMapContent(
             state.position = position
             
             // Determine Icon
+            val style = kr.alltodo.utils.MapLogicHelper.resolveClusterStyle(cluster.items)
+            
             val iconDescriptor = if (isSingle && firstItem != null) {
                 // Formatting Single Item
-                val shieldId = kr.alltodo.ui.PinImageManager.getResourceId(context, firstItem.shieldName)
-                val markId = kr.alltodo.ui.PinImageManager.getResourceId(context, firstItem.markName)
-                
-                val bitmap = kr.alltodo.ui.PinImageManager.fetchCompositePin(context, shieldId, markId)
-                if (bitmap != null) com.google.android.gms.maps.model.BitmapDescriptorFactory.fromBitmap(bitmap)
-                else com.google.android.gms.maps.model.BitmapDescriptorFactory.defaultMarker()
+                val bitmap = kr.alltodo.ui.createGooglePinBitmap(context, 0, firstItem.pinId, android.graphics.Color.TRANSPARENT)
+                com.google.android.gms.maps.model.BitmapDescriptorFactory.fromBitmap(bitmap)
             } else {
-                // Cluster Item
-                // [FIX] Priority Logic: UserLocation > History > Server(Blue) > User(Green)
-                // Dynamic Style
-                val style = kr.alltodo.utils.MapLogicHelper.resolveClusterStyle(cluster.items)
-                val shieldId = kr.alltodo.ui.PinImageManager.getResourceId(context, style.shieldName)
-                val markId = kr.alltodo.ui.PinImageManager.getResourceId(context, style.markName)
-                
                 // [FIX] Use Cached Cluster Bitmap to prevent flickering & show Badge
-                kr.alltodo.ui.getCachedClusterBitmap(context, cluster.count, shieldId, markId, style.color)
+                kr.alltodo.ui.getCachedClusterBitmap(context, cluster.count, style.pinId, style.color)
             }
             
             // [FIX] Add Marker with Stable State and Key
@@ -306,7 +297,7 @@ fun GoogleMapContent(
                     state = state,
                     icon = iconDescriptor,
                     // [FIX] Adjust anchor for cluster (offset due to badge overhang)
-                    anchor = if (isSingle && firstItem != null) Offset(0.5f, 1.0f) else Offset(0.4f, 1.0f),
+                    anchor = if (isSingle && firstItem != null) Offset(0.5f, 1.0f) else Offset(0.392f, 1.0f),
                     onClick = {
                         val point = mapProjection?.toScreenLocation(position)
                         if (point != null) {
@@ -335,19 +326,35 @@ fun GoogleMapContent(
         
         // [NEW] Active Recording Path Polyline
         if (showActivePath && activePoints.size >= 2) {
-            val polylinePoints = activePoints.map { LatLng(it.latitude, it.longitude) }
+            val polylinePoints = activePoints.map { com.google.android.gms.maps.model.LatLng(it.latitude, it.longitude) }
             val density = LocalDensity.current.density
             Polyline(
                 points = polylinePoints,
                 color = Color(0xFFFF5722), // Orange Red for active trail
-                width = 2.5f * density, // Thinned to 2.5dp
-
-
-
+                width = 5f * density, // Increased to 5dp
+                zIndex = 100f,
                 jointType = com.google.android.gms.maps.model.JointType.ROUND,
                 startCap = com.google.android.gms.maps.model.RoundCap(),
                 endCap = com.google.android.gms.maps.model.RoundCap()
             )
+        }
+        
+        // [NEW] Active Path Blue Dot Trail (Immediate Feedback)
+        if (showActivePath && activePoints.isNotEmpty()) {
+            val tailPoints = activePoints.takeLast(20)
+            val density = LocalDensity.current.density
+            val dotRadius = 3.0 // meters
+            
+            tailPoints.forEach { point ->
+                Circle(
+                    center = LatLng(point.latitude, point.longitude),
+                    radius = dotRadius, 
+                    fillColor = Color.Blue,
+                    strokeColor = Color.Transparent,
+                    strokeWidth = 0f,
+                    zIndex = 101f
+                )
+            }
         }
 
         // [REMOVED] Standalone Current Location Marker (Now handled in clusters)
@@ -376,7 +383,7 @@ fun bitmapDescriptorFromVector(
 ): com.google.android.gms.maps.model.BitmapDescriptor? {
     return try {
         // [Optimization] Use Pre-loaded Bitmap from PinImageManager
-        val cached = kr.alltodo.ui.PinImageManager.getPinBitmap(vectorResId)
+        val cached = kr.alltodo.ui.PinImageManager.fetchStaticPin(context, vectorResId.toString())
         if (cached != null) {
             return com.google.android.gms.maps.model.BitmapDescriptorFactory.fromBitmap(cached)
         }

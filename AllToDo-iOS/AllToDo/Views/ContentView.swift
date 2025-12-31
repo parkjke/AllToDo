@@ -15,6 +15,7 @@ struct ContentView: View {
     // UI State (Non-Map)
     @State private var showProfile = false
     @State private var backgroundStartTime: Date?
+    @State private var pendingEndSessionTask: Task<Void, Never>? = nil
     
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("selectedMapProvider") private var mapProvider: MapProvider = .apple
@@ -158,17 +159,27 @@ struct ContentView: View {
             switch newPhase {
             case .background: // [FIX] Removed .inactive to prevent endSession on Control Center/Notif Center
                 backgroundStartTime = Date()
-                // [FIX] Store session and last representative location on exit
-                Task {
-                    await locationManager.endSession()
-                    if let loc = locationManager.currentLocation {
-                        UserDefaults.standard.set(loc.coordinate.latitude, forKey: "last_latitude")
-                        UserDefaults.standard.set(loc.coordinate.longitude, forKey: "last_longitude")
-                        UserDefaults.standard.set(true, forKey: "has_saved_location")
-                        print(">>> scenePhase: Saved last location and ended session.")
+                // [NEW] 5-second Grace Period for path continuity
+                pendingEndSessionTask = Task {
+                    try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds
+                    if !Task.isCancelled {
+                        print(">>> APP STATE: Background -> Grace Period Expired -> Ending Session")
+                        await locationManager.endSession()
+                        if let loc = locationManager.currentLocation {
+                            UserDefaults.standard.set(loc.coordinate.latitude, forKey: "last_latitude")
+                            UserDefaults.standard.set(loc.coordinate.longitude, forKey: "last_longitude")
+                            UserDefaults.standard.set(true, forKey: "has_saved_location")
+                            print(">>> scenePhase: Saved last location.")
+                        }
                     }
                 }
             case .active:
+                if let task = pendingEndSessionTask {
+                    print(">>> APP STATE: Active -> Cancelling pending endSession (Grace Period Success)")
+                    task.cancel()
+                    pendingEndSessionTask = nil
+                }
+                
                 if let start = backgroundStartTime {
                     let elapsed = Date().timeIntervalSince(start)
                     if elapsed > 5 {

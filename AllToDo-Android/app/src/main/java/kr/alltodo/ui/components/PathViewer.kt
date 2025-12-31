@@ -32,6 +32,7 @@ import com.kakao.vectormap.route.RouteLineOptions
 import com.kakao.vectormap.route.RouteLineSegment
 import com.kakao.vectormap.route.RouteLineStyle
 import com.kakao.vectormap.route.RouteLineStyles
+import kotlinx.coroutines.delay
 import com.naver.maps.geometry.LatLng
 import com.naver.maps.map.CameraUpdate
 import com.naver.maps.map.compose.ExperimentalNaverMapApi
@@ -42,6 +43,7 @@ import com.google.android.gms.maps.model.LatLngBounds as GoogleLatLngBounds
 
 @Composable
 fun PathViewer(
+    todo: kr.alltodo.data.TodoItem,
     pathData: List<kr.alltodo.data.PathItem>,
     mapProvider: MapProvider,
     onClose: () -> Unit
@@ -81,9 +83,9 @@ fun PathViewer(
                 // Map View
                 Box(modifier = Modifier.fillMaxSize().zIndex(1f)) {
                     when (mapProvider) {
-                        MapProvider.Naver -> NaverPathMap(pathPoints, lineColor, lineThickness)
-                        MapProvider.Google -> GooglePathMap(pathPoints, lineColor, lineThickness)
-                        MapProvider.Kakao -> KakaoPathMap(pathPoints, lineColor, lineThickness)
+                        MapProvider.Naver -> NaverPathMap(todo, pathPoints, lineColor, lineThickness)
+                        MapProvider.Google -> GooglePathMap(todo, pathPoints, lineColor, lineThickness)
+                        MapProvider.Kakao -> KakaoPathMap(todo, pathPoints, lineColor, lineThickness)
 
                     }
                 }
@@ -93,12 +95,29 @@ fun PathViewer(
                     modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp).zIndex(10f),
                     colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f))
                 ) {
-                    Column(modifier = Modifier.padding(8.dp)) {
+                    Column(modifier = Modifier.padding(12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("색상", style = MaterialTheme.typography.labelSmall)
-                            listOf(Color.Red, AllToDoGreen, Color.Blue).forEach { color ->
-                                Box(modifier = Modifier.size(32.dp).padding(4.dp).background(color, CircleShape).clickable { lineColor = color })
+                            Text("색상", style = MaterialTheme.typography.labelSmall, modifier = Modifier.width(40.dp))
+                            listOf(Color.Red, AllToDoGreen, Color.Blue, Color.Black).forEach { color ->
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .padding(4.dp)
+                                        .background(color, CircleShape)
+                                        .let { if (lineColor == color) it.background(color.copy(alpha = 0.3f), CircleShape).padding(2.dp).background(color, CircleShape) else it }
+                                        .clickable { lineColor = color }
+                                )
                             }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("두께", style = MaterialTheme.typography.labelSmall, modifier = Modifier.width(40.dp))
+                            Slider(
+                                value = lineThickness.value,
+                                onValueChange = { lineThickness = it.dp },
+                                valueRange = 1f..10f,
+                                modifier = Modifier.weight(1f)
+                            )
                         }
                     }
                 }
@@ -131,15 +150,23 @@ fun PathViewer(
 
 @OptIn(ExperimentalNaverMapApi::class)
 @Composable
-fun NaverPathMap(points: List<LatLng>, color: Color, width: androidx.compose.ui.unit.Dp) {
-    val cameraPositionState = com.naver.maps.map.compose.rememberCameraPositionState()
+fun NaverPathMap(todo: kr.alltodo.data.TodoItem, points: List<LatLng>, color: Color, width: androidx.compose.ui.unit.Dp) {
+    val initialCenter = LatLng((todo.int_lat ?: 0) / 100_000.0, (todo.int_long ?: 0) / 100_000.0)
+    val cameraPositionState = com.naver.maps.map.compose.rememberCameraPositionState {
+        position = com.naver.maps.map.CameraPosition(initialCenter, 15.0)
+    }
     LaunchedEffect(points) {
         if (points.isNotEmpty()) {
+            Log.d("PathViewer", ">>> NaverPathMap: Drawing ${points.size} points. First: ${points.firstOrNull()}")
             if (points.size >= 2) {
-                cameraPositionState.animate(CameraUpdate.fitBounds(com.naver.maps.geometry.LatLngBounds.from(points), 100))
+                val builder = com.naver.maps.geometry.LatLngBounds.Builder()
+                points.forEach { builder.include(it) }
+                cameraPositionState.animate(CameraUpdate.fitBounds(builder.build(), 100))
             } else {
                 cameraPositionState.animate(CameraUpdate.scrollAndZoomTo(points.first(), 15.0))
             }
+        } else {
+            Log.d("PathViewer", ">>> NaverPathMap: Points list is EMPTY")
         }
     }
     com.naver.maps.map.compose.NaverMap(
@@ -149,14 +176,29 @@ fun NaverPathMap(points: List<LatLng>, color: Color, width: androidx.compose.ui.
     ) {
         if (points.size >= 2) {
             com.naver.maps.map.compose.PathOverlay(coords = points, color = color, width = width, outlineWidth = 0.dp)
+            
+            // Start/End Markers
+            com.naver.maps.map.compose.Marker(
+                state = com.naver.maps.map.compose.rememberMarkerState(position = points.first()),
+                icon = com.naver.maps.map.overlay.OverlayImage.fromResource(kr.alltodo.R.drawable.map_pin_01),
+                width = 24.dp, height = 30.dp
+            )
+            com.naver.maps.map.compose.Marker(
+                state = com.naver.maps.map.compose.rememberMarkerState(position = points.last()),
+                icon = com.naver.maps.map.overlay.OverlayImage.fromResource(kr.alltodo.R.drawable.map_pin_02),
+                width = 24.dp, height = 30.dp
+            )
         }
     }
 }
 
 @Composable
-fun GooglePathMap(points: List<LatLng>, color: Color, width: androidx.compose.ui.unit.Dp) {
+fun GooglePathMap(todo: kr.alltodo.data.TodoItem, points: List<LatLng>, color: Color, width: androidx.compose.ui.unit.Dp) {
+    val initialCenter = GoogleLatLng((todo.int_lat ?: 0) / 100_000.0, (todo.int_long ?: 0) / 100_000.0)
     val gPoints = remember(points) { points.map { GoogleLatLng(it.latitude, it.longitude) } }
-    val cameraPositionState = com.google.maps.android.compose.rememberCameraPositionState()
+    val cameraPositionState = com.google.maps.android.compose.rememberCameraPositionState {
+        position = com.google.android.gms.maps.model.CameraPosition.fromLatLngZoom(initialCenter, 15f)
+    }
     LaunchedEffect(gPoints) {
         if (gPoints.isNotEmpty()) {
             try {
@@ -180,15 +222,24 @@ fun GooglePathMap(points: List<LatLng>, color: Color, width: androidx.compose.ui
         if (gPoints.size >= 2) {
             val px = width.value * androidx.compose.ui.platform.LocalDensity.current.density
             com.google.maps.android.compose.Polyline(points = gPoints, color = color, width = px, zIndex = 5f)
+            
+            // Start/End Markers
+            com.google.maps.android.compose.Marker(
+                state = com.google.maps.android.compose.rememberMarkerState(position = gPoints.first()),
+                icon = com.google.android.gms.maps.model.BitmapDescriptorFactory.fromResource(kr.alltodo.R.drawable.map_pin_01)
+            )
+            com.google.maps.android.compose.Marker(
+                state = com.google.maps.android.compose.rememberMarkerState(position = gPoints.last()),
+                icon = com.google.android.gms.maps.model.BitmapDescriptorFactory.fromResource(kr.alltodo.R.drawable.map_pin_02)
+            )
         }
-
-
     }
 }
 
 @Composable
-fun KakaoPathMap(points: List<LatLng>, color: Color, width: androidx.compose.ui.unit.Dp) {
-    val kPoints = remember(points) { points.map { com.kakao.vectormap.LatLng.from(it.latitude, it.longitude) } }
+fun KakaoPathMap(todo: kr.alltodo.data.TodoItem, points: List<LatLng>, color: Color, width: androidx.compose.ui.unit.Dp) {
+    val initialCenter = KakaoLatLng.from((todo.int_lat ?: 0) / 100_000.0, (todo.int_long ?: 0) / 100_000.0)
+    val kPoints = remember(points) { points.map { KakaoLatLng.from(it.latitude, it.longitude) } }
     var kakaoMap by remember { mutableStateOf<KakaoMap?>(null) }
     val colorInt = android.graphics.Color.argb((color.alpha * 255).toInt(), (color.red * 255).toInt(), (color.green * 255).toInt(), (color.blue * 255).toInt())
     val density = LocalDensity.current.density
@@ -204,7 +255,17 @@ fun KakaoPathMap(points: List<LatLng>, color: Color, width: androidx.compose.ui.
             val segment = RouteLineSegment.from(kPoints, RouteLineStyles.from(RouteLineStyle.from(px, colorInt)))
             layer?.addRouteLine(RouteLineOptions.from(Arrays.asList(segment)))
 
-            map.moveCamera(CameraUpdateFactory.fitMapPoints(kPoints.toTypedArray(), 100))
+            // Start/End Markers (Labels in Kakao)
+            val labelManager = map.labelManager
+            val labelLayer = labelManager?.getLayer("markerLayer") ?: labelManager?.addLayer(LabelLayerOptions.from("markerLayer"))
+            
+            labelLayer?.removeAll()
+            labelLayer?.addLabel(LabelOptions.from("start", kPoints.first()).setStyles(LabelStyles.from(LabelStyle.from(kr.alltodo.R.drawable.map_pin_01).setAnchorPoint(0.5f, 1f))))
+            labelLayer?.addLabel(LabelOptions.from("end", kPoints.last()).setStyles(LabelStyles.from(LabelStyle.from(kr.alltodo.R.drawable.map_pin_02).setAnchorPoint(0.5f, 1f))))
+
+            // Refined Fit Bounds with Delay & Animation
+            delay(300)
+            map.moveCamera(CameraUpdateFactory.fitMapPoints(kPoints.toTypedArray(), 120), com.kakao.vectormap.camera.CameraAnimation.from(1000, true, true))
 
         } else {
             map.moveCamera(CameraUpdateFactory.newCenterPosition(kPoints.first(), 15))

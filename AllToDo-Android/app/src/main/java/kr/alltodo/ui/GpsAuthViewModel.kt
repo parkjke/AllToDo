@@ -83,6 +83,10 @@ class GpsAuthViewModel @Inject constructor(
         _isOverlayVisible.value = visible
     }
 
+    fun setShowActivePath(visible: Boolean) {
+        _showActivePath.value = visible
+    }
+
     fun addLocation(lat: Double, lon: Double, timestamp: Long) {
         if (!_isTracking.value) return // Only record when tracking is ON
         
@@ -90,7 +94,7 @@ class GpsAuthViewModel @Inject constructor(
         val lastPoint = currentList.lastOrNull()
         val status = classifyLocation(lastPoint, lat, lon, timestamp)
         
-        val newPoint = GpsAuthPoint(lat, lon, timestamp, status)
+        val newPoint = GpsAuthPoint((lat * 100_000).toInt(), (lon * 100_000).toInt(), timestamp, status)
         val newList = currentList.toMutableList()
         
         if (newList.size >= MAX_POINTS) {
@@ -104,6 +108,7 @@ class GpsAuthViewModel @Inject constructor(
         _isTracking.value = true
         _points.value = emptyList()
         _selectedTrack.value = null
+        _showActivePath.value = true // [FIX] Automatically show trail when tracking starts
         currentTrackStartTime = System.currentTimeMillis()
     }
 
@@ -162,7 +167,7 @@ class GpsAuthViewModel @Inject constructor(
             try {
                 // Convert to List<Int> for WASM (Lat*100k, Lon*100k)
                 val input = currentPoints.flatMap { 
-                    listOf((it.latitude * 100_000).toInt(), (it.longitude * 100_000).toInt()) 
+                    listOf(it.intLat, it.intLng) 
                 }
                 
                 // Call WASM RDP
@@ -171,12 +176,12 @@ class GpsAuthViewModel @Inject constructor(
                 // Convert back to GpsAuthPoint
                 val result = mutableListOf<GpsAuthPoint>()
                 for (i in 0 until simplified.size step 2) {
-                    val lat = simplified[i] / 100_000.0
-                    val lon = simplified[i+1] / 100_000.0
+                    val latInt = simplified[i]
+                    val lonInt = simplified[i+1]
                     // Find original point to preserve status and timestamp (approximate)
                     val original = currentPoints.find { 
-                        abs(it.latitude - lat) < 0.00001 && abs(it.longitude - lon) < 0.00001 
-                    } ?: GpsAuthPoint(lat, lon, 0, 0)
+                        it.intLat == latInt && it.intLng == lonInt
+                    } ?: GpsAuthPoint(latInt, lonInt, 0, 0)
                     result.add(original)
                 }
                 

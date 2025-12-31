@@ -379,11 +379,15 @@ struct KakaoPathMapView: UIViewRepresentable {
                 labelLayer?.addPoi(option: PoiOptions(styleID: styleID, poiID: "end"), at: end)?.show()
             }
 
-            // Fit Bounds
+            // Fit Bounds with Delay & Animation
             let intRect = GeomUtils.calculateIntBoundingBox(from: parent.items, paddingPercent: 20)
             let sw = MapPoint(longitude: Double(intRect.minLon)/100_000.0, latitude: Double(intRect.minLat)/100_000.0)
             let ne = MapPoint(longitude: Double(intRect.maxLon)/100_000.0, latitude: Double(intRect.maxLat)/100_000.0)
-            mapView.moveCamera(CameraUpdate.make(area: AreaRect(southWest: sw, northEast: ne)))
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                mapView.animateCamera(cameraUpdate: CameraUpdate.make(area: AreaRect(southWest: sw, northEast: ne)), 
+                                      options: CameraAnimationOptions(autoElevation: false, consecutive: false, durationInMillis: 1000))
+            }
         }
     }
 }

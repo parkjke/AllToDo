@@ -170,16 +170,40 @@ fun KakaoMapContent(
         
         if (showActivePath && activePoints.size >= 2) {
             val points = activePoints.map { LatLng.from(it.latitude, it.longitude) }
+            val routeLineManager = kakaoMap!!.getRouteLineManager()!!
             val style = RouteLineStyles.from(
-                RouteLineStyle.from(2.5f * density, android.graphics.Color.parseColor("#FF5722"))
+                RouteLineStyle.from(5f * density, android.graphics.Color.parseColor("#FF5722"))
             )
-
-
-
             val segment = RouteLineSegment.from(points, style)
             layer.addRouteLine(RouteLineOptions.from(Arrays.asList(segment)))
         }
 
+    }
+
+    // [NEW] Active Path Blue Dot Trail
+    LaunchedEffect(kakaoMap, activePoints, showActivePath) {
+        val map = kakaoMap ?: return@LaunchedEffect
+        val labelManager = map.labelManager ?: return@LaunchedEffect
+        val layer = labelManager.getLayer("activeDotsLayer") ?: labelManager.addLayer(LabelLayerOptions.from("activeDotsLayer").setZOrder(2100))
+        
+        layer?.removeAll()
+        
+        if (showActivePath && activePoints.isNotEmpty()) {
+            val tailPoints = activePoints.takeLast(20)
+            val dotBitmap = kr.alltodo.ui.PinImageManager.createDotBitmap(context, android.graphics.Color.BLUE, 3f)
+            
+            val styleId = "blue_dot_style"
+            var style = labelManager.getLabelStyles(styleId)
+            if (style == null) {
+                style = labelManager.addLabelStyles(LabelStyles.from(styleId, LabelStyle.from(dotBitmap).setAnchorPoint(0.5f, 0.5f)))
+            }
+            
+            if (style != null) {
+                tailPoints.forEach { point ->
+                   layer?.addLabel(LabelOptions.from(LatLng.from(point.latitude, point.longitude)).setStyles(style))
+                }
+            }
+        }
     }
 
 
@@ -210,18 +234,25 @@ fun KakaoMapContent(
                  newUserItems = cluster.items
                  newUserPos = LatLng.from(cluster.latitude, cluster.longitude)
                  
-                 val isSingle = cluster.count == 1
-                 val firstItem = cluster.items.first()
+                 val isSingle = cluster.items.size == 1
+                 val firstItem = cluster.items.firstOrNull() as? kr.alltodo.ui.UnifiedItem.Todo
                  
-                 val (b, ax, ay) = if (isSingle) {
-                     val shieldId = kr.alltodo.ui.PinImageManager.getResourceId(context, firstItem.shieldName)
-                     val markId = kr.alltodo.ui.PinImageManager.getResourceId(context, firstItem.markName)
-                     Triple(kr.alltodo.ui.createKakaoPinBitmap(context, 0, shieldId, markId, android.graphics.Color.TRANSPARENT), 0.5f, 0.5f)
+                 val (b, ax, ay) = if (isSingle && firstItem != null) {
+                     val style = kr.alltodo.utils.MapLogicHelper.resolveClusterStyle(cluster.items)
+                     Triple(kr.alltodo.ui.createKakaoPinBitmap(context, 0, firstItem.pinId, android.graphics.Color.TRANSPARENT), 0.5f, 0.5f)
                  } else {
                      val style = kr.alltodo.utils.MapLogicHelper.resolveClusterStyle(cluster.items)
-                     val shieldId = kr.alltodo.ui.PinImageManager.getResourceId(context, style.shieldName)
-                     val markId = kr.alltodo.ui.PinImageManager.getResourceId(context, style.markName)
-                     Triple(kr.alltodo.ui.createKakaoPinBitmap(context, cluster.count, shieldId, markId, style.color), 0.33f, 1.0f)
+                     val b = kr.alltodo.ui.createKakaoPinBitmap(context, cluster.count, style.pinId, style.color)
+                     
+                     val density = context.resources.displayMetrics.density
+                     val scale = 0.7f // Kakao Scale
+                     val pinW = (40 * density * scale)
+                     val badgeRadius = 10f * density * scale
+                     val padding = (badgeRadius * 1.5f)
+                     val totalW = pinW + padding
+                     val finalAnchorX = (pinW / 2f) / totalW
+                     
+                     Triple(b, finalAnchorX, 1.0f)
                  }
                  newUserBitmap = b
                  newUserAnchor = Pair(ax, ay)
@@ -295,14 +326,20 @@ fun KakaoMapContent(
                 var styles = labelManager.getLabelStyles(styleId)
                 if (styles == null) {
                     val (b, ax, ay) = if (isSingle) {
-                        val shieldId = kr.alltodo.ui.PinImageManager.getResourceId(context, firstItem.shieldName)
-                        val markId = kr.alltodo.ui.PinImageManager.getResourceId(context, firstItem.markName)
-                        Triple(kr.alltodo.ui.createKakaoPinBitmap(context, 0, shieldId, markId, android.graphics.Color.TRANSPARENT), 0.5f, 0.5f)
+                        Triple(kr.alltodo.ui.createKakaoPinBitmap(context, 0, firstItem.pinId, android.graphics.Color.TRANSPARENT), 0.5f, 0.5f)
                     } else {
                         val style = kr.alltodo.utils.MapLogicHelper.resolveClusterStyle(cluster.items)
-                        val shieldId = kr.alltodo.ui.PinImageManager.getResourceId(context, style.shieldName)
-                        val markId = kr.alltodo.ui.PinImageManager.getResourceId(context, style.markName)
-                        Triple(kr.alltodo.ui.createKakaoPinBitmap(context, cluster.count, shieldId, markId, style.color), 0.33f, 1.0f)
+                        val b = kr.alltodo.ui.createKakaoPinBitmap(context, cluster.count, style.pinId, style.color)
+                        
+                        val density = context.resources.displayMetrics.density
+                        val scale = 0.7f
+                        val pinW = (40 * density * scale)
+                        val badgeRadius = 10f * density * scale
+                        val padding = (badgeRadius * 1.5f)
+                        val totalW = pinW + padding
+                        val finalAnchorX = (pinW / 2f) / totalW
+                        
+                        Triple(b, 0.392f, 1.0f)
                     }
                     if (b != null) {
                          styles = labelManager.addLabelStyles(LabelStyles.from(styleId, LabelStyle.from(b).setAnchorPoint(ax, ay)))
@@ -325,17 +362,21 @@ fun KakaoMapContent(
                 
                     if (styles == null) {
                     val (bitmap, anchorX, anchorY) = if (isSingle) {
-                        val shieldId = kr.alltodo.ui.PinImageManager.getResourceId(context, firstItem.shieldName)
-                        val markId = kr.alltodo.ui.PinImageManager.getResourceId(context, firstItem.markName)
-                        val b = kr.alltodo.ui.createKakaoPinBitmap(context, 0, shieldId, markId, android.graphics.Color.TRANSPARENT)
-                        Triple(b, 0.35f, 1.0f)
+                        val b = kr.alltodo.ui.createKakaoPinBitmap(context, 0, firstItem.pinId, android.graphics.Color.TRANSPARENT)
+                        Triple(b, 0.5f, 1.0f)
                     } else {
                          val style = kr.alltodo.utils.MapLogicHelper.resolveClusterStyle(cluster.items)
-                         val shieldId = kr.alltodo.ui.PinImageManager.getResourceId(context, style.shieldName)
-                         val markId = kr.alltodo.ui.PinImageManager.getResourceId(context, style.markName)
+                         val b = kr.alltodo.ui.createKakaoPinBitmap(context, cluster.count, style.pinId, style.color) 
+                        
+                         val density = context.resources.displayMetrics.density
+                         val scale = 0.7f
+                         val pinW = (40 * density * scale)
+                         val badgeRadius = 10f * density * scale
+                         val padding = (badgeRadius * 1.5f)
+                         val totalW = pinW + padding
+                         val finalAnchorX = (pinW / 2f) / totalW
                          
-                         val b = kr.alltodo.ui.createKakaoPinBitmap(context, cluster.count, shieldId, markId, style.color) 
-                         Triple(b, 0.35f, 1.0f)
+                         Triple(b, 0.392f, 1.0f)
                     }
                     
                     if (bitmap != null) {
@@ -377,9 +418,7 @@ fun KakaoMapContent(
             val styleId = "creating_todo"
             var styles = labelManager.getLabelStyles(styleId)
             if (styles == null) {
-                val shieldId = kr.alltodo.ui.PinImageManager.getResourceId(context, "pin_shield_1x")
-                val markId = kr.alltodo.ui.PinImageManager.getResourceId(context, "pin_mark_10")
-                val b = kr.alltodo.ui.createKakaoPinBitmap(context, 0, shieldId, markId, android.graphics.Color.TRANSPARENT)
+                val b = kr.alltodo.ui.createKakaoPinBitmap(context, 0, "10", android.graphics.Color.TRANSPARENT)
                 
                 if (b != null) {
                     styles = labelManager.addLabelStyles(LabelStyles.from(styleId, LabelStyle.from(b).setAnchorPoint(0.5f, 1.0f)))

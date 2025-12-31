@@ -7,63 +7,57 @@ import kr.alltodo.data.TodoItem
 import kr.alltodo.data.UserLog
 
 sealed class UnifiedItem {
-    abstract val latitude: Double
-    abstract val longitude: Double
+    abstract val intLat: Int
+    abstract val intLng: Int
     abstract val timestamp: Long
     
-    // [NEW] Dynamic Composition Properties
-    open val shieldName: String get() = "pin_shield_1x"
-    open val markName: String get() = "pin_mark_10"
+    val latitude: Double get() = intLat / 100_000.0
+    val longitude: Double get() = intLng / 100_000.0
+    
+    // [NEW] Static Bitmap PIN ID
+    open val pinId: String get() = "10"
 
     data class Todo(val item: TodoItem) : UnifiedItem() {
-        override val latitude get() = item.latitude ?: 0.0
-        override val longitude get() = item.longitude ?: 0.0
+        override val intLat get() = item.int_lat ?: 0
+        override val intLng get() = item.int_long ?: 0
         override val timestamp get() = item.created_at
         
-        override val shieldName: String
+        override val pinId: String
             get() {
                  if (item.source != "local") {
-                     // Server (20)
-                     return "pin_shield_2x"
-                 }
-                 return "pin_shield_1x" // Local (10)
-            }
-            
-        override val markName: String
-            get() {
-                 if (item.source != "local") {
-                     return "pin_mark_20"
+                     return "20" // Server
                  }
                  // Local
-                 return if (item.completed) "pin_mark_12" else "pin_mark_10"
+                 return if (item.completed) "12" else "10"
             }
     }
 
     data class History(val item: TodoItem) : UnifiedItem() {
-        override val latitude get() = item.latitude ?: 0.0
-        override val longitude get() = item.longitude ?: 0.0
+        override val intLat get() = item.int_lat ?: 0
+        override val intLng get() = item.int_long ?: 0
         override val timestamp get() = item.begin_time ?: item.created_at
         
-        override val shieldName get() = "pin_shield_0x"
-        override val markName get() = "pin_mark_01"
+        override val pinId get() = "01"
     }
 
     data class CurrentLocation(val lat: Double, val lon: Double) : UnifiedItem() {
-        override val latitude get() = lat
-        override val longitude get() = lon
+        override val intLat get() = (lat * 100_000).toInt()
+        override val intLng get() = (lon * 100_000).toInt()
         override val timestamp get() = System.currentTimeMillis()
         
-        override val shieldName get() = "pin_shield_0x"
-        override val markName get() = "pin_mark_00"
+        override val pinId get() = "00"
     }
 }
 
 data class PinClusterItem(
-    val latitude: Double,
-    val longitude: Double,
+    val intLat: Int,
+    val intLng: Int,
     val count: Int,
     val items: List<UnifiedItem>
-)
+) {
+    val latitude: Double get() = intLat / 100_000.0
+    val longitude: Double get() = intLng / 100_000.0
+}
 
 // Legacy PinCluster (to be removed if unused)
 data class PinCluster(
@@ -88,23 +82,22 @@ fun createRedDotBitmap(): Bitmap {
 // [FIX] Bitmap Cache to prevent UI Freeze
 private val bitmapCache = android.util.LruCache<String, Bitmap>(100) // Cache last 100 icons
 
-// [FIX] Update signature for Dynamic Composition
+// [FIX] Update signature for Static Bitmaps
 fun getCachedClusterBitmap(
     context: android.content.Context, 
     count: Int, 
-    shieldResId: Int, 
-    markResId: Int,
+    pinId: String,
     badgeColor: Int, 
     scale: Float = 1.0f
 ): com.google.android.gms.maps.model.BitmapDescriptor {
-    val key = "cluster-$count-$shieldResId-$markResId-$badgeColor-$scale"
+    val key = "cluster-$count-$pinId-$badgeColor-$scale"
     val cached = bitmapCache.get(key)
     
     val bitmap = if (cached != null) {
         cached
     } else {
         // Create new based on Scale
-        val newBitmap = PinImageManager.fetchCompositePin(context, shieldResId, markResId, count, badgeColor, scale) 
+        val newBitmap = PinImageManager.fetchStaticPin(context, pinId, count, badgeColor, scale) 
             ?: createRedDotBitmap()
         bitmapCache.put(key, newBitmap)
         newBitmap
@@ -114,19 +107,18 @@ fun getCachedClusterBitmap(
 }
 
 // [NEW] Google Pin (Standard)
-// Takes ResIDs directly (resolved by Caller)
-fun createGooglePinBitmap(context: android.content.Context, count: Int, shieldResId: Int, markResId: Int, badgeColor: Int): Bitmap {
-    return PinImageManager.fetchCompositePin(context, shieldResId, markResId, count, badgeColor, 1.0f) ?: createRedDotBitmap()
+fun createGooglePinBitmap(context: android.content.Context, count: Int, pinId: String, badgeColor: Int): Bitmap {
+    return PinImageManager.fetchStaticPin(context, pinId, count, badgeColor, 1.0f) ?: createRedDotBitmap()
 }
 
 // [NEW] Kakao Pin
-fun createKakaoPinBitmap(context: android.content.Context, count: Int, shieldResId: Int, markResId: Int, badgeColor: Int): Bitmap {
-    val scale = 0.7f // Adjusted
-    return PinImageManager.fetchCompositePin(context, shieldResId, markResId, count, badgeColor, scale) ?: createRedDotBitmap()
+fun createKakaoPinBitmap(context: android.content.Context, count: Int, pinId: String, badgeColor: Int): Bitmap {
+    val scale = 0.7f // Adjusted for Kakao consistency
+    return PinImageManager.fetchStaticPin(context, pinId, count, badgeColor, scale) ?: createRedDotBitmap()
 }
 
 // [NEW] Naver Pin
-fun createNaverPinBitmap(context: android.content.Context, count: Int, shieldResId: Int, markResId: Int, badgeColor: Int): Bitmap {
+fun createNaverPinBitmap(context: android.content.Context, count: Int, pinId: String, badgeColor: Int): Bitmap {
     val scale = 1.0f 
-    return PinImageManager.fetchCompositePin(context, shieldResId, markResId, count, badgeColor, scale) ?: createRedDotBitmap()
+    return PinImageManager.fetchStaticPin(context, pinId, count, badgeColor, scale) ?: createRedDotBitmap()
 }

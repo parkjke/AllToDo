@@ -1,5 +1,6 @@
 package kr.alltodo.ui.components
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -16,19 +17,49 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.geometry.*
+import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Fill
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.*
 import kr.alltodo.ui.UnifiedItem
 import kr.alltodo.ui.theme.AllToDoGreen
 import java.text.SimpleDateFormat
 import java.util.*
-import androidx.compose.foundation.Canvas
+import androidx.compose.ui.text.font.FontWeight
+
+/**
+ * Custom Shape that includes a rounded rectangle bubble and a triangle tail at the bottom center.
+ */
+class BubbleShape(
+    private val cornerRadius: Dp = 12.dp,
+    private val tailWidth: Dp = 20.dp,
+    private val tailHeight: Dp = 10.dp
+) : Shape {
+    override fun createOutline(
+        size: Size,
+        layoutDirection: LayoutDirection,
+        density: Density
+    ): Outline {
+        val radiusP = with(density) { cornerRadius.toPx() }
+        val twP = with(density) { tailWidth.toPx() }
+        val thP = with(density) { tailHeight.toPx() }
+        
+        val bodyHeight = size.height - thP
+        
+        val path = Path().apply {
+            // Main Bubble (Rounded Rect)
+            addRoundRect(RoundRect(0f, 0f, size.width, bodyHeight, CornerRadius(radiusP)))
+            
+            // Triangle Tail at bottom center
+            val cx = size.width / 2f
+            moveTo(cx - twP / 2f, bodyHeight)
+            lineTo(cx + twP / 2f, bodyHeight)
+            lineTo(cx, size.height)
+            close()
+        }
+        return Outline.Generic(path)
+    }
+}
 
 @Composable
 fun CalloutBubble(
@@ -50,18 +81,20 @@ fun CalloutBubble(
         else -> 15.sp
     }
 
-    val bubbleWidth = 260.dp
+    val bubbleWidth = 280.dp // Slightly wider for better text fit
     val rowHeight = when (popupFontSize) {
-        0 -> 38.dp
-        1 -> 42.dp
-        2 -> 52.dp
-        else -> 42.dp
+        0 -> 40.dp
+        1 -> 48.dp
+        2 -> 56.dp
+        else -> 48.dp
     }
     
-    val headerHeight = 40.dp
+    val headerHeight = 44.dp
     val maxListItems = maxPopupItems.coerceAtLeast(1)
     val displayCount = items.size.coerceAtMost(maxListItems)
-    val bubbleHeight = (rowHeight * displayCount) + headerHeight + 8.dp
+    val totalContentHeight = (rowHeight * displayCount) + headerHeight + 8.dp
+    val tailHeight = 10.dp
+    val bubbleHeight = totalContentHeight + tailHeight
 
     Box(
         modifier = Modifier
@@ -82,79 +115,52 @@ fun CalloutBubble(
                     )
                 }
                 .width(bubbleWidth)
-                .height(bubbleHeight + 10.dp)
+                .height(bubbleHeight)
+                .shadow(elevation = 8.dp, shape = BubbleShape())
                 .clickable(enabled = false) { }
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(bubbleHeight),
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                    shadowElevation = 8.dp
-                ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                shape = BubbleShape(),
+                color = Color.White.copy(alpha = 0.95f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f))
+            ) {
+                Column {
+                    // [Header] Center Close Button (iOS Style)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(headerHeight)
+                            .clickable(onClick = onClose),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "닫기",
+                            tint = Color.Black.copy(alpha = 0.4f),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
 
-                    Column {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(headerHeight)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.Center)
-                                    .fillMaxHeight()
-                                    .width(60.dp)
-                                    .clickable(onClick = onClose),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "닫기",
-                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(24.dp)
-                                )
-
-                            }
-                        }
-
-                        LazyColumn(
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            items(items.take(maxPopupItems)) { item ->
-                                CalloutRow(
-                                    item = item,
-                                    fontSize = fontSize,
-                                    onDeleteTodo = onDeleteTodo,
-                                    onDeleteLog = onDeleteLog,
-                                    onSelectLog = onSelectLog,
-                                    onCreateTodo = onCreateTodo
-                                )
-                                Divider(color = Color.Black.copy(alpha = 0.1f))
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().weight(1f, fill = false)
+                    ) {
+                        items(items.take(maxPopupItems)) { item ->
+                            CalloutRow(
+                                item = item,
+                                fontSize = fontSize,
+                                onDeleteTodo = onDeleteTodo,
+                                onDeleteLog = onDeleteLog,
+                                onSelectLog = onSelectLog,
+                                onCreateTodo = onCreateTodo
+                            )
+                            if (item != items.take(maxPopupItems).last()) {
+                                Divider(color = Color.Black.copy(alpha = 0.1f), modifier = Modifier.padding(horizontal = 12.dp))
                             }
                         }
                     }
+                    Spacer(modifier = Modifier.height(16.dp)) // Extra padding for the tail area
                 }
-
-                val isDark = androidx.compose.foundation.isSystemInDarkTheme()
-                val bubbleColor = if (isDark) Color(0xFF333333).copy(alpha = 0.95f) else Color(0xFFE0E0E0).copy(alpha = 0.95f)
-
-                Canvas(
-                    modifier = Modifier
-                        .width(20.dp)
-                        .height(10.dp)
-                ) {
-                    val path = Path().apply {
-                        moveTo(0f, 0f)
-                        lineTo(size.width, 0f)
-                        lineTo(size.width / 2f, size.height)
-                        close()
-                    }
-                    drawPath(path, color = bubbleColor, style = Fill)
-                }
-
-
             }
         }
     }
@@ -175,31 +181,34 @@ fun CalloutRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .padding(horizontal = 12.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(modifier = Modifier.width(32.dp)) {
-            val hasPath = (item as? UnifiedItem.History)?.item?.no_of_path ?: 0 > 0
+        // [Col 1] Map Icon
+        Box(modifier = Modifier.width(36.dp), contentAlignment = Alignment.CenterStart) {
+            val history = (item as? UnifiedItem.History)
+            val hasPath = history?.item?.no_of_path ?: 0 > 0
             
             IconButton(
-                onClick = { if (hasPath) onSelectLog((item as UnifiedItem.History).item) },
+                onClick = { if (hasPath) onSelectLog(history!!.item) },
                 enabled = hasPath,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(28.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Map,
                     contentDescription = "경로 보기",
-                    tint = if (hasPath) Color(0xFF1B5E20) else Color(0xFF333333).copy(alpha = 0.1f),
-                    modifier = Modifier.size(24.dp)
+                    tint = if (hasPath) Color(0xFF28CD41) else Color.Gray.copy(alpha = 0.3f),
+                    modifier = Modifier.size(22.dp)
                 )
             }
         }
 
-        Spacer(modifier = Modifier.weight(1f))
-
-        Column(
-            modifier = Modifier.clickable { onCreateTodo(item) },
-            horizontalAlignment = Alignment.CenterHorizontally
+        // [Col 2] Content (Centered-ish but aligned to icon)
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .clickable { onCreateTodo(item) },
+            verticalAlignment = Alignment.CenterVertically
         ) {
             when (item) {
                 is UnifiedItem.Todo, is UnifiedItem.History -> {
@@ -208,30 +217,40 @@ fun CalloutRow(
                     
                     val dateStr = dateFormat.format(Date(timestamp))
                     val timeStr = timeFormat.format(Date(timestamp))
-                    val shortName = name.let { if (it.length > 3) it.take(3) + "..." else it }
                     
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = dateStr, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), fontSize = fontSize)
-                        Spacer(Modifier.width(4.dp))
-                        Text(text = timeStr, color = MaterialTheme.colorScheme.onSurface, fontSize = fontSize, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                        Spacer(Modifier.width(8.dp))
-                        Text(text = shortName, color = MaterialTheme.colorScheme.onSurface, fontSize = fontSize)
+                    // Path Count
+                    if (item is UnifiedItem.History && item.item.no_of_path > 0) {
+                        Text(
+                            text = "(${item.item.no_of_path})",
+                            color = Color(0xFF28CD41),
+                            fontSize = (fontSize.value - 2).sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.width(32.dp)
+                        )
                     }
 
+                    Text(text = dateStr, color = Color.Gray, fontSize = (fontSize.value - 1).sp)
+                    Spacer(Modifier.width(6.dp))
+                    Text(text = timeStr, color = Color.Black, fontSize = fontSize, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.width(8.dp))
+                    Text(text = name, color = Color.Black, fontSize = fontSize, maxLines = 1)
                 }
                 is UnifiedItem.CurrentLocation -> {
+                    Icon(Icons.Default.Person, null, tint = Color.Red, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
                     Text(
                         text = timeFormat.format(Date()),
                         color = Color.Red,
                         fontSize = fontSize,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                        fontWeight = FontWeight.Bold
                     )
+                    Spacer(Modifier.width(8.dp))
+                    Text("현재 위치", color = Color.Red, fontSize = fontSize)
                 }
             }
         }
 
-        Spacer(modifier = Modifier.weight(1f))
-
+        // [Col 3] Delete Icon
         IconButton(
             onClick = {
                 when (item) {
@@ -240,21 +259,14 @@ fun CalloutRow(
                     else -> {}
                 }
             },
-            modifier = Modifier.size(32.dp)
+            modifier = Modifier.size(36.dp)
         ) {
-            if (item is UnifiedItem.CurrentLocation) {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = "나",
-                    tint = Color.Red,
-                    modifier = Modifier.size(24.dp)
-                )
-            } else {
+            if (item !is UnifiedItem.CurrentLocation) {
                 Icon(
                     imageVector = Icons.Default.Delete,
                     contentDescription = "삭제",
-                    tint = Color.Red,
-                    modifier = Modifier.size(24.dp)
+                    tint = Color.Red.copy(alpha = 0.6f),
+                    modifier = Modifier.size(22.dp)
                 )
             }
         }

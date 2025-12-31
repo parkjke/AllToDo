@@ -48,15 +48,12 @@ data class TodoItem(
     @ColumnInfo(name = "int_long")
     val int_long: Int? = null,
     
-    @ColumnInfo(name = "latitude")
-    val latitude: Double? = null,
-    
-    @ColumnInfo(name = "longitude")
-    val longitude: Double? = null,
-    
     @ColumnInfo(name = "person")
     val person: String? = null,
     
     @ColumnInfo(name = "source")
     val source: String = "local"
-)
+) {
+    val latitude: Double? get() = int_lat?.toDouble()?.div(100_000.0)
+    val longitude: Double? get() = int_long?.toDouble()?.div(100_000.0)
+}

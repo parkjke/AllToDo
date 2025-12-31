@@ -34,6 +34,9 @@ fun MapBeginSequence(
     val lifecycleOwner = LocalLifecycleOwner.current
     var lastBackgroundTime by remember { mutableStateOf(0L) }
     
+    SideEffect {
+    }
+    
     // [FIX] Use rememberUpdatedState to ensure the LaunchedEffect closure sees the latest values
     val currentOnInitialAnimationDone by rememberUpdatedState(onInitialAnimationDone)
     val currentOnEnableClustering by rememberUpdatedState(onEnableClustering)
@@ -83,7 +86,7 @@ fun MapBeginSequence(
     val defaultLon = kr.alltodo.utils.SmartLocationManager.GWANGHWAMUN_LON
 
     // [Stage 1] Fast Display : Jump immediately when map is ready
-    LaunchedEffect(isMapReady) {
+    LaunchedEffect(isMapReady, initialAnimationDone) {
         if (isMapReady && !initialAnimationDone) {
             currentOnMove(currentBeforeLocation.latitude, currentBeforeLocation.longitude, 15.0f, false)
         }
@@ -103,6 +106,7 @@ fun MapBeginSequence(
             snapshotFlow { currentClusteredItemsState }
                 .filter { it.isNotEmpty() }
                 .first()
+        } else {
         }
 
         // [Interruption] Stop any ongoing Stage 1 or previous animations

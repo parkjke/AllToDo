@@ -71,10 +71,26 @@ class MapFeatureViewModel @Inject constructor(
     val currentZoom: StateFlow<Float> = _currentZoom.asStateFlow()
 
     private val _isClusteringEnabled = MutableStateFlow(false)
+    private var currentProvider = MapProvider.Google
+    private var currentLatitude = 37.5759 // Default Seoul
 
-    fun updateZoom(zoom: Float) {
-        if (_currentZoom.value != zoom) {
+    fun updateZoom(zoom: Float, lat: Double? = null, provider: MapProvider? = null) {
+        var changed = false
+        if (Math.abs(_currentZoom.value - zoom) > 0.01f) {
+            System.out.println(">>> [MapViewModel] Zoom Changed: ${_currentZoom.value} -> $zoom")
             _currentZoom.value = zoom
+            changed = true
+        }
+        if (lat != null && currentLatitude != lat) {
+            currentLatitude = lat
+            changed = true
+        }
+        if (provider != null && currentProvider != provider) {
+            currentProvider = provider
+            changed = true
+        }
+        
+        if (changed) {
             recalculateClusters()
         }
     }
@@ -164,6 +180,7 @@ class MapFeatureViewModel @Inject constructor(
     }
 
     private fun recalculateClusters() {
+        System.out.println(">>> [MapViewModel] recalculateClusters triggered")
         // Debounce or launch?
         viewModelScope.launch {
             val items = _displayItems.value
@@ -176,10 +193,8 @@ class MapFeatureViewModel @Inject constructor(
 
             // 1. Prepare Points for WASM
             val flatPoints = items.flatMap { item ->
-                val lat = item.latitude
-                val lng = item.longitude
-                if (lat != 0.0) {
-                    listOf((lat * 100_000).toInt(), (lng * 100_000).toInt())
+                if (item.intLat != 0) {
+                    listOf(item.intLat, item.intLng)
                 } else {
                     emptyList()
                 }
@@ -190,29 +205,40 @@ class MapFeatureViewModel @Inject constructor(
                 return@launch
             }
 
-            // 2. Clustering Check
             if (!_isClusteringEnabled.value) {
                 // Return 1-to-1 clusters
                 _clusteredItems.value = items.map { item ->
-                     PinClusterItem(item.latitude, item.longitude, 1, listOf(item))
+                     PinClusterItem(item.intLat, item.intLng, 1, listOf(item))
                 }
                 return@launch
             }
 
             // 3. WASM Clustering
-            val resolution = 12_000_000.0 / Math.pow(2.0, zoom.toDouble())
+            // [NEW] Optimized Formula with Latitude Compensation & Provider Weights
+            // Meters per pixel ~ 156543.03392 * cos(lat) / 2^zoom
+            val cosLat = Math.cos(Math.toRadians(currentLatitude))
+            val sensitivity = 80.0 // Reduced from 100 for tighter clustering
+            val providerWeight = when(currentProvider) {
+                MapProvider.Google -> 1.0
+                MapProvider.Naver, MapProvider.Kakao -> 0.85 // Tighter for local maps
+                else -> 1.0
+            }
+            
+            val resolution = (156543.03392 * cosLat * sensitivity * providerWeight) / Math.pow(2.0, zoom.toDouble())
             val cellSizeMeters = resolution.toInt().coerceAtLeast(2) 
 
             val clustersFlat = try {
+                 System.out.println(">>> [MapViewModel] Invoking WASM cluster: points=${flatPoints.size/2} cell=$cellSizeMeters")
                  wasmManager.cluster(flatPoints, cellSizeMeters)
             } catch (e: Exception) {
+                 System.out.println(">>> [MapViewModel] WASM Error: ${e.message}")
                  emptyList<Int>()
             }
             
             // Fallback
             if (clustersFlat.isEmpty()) {
                  _clusteredItems.value = items.map { item ->
-                     PinClusterItem(item.latitude, item.longitude, 1, listOf(item))
+                     PinClusterItem(item.intLat, item.intLng, 1, listOf(item))
                 }
                 return@launch
             }
@@ -220,8 +246,8 @@ class MapFeatureViewModel @Inject constructor(
             // 4. Map Clusters
             val newClusters = mutableListOf<PinClusterItem>()
             for (i in 0 until clustersFlat.size step 3) {
-                val cLat = clustersFlat[i] / 100_000.0
-                val cLng = clustersFlat[i+1] / 100_000.0
+                val cLat = clustersFlat[i]
+                val cLng = clustersFlat[i+1]
                 val count = clustersFlat[i+2]
                 newClusters.add(PinClusterItem(cLat, cLng, count, mutableListOf()))
             }
@@ -229,18 +255,18 @@ class MapFeatureViewModel @Inject constructor(
             // Assign Items (Nearest Neighbor)
             if (newClusters.isNotEmpty()) {
                 items.forEach { item ->
-                    val lat = item.latitude
-                    val lng = item.longitude
+                    val lat = item.intLat
+                    val lng = item.intLng
                     
                     var minDist = Double.MAX_VALUE
                     var bestCluster: PinClusterItem? = null
                     
                     for (cluster in newClusters) {
-                        val dLat = cluster.latitude - lat
-                        val dLng = cluster.longitude - lng
-                        val distSq = dLat*dLat + dLng*dLng
+                        val dLat = cluster.intLat - lat
+                        val dLng = cluster.intLng - lng
+                        val distSq = dLat.toLong()*dLat + dLng.toLong()*dLng // Use Long to avoid overflow
                         if (distSq < minDist) {
-                            minDist = distSq
+                            minDist = distSq.toDouble()
                             bestCluster = cluster
                         }
                     }
@@ -252,7 +278,7 @@ class MapFeatureViewModel @Inject constructor(
             val finalClusters = newClusters.map { cluster ->
                   val userLoc = cluster.items.find { it is UnifiedItem.CurrentLocation }
                   if (userLoc != null) {
-                      cluster.copy(latitude = userLoc.latitude, longitude = userLoc.longitude)
+                      cluster.copy(intLat = userLoc.intLat, intLng = userLoc.intLng)
                   } else {
                       cluster
                   }

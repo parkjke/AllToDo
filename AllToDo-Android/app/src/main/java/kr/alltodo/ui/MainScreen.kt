@@ -34,6 +34,9 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.key
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.Job
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -45,6 +48,9 @@ fun MainScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val prefs = remember { context.getSharedPreferences("kr.alltodo.prefs", android.content.Context.MODE_PRIVATE) }
+    
+    // [NEW] 5-second Grace Period State
+    var pendingEndSessionTask by remember { mutableStateOf<Job?>(null) }
 
     // 1. States for Requirements
     // MapProvider logic (Local for now, passed to VM)
@@ -176,6 +182,35 @@ fun MainScreen(
         }
     }
 
+    // [NEW] 5-second Grace Period for path continuity (Match iOS parity)
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> {
+                    // Start 5-second timer
+                    pendingEndSessionTask = scope.launch {
+                        delay(5000)
+                        println(">>> APP STATE: Background -> Grace Period Expired -> Ending Session")
+                        todoViewModel.endSession()
+                        gpsAuthViewModel.stopTrackingAndSave()
+                    }
+                }
+                androidx.lifecycle.Lifecycle.Event.ON_RESUME -> {
+                    // Cancel timer if returned within 5s
+                    if (pendingEndSessionTask != null) {
+                        println(">>> APP STATE: Active -> Cancelling pending endSession (Grace Period Success)")
+                        pendingEndSessionTask?.cancel()
+                        pendingEndSessionTask = null
+                    }
+                }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     // [NEW] Toast for Far Items
     // Use MapViewModel's farItemsCount
     val farItemCount by mapViewModel.farItemsCount.collectAsState()
@@ -201,13 +236,14 @@ fun MainScreen(
             currentLocation = currentLocation.value,
             mapProvider = mapProvider
         )
+        System.out.println(">>> [MainScreen] Triggering updateMapItems: provider=$mapProvider items=${todoItems.size}")
     }
     
     // Map Instances for Camera Control
     var naverMapInstance by remember { mutableStateOf<com.naver.maps.map.NaverMap?>(null) }
     var kakaoMapInstance by remember { mutableStateOf<com.kakao.vectormap.KakaoMap?>(null) }
     var isGoogleMapReady by remember(mapProvider) { mutableStateOf(false) } // [FIX]
-
+    
     // [NEW] Map Action Observation Loop
     val mapAction by mapViewModel.mapAction.collectAsState()
     
@@ -285,6 +321,7 @@ fun MainScreen(
         val centerY = with(density) { (maxHeight / 2).toPx() }
 
         key(mapProvider) {
+            System.out.println(">>> [MainScreen] Displaying Map: $mapProvider")
             when (mapProvider) {
                 MapProvider.Naver -> {
                     // Use MapViewModel's clusteredItems
@@ -311,7 +348,7 @@ fun MainScreen(
                         initialAnimationDone = initialAnimationDone,
                         onInitialAnimationDone = { initialAnimationDone = true },
                         onResetAnimationDone = { initialAnimationDone = false }, // [NEW]
-                        onZoomChange = { mapViewModel.updateZoom(it) }, // Zoom affects clustering, mapViewModel observes currentZoom?
+                        onZoomChange = { mapViewModel.updateZoom(it, naverMapInstance?.cameraPosition?.target?.latitude, MapProvider.Naver) },
                         // MapViewModel needs zoom updates too!
                         // Wait, mapViewModel has updateZoom logic.
                         // Checked MapFeatureViewModel: fun updateZoom(zoom: Float)
@@ -352,7 +389,7 @@ fun MainScreen(
                         initialAnimationDone = initialAnimationDone,
                         onInitialAnimationDone = { initialAnimationDone = true },
                         onResetAnimationDone = { initialAnimationDone = false }, // [NEW]
-                        onZoomChange = { mapViewModel.updateZoom(it) },
+                        onZoomChange = { mapViewModel.updateZoom(it, kakaoMapInstance?.cameraPosition?.getPosition()?.latitude, MapProvider.Kakao) },
                         onEnableClustering = { mapViewModel.enableClustering() },
                         onMapLongClick = { latLng ->
                             mapViewModel.startCreatingTodo(latLng.latitude, latLng.longitude)
@@ -367,8 +404,12 @@ fun MainScreen(
                     val clusteredItems by mapViewModel.clusteredItems.collectAsState()
                     
                     // [FIX] Sync Zoom with MapViewModel for clustering
-                    LaunchedEffect(googleCameraPositionState.position.zoom) {
-                        mapViewModel.updateZoom(googleCameraPositionState.position.zoom)
+                    LaunchedEffect(googleCameraPositionState.position.zoom, googleCameraPositionState.position.target.latitude) {
+                        mapViewModel.updateZoom(
+                            googleCameraPositionState.position.zoom,
+                            googleCameraPositionState.position.target.latitude,
+                            MapProvider.Google
+                        )
                     }
 
                     GoogleMapContent(
@@ -520,6 +561,7 @@ fun MainScreen(
         val selectedHistoryPath by todoViewModel.selectedHistoryPath.collectAsState()
         viewingPathTodo?.let { todo ->
             kr.alltodo.ui.components.PathViewer(
+                todo = todo,
                 pathData = selectedHistoryPath,
                 mapProvider = mapProvider,
                 onClose = { 

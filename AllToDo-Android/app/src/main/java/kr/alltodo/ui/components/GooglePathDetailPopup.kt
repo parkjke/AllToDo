@@ -54,11 +54,13 @@ fun GooglePathDetailPopup(
                         width = 10f
                     )
                     
-                    // [FIX] Use History Pin for BOTH Start and End Markers
+                    // [FIX] Use Static Pins (01 for Start, 02 for End)
                     val context = androidx.compose.ui.platform.LocalContext.current
-                    val historyBitmap = kr.alltodo.ui.PinImageManager.getPinBitmap(kr.alltodo.R.drawable.pin_history)
-                    val historyIcon = if (historyBitmap != null) {
-                         com.google.android.gms.maps.model.BitmapDescriptorFactory.fromBitmap(historyBitmap)
+                    val startBitmap = kr.alltodo.ui.PinImageManager.fetchStaticPin(context, "01")
+                    val endBitmap = kr.alltodo.ui.PinImageManager.fetchStaticPin(context, "02")
+
+                    fun getIcon(bm: android.graphics.Bitmap?) = if (bm != null) {
+                         com.google.android.gms.maps.model.BitmapDescriptorFactory.fromBitmap(bm)
                     } else {
                          com.google.android.gms.maps.model.BitmapDescriptorFactory.defaultMarker(com.google.android.gms.maps.model.BitmapDescriptorFactory.HUE_RED)
                     }
@@ -67,7 +69,7 @@ fun GooglePathDetailPopup(
                     Marker(
                         state = MarkerState(position = pathPoints.first()),
                         title = "Start",
-                        icon = historyIcon,
+                        icon = getIcon(startBitmap),
                         anchor = androidx.compose.ui.geometry.Offset(0.5f, 1.0f)
                     )
 
@@ -75,7 +77,7 @@ fun GooglePathDetailPopup(
                     Marker(
                         state = MarkerState(position = pathPoints.last()),
                         title = "End",
-                        icon = historyIcon,
+                        icon = getIcon(endBitmap),
                         anchor = androidx.compose.ui.geometry.Offset(0.5f, 1.0f) 
                     )
                 }

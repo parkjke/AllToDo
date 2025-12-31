@@ -10,15 +10,15 @@ data class LocationEntity(
     @ColumnInfo(name = "id")
     val id: Long = 0,
     
-    @ColumnInfo(name = "latitude")
-    val latitude: Double,
+    @ColumnInfo(name = "int_lat")
+    val int_lat: Int,
     
-    @ColumnInfo(name = "longitude")
-    val longitude: Double,
+    @ColumnInfo(name = "int_long")
+    val int_long: Int,
     
     @ColumnInfo(name = "timestamp")
     val timestamp: Long
 ) {
-    val intCoordinate: IntCoordinate
-        get() = IntCoordinate.fromDouble(latitude, longitude)
+    val latitude: Double get() = int_lat / 100_000.0
+    val longitude: Double get() = int_long / 100_000.0
 }
