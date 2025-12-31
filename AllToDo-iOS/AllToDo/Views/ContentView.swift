@@ -100,6 +100,9 @@ struct ContentView: View {
         .sheet(item: $viewModel.viewingHistoryItem) { item in
             PathHistoryView(item: item, onClose: { viewModel.viewingHistoryItem = nil })
                 .preferredColorScheme((mapProvider == .apple || mapProvider == .google) ? nil : .light)
+                .presentationDetents([.large]) // [FIX] Force full size to minimize gesture ambiguity
+                .presentationDragIndicator(.hidden) // [FIX] Hide indicator
+                .interactiveDismissDisabled() // [FIX] Essential: Block sheet dismissal gesture
         }
 
         .sheet(isPresented: $viewModel.showCalendar) {

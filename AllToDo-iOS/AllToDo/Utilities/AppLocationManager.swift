@@ -98,7 +98,9 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
                 int_lat: Int(startLoc.latitude),
                 int_long: Int(startLoc.longitude)
             )
-
+            if isShortPath {
+                newTrip.no_of_path = 1
+            }
             context.insert(newTrip)
             currentTripID = newTrip.todo_id
             print(">>> Continuous Persistence: New Trip Created (\(newTrip.todo_id))")
@@ -107,14 +109,9 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         guard let tripID = currentTripID else { return }
         
         if isShortPath {
-             // Simply save the Trip (Path Header) without path points if it's just a jitter
-             // But wait, if we don't save points, we should probably update the trip's location to the latest?
-             // Or just leave it.
-             // Ideally we should update the trip count to 1?
-             // For now, just save context.
-             print(">>> Continuous Persistence: Path too short, skipping points. (isShortPath=true)") // [DEBUG LOG]
-             do { try context.save() } catch { print("Error saving short path trip: \(error)") }
-             return
+            print(">>> Continuous Persistence: Path too short, skipping points. (isShortPath=true)") // [DEBUG LOG]
+            do { try context.save() } catch { print("Error saving short path trip: \(error)") }
+            return
         }
         
         // B. Insert PathItems

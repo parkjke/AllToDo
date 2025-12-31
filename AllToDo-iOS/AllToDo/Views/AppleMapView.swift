@@ -1096,6 +1096,14 @@ struct ClusterListCallout: View {
             
             // [Col 2] Content (Icon, Date, Time, Title)
             HStack(spacing: 8) {
+                // Path Count for History
+                if case .history(let t) = item {
+                    Text("(\(t.no_of_path))")
+                        .font(.system(size: fontSize - 2, weight: .bold))
+                        .foregroundColor(.blue)
+                        .frame(width: 35)
+                }
+
                 // Date (Adaptive)
                 let dateStr = item.date.formatted(.dateTime.month(.twoDigits).day(.twoDigits))
                 Text(dateStr)
@@ -1126,7 +1134,7 @@ struct ClusterListCallout: View {
             .onTapGesture {
                 switch item {
                 case .todo(let t): onSelectItem(t)
-                case .history(let t): onSelectLog(t) // [FIX] Show path directly on row tap
+                case .history(let t): onSelectItem(t) // [FIX] Text tap opens Edit/Detail, Map Icon opens Map
                 default: break
                 }
             }

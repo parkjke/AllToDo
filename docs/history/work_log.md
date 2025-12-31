@@ -1,3 +1,17 @@
+## 2025-12-31
+### Path History Refinement & KakaoMap Standalone Implementation
+- **KakaoPathMapView 독립 구현 (`PathHistoryView.swift`)**:
+  - `ApplePathMapView` 패턴을 준수하여 `KakaoPathMapView`를 독립적인 `UIViewRepresentable`로 구현 완료.
+  - 전용 `KMController` 생명주기 관리 및 `KMPath`, `Poi` 렌더링 로직 통합.
+  - `DebugKMViewContainer`를 도입하여 SwiftUI 시트 내에서의 지도 제스처 안정성 확보.
+- **물풍선(Callout) UI 개선 (`AppleMapView.swift`)**:
+  - `ClusterListCallout` 내 항목 리스트에 경로 점 개수(`no_of_path`) 표시 부착.
+  - 히스토리 항목의 경우 지도 아이콘 옆에 `(개수)` 형식을 추가하여 진입 전 상세도 확인 가능.
+- **경로 저장 로직 최적화 (`AppLocationManager.swift`)**:
+  - 30m 미만 짧은 경로(`isShortPath`) 발생 시, 불필요한 DB 조회를 생략하고 `ToDoItem` 생성 시 즉시 `no_of_path = 1`을 할당하도록 최적화.
+- **미결 사항**:
+  - **카카오맵 전용 경로보기 확대/축소(Fit Bounds) 에러**: 좌표 계산 로직은 정상이나, 일부 상황에서 카메라 이동이 의도대로 작동하지 않는 이슈가 잔존함.
+
 ## 2025-12-30
 ### Map Pin Design Refinement & Asset Regeneration
 - **SVG 마크 디자인 정제 (Icons/map_pin_1)**:
