@@ -1,46 +1,38 @@
-# Implementation Plan - KakaoMap WASM Integration
+# Implementation Plan - Universal Favicon
 
 ## Goal Description
-Integrate existing WASM-based Logic (Clustering & RDP) into `KakaoMapView` to ensure performance and consistency with the Apple Map implementation. This replaces the manual clustering logic and properly visualizes optimized paths.
-
-## User Review Required
-> [!NOTE]
-> All clustering and path simplification logic is now delegated to the `WasmManager`. Ensure the WASM module is correctly loaded at runtime.
+Apply the application logo (`background_logo.png`) as the browser favicon for all 4 services: HomePage, WebApp, WebMng, and Backend. This unifies the visual identity across the development environment.
 
 ## Proposed Changes
+### Source Image
+- Use `/AllToDo-HomePage/public/assets/background_logo.png` as the source.
 
-### Core Services
-#### [MODIFY] [WasmManager.swift](file:///Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Services/Wasm/WasmManager.swift)
-- Exposed `cluster(points:cellSize:)` function to be accessible from View layers.
+### Frontends (HomePage, WebApp, WebMng)
+#### [NEW] [favicon.png]
+- Copy source image to:
+    - `AllToDo/AllToDo-HomePage/public/favicon.png`
+    - `AllToDo/AllToDo-WebApp/public/favicon.png`
+    - `AllToDo/AllToDo-WebMng/public/favicon.png`
 
-#### [MODIFY] [AppLocationManager.swift](file:///Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Utilities/AppLocationManager.swift)
-- Added logging for WASM RDP compression capability in `processBuffer`.
+#### [MODIFY] [index.html]
+- Update `<head>` in `index.html` for all 3 projects:
+    - Remove valid `vite.svg` reference.
+    - Add `<link rel="icon" type="image/png" href="/favicon.png" />`.
 
-### Map Rendering (Kakao)
-#### [MODIFY] [KakaoMapView.swift](file:///Volumes/Work/AllToDo/AllToDo-iOS/AllToDo/Views/KakaoMapView.swift)
-- **Clustering**: Replaced manual distance calculation with `WasmManager.shared.cluster`.
-- **Logic**: Added Rehydration logic to map WASM centroids back to original `UnifiedMapItem`s using Nearest Neighbor assignment.
-- **Path Drawing**: Uncommented and fixed `MapPolylineShape` creation to correctly visualize user paths.
-- **Fix**: Resolved `stride` variable shadowing compilation error.
+### Backend (FastAPI)
+#### [NEW] [favicon.png]
+- Create `AllToDo-Backend/app/static/favicon.png`.
+
+#### [MODIFY] [AllToDo-Backend/app/main.py]
+- Mount `static` directory if not already mounted.
+- Configure Swagger UI to use the custom favicon (optional, but good for completeness).
 
 ## Verification Plan
-
-### Automated / Manual Tests
-1.  **Clustering**:
-    - Zoom out on KakaoMap with multiple ToDo/History pins.
-    - Verify pins group into Shield Icons with counts.
-    - Verify logs show "set clustering" with "method: WASM".
-2.  **Path Drawing**:
-    - Select a History Log.
-    - Verify the red path line is drawn on the map.
-3.  **RDP Compression**:
-    - Start a session, move around, stop session.
-    - Check logs for "WASM RDP: X -> Y pts".
-
-
-## Changes
-- **File**: `KakaoMapView.swift`
-- **New Methods**: `refreshClusters()`, `calculateClusters()`.
-## Risk
-- Performance: Hundreds of items re-clustering on main thread. (Should be fine for <500 items).
-- Flickering: Clearing/Adding POIs might flicker. (KakaoMap SDK handles this reasonably well, but we can optimize by diffing if needed. For now, full refresh).
+### Manual Verification (Local First)
+1. Run `./dev-begin.sh` to start all services.
+2. Open Browser tabs for:
+    - HomePage (`http://localhost:5177`)
+    - WebApp (`http://localhost:5175`)
+    - WebMng (`http://localhost:5173`)
+    - Backend (`http://localhost:8000/docs`)
+3. Visually verify that the tab icon (Favicon) matches the app logo.

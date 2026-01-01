@@ -1,4 +1,15 @@
-# AllToDo 통합 문서 인덱스 (Unified Documentation Index)
+# AllToDo Index
+
+## ⚡️ 개발 시작하기 (Quick Start)
+**VS Code에서 모든 개발 서버를 한 번에 실행하는 가장 편한 방법입니다.**
+
+1.  `Command` + `Shift` + `P` 를 눌러 **명령 팔레트**를 엽니다.
+2.  `Run Task` 를 입력하고 엔터.
+3.  **`🚀 Start All Dev`** 를 선택하세요.
+
+> [!TIP]
+> **터미널 앱을 따로 쓰고 싶다면?**
+> 프로젝트 루트에서 `./dev-begin.sh` 명령어를 실행해도 똑같이 4개의 서버가 새 창에서 열립니다.
 
 ## 🤖 협업 및 보안 (Collaboration & Security)
 *   [**에이전트 작업 수칙 (AGENT_WORK_RULES)**](AGENT_WORK_RULES.md)
@@ -66,3 +77,19 @@
 *   [**랜딩 페이지 작업 로그**](history/WORK_LOG_LANDING_PAGE.md)
 *   [**일일 작업 내역 아카이브 (work_log.md)**](history/work_log.md)
 
+## 📁 전체 프로젝트 개요 (Readme)
+*   [**메인 README (Root)**](../README.md)
+    *   전체 AllToDo 프로젝트 구조 및 실행 가이드
+
+
+## 📘 프로젝트별 매뉴얼 (Component Manuals)
+각 컴포넌트의 상세 실행 방법 및 개발 가이드는 아래 링크를 참조하세요.
+
+*   [**🏠 홈페이지 (HomePage)**](../AllToDo-HomePage/README.md)
+    *   서비스 소개 랜딩 페이지 (Vite + GitHub Pages)
+*   [**🔙 백엔드 (Backend)**](../AllToDo-Backend/README.md)
+    *   Python FastAPI 서버 및 DB 관리
+*   [**📱 웹 앱 (WebApp)**](../AllToDo-WebApp/README.md)
+    *   사용자용 모바일 웹 애플리케이션
+*   [**🖥️ 관리자 웹 (WebMng)**](../AllToDo-WebMng/README.md)
+    *   데이터 관리 및 운영자용 대시보드

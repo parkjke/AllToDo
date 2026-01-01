@@ -1,0 +1,135 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "1. Start Backend (8000)",
+            "type": "shell",
+            "command": "source .venv/bin/activate && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+            "options": {
+                "cwd": "${workspaceFolder}/AllToDo-Backend"
+            },
+            "isBackground": true,
+            "problemMatcher": {
+                "pattern": [
+                    {
+                        "regexp": ".",
+                        "file": 1,
+                        "location": 2,
+                        "message": 3
+                    }
+                ],
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "Uvicorn running on",
+                    "endsPattern": "Application startup complete"
+                }
+            },
+            "presentation": {
+                "group": "dev-server",
+                "reveal": "always",
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "2. Start WebMng (5173)",
+            "type": "shell",
+            "command": "npm run dev -- --port 5173",
+            "options": {
+                "cwd": "${workspaceFolder}/AllToDo-WebMng"
+            },
+            "isBackground": true,
+            "problemMatcher": {
+                "pattern": [
+                    {
+                        "regexp": ".",
+                        "file": 1,
+                        "location": 2,
+                        "message": 3
+                    }
+                ],
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "Vite",
+                    "endsPattern": "Local:"
+                }
+            },
+            "presentation": {
+                "group": "dev-server",
+                "reveal": "always",
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "3. Start WebApp (5175)",
+            "type": "shell",
+            "command": "npm run dev -- --port 5175",
+            "options": {
+                "cwd": "${workspaceFolder}/AllToDo-WebApp"
+            },
+            "isBackground": true,
+            "problemMatcher": {
+                "pattern": [
+                    {
+                        "regexp": ".",
+                        "file": 1,
+                        "location": 2,
+                        "message": 3
+                    }
+                ],
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "Vite",
+                    "endsPattern": "Local:"
+                }
+            },
+            "presentation": {
+                "group": "dev-server",
+                "reveal": "always",
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "4. Start HomePage (5177)",
+            "type": "shell",
+            "command": "npm run dev",
+            "options": {
+                "cwd": "${workspaceFolder}/AllToDo-HomePage"
+            },
+            "isBackground": true,
+            "problemMatcher": {
+                "pattern": [
+                    {
+                        "regexp": ".",
+                        "file": 1,
+                        "location": 2,
+                        "message": 3
+                    }
+                ],
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "Vite",
+                    "endsPattern": "Local:"
+                }
+            },
+            "presentation": {
+                "group": "dev-server",
+                "reveal": "always",
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "🚀 Start All Dev",
+            "dependsOn": [
+                "1. Start Backend (8000)",
+                "2. Start WebMng (5173)",
+                "3. Start WebApp (5175)",
+                "4. Start HomePage (5177)"
+            ],
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }
+    ]
+}

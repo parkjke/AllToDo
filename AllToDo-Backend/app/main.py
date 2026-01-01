@@ -13,6 +13,16 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="AllToDo Backend")
 
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return FileResponse("app/static/favicon.png")
+
 import logging
 from fastapi import Request
 
