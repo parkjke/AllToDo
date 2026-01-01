@@ -406,18 +406,6 @@ fun GoogleMapContent(
                 width = 10f,
                 zIndex = 200f
             )
-            
-            // [NEW] Draw Dots (Circles) at each point
-            points.forEach { pt ->
-                Circle(
-                     center = pt,
-                     radius = 3.0, // meters
-                     fillColor = Color.Blue,
-                     strokeColor = Color.White,
-                     strokeWidth = 2f,
-                     zIndex = 201f
-                )
-            }
         }
     }
 
