@@ -146,7 +146,7 @@ struct NaverMapView: UIViewRepresentable {
         var parent: NaverMapView
         var mapView: NMFMapView?
         var firstRender = true
-        var firstRender = true
+
         var lastDataSummary: String = "" // For Smart Refresh
         var lastClusteredWm: Double = -1.0 // [NEW] 1.5x Threshold Tracking
         var onFarItemsDetected: ((Int) -> Void)?

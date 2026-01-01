@@ -115,8 +115,7 @@ struct KakaoMapView: UIViewRepresentable {
         var moveLocation: (lat: Int, lon: Int)? = nil
         var currentSpanLon: Int = 0
         var currentSpanLat: Int = 0
-        var currentSpanLon: Int = 0
-        var currentSpanLat: Int = 0
+
         var lastHistoryID: UUID? = nil
         var lastClusteredWm: Double = -1.0 // [NEW] 1.5x Threshold Tracking
 

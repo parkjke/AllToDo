@@ -343,8 +343,7 @@ class MapFeatureViewModel @Inject constructor(
 
             _clusteredItems.value = finalClusters
         }
-            _clusteredItems.value = finalClusters
-        }
+
     }
     
     // [NEW] Launch Sequence (Raw -> 3s -> Cluster)

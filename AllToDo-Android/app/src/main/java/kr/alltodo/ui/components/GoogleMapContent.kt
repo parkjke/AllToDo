@@ -388,7 +388,7 @@ fun GoogleMapContent(
     }
 
     // [FIX] Removed Internal Overlay
-    } // Close Box
+
 }
 
 // [NEW] Helper for Bounds

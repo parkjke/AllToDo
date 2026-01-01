@@ -429,7 +429,7 @@ fun NaverMapContent(
                     // Rotation Listener
                          onCameraRotate(nMap.cameraPosition.bearing.toFloat())
                          onZoomChange(nMap.cameraPosition.zoom.toFloat())
-                    }
+
                     
                     // [NEW] Camera Idle Listener
                     nMap.addOnCameraIdleListener {
