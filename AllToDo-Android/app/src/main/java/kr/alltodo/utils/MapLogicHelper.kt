@@ -31,10 +31,9 @@ object MapLogicHelper {
         calendar.add(Calendar.HOUR, 24)
         val maxTime = calendar.timeInMillis
         
-        // 1. Path Existence Filter (Only apply to History/Logs)
+        // 1. Path Existence Filter (Strict Requirement: no_of_path > 0)
         val withLocation = allItems.filter { 
-            // Show if it has a path OR it is NOT a history item (starts with "0")
-            it.no_of_path > 0 || !it.type.startsWith("0") 
+            it.no_of_path > 0
         }
         
         // 2. Time Window Filter (±24h)
@@ -126,8 +125,15 @@ object MapLogicHelper {
         var color = Color.parseColor("#00C7BE") // AllToDo Green
         
         if (userLocationFound) {
-            pinId = "00"
-            color = Color.RED
+            // [FIX] If Clustered (>1), use Standard Pin "10" so badge looks correct.
+            // If Single (1), use User Pin "00".
+            if (items.size > 1) {
+                pinId = "10"
+                color = Color.RED
+            } else {
+                pinId = "00"
+                color = Color.RED
+            }
         } else {
             // Priority: Blue > Green > Red based on COUNT
             if (blueCount >= greenCount && blueCount >= redCount && blueCount > 0) {

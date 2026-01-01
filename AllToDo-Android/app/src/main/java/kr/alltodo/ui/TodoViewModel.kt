@@ -641,6 +641,36 @@ class TodoViewModel @Inject constructor(
         // Add to Buffer for live visualization/WASM compression
         pendingBuffer.add(entity)
         
+        // [FIX] Instant Feedback: Update Live Points immediately
+        // Containment Logic: Circular Buffer Max 1000 (DISABLED FOR STABILITY CHECK)
+        // If total > 1000, remove from HEAD (Oldest)
+        
+        // 1. Check Total Size
+        // var currentTotal = processedSessionPoints.size + pendingBuffer.size
+        // val MAX_HISTORY = 1000
+        //
+        // val startTime = System.nanoTime() // [DEBUG] Perf check
+        // var loopCount = 0
+        //
+        // while (currentTotal > MAX_HISTORY) {
+        //     loopCount++
+        //     if (processedSessionPoints.isNotEmpty()) {
+        //         processedSessionPoints.removeAt(0)
+        //     } else if (pendingBuffer.isNotEmpty()) {
+        //         pendingBuffer.removeAt(0)
+        //     }
+        //     currentTotal--
+        // }
+        // val duration = (System.nanoTime() - startTime) / 1_000_000.0 // ms
+        // if (duration > 1.0) {
+        //     println(">>> [PerformanceWarning] Circular Buffer Trim: $duration ms (Removed $loopCount pts)")
+        // }
+
+        // Combine processed (RDP) + pending (Raw) for visualization
+        val combined = ArrayList(processedSessionPoints)
+        combined.addAll(pendingBuffer)
+        _liveSessionPoints.value = combined
+        
         // Update Status
         _debugStatus.value = "Rec: ${processedSessionPoints.size} + ${pendingBuffer.size} buf"
         

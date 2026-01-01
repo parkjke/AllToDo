@@ -242,41 +242,54 @@ class WebViewWasmRuntime(private val context: Context) : WasmRuntime {
     }
 
 
-    override suspend fun clusterPoints(points: List<Int>, cellSizeMeters: Int): List<Int> = kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
-        if (!isReady) {
-             logStep("Cluster skipped (Not Ready)")
-             continuation.resumeWith(Result.success(emptyList()))
-             return@suspendCancellableCoroutine
-        }
-
-        val pointsJson = points.toString()
-        val js = "JSON.stringify(cluster('$pointsJson', $cellSizeMeters))"
-        
-        handler.post {
-            webView?.evaluateJavascript(js) { result ->
-                if (result != null && result != "null") {
-                   try {
-                       var cleanResult = result
-                       if (cleanResult.startsWith("\"") && cleanResult.endsWith("\"")) {
-                           cleanResult = cleanResult.substring(1, cleanResult.length - 1)
-                       }
-                       cleanResult = cleanResult.replace("\\\"", "\"")
-                       
-                       val gson = com.google.gson.Gson()
-                       val parsed = gson.fromJson(cleanResult, Array<Int>::class.java)
-                       if (parsed != null) {
-                           continuation.resumeWith(Result.success(parsed.toList()))
-                           return@evaluateJavascript
-                       }
-                   } catch (e: Exception) {
-                        logStep("Cluster parse error: ${e.message}")
-                   }
+    override suspend fun clusterPoints(points: List<Int>, cellSizeMeters: Int): List<Int> {
+        return try {
+            kotlinx.coroutines.withTimeout(3000) { // [FIX] 3s Safety Timeout
+                kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
+                    if (!isReady) {
+                        logStep("Cluster skipped (Not Ready)")
+                        continuation.resumeWith(Result.success(emptyList()))
+                        return@suspendCancellableCoroutine
+                    }
+            
+                    val pointsJson = points.toString()
+                    val js = "JSON.stringify(cluster('$pointsJson', $cellSizeMeters))"
+                    
+                    logStep("Calling JS (Cluster) with ${points.size} pts")
+                    
+                    handler.post {
+                        webView?.evaluateJavascript(js) { result ->
+                            logStep("JS Callback Received (Cluster)") // [DEBUG] Trace callback
+                            if (result != null && result != "null") {
+                               try {
+                                   var cleanResult = result
+                                   if (cleanResult.startsWith("\"") && cleanResult.endsWith("\"")) {
+                                       cleanResult = cleanResult.substring(1, cleanResult.length - 1)
+                                   }
+                                   cleanResult = cleanResult.replace("\\\"", "\"")
+                                   
+                                   val gson = com.google.gson.Gson()
+                                   val parsed = gson.fromJson(cleanResult, Array<Int>::class.java)
+                                   if (parsed != null) {
+                                       continuation.resumeWith(Result.success(parsed.toList()))
+                                       return@evaluateJavascript
+                                   }
+                               } catch (e: Exception) {
+                                    logStep("Cluster parse error: ${e.message}")
+                               }
+                            }
+                            // Fallback / Error
+                            continuation.resumeWith(Result.success(emptyList()))
+                        } ?: run {
+                             logStep("WebView is null during Cluster execute")
+                             continuation.resumeWith(Result.success(emptyList()))
+                        }
+                    }
                 }
-                // Fallback / Error
-                continuation.resumeWith(Result.success(emptyList()))
-            } ?: run {
-                 continuation.resumeWith(Result.success(emptyList()))
             }
+        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            logStep("CRITICAL: Cluster Timed Out (3s)")
+            emptyList()
         }
     }
 }

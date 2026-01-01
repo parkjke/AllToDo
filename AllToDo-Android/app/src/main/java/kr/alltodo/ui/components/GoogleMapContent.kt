@@ -55,6 +55,7 @@ fun GoogleMapContent(
     activePoints: List<kr.alltodo.data.GpsAuthPoint> = emptyList(),
 
     showActivePath: Boolean = true,
+    livePath: List<kr.alltodo.data.LocationEntity> = emptyList(), // [FIX] Added parameter
     onCameraIdle: (Double, Float, Double) -> Unit // [NEW] Wm, Zoom, Lat
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -166,18 +167,23 @@ fun GoogleMapContent(
     }
 
     Box(modifier = modifier) {
+    // [DEBUG] Check State Identity
+    android.util.Log.e("ANTIGRAVITY", ">>> [GoogleMapContent] Received StateHash: ${System.identityHashCode(cameraPositionState)}")
+    
     GoogleMap(
         modifier = Modifier.fillMaxSize(),
         cameraPositionState = cameraPositionState,
         properties = properties,
         uiSettings = uiSettings,
         onMapClick = { latLng ->
+            android.util.Log.e("ANTIGRAVITY", ">>> [GoogleMapContent] Map Clicked at $latLng")
             onMapClick(com.kakao.vectormap.LatLng.from(latLng.latitude, latLng.longitude))
         },
         onMapLongClick = { latLng ->
              onMapLongClick(com.kakao.vectormap.LatLng.from(latLng.latitude, latLng.longitude))
         },
         onMapLoaded = {
+            android.util.Log.e("ANTIGRAVITY", ">>> [GoogleMapContent] onMapLoaded Triggered")
             onMapLoaded()
         },
         contentPadding = PaddingValues(bottom = (contentPaddingBottom / context.resources.displayMetrics.density).dp)
@@ -185,13 +191,19 @@ fun GoogleMapContent(
         // [FIX] Use SideEffect/LaunchedEffect to track projection/rotation without breaking internal listeners
         
         MapEffect(Unit) { map ->
-            System.out.println(">>> [GoogleMapContent] MapEffect: Got GoogleMap Instance")
+            android.util.Log.e("ANTIGRAVITY", ">>> [GoogleMapContent] MapEffect: Got GoogleMap Instance")
             googleMapInstance = map
+            
+            // [DEBUG] Native Listener to bypass Compose State
+            map.setOnCameraMoveListener {
+                android.util.Log.e("ANTIGRAVITY", ">>> [GoogleMapContent] NATIVE OnCameraMove")
+            }
         }
 
         
         LaunchedEffect(googleMapInstance, cameraPositionState.isMoving) {
             val map = googleMapInstance ?: return@LaunchedEffect
+            android.util.Log.e("ANTIGRAVITY", ">>> [GoogleMapContent] Camera Moving State: ${cameraPositionState.isMoving}")
             snapshotFlow { cameraPositionState.position }
                 .collectLatest { 
                     mapProjection = map.projection
@@ -273,11 +285,11 @@ fun GoogleMapContent(
         val markerStates = remember { mutableStateMapOf<String, com.google.maps.android.compose.MarkerState>() }
         val currentKeys = mutableSetOf<String>()
         
-
         System.out.println(">>> [GoogleMapContent] Processing Cluster Markers: ${filteredItems.size}")
         
         filteredItems.forEachIndexed { idx, cluster ->
             if (idx == 0) System.out.println(">>> [GoogleMapContent] Marker[0] at ${cluster.latitude},${cluster.longitude} count=${cluster.count}")
+
             val isSingle = cluster.count == 1
             val firstItem = cluster.items.firstOrNull() as? UnifiedItem.Todo
             
@@ -384,10 +396,33 @@ fun GoogleMapContent(
         }
 
         // [REMOVED] Standalone Current Location Marker (Now handled in clusters)
+
+        // [NEW] Live Path Rendering (Moved INSIDE GoogleMap scope)
+        if (showActivePath && livePath.size >= 2) {
+            val points = livePath.map { com.google.android.gms.maps.model.LatLng(it.latitude, it.longitude) }
+            Polyline(
+                points = points,
+                color = Color.Blue,
+                width = 10f,
+                zIndex = 200f
+            )
+            
+            // [NEW] Draw Dots (Circles) at each point
+            points.forEach { pt ->
+                Circle(
+                     center = pt,
+                     radius = 3.0, // meters
+                     fillColor = Color.Blue,
+                     strokeColor = Color.White,
+                     strokeWidth = 2f,
+                     zIndex = 201f
+                )
+            }
+        }
     }
 
-    // [FIX] Removed Internal Overlay
 
+    }
 }
 
 // [NEW] Helper for Bounds

@@ -32,6 +32,7 @@ import com.kakao.vectormap.route.RouteLineOptions
 import com.kakao.vectormap.route.RouteLineSegment
 import com.kakao.vectormap.route.RouteLineStyle
 import com.kakao.vectormap.route.RouteLineStyles
+// [FIX] Removed invalid import
 
 
 
@@ -58,6 +59,7 @@ fun KakaoMapContent(
     activePoints: List<kr.alltodo.data.GpsAuthPoint> = emptyList(),
 
     showActivePath: Boolean = true,
+    livePath: List<kr.alltodo.data.LocationEntity> = emptyList(), // [FIX] Added parameter
     onCameraIdle: (Double, Float, Double) -> Unit // [NEW] Wm, Zoom, Lat
 ) {
     val context = LocalContext.current
@@ -528,6 +530,31 @@ fun KakaoMapContent(
         }
     }
     
+    // [NEW] Live Path Rendering (RouteLine)
+    LaunchedEffect(livePath, showActivePath, kakaoMap) {
+        val map = kakaoMap ?: return@LaunchedEffect
+        val manager = map.routeLineManager
+        val layer = manager?.getLayer("livePathLayer") ?: manager?.addLayer("livePathLayer", 2000)
+        
+        if (showActivePath && livePath.size >= 2) {
+             val points = livePath.map { LatLng.from(it.latitude, it.longitude) }
+             // [FIX] Explicitly pass List as Arrays.asList or strict type to resolve ambiguity
+             val segment = RouteLineSegment.from(points, RouteLineStyle.from(20f, android.graphics.Color.BLUE))
+             val options = RouteLineOptions.from(segment)
+             
+             // Clear old and add new (Simpler than updating for now)
+             layer?.removeAll()
+             layer?.addRouteLine(options)
+             
+             // [NEW] Dots for Kakao?
+             // Kakao RouteLine supports styles, but not explicit dots at vertices easily without LabelLayer.
+             // Adding Labels for every point is very heavy.
+             // We will stick to the Line for performance.
+        } else {
+             layer?.removeAll()
+        }
+    }
+
     // [NEW] Dynamic Padding & Re-centering Reaction
     LaunchedEffect(contentPaddingBottom, creatingTodoLocation) {
         val map = kakaoMap ?: return@LaunchedEffect

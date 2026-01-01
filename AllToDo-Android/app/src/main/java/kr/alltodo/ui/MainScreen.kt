@@ -55,9 +55,10 @@ fun MainScreen(
     // 1. States for Requirements
     // MapProvider logic (Local for now, passed to VM)
     var mapProvider by remember { 
-        mutableStateOf(MapProvider.valueOf(prefs.getString("map_provider", "Naver") ?: "Naver")) 
+        mutableStateOf(MapProvider.valueOf(prefs.getString("map_provider", "Naver") ?: "Naver"))
+//        mutableStateOf(MapProvider.Kakao)
     }
-    
+
     // ViewModel State Collection
     val showMyInfo by mapViewModel.showMyInfo.collectAsState()
     val compassRotation by mapViewModel.compassRotation.collectAsState()
@@ -235,18 +236,21 @@ fun MainScreen(
     // [NEW] Data Synchronization (TodoViewModel -> MapViewModel)
     val todoItems by todoViewModel.todoItems.collectAsState()
     LaunchedEffect(todoItems, currentLocation.value, mapProvider) {
+        System.out.println(">>> [MainScreen] Updating Map Items: count=${todoItems.size}, provider=$mapProvider")
         mapViewModel.updateMapItems(
             allItems = todoItems,
             currentLocation = currentLocation.value,
             mapProvider = mapProvider
         )
-        System.out.println(">>> [MainScreen] Triggering updateMapItems: provider=$mapProvider items=${todoItems.size}")
     }
     
     // Map Instances for Camera Control
     var naverMapInstance by remember { mutableStateOf<com.naver.maps.map.NaverMap?>(null) }
     var kakaoMapInstance by remember { mutableStateOf<com.kakao.vectormap.KakaoMap?>(null) }
     var isGoogleMapReady by remember(mapProvider) { mutableStateOf(false) } // [FIX]
+    
+    // [FIX] Live Path Data for Visualization
+    val liveSessionPoints by todoViewModel.liveSessionPoints.collectAsState()
     
     // [NEW] Map Action Observation Loop
     val mapAction by mapViewModel.mapAction.collectAsState()
@@ -269,77 +273,53 @@ fun MainScreen(
                 }
             }
             MapAction.CURRENT_LOCATION -> {
-                 currentLocation.value?.let { loc ->
-                    val latLng = com.naver.maps.geometry.LatLng(loc.latitude, loc.longitude)
+                 if (currentLocation.value != null) {
                     when (mapProvider) {
                         MapProvider.Naver -> {
                             naverMapInstance?.let { map ->
-                                initialAnimationDone = true
-                                map.maxZoom = 21.0
-                                map.moveCamera(com.naver.maps.map.CameraUpdate.scrollAndZoomTo(latLng, 18.0).animate(com.naver.maps.map.CameraAnimation.Easing, 800))
+                                val loc = currentLocation.value!!
+                                val cameraUpdate = com.naver.maps.map.CameraUpdate.scrollTo(com.naver.maps.geometry.LatLng(loc.latitude, loc.longitude))
+                                    .animate(com.naver.maps.map.CameraAnimation.Easing)
+                                map.moveCamera(cameraUpdate)
+                                // Also set Zoom to 18
+                                map.moveCamera(com.naver.maps.map.CameraUpdate.zoomTo(18.0).animate(com.naver.maps.map.CameraAnimation.Easing))
                             }
                         }
                         MapProvider.Kakao -> {
-                            kakaoMapInstance?.let { map ->
-                                initialAnimationDone = true
-                                map.setCameraMaxLevel(21)
-                                map.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.newCenterPosition(com.kakao.vectormap.LatLng.from(loc.latitude, loc.longitude), 18), com.kakao.vectormap.camera.CameraAnimation.from(800, true, true))
-                            }
-                        }
-                        MapProvider.Google -> {
-                            scope.launch { 
-                                initialAnimationDone = true
-                                googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(com.google.android.gms.maps.model.LatLng(loc.latitude, loc.longitude), 18f))
-                            }
-                        }
-                    }
-                }
-            }
-            MapAction.ROTATE_NORTH -> {
-                when (mapProvider) {
-                    MapProvider.Naver -> naverMapInstance?.moveCamera(com.naver.maps.map.CameraUpdate.withParams(com.naver.maps.map.CameraUpdateParams().rotateTo(0.0)).animate(com.naver.maps.map.CameraAnimation.Easing)) 
-                    MapProvider.Kakao -> kakaoMapInstance?.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.rotateTo(0.0), com.kakao.vectormap.camera.CameraAnimation.from(300, true, true))
-                    MapProvider.Google -> scope.launch { 
-                         googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newCameraPosition(com.google.android.gms.maps.model.CameraPosition.builder(googleCameraPositionState.position).bearing(0f).build())) 
-                    }
-                }
-            }
-            MapAction.ZOOM_TO_FIT -> {
-                val items = mapViewModel.clusteredItems.value
-                if (items.isNotEmpty()) {
-                    val padding = 100
-                    when (mapProvider) {
-                        MapProvider.Naver -> {
-                            val boundsBuilder = com.naver.maps.geometry.LatLngBounds.Builder()
-                            items.forEach { boundsBuilder.include(com.naver.maps.geometry.LatLng(it.latitude, it.longitude)) }
-                            val bounds = boundsBuilder.build()
-                            naverMapInstance?.moveCamera(com.naver.maps.map.CameraUpdate.fitBounds(bounds, padding).animate(com.naver.maps.map.CameraAnimation.Easing))
-                        }
-                        MapProvider.Kakao -> {
-                            val points = items.map { com.kakao.vectormap.LatLng.from(it.latitude, it.longitude) }.toTypedArray()
-                            kakaoMapInstance?.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.fitMapPoints(points, padding), com.kakao.vectormap.camera.CameraAnimation.from(800, true, true))
+                             kakaoMapInstance?.let { map ->
+                                val loc = currentLocation.value!!
+                                val cameraUpdate = com.kakao.vectormap.camera.CameraUpdateFactory.newCenterPosition(com.kakao.vectormap.LatLng.from(loc.latitude, loc.longitude))
+                                map.moveCamera(cameraUpdate, com.kakao.vectormap.camera.CameraAnimation.from(300, true, true))
+                                // Zoom 18
+                                map.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.zoomTo(18), com.kakao.vectormap.camera.CameraAnimation.from(300, true, true))
+                             }
                         }
                         MapProvider.Google -> {
                             scope.launch {
-                                val boundsBuilder = com.google.android.gms.maps.model.LatLngBounds.builder()
-                                items.forEach { boundsBuilder.include(com.google.android.gms.maps.model.LatLng(it.latitude, it.longitude)) }
-                                val bounds = boundsBuilder.build()
-                                googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLngBounds(bounds, padding))
+                                val loc = currentLocation.value!!
+                                android.util.Log.e("ANTIGRAVITY", ">>> [MainScreen] EXECUTE Action on StateHash: ${System.identityHashCode(googleCameraPositionState)}")
+                                googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(com.google.android.gms.maps.model.LatLng(loc.latitude, loc.longitude), 18f), 1000)
                             }
                         }
                     }
-                }
+                 }
             }
-            MapAction.NONE -> {}
+            else -> {}
         }
     }
-
+    
+    // [DEBUG] Log Map Action
     LaunchedEffect(mapAction) {
         if (mapAction != MapAction.NONE) {
+            System.out.println(">>> [MainScreen] Detected Map Action: $mapAction")
+            if (mapAction == MapAction.CURRENT_LOCATION) {
+                 System.out.println(">>> [MainScreen] Attempting to EXECUTE CURRENT_LOCATION ACTION")
+            }
             executeMapAction(mapAction)
             mapViewModel.consumeMapAction()
         }
     }
+
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val density = LocalDensity.current
@@ -385,9 +365,9 @@ fun MainScreen(
                             mapViewModel.startCreatingTodo(latLng.latitude, latLng.longitude)
                         },
                         creatingTodoLocation = creatingLocation?.let { com.naver.maps.geometry.LatLng(it.latitude, it.longitude) },
-                        contentPaddingBottom = if (isCreatingTodo) (context.resources.displayMetrics.heightPixels * 0.7).toInt() else 0,
                         activePoints = activePoints,
                         showActivePath = showActivePath,
+                        livePath = liveSessionPoints, // [FIX] Pass live path data
                         onCameraIdle = { wm, zoom, lat -> 
                              mapViewModel.handleCameraIdle(wm, zoom, lat, MapProvider.Naver) 
                         }
@@ -427,6 +407,7 @@ fun MainScreen(
                         contentPaddingBottom = if (isCreatingTodo) (context.resources.displayMetrics.heightPixels * 0.7).toInt() else 0,
                         activePoints = activePoints,
                         showActivePath = showActivePath,
+                        livePath = liveSessionPoints, // [FIX] Pass live path data
                         onCameraIdle = { wm, zoom, lat -> 
                              mapViewModel.handleCameraIdle(wm, zoom, lat, MapProvider.Kakao) 
                         }
@@ -444,6 +425,7 @@ fun MainScreen(
                         )
                     }
 
+                    System.out.println(">>> [MainScreen] Displaying Map: Google")
                     GoogleMapContent(
                         modifier = Modifier.fillMaxSize(),
                         clusteredItems = clusteredItems,

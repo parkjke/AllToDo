@@ -298,7 +298,7 @@ class MapFeatureViewModel @Inject constructor(
     }
 
     private fun createOneToOneClusters(items: List<UnifiedItem>): List<PinClusterItem> {
-        return items.map { item ->
+        return items.filter { it.intLat != 0 }.map { item ->
             PinClusterItem(item.intLat, item.intLng, 1, listOf(item))
         }.distinctBy { "${it.intLat}_${it.intLng}_${it.count}" }
     }

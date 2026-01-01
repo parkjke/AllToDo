@@ -196,30 +196,45 @@ fun NaverPathMap(todo: kr.alltodo.data.TodoItem, points: List<LatLng>, color: Co
 fun GooglePathMap(todo: kr.alltodo.data.TodoItem, points: List<LatLng>, color: Color, width: androidx.compose.ui.unit.Dp) {
     val initialCenter = GoogleLatLng((todo.int_lat ?: 0) / 100_000.0, (todo.int_long ?: 0) / 100_000.0)
     val gPoints = remember(points) { points.map { GoogleLatLng(it.latitude, it.longitude) } }
+    
+    // [DEBUG] Log Recomposition
+    System.out.println(">>> [GooglePathMap] Recomposing. Points: ${gPoints.size}")
+
     val cameraPositionState = com.google.maps.android.compose.rememberCameraPositionState {
         position = com.google.android.gms.maps.model.CameraPosition.fromLatLngZoom(initialCenter, 15f)
     }
     LaunchedEffect(gPoints) {
         if (gPoints.isNotEmpty()) {
+            System.out.println(">>> [GooglePathMap] LaunchedEffect Triggered. First: ${gPoints.first()}")
             try {
                 if (gPoints.size >= 2) {
                     val builder = GoogleLatLngBounds.builder()
                     gPoints.forEach { builder.include(it) }
-                    cameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLngBounds(builder.build(), 100))
+                    val bounds = builder.build()
+                    System.out.println(">>> [GooglePathMap] Animate Camera to Bounds: $bounds")
+                    cameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLngBounds(bounds, 100))
                 } else {
                     cameraPositionState.move(com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(gPoints.first(), 15f))
                 }
             } catch (e: Exception) {
+                System.out.println(">>> [GooglePathMap] Camera Error: ${e.message}")
                 cameraPositionState.move(com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(gPoints.first(), 15f))
             }
+        } else {
+            System.out.println(">>> [GooglePathMap] Points Empty in LaunchedEffect")
         }
     }
     com.google.maps.android.compose.GoogleMap(
         modifier = Modifier.fillMaxSize(),
         cameraPositionState = cameraPositionState,
-        uiSettings = com.google.maps.android.compose.MapUiSettings(zoomControlsEnabled = false)
+        uiSettings = com.google.maps.android.compose.MapUiSettings(
+            zoomControlsEnabled = false,
+            compassEnabled = false,
+            myLocationButtonEnabled = false
+        )
     ) {
         if (gPoints.size >= 2) {
+            System.out.println(">>> [GooglePathMap] Rendering Polyline with ${gPoints.size} points")
             val px = width.value * androidx.compose.ui.platform.LocalDensity.current.density
             com.google.maps.android.compose.Polyline(points = gPoints, color = color, width = px, zIndex = 5f)
             
@@ -232,6 +247,8 @@ fun GooglePathMap(todo: kr.alltodo.data.TodoItem, points: List<LatLng>, color: C
                 state = com.google.maps.android.compose.rememberMarkerState(position = gPoints.last()),
                 icon = com.google.android.gms.maps.model.BitmapDescriptorFactory.fromResource(kr.alltodo.R.drawable.map_pin_02)
             )
+        } else {
+             System.out.println(">>> [GooglePathMap] Not enough points to draw Polyline (<2)")
         }
     }
 }
