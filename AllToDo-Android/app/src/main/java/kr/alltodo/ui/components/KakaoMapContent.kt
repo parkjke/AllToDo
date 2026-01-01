@@ -588,9 +588,9 @@ fun KakaoMapContent(
                             
                             // [NEW] Camera Idle Listener
                             // [NEW] Camera Idle Listener
-                            kMap.setOnCameraMoveListener(object : com.kakao.vectormap.KakaoMap.OnCameraMoveListener {
-                                override fun onCameraMoveStart(kakaoMap: com.kakao.vectormap.KakaoMap, gestureType: com.kakao.vectormap.GestureType) {}
-                                override fun onCameraMoveEnd(kakaoMap: com.kakao.vectormap.KakaoMap, position: com.kakao.vectormap.camera.CameraPosition, gestureType: com.kakao.vectormap.GestureType) {
+                            // [NEW] Camera Idle Listener
+                            // Using setOnCameraMoveEndListener directly if unified listener is missing
+                            kMap.setOnCameraMoveEndListener { kakaoMap, position, gestureType ->
                                     val width = mapView?.width ?: 0
                                     val height = mapView?.height ?: 0
                                     if (width > 0 && height > 0) {
@@ -610,9 +610,7 @@ fun KakaoMapContent(
                                             onCameraIdle(widthMeters, position.zoomLevel.toFloat(), position.position.latitude)
                                         }
                                     }
-                                }
-                                override fun onCameraMoveCancelled(kakaoMap: com.kakao.vectormap.KakaoMap, gestureType: com.kakao.vectormap.GestureType) {}
-                            })
+                            }
                         }
 
                         override fun getPosition(): LatLng {
