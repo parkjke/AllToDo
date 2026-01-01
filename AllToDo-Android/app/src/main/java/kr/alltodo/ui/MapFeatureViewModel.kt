@@ -242,45 +242,39 @@ class MapFeatureViewModel @Inject constructor(
             val items = _displayItems.value
             val zoom = _currentZoom.value
             
-            // 1. Validation
+            // 1. Validation & Processing
             if (items.isEmpty()) {
                 _clusteredItems.value = emptyList()
-                return@launch
-            }
-
-            // 2. Prepare Data
-            val flatPoints = convertToFlatPoints(items)
-            if (flatPoints.isEmpty()) {
-                 _clusteredItems.value = emptyList()
-                 return@launch
-            }
-            
-            // 3. Check Enabled Status
-            if (!_isClusteringEnabled.value) {
-                _clusteredItems.value = createOneToOneClusters(items)
-                return@launch
-            }
-
-            // 4. Calculate Resolution
-            val cellSizeMeters = calculateCellSizeMeters(zoom)
-
-            // 5. Execute WASM Logic
-            val clustersFlat = try {
-                 System.out.println(">>> [MapViewModel] Invoking WASM cluster: points=${flatPoints.size/2} cell=$cellSizeMeters")
-                 wasmManager.cluster(flatPoints, cellSizeMeters)
-            } catch (e: Exception) {
-                 System.out.println(">>> [MapViewModel] WASM Error: ${e.message}")
-                 emptyList<Int>()
-            }
-            
-            // 6. Process Results
-            _clusteredItems.value = if (clustersFlat.isEmpty()) {
-                createOneToOneClusters(items)
             } else {
-                mapClustersToItems(clustersFlat, items)
+                val flatPoints = convertToFlatPoints(items)
+                
+                if (flatPoints.isEmpty()) {
+                     _clusteredItems.value = emptyList()
+                } else if (!_isClusteringEnabled.value) {
+                    _clusteredItems.value = createOneToOneClusters(items)
+                } else {
+                    // 4. Calculate Resolution
+                    val cellSizeMeters = calculateCellSizeMeters(zoom)
+
+                    // 5. Execute WASM Logic
+                    val clustersFlat = try {
+                         System.out.println(">>> [MapViewModel] Invoking WASM cluster: points=${flatPoints.size/2} cell=$cellSizeMeters")
+                         wasmManager.cluster(flatPoints, cellSizeMeters)
+                    } catch (e: Exception) {
+                         System.out.println(">>> [MapViewModel] WASM Error: ${e.message}")
+                         emptyList<Int>()
+                    }
+                    
+                    // 6. Process Results
+                    _clusteredItems.value = if (clustersFlat.isEmpty()) {
+                        createOneToOneClusters(items)
+                    } else {
+                        mapClustersToItems(clustersFlat, items)
+                    }
+                    
+                    System.out.println(">>> [MapViewModel] Cluster Update Complete. Count=${_clusteredItems.value.size}")
+                }
             }
-            
-            System.out.println(">>> [MapViewModel] Cluster Update Complete. Count=${_clusteredItems.value.size}")
         }
     }
 
