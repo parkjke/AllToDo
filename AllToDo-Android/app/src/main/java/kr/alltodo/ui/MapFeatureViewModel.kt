@@ -354,7 +354,7 @@ class MapFeatureViewModel @Inject constructor(
         }.distinctBy { "${it.intLat}_${it.intLng}_${it.count}" }
     }
 
-    }
+
     
     // [NEW] Launch Sequence (Raw -> 3s -> Cluster)
     private fun launchMapSequence() {
