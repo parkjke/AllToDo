@@ -1,0 +1,3 @@
+[submodule "AllToDo-HomePage"]
+	path = AllToDo-HomePage
+	url = https://github.com/parkjke/AllToDo-HomePage.git
