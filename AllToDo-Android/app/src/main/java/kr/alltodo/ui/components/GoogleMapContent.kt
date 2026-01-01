@@ -53,7 +53,9 @@ fun GoogleMapContent(
     creatingTodoLocation: com.google.android.gms.maps.model.LatLng? = null,
     contentPaddingBottom: Int = 0, // px
     activePoints: List<kr.alltodo.data.GpsAuthPoint> = emptyList(),
-    showActivePath: Boolean = true
+    activePoints: List<kr.alltodo.data.GpsAuthPoint> = emptyList(),
+    showActivePath: Boolean = true,
+    onCameraIdle: (Double, Float, Double) -> Unit // [NEW] Wm, Zoom, Lat
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     // 1. UI Settings (Disable Toolbar & Zoom)
@@ -208,6 +210,31 @@ fun GoogleMapContent(
                     if (newSpanLon > 0) currentSpanLon = newSpanLon
                     if (newSpanLat > 0) currentSpanLat = newSpanLat
                 }
+                    if (newSpanLat > 0) currentSpanLat = newSpanLat
+                }
+        }
+        
+        // [NEW] Camera Idle Detection & Reporting
+        LaunchedEffect(cameraPositionState.isMoving) {
+            if (!cameraPositionState.isMoving) {
+                // Map stopped moving -> Idle
+                val map = googleMapInstance
+                if (map != null) {
+                    val bounds = map.projection.visibleRegion.latLngBounds
+                    val centerLat = bounds.center.latitude
+                    
+                    val results = FloatArray(1)
+                    android.location.Location.distanceBetween(
+                        centerLat, bounds.southwest.longitude,
+                        centerLat, bounds.northeast.longitude,
+                        results
+                    )
+                    val widthMeters = results[0].toDouble()
+                    
+                    // Trigger Logic
+                    onCameraIdle(widthMeters, cameraPositionState.position.zoom, centerLat)
+                }
+            }
         }
         
         // [NEW] Smart Tethering Logic

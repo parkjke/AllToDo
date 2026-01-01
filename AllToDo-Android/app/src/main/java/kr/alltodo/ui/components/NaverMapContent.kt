@@ -48,7 +48,9 @@ fun NaverMapContent(
     creatingTodoLocation: LatLng? = null,
     contentPaddingBottom: Int = 0,
     activePoints: List<kr.alltodo.data.GpsAuthPoint> = emptyList(),
-    showActivePath: Boolean = true
+    activePoints: List<kr.alltodo.data.GpsAuthPoint> = emptyList(),
+    showActivePath: Boolean = true,
+    onCameraIdle: (Double, Float, Double) -> Unit // [NEW] Wm, Zoom, Lat
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -425,9 +427,24 @@ fun NaverMapContent(
                     nMap.setContentPadding(0, 0, 0, contentPaddingBottom)
 
                     // Rotation Listener
-                    nMap.addOnCameraChangeListener { reason, animated ->
                          onCameraRotate(nMap.cameraPosition.bearing.toFloat())
                          onZoomChange(nMap.cameraPosition.zoom.toFloat())
+                    }
+                    
+                    // [NEW] Camera Idle Listener
+                    nMap.addOnCameraIdleListener {
+                        val bounds = nMap.contentBounds
+                        val centerLat = (bounds.northLatitude + bounds.southLatitude) / 2.0
+                        
+                        val results = FloatArray(1)
+                        android.location.Location.distanceBetween(
+                            centerLat, bounds.westLongitude,
+                            centerLat, bounds.eastLongitude,
+                            results
+                        )
+                        val widthMeters = results[0].toDouble()
+                        
+                        onCameraIdle(widthMeters, nMap.cameraPosition.zoom.toFloat(), centerLat)
                     }
                     
                     // Map Click

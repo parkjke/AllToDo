@@ -104,7 +104,7 @@ struct AppleMapView: UIViewRepresentable {
             context.coordinator.lastUserLocation = locationManager.currentLocation 
             // [OPTIMIZATION] Trigger update. The Coordinator's refreshWasmClusters will handle the Diffing.
             if !isDataChanged {
-                 context.coordinator.refreshWasmClusters(mapView: uiView)
+                 context.coordinator.refreshWasmClusters(mapView: uiView, force: false)
             }
         }
 
@@ -142,7 +142,7 @@ struct AppleMapView: UIViewRepresentable {
         if isDataChanged {
              if uiView.bounds.width > 0 && !context.coordinator.isLaunchAnimating {
                  context.coordinator.lastDataSummary = currentSummary
-                 context.coordinator.refreshWasmClusters(mapView: uiView)
+                 context.coordinator.refreshWasmClusters(mapView: uiView, force: true)
              }
         }
     }
@@ -157,6 +157,7 @@ struct AppleMapView: UIViewRepresentable {
         var isWasmCluster = false // [FIX] Start false to block initial loop
         var userAnnotation: UnifiedAnnotation?
         var lastDataSummary: String = "" // For Smart Refresh
+        var lastClusteredWm: Double = -1.0 // [NEW] 1.5x Threshold Tracking
         var lastItemIDs: Set<UUID> = []
         var lastLogIDs: Set<UUID> = []
         
@@ -215,11 +216,14 @@ struct AppleMapView: UIViewRepresentable {
                  self.currentSpanLat = Int(mapView.region.span.latitudeDelta * 100_000.0)
                  self.parent.locationManager.currentSpan = mapView.region.span.latitudeDelta
              }
-             // Trigger WASM Clustering (Continuous)
-             refreshWasmClusters(mapView: mapView)
+             // Trigger WASM Clustering (Continuous) -> MOVED TO IDLE (regionDidChangeAnimated)
+             // refreshWasmClusters(mapView: mapView) -> REMOVED per Spec
         }
         
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+             // [NEW] Trigger Clustering on Idle (Region Change End)
+             refreshWasmClusters(mapView: mapView, force: false)
+             
              // [NEW] Handle Pending Selection (Auto-Center Complete)
              if let pending = pendingSelection {
                  let annotation = pending.annotation
@@ -382,7 +386,7 @@ struct AppleMapView: UIViewRepresentable {
         
         // MARK: - WASM Clustering Integration
         
-        func refreshWasmClusters(mapView: MKMapView) {
+        func refreshWasmClusters(mapView: MKMapView, force: Bool = false) {
             // [FIX] Performance: Do NOT update/render during launch animation (Zooming)
             // Pins are already set by 'performLaunchAnimation' -> 'renderRawItems'
             guard !isLaunchAnimating else { return }
@@ -464,6 +468,17 @@ struct AppleMapView: UIViewRepresentable {
                 print(">>> start map: AppleMapView skipping clustering due to invalid region span: \(region.span.latitudeDelta)")
                 return
             }
+            
+            // [NEW] 1.5x Threshold Check
+            let currentWm = metersPerPixel * mapView.bounds.width
+            if !force && !isLaunchPhase && lastClusteredWm > 0 && isWasmCluster { // Only check if clustering enabled
+                let ratio = currentWm / lastClusteredWm
+                 // If change is within 0.66 ~ 1.5, SKIP clustering
+                 if ratio > 0.6666 && ratio < 1.5 {
+                      return
+                 }
+            }
+            lastClusteredWm = currentWm
             
             // [OPTIMIZATION] Strict Loop Prevention: Do NOT update binding during launch or if change is negligible
             if !isLaunchPhase {
@@ -630,7 +645,7 @@ struct AppleMapView: UIViewRepresentable {
         }
         
         func updateAnnotations(mapView: MKMapView, userLocation: CLLocation?) {
-            refreshWasmClusters(mapView: mapView)
+            refreshWasmClusters(mapView: mapView, force: true)
         }
         
         
@@ -691,7 +706,7 @@ struct AppleMapView: UIViewRepresentable {
             }
             
             // Step 2: Immediate Pin Display (Fast Path)
-            self.refreshWasmClusters(mapView: mapView)
+            self.refreshWasmClusters(mapView: mapView, force: true)
             
             // Step 3: Wait 3s -> Zoom 18 at Current Location
             DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
@@ -711,7 +726,7 @@ struct AppleMapView: UIViewRepresentable {
                         }
                         
                         print(">>> start map: Launch Sequence Completed. Transitioning to Cluster Mode.")
-                        self.refreshWasmClusters(mapView: mapView)
+                        self.refreshWasmClusters(mapView: mapView, force: true)
                     }
                     
                     OptimizationLogger.shared.logLaunchStep(step: "launch sequence", data: ["success": true, "zoom": 18])

@@ -31,9 +31,9 @@ object MapLogicHelper {
         calendar.add(Calendar.HOUR, 24)
         val maxTime = calendar.timeInMillis
         
-        // 1. Path Existence OR Location Filter
+        // 1. Path Existence Filter (Strict Requirement: no_of_path > 0)
         val withLocation = allItems.filter { 
-            (it.no_of_path > 0) || (it.int_lat != null && it.int_lat != 0) 
+            it.no_of_path > 0
         }
         
         // 2. Time Window Filter (±24h)

@@ -116,7 +116,7 @@ struct NaverMapView: UIViewRepresentable {
             let currentSummary = "\(allItems.count)-\(allItems.first?.id.uuidString ?? "")"
             if context.coordinator.lastDataSummary != currentSummary {
                 context.coordinator.lastDataSummary = currentSummary
-                context.coordinator.refreshWasmClusters()
+                context.coordinator.refreshWasmClusters(force: true)
             }
             
             // [NEW] Check Tethering (Conditional)
@@ -146,7 +146,9 @@ struct NaverMapView: UIViewRepresentable {
         var parent: NaverMapView
         var mapView: NMFMapView?
         var firstRender = true
+        var firstRender = true
         var lastDataSummary: String = "" // For Smart Refresh
+        var lastClusteredWm: Double = -1.0 // [NEW] 1.5x Threshold Tracking
         var onFarItemsDetected: ((Int) -> Void)?
         var creatingTodoLocationBinding: Binding<CLLocationCoordinate2D?>? // [NEW]
         
@@ -234,7 +236,7 @@ struct NaverMapView: UIViewRepresentable {
         
         // MARK: - Legacy Update (Bridged to WASM)
         func updateAnnotations(items: [ToDoItem]) {
-            refreshWasmClusters()
+            refreshWasmClusters(force: true)
         }
         func updatePath(historyItem: ToDoItem?) {
              guard let map = mapView else { return }
@@ -310,7 +312,7 @@ struct NaverMapView: UIViewRepresentable {
         }
         
         // MARK: - WASM Clustering
-        func refreshWasmClusters() {
+        func refreshWasmClusters(force: Bool = false) {
             guard let map = mapView else { return }
             
             // [FIX] Fallback to Screen Width to prevent initial render failure
@@ -343,10 +345,20 @@ struct NaverMapView: UIViewRepresentable {
             
             // Meter/Pixel Calc: 156543.03392 * cos(lat) / 2^zoom
             let metersPerPixel = 156543.03392 * cos(centerLat * .pi / 180.0) / pow(2, zoom)
-            let wasmCellSize = metersPerPixel * 100.0 // [FIX] Restored Standard Sensitivity (100.0)
+            let wasmCellSize = metersPerPixel * 100.0
             
-            // [OPTIMIZATION] Strict Loop Prevention: Do NOT update binding during launch or if change is negligible
+            // [NEW] 1.5x Threshold Check
             let isLaunchPhase = parent.action == .launchSequence || firstRender
+            let currentWm = metersPerPixel * map.frame.width // Using logical width
+            
+            if !force && !isLaunchPhase && lastClusteredWm > 0 {
+                let ratio = currentWm / lastClusteredWm
+                // If change is within 0.66 ~ 1.5, SKIP clustering
+                if ratio > 0.6666 && ratio < 1.5 {
+                     return
+                }
+            }
+            lastClusteredWm = currentWm
             if !isLaunchPhase {
                 let currentRadius = parent.clusterRadius ?? 0
                 let diff = abs(currentRadius - wasmCellSize)
@@ -693,7 +705,7 @@ struct NaverMapView: UIViewRepresentable {
                              self.isLaunchAnimating = false
                              self.firstRender = false
                              self.moveLocation = SmartLocationManager.shared.toIntLocation(loc)
-                             self.refreshWasmClusters()
+                             self.refreshWasmClusters(force: true)
                          }
                      } else {
                          self.isLaunchAnimating = false
@@ -711,7 +723,7 @@ struct NaverMapView: UIViewRepresentable {
                      self.isLaunchAnimating = false
                      self.firstRender = false
                      self.moveLocation = SmartLocationManager.shared.toIntLocation(u) // [NEW] Set Initial Anchor
-                     self.refreshWasmClusters()
+                     self.refreshWasmClusters(force: true)
                  }
              }
         }
@@ -750,7 +762,7 @@ struct NaverMapView: UIViewRepresentable {
                  }
              } else {
                  // Trigger Clustering (Idle)
-                 refreshWasmClusters()
+                 refreshWasmClusters(force: false)
              }
         }
         

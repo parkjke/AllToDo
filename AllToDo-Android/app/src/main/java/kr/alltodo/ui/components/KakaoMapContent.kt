@@ -56,7 +56,9 @@ fun KakaoMapContent(
     creatingTodoLocation: LatLng? = null,
     contentPaddingBottom: Int = 0,
     activePoints: List<kr.alltodo.data.GpsAuthPoint> = emptyList(),
-    showActivePath: Boolean = true
+    activePoints: List<kr.alltodo.data.GpsAuthPoint> = emptyList(),
+    showActivePath: Boolean = true,
+    onCameraIdle: (Double, Float, Double) -> Unit // [NEW] Wm, Zoom, Lat
 ) {
     val context = LocalContext.current
     
@@ -583,6 +585,32 @@ fun KakaoMapContent(
                                 }
                                 true
                             }
+                            
+                            // [NEW] Camera Idle Listener
+                            kMap.setOnCameraMoveListener(object : com.kakao.vectormap.KakaoMap.OnCameraMoveListener {
+                                override fun onCameraMoveStart(kakaoMap: KakaoMap, gestureType: com.kakao.vectormap.GestureType) {}
+                                override fun onCameraMoveEnd(kakaoMap: KakaoMap, position: com.kakao.vectormap.camera.CameraPosition, gestureType: com.kakao.vectormap.GestureType) {
+                                    val width = mapView?.width ?: 0
+                                    val height = mapView?.height ?: 0
+                                    if (width > 0 && height > 0) {
+                                        val left = kakaoMap.fromScreenPoint(0, height / 2)
+                                        val right = kakaoMap.fromScreenPoint(width, height / 2)
+                                        
+                                        if (left != null && right != null) {
+                                            val results = FloatArray(1)
+                                            android.location.Location.distanceBetween(
+                                                position.position.latitude, left.longitude,
+                                                position.position.latitude, right.longitude,
+                                                results
+                                            )
+                                            val widthMeters = results[0].toDouble()
+                                            
+                                            onCameraIdle(widthMeters, position.zoomLevel.toFloat(), position.position.latitude)
+                                        }
+                                    }
+                                }
+                                override fun onCameraMoveCancelled(kakaoMap: KakaoMap, gestureType: com.kakao.vectormap.GestureType) {}
+                            })
                         }
 
                         override fun getPosition(): LatLng {

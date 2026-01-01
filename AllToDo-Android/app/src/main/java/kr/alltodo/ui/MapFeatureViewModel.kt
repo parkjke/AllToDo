@@ -91,14 +91,71 @@ class MapFeatureViewModel @Inject constructor(
         }
         
         if (changed) {
-            recalculateClusters()
+            // [FIX] Do NOT cluster here. Rely on handleCameraIdle.
+            // recalculateClusters()
         }
     }
 
     fun enableClustering() {
         if (!_isClusteringEnabled.value) {
             _isClusteringEnabled.value = true
+            // If already clustered, no need to recalc immediately unless force
+        }
+    }
+    
+    // [NEW] Clustering State
+    private var lastClusteredScreenWidthMeters: Double = -1.0
+    private var isInitialLaunch: Boolean = true
+
+    // [NEW] Camera Idle Handler (Main Trigger)
+    // Wm = Screen Width in Meters
+    fun handleCameraIdle(screenWidthMeters: Double, zoom: Float, lat: Double, provider: MapProvider) {
+        val wm1 = screenWidthMeters
+        val wm0 = lastClusteredScreenWidthMeters
+        
+        // Update State
+        var changed = false
+        if (Math.abs(_currentZoom.value - zoom) > 0.01f) {
+            _currentZoom.value = zoom
+             changed = true
+        }
+        if (currentLatitude != lat) {
+            currentLatitude = lat
+             changed = true
+        }
+        if (currentProvider != provider) {
+            currentProvider = provider
+             changed = true
+        }
+
+        // 1. Initial Launch Guard (Raw Phase)
+        if (isInitialLaunch) return
+
+        // 2. Threshold Check (1.5x Rule)
+        // Zoom In: wm1 <= (2/3) * wm0
+        // Zoom Out: wm1 >= (3/2) * wm0
+        // Or if uninitialized (wm0 < 0)
+        var shouldRecluster = false
+        
+        if (wm0 < 0) {
+            shouldRecluster = true
+        } else {
+            val ratio = wm1 / wm0
+            if (ratio <= 0.6666 || ratio >= 1.5) {
+                shouldRecluster = true
+            }
+        }
+        
+        // Also recluster if provider changed (different projection)
+        // or significant data change triggers call directly
+        
+        if (shouldRecluster) {
+            System.out.println(">>> [MapViewModel] Clustering Triggered: Ratio=${if(wm0>0) wm1/wm0 else "Init"} (Wm1=$wm1, Wm0=$wm0)")
+            lastClusteredScreenWidthMeters = wm1
             recalculateClusters()
+        } else if (changed) {
+            // Just update state, no cluster (Optimization)
+             System.out.println(">>> [MapViewModel] Zoom/Move Updated (No Recluster): Ratio=${if(wm0>0) wm1/wm0 else "Init"}")
         }
     }
     
@@ -286,6 +343,54 @@ class MapFeatureViewModel @Inject constructor(
 
             _clusteredItems.value = finalClusters
         }
+            _clusteredItems.value = finalClusters
+        }
+    }
+    
+    // [NEW] Launch Sequence (Raw -> 3s -> Cluster)
+    private fun launchMapSequence() {
+        viewModelScope.launch {
+            System.out.println(">>> [MapViewModel] Launch Sequence Start: Showing Raw Pins")
+            
+            // 1. Force Raw Display (Clustering Disabled temporarily by flag logic or just empty clusters?)
+            // Actually, if we don't call recalculateClusters, _clusteredItems is empty.
+            // But we need to pass items to View.
+            // View should observe `displayItems` for raw if `clusteredItems` is empty? 
+            // Or better: `recalculateClusters` with "isClusteringEnabled = false" returns 1:1 pins.
+            
+            _isClusteringEnabled.value = false
+            recalculateClusters() // Renders 1:1 items (Raw)
+            
+            // 2. Fit Bounds
+            _mapAction.value = MapAction.ZOOM_TO_FIT
+            
+            // 3. Wait 3 seconds
+            kotlinx.coroutines.delay(3000)
+            
+            // 3. Enable Clustering & Refresh
+            System.out.println(">>> [MapViewModel] Launch Sequence End: Enabling Clustering")
+            isInitialLaunch = false
+            _isClusteringEnabled.value = true
+            
+            // Force re-cluster with current state (we assume screen width hasn't changed wildly, or we reset wm0)
+            lastClusteredScreenWidthMeters = -1.0 // Force refresh
+            // We need current screen width... passed from View? 
+            // We'll rely on next Idle or force update if we have stored last known width?
+            // For now, simple recalculate triggers WASM.
+            recalculateClusters()
+            
+             // 4. Trigger Zoom to 18 (View Responsibility via Action? Or just logic done?)
+             // "If current location exists -> Zoom 18"
+             // Request View to Zoom
+             handleCurrentLocationZoom18()
+        }
+    }
+    
+    private fun handleCurrentLocationZoom18() {
+        viewModelScope.launch {
+            _mapAction.value = MapAction.CURRENT_LOCATION
+            // View should handle this with Zoom 18
+        }
     }
 
     // MARK: - Create Todo Flow
@@ -346,8 +451,8 @@ class MapFeatureViewModel @Inject constructor(
     init {
         wasmManager.initialize { success ->
             if (success) {
-                // Trigger initial calculation if items exist
-                recalculateClusters()
+                // [FIX] Initial Sequence: Raw First -> 3s -> Cluster
+                launchMapSequence()
             }
         }
     }

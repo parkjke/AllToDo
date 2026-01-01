@@ -236,12 +236,13 @@ fn radius_cluster(points: &[IntPoint], radius_int: i32) -> Vec<(IntPoint, i32)> 
 /// e.g., 300m -> ~270 units. WasmManager should pass converted int.
 #[wasm_bindgen]
 pub fn cluster_points(points_flat: &[i32], radius_int: i32) -> Vec<i32> {
-    let pts = to_points(points_flat);
+    let mut pts = to_points(points_flat);
     
-    // Sort logic? Greedy is sensitive to order.
-    // Sorting by density or Y-axis can stabilize.
-    // For now, respect input order (usually meaningful or random).
-    // Native maps usually process high-priority first if sorted, but here we just cluster.
+    // Sort deterministically to prevent flickering
+    // Sort by Latitude (descending? doesn't matter, just needs to be consistent)
+    pts.sort_by(|a, b| {
+        a.lat.cmp(&b.lat).then(a.lng.cmp(&b.lng))
+    });
     
     let clusters = radius_cluster(&pts, radius_int);
 

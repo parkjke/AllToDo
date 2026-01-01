@@ -32,8 +32,8 @@ struct MapLogicHelper {
             return []
         }
         
-        // 1. Filter by location path existence OR valid location
-        let itemsWithLocation = allItems.filter { $0.no_of_path > 0 || ($0.int_lat != 0 && $0.int_long != 0) }
+        // 1. Filter by location path existence (Strict as per Requirement)
+        let itemsWithLocation = allItems.filter { $0.no_of_path > 0 }
         
         // 2. Filter by time window
         let timeFiltered = itemsWithLocation.filter {
@@ -64,16 +64,12 @@ struct MapLogicHelper {
     }
     
     /// Checks if coordinate is roughly within Korea
-    private static func isInKorea(lat: Double, lon: Double) -> Bool {
-        return lat >= 32.0 && lat <= 44.0 && lon >= 123.0 && lon <= 133.0
+    private static func isInKorea(intLat: Int, intLng: Int) -> Bool {
+        // Bounds: Lat 32.0..44.0, Lon 123.0..133.0 (Scaled x100,000)
+        return intLat >= 3200000 && intLat <= 4400000 && intLng >= 12300000 && intLng <= 13300000
     }
     
-    /// Calculates the distance between two coordinates in meters.
-    static func distance(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) -> CLLocationDistance {
-        let loc1 = CLLocation(latitude: from.latitude, longitude: from.longitude)
-        let loc2 = CLLocation(latitude: to.latitude, longitude: to.longitude)
-        return loc1.distance(from: loc2)
-    }
+
     
     /// Partitions items into 'inside Korea' (Near) and 'outside Korea' (Far).
     /// - Parameters:
@@ -93,12 +89,42 @@ struct MapLogicHelper {
                 continue
             }
             
+            // [Refactor] Use Integer Coordinates directly to avoid FP precision issues
+            var iLat: Int?
+            var iLng: Int?
+            
+            switch item {
+            case .todo(let t):
+                iLat = t.int_lat
+                iLng = t.int_long
+            case .history(let t):
+                iLat = t.int_lat
+                iLng = t.int_long
+            default:
+                break
+            }
+            
+            // If we have valid integer coordinates, use them for check
+            if let lat = iLat, let lng = iLng, (lat != 0 || lng != 0) {
+                if isInKorea(intLat: lat, intLng: lng) {
+                    near.append(item)
+                } else {
+                    farCount += 1
+                }
+                continue
+            }
+            
+            // Fallback for items without integer coords (maybe serverMessage or legacy?)
             guard let itemLoc = item.location else {
                 near.append(item)
                 continue
             }
             
-            if isInKorea(lat: itemLoc.latitude, lon: itemLoc.longitude) {
+            // Convert to Int scale for check
+            let convertedLat = Int((itemLoc.latitude * 100_000.0).rounded())
+            let convertedLng = Int((itemLoc.longitude * 100_000.0).rounded())
+            
+            if isInKorea(intLat: convertedLat, intLng: convertedLng) {
                 near.append(item)
             } else {
                 farCount += 1

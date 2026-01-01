@@ -115,7 +115,10 @@ struct KakaoMapView: UIViewRepresentable {
         var moveLocation: (lat: Int, lon: Int)? = nil
         var currentSpanLon: Int = 0
         var currentSpanLat: Int = 0
+        var currentSpanLon: Int = 0
+        var currentSpanLat: Int = 0
         var lastHistoryID: UUID? = nil
+        var lastClusteredWm: Double = -1.0 // [NEW] 1.5x Threshold Tracking
 
         
         init(_ parent: KakaoMapView) {
@@ -297,20 +300,31 @@ struct KakaoMapView: UIViewRepresentable {
                 
                 print(">>> MAIN MAP [STEP 4]: Data Changed -> Refreshing (InitiPhase: \(isInitialPhase))")
                 Task { @MainActor in
-                    refreshWasmClusters()
+                    refreshWasmClusters(force: true)
                 }
             }
         }
 
         @MainActor
-        func refreshWasmClusters() {
+        func refreshWasmClusters(force: Bool = false) {
             guard let mapView = controller?.getView("mapview") as? KakaoMap else { return }
             
-            // 1. Calculate Radius
+            // 1. Calculate Radius & Metrics
             let zoom = Double(mapView.zoomLevel)
             let centerLat = mapView.getPosition(CGPoint(x: mapView.viewRect.width/2, y: mapView.viewRect.height/2)).wgsCoord.latitude
             let metersPerPixel = 156543.03392 * cos(centerLat * .pi / 180.0) / pow(2, zoom)
-            let wasmCellSize = metersPerPixel * 100.0 
+            let wasmCellSize = metersPerPixel * 100.0
+            
+            // [NEW] 1.5x Threshold Check
+            let currentWm = metersPerPixel * mapView.viewRect.width
+            if !force && !isInitialPhase && lastClusteredWm > 0 {
+                let ratio = currentWm / lastClusteredWm
+                // If change is within 0.66 ~ 1.5, SKIP clustering
+                if ratio > 0.6666 && ratio < 1.5 {
+                    return
+                }
+            }
+            lastClusteredWm = currentWm 
             
             // 2. Prepare Data
             var allItemsToProcess: [UnifiedMapItem] = []
@@ -629,6 +643,11 @@ struct KakaoMapView: UIViewRepresentable {
                 let metersPerPixel = 156543.03392 * cos(target.wgsCoord.latitude * .pi / 180.0) / pow(2, Double(kakaoMap.zoomLevel))
                 currentSpanLon = Int((metersPerPixel * Double(size.width)) / 111320.0 * 100_000.0)
                 currentSpanLat = Int((metersPerPixel * Double(size.height)) / 111320.0 * 100_000.0)
+            }
+            
+            // [FIX] Trigger clustering on idle (Subject to Threshold)
+            Task { @MainActor in
+                refreshWasmClusters(force: false)
             }
         }
 

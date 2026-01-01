@@ -110,7 +110,7 @@ class TodoViewModel @Inject constructor(
         updateFilteredItems()
     }
 
-    private fun updateFilteredItems(immediate: Boolean = false) {
+    fun updateFilteredItems(immediate: Boolean = false) {
         // [FIX] Debounce logic for location updates, but bypass for manual actions
         filterJob?.cancel()
         filterJob = viewModelScope.launch(Dispatchers.Default) {

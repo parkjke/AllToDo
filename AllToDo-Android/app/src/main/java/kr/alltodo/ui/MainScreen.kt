@@ -197,12 +197,16 @@ fun MainScreen(
                     }
                 }
                 androidx.lifecycle.Lifecycle.Event.ON_RESUME -> {
-                    // Cancel timer if returned within 5s
-                    if (pendingEndSessionTask != null) {
-                        println(">>> APP STATE: Active -> Cancelling pending endSession (Grace Period Success)")
+                    // Check if grace period task is still running
+                    if (pendingEndSessionTask?.isActive == true) {
+                        println(">>> APP STATE: Active -> Grace Period Success (Session Continues)")
                         pendingEndSessionTask?.cancel()
-                        pendingEndSessionTask = null
+                    } else {
+                        // Task finished (End Session called) or First Resume
+                        println(">>> APP STATE: Active -> Long Resume -> Refreshing Data Validation")
+                        todoViewModel.updateFilteredItems(immediate = true)
                     }
+                    pendingEndSessionTask = null
                 }
                 else -> {}
             }
@@ -301,8 +305,30 @@ fun MainScreen(
                 }
             }
             MapAction.ZOOM_TO_FIT -> {
-                // Implement Zoom to Fit logic if needed, e.g. based on displayItems bounds
-                // For now, placeholder or maybe center on Seoul/User if no items.
+                val items = mapViewModel.clusteredItems.value
+                if (items.isNotEmpty()) {
+                    val padding = 100
+                    when (mapProvider) {
+                        MapProvider.Naver -> {
+                            val boundsBuilder = com.naver.maps.geometry.LatLngBounds.Builder()
+                            items.forEach { boundsBuilder.include(com.naver.maps.geometry.LatLng(it.latitude, it.longitude)) }
+                            val bounds = boundsBuilder.build()
+                            naverMapInstance?.moveCamera(com.naver.maps.map.CameraUpdate.fitBounds(bounds, padding).animate(com.naver.maps.map.CameraAnimation.Easing))
+                        }
+                        MapProvider.Kakao -> {
+                            val points = items.map { com.kakao.vectormap.LatLng.from(it.latitude, it.longitude) }
+                            kakaoMapInstance?.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.fitMapPoints(points, padding), com.kakao.vectormap.camera.CameraAnimation.from(800, true, true))
+                        }
+                        MapProvider.Google -> {
+                            scope.launch {
+                                val boundsBuilder = com.google.android.gms.maps.model.LatLngBounds.builder()
+                                items.forEach { boundsBuilder.include(com.google.android.gms.maps.model.LatLng(it.latitude, it.longitude)) }
+                                val bounds = boundsBuilder.build()
+                                googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLngBounds(bounds, padding))
+                            }
+                        }
+                    }
+                }
             }
             MapAction.NONE -> {}
         }
@@ -361,7 +387,10 @@ fun MainScreen(
                         creatingTodoLocation = creatingLocation?.let { com.naver.maps.geometry.LatLng(it.latitude, it.longitude) },
                         contentPaddingBottom = if (isCreatingTodo) (context.resources.displayMetrics.heightPixels * 0.7).toInt() else 0,
                         activePoints = activePoints,
-                        showActivePath = showActivePath
+                        showActivePath = showActivePath,
+                        onCameraIdle = { wm, zoom, lat -> 
+                             mapViewModel.handleCameraIdle(wm, zoom, lat, MapProvider.Naver) 
+                        }
                     )
                 }
                 MapProvider.Kakao -> {
@@ -397,7 +426,10 @@ fun MainScreen(
                         creatingTodoLocation = creatingLocation?.let { com.kakao.vectormap.LatLng.from(it.latitude, it.longitude) },
                         contentPaddingBottom = if (isCreatingTodo) (context.resources.displayMetrics.heightPixels * 0.7).toInt() else 0,
                         activePoints = activePoints,
-                        showActivePath = showActivePath
+                        showActivePath = showActivePath,
+                        onCameraIdle = { wm, zoom, lat -> 
+                             mapViewModel.handleCameraIdle(wm, zoom, lat, MapProvider.Kakao) 
+                        }
                     )
                 }
                 MapProvider.Google -> {
@@ -451,7 +483,10 @@ fun MainScreen(
                             mapViewModel.startCreatingTodo(latLng.latitude, latLng.longitude)
                         },
                         activePoints = activePoints,
-                        showActivePath = showActivePath
+                        showActivePath = showActivePath,
+                        onCameraIdle = { wm, zoom, lat -> 
+                             mapViewModel.handleCameraIdle(wm, zoom, lat, MapProvider.Google) 
+                        }
                     )
                 }
             }
