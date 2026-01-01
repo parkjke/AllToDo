@@ -238,52 +238,33 @@ class MapFeatureViewModel @Inject constructor(
 
     private fun recalculateClusters() {
         System.out.println(">>> [MapViewModel] recalculateClusters triggered")
-        // Debounce or launch?
         viewModelScope.launch {
             val items = _displayItems.value
             val zoom = _currentZoom.value
-
+            
+            // 1. Validation
             if (items.isEmpty()) {
                 _clusteredItems.value = emptyList()
                 return@launch
             }
 
-            // 1. Prepare Points for WASM
-            val flatPoints = items.flatMap { item ->
-                if (item.intLat != 0) {
-                    listOf(item.intLat, item.intLng)
-                } else {
-                    emptyList()
-                }
-            }
-
+            // 2. Prepare Data
+            val flatPoints = convertToFlatPoints(items)
             if (flatPoints.isEmpty()) {
-                _clusteredItems.value = emptyList()
-                return@launch
-            }
-
-            if (!_isClusteringEnabled.value) {
-                // Return 1-to-1 clusters
-                _clusteredItems.value = items.map { item ->
-                     PinClusterItem(item.intLat, item.intLng, 1, listOf(item))
-                }
-                return@launch
-            }
-
-            // 3. WASM Clustering
-            // [NEW] Optimized Formula with Latitude Compensation & Provider Weights
-            // Meters per pixel ~ 156543.03392 * cos(lat) / 2^zoom
-            val cosLat = Math.cos(Math.toRadians(currentLatitude))
-            val sensitivity = 80.0 // Reduced from 100 for tighter clustering
-            val providerWeight = when(currentProvider) {
-                MapProvider.Google -> 1.0
-                MapProvider.Naver, MapProvider.Kakao -> 0.85 // Tighter for local maps
-                else -> 1.0
+                 _clusteredItems.value = emptyList()
+                 return@launch
             }
             
-            val resolution = (156543.03392 * cosLat * sensitivity * providerWeight) / Math.pow(2.0, zoom.toDouble())
-            val cellSizeMeters = resolution.toInt().coerceAtLeast(2) 
+            // 3. Check Enabled Status
+            if (!_isClusteringEnabled.value) {
+                _clusteredItems.value = createOneToOneClusters(items)
+                return@launch
+            }
 
+            // 4. Calculate Resolution
+            val cellSizeMeters = calculateCellSizeMeters(zoom)
+
+            // 5. Execute WASM Logic
             val clustersFlat = try {
                  System.out.println(">>> [MapViewModel] Invoking WASM cluster: points=${flatPoints.size/2} cell=$cellSizeMeters")
                  wasmManager.cluster(flatPoints, cellSizeMeters)
@@ -292,57 +273,86 @@ class MapFeatureViewModel @Inject constructor(
                  emptyList<Int>()
             }
             
-            // Fallback
-            if (clustersFlat.isEmpty()) {
-                 _clusteredItems.value = items.map { item ->
-                     PinClusterItem(item.intLat, item.intLng, 1, listOf(item))
-                }
-                return@launch
+            // 6. Process Results
+            _clusteredItems.value = if (clustersFlat.isEmpty()) {
+                createOneToOneClusters(items)
+            } else {
+                mapClustersToItems(clustersFlat, items)
             }
-
-            // 4. Map Clusters
-            val newClusters = mutableListOf<PinClusterItem>()
-            for (i in 0 until clustersFlat.size step 3) {
-                val cLat = clustersFlat[i]
-                val cLng = clustersFlat[i+1]
-                val count = clustersFlat[i+2]
-                newClusters.add(PinClusterItem(cLat, cLng, count, mutableListOf()))
-            }
-
-            // Assign Items (Nearest Neighbor)
-            if (newClusters.isNotEmpty()) {
-                items.forEach { item ->
-                    val lat = item.intLat
-                    val lng = item.intLng
-                    
-                    var minDist = Double.MAX_VALUE
-                    var bestCluster: PinClusterItem? = null
-                    
-                    for (cluster in newClusters) {
-                        val dLat = cluster.intLat - lat
-                        val dLng = cluster.intLng - lng
-                        val distSq = dLat.toLong()*dLat + dLng.toLong()*dLng // Use Long to avoid overflow
-                        if (distSq < minDist) {
-                            minDist = distSq.toDouble()
-                            bestCluster = cluster
-                        }
-                    }
-                    (bestCluster?.items as? MutableList)?.add(item)
-                }
-            }
-
-            // [FIX] Cluster Anchoring (Keep User Pin Position Exact if inside)
-            val finalClusters = newClusters.map { cluster ->
-                  val userLoc = cluster.items.find { it is UnifiedItem.CurrentLocation }
-                  if (userLoc != null) {
-                      cluster.copy(intLat = userLoc.intLat, intLng = userLoc.intLng)
-                  } else {
-                      cluster
-                  }
-            }
-
-            _clusteredItems.value = finalClusters
+            
+            System.out.println(">>> [MapViewModel] Cluster Update Complete. Count=${_clusteredItems.value.size}")
         }
+    }
+
+    // MARK: - Clustering Helpers
+
+    private fun convertToFlatPoints(items: List<UnifiedItem>): List<Int> {
+        return items.flatMap { item ->
+            if (item.intLat != 0) listOf(item.intLat, item.intLng) else emptyList()
+        }
+    }
+
+    private fun createOneToOneClusters(items: List<UnifiedItem>): List<PinClusterItem> {
+        return items.map { item ->
+            PinClusterItem(item.intLat, item.intLng, 1, listOf(item))
+        }.distinctBy { "${it.intLat}_${it.intLng}_${it.count}" }
+    }
+
+    private fun calculateCellSizeMeters(zoom: Float): Int {
+        val cosLat = Math.cos(Math.toRadians(currentLatitude))
+        val sensitivity = 30.0
+        val providerWeight = when(currentProvider) {
+            MapProvider.Google -> 1.0
+            MapProvider.Naver, MapProvider.Kakao -> 0.85
+            else -> 1.0
+        }
+        val resolution = (156543.03392 * cosLat * sensitivity * providerWeight) / Math.pow(2.0, zoom.toDouble())
+        return resolution.toInt().coerceAtLeast(2) 
+    }
+
+    private fun mapClustersToItems(clustersFlat: List<Int>, items: List<UnifiedItem>): List<PinClusterItem> {
+        // Safety Check for WASM output
+        if (clustersFlat.size % 3 != 0) {
+             System.out.println(">>> [MapViewModel] CRITICAL: WASM returned invalid size: ${clustersFlat.size}")
+        }
+        
+        val newClusters = mutableListOf<PinClusterItem>()
+        val safeLimit = (clustersFlat.size / 3) * 3
+        
+        for (i in 0 until safeLimit step 3) {
+            newClusters.add(PinClusterItem(clustersFlat[i], clustersFlat[i+1], clustersFlat[i+2], mutableListOf()))
+        }
+
+        if (newClusters.isNotEmpty()) {
+            items.forEach { item ->
+                val lat = item.intLat.toLong()
+                val lng = item.intLng.toLong()
+                var minDist = Long.MAX_VALUE // Use Long for distance squared
+                var bestCluster: PinClusterItem? = null
+                
+                for (cluster in newClusters) {
+                    val dLat = cluster.intLat - lat
+                    val dLng = cluster.intLng - lng
+                    val distSq = dLat*dLat + dLng*dLng
+                    if (distSq < minDist) {
+                        minDist = distSq
+                        bestCluster = cluster
+                    }
+                }
+                (bestCluster?.items as? MutableList)?.add(item)
+            }
+        }
+        
+        // Final Anchor & Dedupe
+        return newClusters.map { cluster ->
+              val userLoc = cluster.items.find { it is UnifiedItem.CurrentLocation }
+              if (userLoc != null) {
+                  cluster.copy(intLat = userLoc.intLat, intLng = userLoc.intLng)
+              } else {
+                  cluster
+              }
+        }.distinctBy { "${it.intLat}_${it.intLng}_${it.count}" }
+    }
 
     }
     
@@ -351,44 +361,36 @@ class MapFeatureViewModel @Inject constructor(
         viewModelScope.launch {
             System.out.println(">>> [MapViewModel] Launch Sequence Start: Showing Raw Pins")
             
-            // 1. Force Raw Display (Clustering Disabled temporarily by flag logic or just empty clusters?)
-            // Actually, if we don't call recalculateClusters, _clusteredItems is empty.
-            // But we need to pass items to View.
-            // View should observe `displayItems` for raw if `clusteredItems` is empty? 
-            // Or better: `recalculateClusters` with "isClusteringEnabled = false" returns 1:1 pins.
+            // 1. Initial State: Raw Pins (Clustering Disabled by default logic in init)
             
-            _isClusteringEnabled.value = false
-            recalculateClusters() // Renders 1:1 items (Raw)
-            
-            // 2. Fit Bounds
-            _mapAction.value = MapAction.ZOOM_TO_FIT
-            
-            // 3. Wait 3 seconds
+            // 2. Wait 3 seconds
+            System.out.println(">>> [MapViewModel] Launch Sequence Step 1: Delaying 3s...")
             kotlinx.coroutines.delay(3000)
-            
-            // 3. Enable Clustering & Refresh
-            System.out.println(">>> [MapViewModel] Launch Sequence End: Enabling Clustering")
+            System.out.println(">>> [MapViewModel] Launch Sequence Step 2: Delay Over. Triggering Transition...")
+
+            // 3. Enable Clustering
             isInitialLaunch = false
             _isClusteringEnabled.value = true
+            System.out.println(">>> [MapViewModel] Launch Sequence Step 3: Clustering Enabled")
+
+            // 4. Trigger Zoom to Current Location
+            System.out.println(">>> [MapViewModel] Launch Sequence Step 4: Emit CURRENT_LOCATION action")
+            _mapAction.value = MapAction.CURRENT_LOCATION
             
-            // Force re-cluster with current state (we assume screen width hasn't changed wildly, or we reset wm0)
-            lastClusteredScreenWidthMeters = -1.0 // Force refresh
-            // We need current screen width... passed from View? 
-            // We'll rely on next Idle or force update if we have stored last known width?
-            // For now, simple recalculate triggers WASM.
+            // Force Recalculate
+            lastClusteredScreenWidthMeters = -1.0
             recalculateClusters()
             
-             // 4. Trigger Zoom to 18 (View Responsibility via Action? Or just logic done?)
-             // "If current location exists -> Zoom 18"
-             // Request View to Zoom
-             handleCurrentLocationZoom18()
+            kotlinx.coroutines.delay(500) // Give UI time to react to Zoom
+            _mapAction.value = MapAction.NONE
+            System.out.println(">>> [MapViewModel] Launch Sequence Step 5: Reset Action to NONE")
         }
     }
     
     private fun handleCurrentLocationZoom18() {
+        // Deprecated by launchMapSequence step 4, but kept for button clicks
         viewModelScope.launch {
             _mapAction.value = MapAction.CURRENT_LOCATION
-            // View should handle this with Zoom 18
         }
     }
 
@@ -448,11 +450,16 @@ class MapFeatureViewModel @Inject constructor(
     }
 
     init {
+        // [Fire & Forget] Start WASM Init (Background)
         wasmManager.initialize { success ->
             if (success) {
-                // [FIX] Initial Sequence: Raw First -> 3s -> Cluster
-                launchMapSequence()
+                // Log success or update internal state if needed
+                System.out.println(">>> [MapViewModel] WASM Ready")
             }
         }
+        
+        // [FIX] Independent Helper Logic: Start Sequence Immediately
+        // Matches iOS behavior: Map starts regardless of WASM status.
+        launchMapSequence()
     }
 }
