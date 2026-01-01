@@ -240,7 +240,7 @@ class MapFeatureViewModel @Inject constructor(
         System.out.println(">>> [MapViewModel] recalculateClusters triggered")
             performClusteringLogic()
         }
-    }
+
 
     private suspend fun performClusteringLogic() {
         val items = _displayItems.value
