@@ -125,15 +125,8 @@ object MapLogicHelper {
         var color = Color.parseColor("#00C7BE") // AllToDo Green
         
         if (userLocationFound) {
-            // [FIX] If Clustered (>1), use Standard Pin "10" so badge looks correct.
-            // If Single (1), use User Pin "00".
-            if (items.size > 1) {
-                pinId = "10"
-                color = Color.RED
-            } else {
-                pinId = "00"
-                color = Color.RED
-            }
+            pinId = "00"
+            color = Color.RED
         } else {
             // Priority: Blue > Green > Red based on COUNT
             if (blueCount >= greenCount && blueCount >= redCount && blueCount > 0) {
