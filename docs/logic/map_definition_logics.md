@@ -22,23 +22,32 @@
 ---
 
 ## 3. 지도 시작 방식 (3-Stage Map Start Sequence)
-*   **1단계 (Fast Jump)**: `store location`을 중심으로 **줌 15.0**에서 엔진을 즉시 렌더링하도록 카메라 초기 위치를 강제 설정한다.
-*   **2단계 (Fit Bounds)**: 500km 이내의 모든 핀과 내 위치를 포함하도록 영역을 조정한다. 이때 줌은 15.0으로 제한(Lock)된다.
-*   **3단계 (User Focus)**: 3초 후 내 위치로 **줌 18.0(Apple Map의 경우 Span 0.0013)**으로 집중하며, **스마트 테더링 앵커를 초기화**한다.
+*   **1단계 (Fast Jump)**: `before location` (없으면 광화문)을 중심으로 **줌 15.0**에서 엔진을 즉시 렌더링한다.
+*   **2단계 (Fit Bounds & Raw Pins)**:
+    - 500km 이내의 모든 핀과 내 위치를 포함하도록 영역을 조정(Fit Bounds Zoom < 15.0).
+    - **클러스터링 비활성화**: 이 단계에서는 모든 핀을 **Raw 상태(개별 핀)**로 렌더링한다.
+    - **3초 대기**: 사용자가 핀의 전체적인 분포를 인지할 수 있도록 3초간 상태를 유지한다.
+*   **3단계 (User Focus & Cluster)**:
+    - 3초 후 내 위치로 **줌 18.0**으로 부드럽게 이동(Zoom In)한다.
+    - 이동과 동시에 **클러스터링을 활성화**하여 시각적 정돈을 수행한다.
+    - **스마트 테더링 앵커를 초기화**한다.
 *   **플랫폼별 구현**:
-    - **Android**: `MapBegin.kt`의 `MapBeginSequence`가 3단계 제어.
-    - **iOS**: 각 `MapView.swift`의 `performLaunchAnimation`에 시퀀스 구현.
+    - **Android**: `MapFeatureViewModel.kt`의 `launchMapSequence`가 제어.
+    - **iOS**: 각 `MapView.swift`의 `performLaunchAnimation` 및 `refreshWasmClusters(force: true)`로 구현.
 
 ---
 
 ## 4. 웹어셈블리 (WASM) 함수 (WASM Functions)
-*   **클러스터링 (Clustering)**: 가까운 위치들을 묶어 그룹화하는 고속 연산 함수이다.
+*   **클러스터링 (Clustering)**:
+    - **기준**: 줌 레벨 대신 **화면 가로폭 거리(ScreenWidthMeters, Wm)**를 기준으로 클러스터링 반경을 동적으로 계산한다.
+    - **임계값 (1.5x Threshold)**: 잦은 연산 방지를 위해 `Current Wm / Last Clustered Wm` 비율이 **[0.66, 1.5]** 범위를 벗어날 때만 재클러스터링을 수행한다.
+    - **안정성 (Deterministic Sorting)**: 입력 포인트 순서에 따른 깜빡임(Flickering)을 방지하기 위해 `lib.rs` 내부에서 위경도 기반의 결정론적 정렬을 수행 후 클러스터링한다.
 *   **WASM Centroid Sync**: 클러스터 내 뱃지 숫자와 데이터 일관성을 위해 WASM이 반환하는 명시적 Centroid 정보를 기반으로 아이템을 그룹화한다.
 *   **현재 위치 앵커링 (Cluster-at-User)**: 클러스터 내부에 '현재 위치'가 포함된 경우, 핀의 시각적 좌표를 중앙값이 아닌 **실제 사용자 좌표**에 고정하여 위치 이탈(Drift)을 방지한다.
 *   **RDP (Path Compression)**: 이동 경로에서 의미 없는 지점을 걸러내어 데이터를 압축하는 함수이다.
 *   **플랫폼별 구현**:
-    - **Android**: `TodoViewModel.kt`의 `recalculateClusters` 및 `processBuffer`를 통해 `WasmManager.kt`를 호출한다.
-    - **iOS**: `WasmManager.swift` 인스턴스를 통해 `refreshWasmClusters` 및 `processBuffer`를 각각 수행한다.
+    - **Android**: `TodoViewModel.kt`에서 `handleCameraIdle` 시점에 Wm을 계산하여 `recalculateClusters` 호출.
+    - **iOS**: 각 `MapView` Coordinator의 `refreshWasmClusters`에서 Wm 계산 및 임계값 체크 후 WASM 호출.
 
 ---
 
