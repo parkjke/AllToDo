@@ -48,7 +48,7 @@ fun NaverMapContent(
     creatingTodoLocation: LatLng? = null,
     contentPaddingBottom: Int = 0,
     activePoints: List<kr.alltodo.data.GpsAuthPoint> = emptyList(),
-    activePoints: List<kr.alltodo.data.GpsAuthPoint> = emptyList(),
+
     showActivePath: Boolean = true,
     onCameraIdle: (Double, Float, Double) -> Unit // [NEW] Wm, Zoom, Lat
 ) {

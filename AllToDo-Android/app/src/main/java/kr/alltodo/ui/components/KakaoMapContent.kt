@@ -56,7 +56,7 @@ fun KakaoMapContent(
     creatingTodoLocation: LatLng? = null,
     contentPaddingBottom: Int = 0,
     activePoints: List<kr.alltodo.data.GpsAuthPoint> = emptyList(),
-    activePoints: List<kr.alltodo.data.GpsAuthPoint> = emptyList(),
+
     showActivePath: Boolean = true,
     onCameraIdle: (Double, Float, Double) -> Unit // [NEW] Wm, Zoom, Lat
 ) {
@@ -587,9 +587,10 @@ fun KakaoMapContent(
                             }
                             
                             // [NEW] Camera Idle Listener
+                            // [NEW] Camera Idle Listener
                             kMap.setOnCameraMoveListener(object : com.kakao.vectormap.KakaoMap.OnCameraMoveListener {
-                                override fun onCameraMoveStart(kakaoMap: KakaoMap, gestureType: com.kakao.vectormap.GestureType) {}
-                                override fun onCameraMoveEnd(kakaoMap: KakaoMap, position: com.kakao.vectormap.camera.CameraPosition, gestureType: com.kakao.vectormap.GestureType) {
+                                override fun onCameraMoveStart(kakaoMap: com.kakao.vectormap.KakaoMap, gestureType: com.kakao.vectormap.GestureType) {}
+                                override fun onCameraMoveEnd(kakaoMap: com.kakao.vectormap.KakaoMap, position: com.kakao.vectormap.camera.CameraPosition, gestureType: com.kakao.vectormap.GestureType) {
                                     val width = mapView?.width ?: 0
                                     val height = mapView?.height ?: 0
                                     if (width > 0 && height > 0) {
@@ -605,11 +606,12 @@ fun KakaoMapContent(
                                             )
                                             val widthMeters = results[0].toDouble()
                                             
+                                            // Report to ViewModel
                                             onCameraIdle(widthMeters, position.zoomLevel.toFloat(), position.position.latitude)
                                         }
                                     }
                                 }
-                                override fun onCameraMoveCancelled(kakaoMap: KakaoMap, gestureType: com.kakao.vectormap.GestureType) {}
+                                override fun onCameraMoveCancelled(kakaoMap: com.kakao.vectormap.KakaoMap, gestureType: com.kakao.vectormap.GestureType) {}
                             })
                         }
 

@@ -316,7 +316,7 @@ fun MainScreen(
                             naverMapInstance?.moveCamera(com.naver.maps.map.CameraUpdate.fitBounds(bounds, padding).animate(com.naver.maps.map.CameraAnimation.Easing))
                         }
                         MapProvider.Kakao -> {
-                            val points = items.map { com.kakao.vectormap.LatLng.from(it.latitude, it.longitude) }
+                            val points = items.map { com.kakao.vectormap.LatLng.from(it.latitude, it.longitude) }.toTypedArray()
                             kakaoMapInstance?.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.fitMapPoints(points, padding), com.kakao.vectormap.camera.CameraAnimation.from(800, true, true))
                         }
                         MapProvider.Google -> {

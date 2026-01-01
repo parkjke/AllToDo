@@ -53,7 +53,7 @@ fun GoogleMapContent(
     creatingTodoLocation: com.google.android.gms.maps.model.LatLng? = null,
     contentPaddingBottom: Int = 0, // px
     activePoints: List<kr.alltodo.data.GpsAuthPoint> = emptyList(),
-    activePoints: List<kr.alltodo.data.GpsAuthPoint> = emptyList(),
+
     showActivePath: Boolean = true,
     onCameraIdle: (Double, Float, Double) -> Unit // [NEW] Wm, Zoom, Lat
 ) {
@@ -210,8 +210,7 @@ fun GoogleMapContent(
                     if (newSpanLon > 0) currentSpanLon = newSpanLon
                     if (newSpanLat > 0) currentSpanLat = newSpanLat
                 }
-                    if (newSpanLat > 0) currentSpanLat = newSpanLat
-                }
+
         }
         
         // [NEW] Camera Idle Detection & Reporting
