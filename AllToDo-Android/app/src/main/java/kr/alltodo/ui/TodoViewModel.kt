@@ -566,6 +566,7 @@ class TodoViewModel @Inject constructor(
                 person = person,
                 date_time = if (date != null && time != null) "$date $time" else date ?: time,
                 memo = memo,
+                no_of_path = 1, // [FIX] Set to 1 so it passes the "no_of_path > 0" filter
                 created_at = System.currentTimeMillis()
             )
             todoRepository.insert(todo)
@@ -601,7 +602,8 @@ class TodoViewModel @Inject constructor(
                 source = "local",
                 int_lat = location.int_lat,
                 int_long = location.int_long,
-                created_at = System.currentTimeMillis()
+                created_at = System.currentTimeMillis(),
+                no_of_path = 1 // [FIX] Set to 1 so it passes the filter
             )
             todoRepository.insert(newTodo)
             locationRepository.delete(location)
