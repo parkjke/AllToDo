@@ -238,8 +238,10 @@ class MapFeatureViewModel @Inject constructor(
 
     private fun recalculateClusters() {
         System.out.println(">>> [MapViewModel] recalculateClusters triggered")
+        viewModelScope.launch {
             performClusteringLogic()
         }
+    }
 
 
     private suspend fun performClusteringLogic() {
