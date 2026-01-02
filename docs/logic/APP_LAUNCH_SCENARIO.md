@@ -1,6 +1,6 @@
 # 앱 실행 및 지도 동작 시나리오 공통 (iOS/Android)
 
-이 문서는 앱 실행 시 지도의 초기화, 줌 레벨 제어, 클러스터링 및 핀 표시 정책을 정의합니다. (2025-12-21 최신화)
+이 문서는 앱 실행 시 지도의 초기화, 줌 레벨 제어, 클러스터링 및 핀 표시 정책을 정의합니다. (2026-01-02 최신화)
 
 ---
 
@@ -11,7 +11,10 @@
 - **데이터 필터링 (SSOT)**:
     - **시간 범위**: 현재 날짜 기준 **±24시간** 이내의 항목만 사용.
     - **경로 유효성**: **`no_of_path > 0`** (이동 경로가 실재하는 항목만 표시).
-    - **지리적 통일**: 한국 내(`isInKorea`) 판정 로직을 양대 플랫폼 모두 **1,00,000 스케일 정수 좌표계**로 통일.
+    - **지리적 통일**: 한국 내(`isInKorea`) 판정 로직을 양대 플랫폼 모두 **100,000 스케일 정수 좌표계**로 통일.
+- **안정성 전략**:
+    - **속성 우선 (Properties First)**: 마커 생성 시 필수 속성(`position` 등)을 먼저 설정한 후 지도에 부착.
+    - **NaN 가딩 (NaN Guarding)**: 위경도 연산 및 렌더링 루프에서의 `isNaN` 체크 강화 (iOS/Android 공통).
 - **클러스터링 전략**:
     - **Radius**: 줌 레벨이 아닌 **화면 가로폭 실제 거리(ScreenWidthMeters)** 기반 (고정된 시각적 밀도 보장).
     - **Threshold**: **1.5배 변화 임계값** 적용 (미세 이동 시 깜빡임 제거).
@@ -56,20 +59,22 @@
 *   **동작**:
     1.  **줌 인 애니메이션**: 현재 위치(User Location)를 중심으로 **줌 레벨 18**까지 부드럽게 애니메이션 이동.
     2.  **클러스터링 활성화**: 이동 완료 시점에 지도상의 핀들을 클러스터링 모드로 전환하여 시각적으로 정리.
-    3.  **최종 상태**: 내 위치 주변의 핀들은 클러스터링되어 표시됨.
+    3.  **4단계 스무딩 적용**: 클러스터 전환 시의 깜빡임을 방지하기 위해 New Entry -> Merge Cleanup -> Old Cluster Cleanup -> New Cluster Add 시퀀스를 실행.
+    4.  **최종 상태**: 내 위치 주변의 핀들은 클러스터링되어 표시됨.
 
 ---
 
 ## 3. 플랫폼별 구현 참고 (Implementation)
 
-### Android (`TodoViewModel.kt` & `NaverMapContent.kt`)
-- `isFirstLaunch` 플래그와 `LaunchedEffect`를 사용하여 Stage 1~3 시퀀스 관리.
-- `TodoViewModel`에서 500km 필터링 로직 및 원거리 핀 카운트 제공.
-- Naver Map SDK의 `CameraUpdate.fitBounds()`와 `CameraUpdate.zoomTo().animate()` 활용.
+### Android (`MapFeatureViewModel.kt` & `MapContent.kt`)
+- `isFirstLaunch` 플래그와 `launchMapSequence`를 사용하여 Stage 1~3 시퀀스 관리.
+- `MapFeatureViewModel`에서 500km 필터링 및 클러스터링 임계값(1.5x) 관리.
+- Naver/Google Map Compose 라이브러리와 연동하여 4단계 스무딩 구현.
 
-### iOS (`ContentViewModel` & `MapView` Controllers)
-- `Combine` 또는 `SwiftUI Task`를 사용하여 비동기 데이터(Location/Pins) 상태 감시.
-- `MapKit`의 `setRegion`과 `animate` 시퀀스를 통해 Stage 별 부드러운 전환 구현.
+### iOS (`MapFeatureViewModel.swift` & `MapView.swift`)
+- `performLaunchAnimation` 및 `refreshWasmClusters`를 통한 Stage 별 전환.
+- 4단계 스무딩 알고리즘을 통한 `MKAnnotation`, `GMSMarker`, `NMFMarker`, `KakaoPOI` 관리.
+- Stable ID(`UserPoi.id`)를 활용한 시각적 연속성 확보.
 
 ---
 

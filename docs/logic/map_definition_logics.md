@@ -7,6 +7,11 @@
     - **Android**: `SmartLocationManager.kt`의 `toIntLocation`, `toDoubleLocation` 함수 사용.
     - **iOS**: `SmartLocationManager.swift`의 `toIntLocation` 함수 사용.
 
+## 1.1. 안전 마커 생성 전략 (Properties First Strategy)
+*   **핵심 원칙**: 마커 객체를 지도(Map)에 부착하기 전에 모든 필수 속성(`position`, `icon`, `anchor`)을 먼저 설정한다.
+*   **이점**: SDK 내부의 유효성 검사 예외를 방지하고, 렌더링 시점에 불완전한 객체가 노출되는 것을 차단한다.
+*   **NaN 가딩 (NaN Guarding)**: 위경도 좌표 연성 중 발생할 수 있는 `NaN` 값이 지도 엔진 루프에 진입하지 않도록 `lat.isNaN || lng.isNaN` 체크를 전역적으로 적용한다.
+
 ---
 
 ## 2. 지도를 위한 글로벌 변수 (Global Variables)
@@ -41,13 +46,18 @@
 *   **클러스터링 (Clustering)**:
     - **기준**: 줌 레벨 대신 **화면 가로폭 거리(ScreenWidthMeters, Wm)**를 기준으로 클러스터링 반경을 동적으로 계산한다.
     - **임계값 (1.5x Threshold)**: 잦은 연산 방지를 위해 `Current Wm / Last Clustered Wm` 비율이 **[0.66, 1.5]** 범위를 벗어날 때만 재클러스터링을 수행한다.
+    - **4단계 스무딩 (4-Step Smoothing)**: 클러스터 전환 시의 시각적 깜빡임을 제거하기 위해 다음 순서를 엄격히 준수한다.
+        1. **신규 진입 (New Entry)**: 기존에 없던 새로운 단독 핀 추가.
+        2. **병합 정리 (Merge Cleanup)**: 클러스터에 편입된 기존 단독 핀 삭제.
+        3. **기존 클러스터 정리 (Old Cluster Cleanup)**: 유효하지 않은 이전 클러스터 마커 삭제.
+        4. **신규 클러스터 추가 (New Cluster Add)**: 계산된 새로운 클러스터 마커 추가.
     - **안정성 (Deterministic Sorting)**: 입력 포인트 순서에 따른 깜빡임(Flickering)을 방지하기 위해 `lib.rs` 내부에서 위경도 기반의 결정론적 정렬을 수행 후 클러스터링한다.
 *   **WASM Centroid Sync**: 클러스터 내 뱃지 숫자와 데이터 일관성을 위해 WASM이 반환하는 명시적 Centroid 정보를 기반으로 아이템을 그룹화한다.
 *   **현재 위치 앵커링 (Cluster-at-User)**: 클러스터 내부에 '현재 위치'가 포함된 경우, 핀의 시각적 좌표를 중앙값이 아닌 **실제 사용자 좌표**에 고정하여 위치 이탈(Drift)을 방지한다.
 *   **RDP (Path Compression)**: 이동 경로에서 의미 없는 지점을 걸러내어 데이터를 압축하는 함수이다.
 *   **플랫폼별 구현**:
-    - **Android**: `TodoViewModel.kt`에서 `handleCameraIdle` 시점에 Wm을 계산하여 `recalculateClusters` 호출.
-    - **iOS**: 각 `MapView` Coordinator의 `refreshWasmClusters`에서 Wm 계산 및 임계값 체크 후 WASM 호출.
+    - **Android**: `MapFeatureViewModel.kt`에서 Wm 계산 및 `recalculateClusters` 호출.
+    - **iOS**: 각 `MapView` Coordinator의 `refreshWasmClusters`에서 1.5x 임계값 체크 후 4단계 스무딩 실행.
 
 ---
 
@@ -59,4 +69,4 @@
     - **iOS**: `SmartLocationManager.swift` 및 `AppleMapView.swift`의 `MKMapRect`, `region.span` 연산 로직.
 
 ---
-*Last Updated: 2025-12-25 (v1.3.4 Update)*
+*Last Updated: 2026-01-02 (iOS Clustering Optimization & Smoothing Algorithm Implementation)*

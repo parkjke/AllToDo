@@ -16,7 +16,10 @@
     - **Smoothing Algorithm**: Implemented the **4-step Smoothing Algorithm** across all iOS map providers to ensure visual continuity during cluster transitions (New Entry -> Merge Cleanup -> Old Cluster Cleanup -> New Cluster Add).
     - **NaN Guarding**: Applied strict `isNaN` checks in `AppleMapView.swift`, `NaverMapView.swift`, `GoogleMapView.swift`, and `KakaoMapView.swift` to prevent coordinate-related crashes and freezes.
     - **Standardization**: Unified the 1.5x clustering threshold and ScreenWidthMeters-based logic for all iOS platforms, matching the optimized Android implementation.
-    - **Performance**: Improved clustering responsiveness and reduced flickering by utilizing SDK-specific move animations (notably Kakao Map's `moveAt`).
+- **Technical Documentation Synchronization**:
+    - Updated `map_definition_logics.md`, `map_begin_logic.md`, and `APP_LAUNCH_SCENARIO.md` to precisely reflect the latest 2026-01-02 technical standards.
+    - Standardized terminology for **'Properties First Strategy'**, **'NaN Guarding'**, and the **'4-Step Smoothing Algorithm'** across all high-level logic documents.
+    - Synchronized platform-specific implementation details (Android's `MapFeatureViewModel` and iOS's `MapView` coordinators) to ensure a single truth for the cross-platform geospatial engine.
 
 ## 2026-01-01
 ### Web Deployment Refactor & Android Map Stabilization
