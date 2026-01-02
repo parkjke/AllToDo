@@ -12,6 +12,11 @@
 - **Technical Documentation Refinement**:
     - Updated `map_begin_logic.md` and `APP_LAUNCH_SCENARIO.md` with the new **ScreenWidthMeters-based clustering** strategy (1.5x threshold) and unified **SSOT filtering** rules (+/- 24h, `no_of_path > 0`).
     - Added a detailed 'Silent Killer' post-mortem to `NAVER_MAP_ANDROID_CASE_STUDY.md`.
+- **iOS Clustering Optimization & Stability (Apple, Naver, Google, Kakao)**:
+    - **Smoothing Algorithm**: Implemented the **4-step Smoothing Algorithm** across all iOS map providers to ensure visual continuity during cluster transitions (New Entry -> Merge Cleanup -> Old Cluster Cleanup -> New Cluster Add).
+    - **NaN Guarding**: Applied strict `isNaN` checks in `AppleMapView.swift`, `NaverMapView.swift`, `GoogleMapView.swift`, and `KakaoMapView.swift` to prevent coordinate-related crashes and freezes.
+    - **Standardization**: Unified the 1.5x clustering threshold and ScreenWidthMeters-based logic for all iOS platforms, matching the optimized Android implementation.
+    - **Performance**: Improved clustering responsiveness and reduced flickering by utilizing SDK-specific move animations (notably Kakao Map's `moveAt`).
 
 ## 2026-01-01
 ### Web Deployment Refactor & Android Map Stabilization

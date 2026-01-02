@@ -332,19 +332,21 @@ struct KakaoMapView: UIViewRepresentable {
             for item in parent.allItems {
                 switch item {
                 case .todo(let t):
+                    if t.latitude.isNaN || t.longitude.isNaN { continue } // [NEW] NaN Guard
                     allItemsToProcess.append(item)
                     rawPoints.append(Int32(t.int_lat))
                     rawPoints.append(Int32(t.int_long))
                 case .history(let log):
+                    if log.latitude.isNaN || log.longitude.isNaN { continue } // [NEW] NaN Guard
                     allItemsToProcess.append(item)
                     rawPoints.append(Int32(log.int_lat))
                     rawPoints.append(Int32(log.int_long))
                 case .userLocation(let coord):
+                    if coord.latitude.isNaN || coord.longitude.isNaN { continue } // [NEW] NaN Guard
                     allItemsToProcess.append(item)
                     rawPoints.append(Int32(coord.latitude * 100_000))
                     rawPoints.append(Int32(coord.longitude * 100_000))
-                case .serverMessage:
-                    break
+                default: break
                 }
             }
             
@@ -423,144 +425,126 @@ struct KakaoMapView: UIViewRepresentable {
         @MainActor
         private func renderClusters(mapView: KakaoMap, clusterResult: [Int32], allItems: [UnifiedMapItem]) {
             let labelManager = mapView.getLabelManager()
-            // Reuse Layer if exists
             let layer = labelManager.getLabelLayer(layerID: "todoLayer") ?? labelManager.addLabelLayer(option: LabelLayerOptions(layerID: "todoLayer", competitionType: .none, competitionUnit: .poi, orderType: .rank, zOrder: 20000))
             guard let validLayer = layer else { return }
             
             labelIdToClusterItems.removeAll()
             
-            // 1. Prepare Data Structure
-            struct ClusterGroup {
-                var centroidLat: Double
-                var centroidLon: Double
-                var items: [UnifiedMapItem] = []
-            }
-            
-            let clusterCount = clusterResult.count / 3
-            var clusterGroups: [ClusterGroup] = []
-            
-            // Parse Centroids
-            for i in 0..<clusterCount {
-                let lat = Double(clusterResult[i*3]) / 100_000.0
-                let lon = Double(clusterResult[i*3+1]) / 100_000.0
-                // count is unused here as we recalculate from assigned items
-                clusterGroups.append(ClusterGroup(centroidLat: lat, centroidLon: lon))
-            }
-            
-            // 2. Assign items to centroids
-            for item in allItems {
-                var itemLat: Double = 0; var itemLon: Double = 0
-                switch item {
-                case .todo(let t): if let l = t.location { itemLat = l.latitude; itemLon = l.longitude }
-                case .history(let l): itemLat = l.latitude; itemLon = l.longitude
-                case .userLocation(let coord): itemLat = coord.latitude; itemLon = coord.longitude
-                default: continue
+            struct Centroid { let lat: Double; let lon: Double }
+            var centroids: [Centroid] = []
+            if clusterResult.count % 3 == 0 {
+                for i in stride(from: 0, to: clusterResult.count, by: 3) {
+                    let lat = Double(clusterResult[i]) / 100_000.0
+                    let lon = Double(clusterResult[i+1]) / 100_000.0
+                    if lat.isNaN || lon.isNaN { continue } // [NEW] NaN Guard
+                    centroids.append(Centroid(lat: lat, lon: lon))
                 }
+            }
+            
+            var clusters: [[UnifiedMapItem]] = Array(repeating: [], count: centroids.count)
+            for item in allItems {
+                guard let loc = item.location, !loc.latitude.isNaN, !loc.longitude.isNaN else { continue } // [NEW] NaN Guard
                 
                 var bestIdx = -1
                 var minDist = Double.greatestFiniteMagnitude
-                for (idx, group) in clusterGroups.enumerated() {
-                    let dLat = itemLat - group.centroidLat
-                    let dLon = itemLon - group.centroidLon
-                    let dist = dLat*dLat + dLon*dLon
+                for (idx, c) in centroids.enumerated() {
+                    let dist = pow(loc.latitude - c.lat, 2) + pow(loc.longitude - c.lon, 2)
                     if dist < minDist { minDist = dist; bestIdx = idx }
                 }
-                if bestIdx >= 0 { clusterGroups[bestIdx].items.append(item) }
+                if bestIdx >= 0 { clusters[bestIdx].append(item) }
             }
             
-            // 3. Filter & Sort for Stability (Avoid "Jumping" Pins)
-            // [FIX] Sort by Latitude (desc) then Longitude (asc) to ensure 'poi_0' is always top-left
-            // usage of enumerated index as ID requires stable order.
-            var validClusters = clusterGroups.filter { !$0.items.isEmpty }
-            validClusters.sort {
-                if abs($0.centroidLat - $1.centroidLat) > 0.00001 {
-                    return $0.centroidLat > $1.centroidLat // North to South
-                }
-                return $0.centroidLon < $1.centroidLon // West to East
-            }
-            
-            // 4. Render (Diffing)
+            // [SMOOTHING ALGORITHM - 4 STEPS]
             var newPoiIDs: Set<String> = []
-            let userPoiID = "UserPoi"
             
-            for (idx, group) in validClusters.enumerated() {
-                var finalLon = group.centroidLon
-                var finalLat = group.centroidLat
-                let items = group.items
-                
-                // Style
-                let (pinType, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
-                let colorHex = color.cgColor.components?.map { String(format: "%02X", Int($0 * 255)) }.joined() ?? "000000"
-                
-                // [FIX] Check for single item to use precise location (visual accuracy)
-                if count == 1 {
-                    switch items[0] {
-                    case .todo(let t): if let l = t.location { finalLat = l.latitude; finalLon = l.longitude }
-                    case .history(let l): finalLat = l.latitude; finalLon = l.longitude
-                    case .userLocation(let coord): finalLat = coord.latitude; finalLon = coord.longitude
-                    default: break
-                    }
+            // Collect single and cluster groups
+            var singles: [UnifiedMapItem] = []
+            var clusterGroups: [(centroid: Centroid, items: [UnifiedMapItem])] = []
+            
+            for (idx, items) in clusters.enumerated() {
+                if items.count == 1 {
+                    singles.append(items[0])
+                } else if items.count > 1 {
+                    clusterGroups.append((centroids[idx], items))
                 }
-                
-                let styleID = "Style_\(pinType)_\(count)_\(colorHex)"
-                
-                // Check if this cluster contains user
-                var isUser = false
-                if let _ = items.first(where: { if case .userLocation = $0 { return true }; return false }) {
-                    // For User Cluster, we might want to prioritize user location? 
-                    // Usually user is single, but if clustered, use centroid (or user loc provided by single check above)
-                    isUser = true
-                }
-                
-                // Determine POI ID
-                // User Pin gets FIXED ID for reuse
-                let poiID = isUser ? userPoiID : "poi_\(idx)"
+            }
+            
+            // Step 1: New Entry (Singles)
+            for item in singles {
+                let poiID = (case .userLocation = item) ? "UserPoi" : "pin_\(item.id.uuidString.prefix(8))"
                 newPoiIDs.insert(poiID)
-                labelIdToClusterItems[poiID] = items
+                labelIdToClusterItems[poiID] = [item]
                 
-                // Prepare Style
+                let (pinType, color, _) = MapLogicHelper.resolveClusterStyle(items: [item])
+                let styleID = "Style_Single_\(pinType)"
+                
                 if !registeredStyleIDs.contains(styleID) {
-                    let targetSize = CGSize(width: 28, height: 35)
-                    let finalImage: UIImage?
-                    if count > 1 {
-                        if let baseImage = PinImageHelper.shared.fetchPin(type: pinType),
-                           let resizedBase = baseImage.resized(to: targetSize) {
-                             finalImage = PinImageHelper.shared.applyBadge(to: resizedBase, count: count, badgeColor: color, badgeSize: 14).rasterized()
-                        } else { finalImage = nil }
-                    } else {
-                         if let baseImage = PinImageHelper.shared.fetchPin(type: pinType) {
-                             finalImage = baseImage.resized(to: targetSize)
-                         } else { finalImage = nil }
-                    }
-                    
-                    if let img = finalImage {
-                        // Badged: Base(28) + 10 = 38. Tip at 14. Anchor = 14/38.
-                        // Unbadged: Base(28). Tip at 14. Anchor = 14/28 = 0.5.
-                        let anchorX = count > 1 ? (14.0 / 38.0) : 0.5
-                        let anchor = CGPoint(x: anchorX, y: 1.0)
-                        labelManager.addPoiStyle(PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: PoiIconStyle(symbol: img, anchorPoint: anchor), level: 0)]))
+                    if let img = PinImageHelper.shared.fetchPin(type: pinType) {
+                        let resized = img.resized(to: CGSize(width: 28, height: 35))
+                        validLayer.getLabelManager().addPoiStyle(PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: PoiIconStyle(symbol: resized ?? img, anchorPoint: CGPoint(x: 0.5, y: 1.0)), level: 0)]))
                         registeredStyleIDs.insert(styleID)
                     }
                 }
                 
-                // Add or Move
-                if let existingPoi = validLayer.getPoi(poiID: poiID) {
-                    // Reuse (Move + Style Update)
-                    existingPoi.moveAt(MapPoint(longitude: finalLon, latitude: finalLat), duration: 200) // 200ms smoothing
-                    existingPoi.changeStyle(styleID: styleID, enableTransition: false)
-                    existingPoi.show()
+                let targetPos = MapPoint(longitude: item.location?.longitude ?? 0, latitude: item.location?.latitude ?? 0)
+                if let existing = validLayer.getPoi(poiID: poiID) {
+                    existing.moveAt(targetPos, duration: 200)
+                    existing.changeStyle(styleID: styleID, enableTransition: false)
+                    existing.show()
                 } else {
-                    // Create New
-                    let options = PoiOptions(styleID: styleID, poiID: poiID)
-                    options.clickable = true
-                    if let poi = validLayer.addPoi(option: options, at: MapPoint(longitude: finalLon, latitude: finalLat)) {
-                        poi.clickable = true
-                        poi.show()
-                    }
+                    let opt = PoiOptions(styleID: styleID, poiID: poiID)
+                    opt.clickable = true
+                    validLayer.addPoi(option: opt, at: targetPos)?.show()
                 }
             }
             
-            // 5. Cleanup Old POIs
+            // Step 2 & 3: Removal (Old pins/clusters not in new set)
+            // Handled at the end by comparing activePoiIDs and newPoiIDs
+            
+            // Step 4: New Cluster Entry
+            for (idx, group) in clusterGroups.enumerated() {
+                let items = group.items
+                let (pinType, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
+                let colorHex = color.cgColor.components?.map { String(format: "%02X", Int($0 * 255)) }.joined() ?? "000000"
+                
+                var isUser = items.contains(where: { if case .userLocation = $0 { return true }; return false })
+                var finalLat = group.centroid.lat
+                var finalLon = group.centroid.lon
+                
+                if isUser, let userLoc = items.first(where: { if case .userLocation = $0 { return true }; return false })?.location {
+                    finalLat = userLoc.latitude
+                    finalLon = userLoc.longitude
+                }
+                
+                let poiID = isUser ? "UserPoi" : "cluster_\(idx)"
+                newPoiIDs.insert(poiID)
+                labelIdToClusterItems[poiID] = items
+                
+                let styleID = "Style_Cluster_\(pinType)_\(count)_\(colorHex)"
+                if !registeredStyleIDs.contains(styleID) {
+                    let targetSize = CGSize(width: 28, height: 35)
+                    if let base = PinImageHelper.shared.fetchPin(type: pinType),
+                       let resized = base.resized(to: targetSize) {
+                        let badged = PinImageHelper.shared.applyBadge(to: resized, count: count, badgeColor: color, badgeSize: 14)
+                        let anchor = CGPoint(x: 14.0/38.0, y: 1.0)
+                        validLayer.getLabelManager().addPoiStyle(PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: PoiIconStyle(symbol: badged, anchorPoint: anchor), level: 0)]))
+                        registeredStyleIDs.insert(styleID)
+                    }
+                }
+                
+                let targetPos = MapPoint(longitude: finalLon, latitude: finalLat)
+                if let existing = validLayer.getPoi(poiID: poiID) {
+                    existing.moveAt(targetPos, duration: 200)
+                    existing.changeStyle(styleID: styleID, enableTransition: false)
+                    existing.show()
+                } else {
+                    let opt = PoiOptions(styleID: styleID, poiID: poiID)
+                    opt.clickable = true
+                    validLayer.addPoi(option: opt, at: targetPos)?.show()
+                }
+            }
+            
+            // Final Cleanup
             for oldID in activePoiIDs {
                 if !newPoiIDs.contains(oldID) {
                     validLayer.removePoi(poiID: oldID)

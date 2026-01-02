@@ -463,11 +463,13 @@ struct AppleMapView: UIViewRepresentable {
             let metersPerPixel = widthMeters / widthPixels
             let wasmCellSize = metersPerPixel * 100.0 
             
-            // [FIX] Invalid Region Guard: If span is too large (World view) or tiny, skip clustering
+            // [FIX] Invalid Region Guard
             guard region.span.latitudeDelta < 150 && region.span.latitudeDelta > 0 else {
-                print(">>> start map: AppleMapView skipping clustering due to invalid region span: \(region.span.latitudeDelta)")
                 return
             }
+            
+            // [NEW] NaN Guard for Region
+            if region.center.latitude.isNaN || region.center.longitude.longitude.isNaN { return }
             
             // [NEW] 1.5x Threshold Check
             let currentWm = metersPerPixel * mapView.bounds.width
@@ -507,120 +509,90 @@ struct AppleMapView: UIViewRepresentable {
                 for i in stride(from: 0, to: clusterResult.count, by: 3) {
                     let lat = Double(clusterResult[i]) / 100_000.0
                     let lon = Double(clusterResult[i+1]) / 100_000.0
-                    let count = Int(clusterResult[i+2])
-                    centroids.append(Centroid(lat: lat, lon: lon, count: count))
+                    if lat.isNaN || lon.isNaN { continue } // [NEW] NaN Guard
+                    centroids.append(Centroid(lat: lat, lon: lon, count: Int(clusterResult[i+2])))
                 }
             }
             
             var clusters: [[UnifiedMapItem]] = Array(repeating: [], count: centroids.count)
-            
             for item in allItems {
-                var itemLat: Double = 0
-                var itemLon: Double = 0
-                
-                switch item {
-                case .todo(let t): itemLat = t.latitude; itemLon = t.longitude
-                case .history(let t): itemLat = t.latitude; itemLon = t.longitude
-                case .userLocation(let coord): 
-                     itemLat = coord.latitude; itemLon = coord.longitude
-                default: break
-                }
+                guard let loc = item.location, !loc.latitude.isNaN, !loc.longitude.isNaN else { continue } // [NEW] NaN Guard
                 
                 var bestIdx = -1
                 var minDist = Double.greatestFiniteMagnitude
                 for (idx, c) in centroids.enumerated() {
-                    let dLat = itemLat - c.lat
-                    let dLon = itemLon - c.lon
+                    let dLat = loc.latitude - c.lat
+                    let dLon = loc.longitude - c.lon
                     let dist = dLat*dLat + dLon*dLon
                     if dist < minDist { minDist = dist; bestIdx = idx }
                 }
                 if bestIdx >= 0 { clusters[bestIdx].append(item) }
             }
             
-            var newAnnotations: [MKAnnotation] = []
+            // [SMOOTHING ALGORITHM - 4 STEPS]
+            let oldAnnotations = mapView.annotations.filter { !($0 is MKUserLocation) }
+            var toAdd: [MKAnnotation] = []
+            var toRemove: [MKAnnotation] = []
+            
+            var newSingles: [UnifiedAnnotation] = []
+            var newClusters: [WasmClusterAnnotation] = []
+            
             for (idx, items) in clusters.enumerated() {
                 if items.isEmpty { continue }
                 let centroid = centroids[idx]
                 var finalCoordinate = CLLocationCoordinate2D(latitude: centroid.lat, longitude: centroid.lon)
                 
-                // [FIX] Cluster Anchoring: If user is in cluster, force cluster to user position
-                if let userItem = items.first(where: { if case .userLocation = $0 { return true }; return false }),
-                   let userCoord = userItem.location {
-                    finalCoordinate = userCoord
-                }
-
                 if items.count == 1 {
                     let ann = UnifiedAnnotation()
                     ann.item = items[0]
                     ann.coordinate = items[0].location ?? finalCoordinate
-                    newAnnotations.append(ann)
+                    newSingles.append(ann)
                 } else {
                     let clusterAnn = WasmClusterAnnotation()
+                    // [FIX] Anchor to user location if present
+                    if let userItem = items.first(where: { if case .userLocation = $0 { return true }; return false }),
+                       let userCoord = userItem.location {
+                        finalCoordinate = userCoord
+                    }
                     clusterAnn.coordinate = finalCoordinate
                     clusterAnn.items = items
-                    newAnnotations.append(clusterAnn)
+                    newClusters.append(clusterAnn)
                 }
             }
             
-            // [VISUAL DIFFING ALGORITHM]
-            // Goal: Reuse existing "User Pin" (Single or Cluster) to animate movement
-            
-            let oldAnnotations = mapView.annotations.filter { !($0 is MKUserLocation) }
-            var toAdd: [MKAnnotation] = []
-            var toRemove: [MKAnnotation] = []
-            
-            // 1. Find "User Pin" in New Set
-            let newUserPin = newAnnotations.first { ann in
-                if let uni = ann as? UnifiedAnnotation, case .userLocation = uni.item { return true }
-                if let cl = ann as? WasmClusterAnnotation, cl.items.contains(where: { if case .userLocation = $0 { return true }; return false }) { return true }
-                return false
-            }
-            
-            // 2. Find "User Pin" in Old Set
-            let oldUserPin = oldAnnotations.first { ann in
-                if let uni = ann as? UnifiedAnnotation, case .userLocation = uni.item { return true }
-                if let cl = ann as? WasmClusterAnnotation, cl.items.contains(where: { if case .userLocation = $0 { return true }; return false }) { return true }
-                return false
-            }
-            
-            var reusedUserPin: MKAnnotation? = nil
-            
-            // 3. Diff Check
-            if let newPin = newUserPin, let oldPin = oldUserPin {
-                // Check if they are compatible (Same Type, Same Count/Style)
-                // Simplified: Just Check Class Type and Item Count
-                let isSameType = type(of: newPin) == type(of: oldPin)
-                var isSameCount = false
-                
-                if let nc = newPin as? WasmClusterAnnotation, let oc = oldPin as? WasmClusterAnnotation {
-                    isSameCount = nc.items.count == oc.items.count
-                } else if newPin is UnifiedAnnotation && oldPin is UnifiedAnnotation {
-                    isSameCount = true
-                }
-                
-                if isSameType && isSameCount {
-                    // [REUSE] Smooth Move!
-                    UIView.animate(withDuration: 0.3) {
-                        if let mutablePin = oldPin as? MKPointAnnotation {
-                             mutablePin.coordinate = newPin.coordinate
-                        } else if let mutableUni = oldPin as? UnifiedAnnotation {
-                             mutableUni.coordinate = newPin.coordinate
-                        }
-                    }
-                    reusedUserPin = oldPin
+            // Step 1: New Entry (Single pins that weren't there)
+            for newSingle in newSingles {
+                if let item = newSingle.item, !oldAnnotations.contains(where: { ($0 as? UnifiedAnnotation)?.item?.id == item.id }) {
+                    toAdd.append(newSingle)
                 }
             }
             
-            // 4. Build Add/Remove Lists
-            for newAnn in newAnnotations {
-                if newAnn === newUserPin && reusedUserPin != nil { continue } // Skip adding new user pin if reused
-                toAdd.append(newAnn)
-            }
-            
+            // Step 2: Merge Cleanup (Remove singles that are now in clusters)
             for oldAnn in oldAnnotations {
-                if oldAnn === oldUserPin && reusedUserPin != nil { continue } // Skip removing old user pin if reused
-                toRemove.append(oldAnn)
+                if let oldSingle = oldAnn as? UnifiedAnnotation, let item = oldSingle.item {
+                    if newClusters.contains(where: { $0.items.contains(where: { $0.id == item.id }) }) {
+                        toRemove.append(oldAnn)
+                    } else if !newSingles.contains(where: { $0.item?.id == item.id }) {
+                        // Also remove if not in new singles at all
+                        toRemove.append(oldAnn)
+                    }
+                }
             }
+            
+            // Step 3: Old Cluster Cleanup (Remove invalid clusters)
+            for oldAnn in oldAnnotations {
+                if oldAnn is WasmClusterAnnotation {
+                    // For simplicity, we refresh clusters every time, but we could diff items.
+                    // Given the nature of WASM clustering, centroids shift easily.
+                    toRemove.append(oldAnn)
+                }
+            }
+            
+            // Step 4: New Cluster Entry
+            toAdd.append(contentsOf: newClusters)
+            
+            // Keep existing singles that are still singles (Visual Stability)
+            // (They were not added to toAdd or toRemove in Steps 1-2)
             
             if !toRemove.isEmpty { mapView.removeAnnotations(toRemove) }
             if !toAdd.isEmpty { mapView.addAnnotations(toAdd) }

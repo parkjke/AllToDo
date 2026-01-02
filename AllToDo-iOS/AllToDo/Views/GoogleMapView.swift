@@ -356,7 +356,7 @@ struct GoogleMapView: UIViewRepresentable {
         }
         
         func mapView(_ mapView: GMSMapView, didTap marker: GMSMarker) -> Bool {
-             // [NEW] Auto-Center Logic
+             // [NEW] Auto-center Logic
              let update = GMSCameraUpdate.setTarget(marker.position)
              mapView.animate(with: update)
 
@@ -372,6 +372,8 @@ struct GoogleMapView: UIViewRepresentable {
              return false
         }
         
+        var lastClusteredWm: Double = -1.0 // [NEW] 1.5x Threshold Tracking
+
         // MARK: - WASM Clustering
         func refreshWasmClusters(mapView: GMSMapView) {
             // Avoid calc if not ready
@@ -379,6 +381,7 @@ struct GoogleMapView: UIViewRepresentable {
             
             let region = mapView.projection.visibleRegion()
             let bounds = GMSCoordinateBounds(region: region)
+
             // [FIX] Fallback to Screen Width if Map View is not yet laid out
             var widthPixels = mapView.frame.width // frame used in GMS
             if widthPixels <= 0 {
@@ -388,12 +391,9 @@ struct GoogleMapView: UIViewRepresentable {
                     widthPixels = 375 // Fallback
                 }
             }
-            
-            // guard widthPixels > 0 else { return } // Removed guard
-            
+
             // [OPTIMIZATION] Fast Path
             // [CRITICAL LOCK: DO NOT MODIFY] Raw First -> Cluster Strategy
-            let totalCount = parent.allItems.count
             let isLaunchPhase = parent.action == .launchSequence || firstRender
             let useFastPath = isLaunchPhase
             
@@ -418,6 +418,17 @@ struct GoogleMapView: UIViewRepresentable {
             let metersPerPixel = 156543.03392 * cos(center.latitude * .pi / 180.0) / pow(2, Double(zoom))
             let wasmCellSize = metersPerPixel * 30.0 // [MODIFIED] Reduced to 30.0
             
+            // [NEW] 1.5x Threshold Check
+            let currentWm = metersPerPixel * widthPixels
+            if !isLaunchPhase && lastClusteredWm > 0 {
+                let ratio = currentWm / lastClusteredWm
+                // If change is within 0.66 ~ 1.5, SKIP clustering
+                if ratio > 0.6666 && ratio < 1.5 {
+                    return
+                }
+            }
+            lastClusteredWm = currentWm
+
             // [OPTIMIZATION] Strict Loop Prevention: Do NOT update binding during launch or if change is negligible
             if !isLaunchPhase {
                 let currentRadius = parent.clusterRadius ?? 0
@@ -436,19 +447,21 @@ struct GoogleMapView: UIViewRepresentable {
             for item in parent.allItems {
                 switch item {
                 case .todo(let t):
+                    if t.latitude.isNaN || t.longitude.isNaN { continue } // [NEW] NaN Guard
                     allItemsToProcess.append(item)
                     rawPoints.append(Int32(t.int_lat))
                     rawPoints.append(Int32(t.int_long))
                 case .history(let log):
+                    if log.latitude.isNaN || log.longitude.isNaN { continue } // [NEW] NaN Guard
                     allItemsToProcess.append(item)
                     rawPoints.append(Int32(log.int_lat))
                     rawPoints.append(Int32(log.int_long))
                 case .userLocation(let coord):
+                    if coord.latitude.isNaN || coord.longitude.isNaN { continue } // [NEW] NaN Guard
                     allItemsToProcess.append(item)
                     rawPoints.append(Int32(coord.latitude * 100_000))
                     rawPoints.append(Int32(coord.longitude * 100_000))
-                case .serverMessage:
-                          break
+                default: break
                 }
             }
             
@@ -476,164 +489,122 @@ struct GoogleMapView: UIViewRepresentable {
             
              if clusterResult.count % 3 == 0 {
                  for i in stride(from: 0, to: clusterResult.count, by: 3) {
-                     let lat = Double(clusterResult[i]) / 100_000.0
-                     let lon = Double(clusterResult[i+1]) / 100_000.0
-                     let count = Int(clusterResult[i+2])
-                     centroids.append(Centroid(lat: lat, lon: lon, count: count))
+                     centroids.append(Centroid(lat: Double(clusterResult[i])/100_000.0, lon: Double(clusterResult[i+1])/100_000.0, count: Int(clusterResult[i+2])))
                  }
              }
             
             var clusters: [[UnifiedMapItem]] = Array(repeating: [], count: centroids.count)
              
              for item in allItems {
-                 var itemLat: Double = 0
-                 var itemLon: Double = 0
-                 switch item {
-                 case .todo(let t): if let l = t.location { itemLat = l.latitude; itemLon = l.longitude }
-                 case .history(let l): itemLat = l.latitude; itemLon = l.longitude
-                 case .userLocation(let coord):
-                    itemLat = coord.latitude; itemLon = coord.longitude
-                case .serverMessage:
-                          break
-                 }
-                 
+                 guard let loc = item.location else { continue }
                  var bestIdx = -1
                  var minDist = Double.greatestFiniteMagnitude
                  for (idx, c) in centroids.enumerated() {
-                     let dLat = itemLat - c.lat
-                     let dLon = itemLon - c.lon
-                     let dist = dLat*dLat + dLon*dLon
-                     if dist < minDist {
-                         minDist = dist
-                         bestIdx = idx
-                     }
+                     let dist = pow(loc.latitude - c.lat, 2) + pow(loc.longitude - c.lon, 2)
+                     if dist < minDist { minDist = dist; bestIdx = idx }
                  }
-                 if bestIdx >= 0 {
-                     clusters[bestIdx].append(item)
-                 }
+                 if bestIdx >= 0 { clusters[bestIdx].append(item) }
              }
 
-            // [VISUAL DIFFING ALGORITHM]
-            // Constraint: GMSMapView.clear() wipes Polyline overlays too. We must manage markers manually.
+            // [SMOOTHING ALGORITHM - 4 STEPS]
+            // We use markers' items as keys for identification.
             
+            var oldMarkers = self.markers
             var newMarkers: [GMSMarker] = []
-            var reusedMarker: GMSMarker? = nil
             
-            // 1. Identify New User Marker Data
-            var newUserMarkerData: (position: CLLocationCoordinate2D, icon: UIImage?, anchor: CGPoint)? = nil
-             var newUserItems: [UnifiedMapItem]? = nil
-             var newUserClusterIdx = -1
-             
-             for (idx, items) in clusters.enumerated() {
-                 guard !items.isEmpty else { continue }
-                 let centroid = centroids[idx]
-                 var finalCoordinate = CLLocationCoordinate2D(latitude: centroid.lat, longitude: centroid.lon)
-                 
-                 // Check for User
-                 if let userItem = items.first(where: { if case .userLocation = $0 { return true }; return false }),
-                    case .userLocation(let userCoord) = userItem {
-                     finalCoordinate = userCoord
-                     newUserItems = items
-                     newUserClusterIdx = idx
-                     
-                     // Resolve Style
-                     let (pinType, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
-                     var icon: UIImage?
-                     var anchor = CGPoint(x: 0.5, y: 1.0)
-                     
-                     if items.count == 1 {
-                         // [FIX] Use fetchPin
-                         icon = PinImageHelper.shared.fetchPin(type: userItem.type)
-                     } else {
-                         anchor = CGPoint(x: 0.4, y: 1.0)
-                         // [FIX] Use fetchPin + applyBadge directly
-                         if let baseImage = PinImageHelper.shared.fetchPin(type: pinType) {
-                             if count > 1 {
-                                 icon = PinImageHelper.shared.applyBadge(to: baseImage, count: count, badgeColor: color, badgeSize: 20)
-                             } else {
-                                 icon = baseImage
-                             }
-                         } else { icon = nil }
-                     }
-                     
-                     newUserMarkerData = (finalCoordinate, icon, anchor)
-                 }
-             }
+            // 1. New Entry: Add single pins that weren't there (or were in clusters)
+            // 2. Merge Cleanup: Remove single pins that are now in clusters
+            // 3. Old Cluster Cleanup: Remove old invalid clusters
+            // 4. New Cluster Entry: Add new clusters
             
-            // 2. Try to Reuse Existing User Marker
-             if let newData = newUserMarkerData {
-                 if let oldUserMarker = self.markers.first(where: { ($0 as? WasmClusterMarker)?.isUserLocation == true }) {
-                     reusedMarker = oldUserMarker
-                     
-                     // Animate Position (using CATransaction for smoothness if needed, or just set)
-                     // Google Maps markers interpolate automatically if moved short distances?
-                     // Actually GMSMarker needs animation for smooth slide.
-                     CATransaction.begin()
-                     CATransaction.setAnimationDuration(0.3)
-                     oldUserMarker.position = newData.position
-                     CATransaction.commit()
-                     
-                     oldUserMarker.icon = newData.icon
-                     oldUserMarker.groundAnchor = newData.anchor
-                     if let custom = oldUserMarker as? WasmClusterMarker, let items = newUserItems {
-                         custom.items = items
-                     }
-                     
-                     newMarkers.append(oldUserMarker)
-                 }
-             }
+            // For GMS, we'll do literal Step-by-Step for visual consistency.
             
-            // 3. Remove Old Markers (Except Reused)
-             for marker in self.markers {
-                 if marker === reusedMarker { continue }
-                 marker.map = nil // Remove from map
-             }
-             
-            // 4. Create New Markers
-              for (idx, items) in clusters.enumerated() {
-                  if items.isEmpty { continue }
-                  
-                  // Skip reused user cluster
-                  if idx == newUserClusterIdx && reusedMarker != nil { continue }
-                  
-                  let centroid = centroids[idx]
-                  let marker = WasmClusterMarker()
-                  var finalCoordinate = CLLocationCoordinate2D(latitude: centroid.lat, longitude: centroid.lon)
-                  var isUser = false
-                  
-                  if let userItem = items.first(where: { if case .userLocation = $0 { return true }; return false }),
-                     case .userLocation(let userCoord) = userItem {
-                      finalCoordinate = userCoord
-                      isUser = true
-                  }
-                  
-                  marker.position = finalCoordinate
-                  marker.items = items
-                  if isUser { marker.isUserLocation = true }
-                  
-                  if items.count == 1, let item = items.first {
-                      marker.position = item.location ?? finalCoordinate
-                      marker.groundAnchor = CGPoint(x: 0.5, y: 1.0)
-                      // [FIX] Use fetchPin
-                      marker.icon = PinImageHelper.shared.fetchPin(type: item.type)
-                  } else {
-                      let (pinType, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
-                      marker.groundAnchor = CGPoint(x: 0.4, y: 1.0)
-                      // [FIX] Use fetchPin + applyBadge directly
-                      if let baseImage = PinImageHelper.shared.fetchPin(type: pinType) {
-                          if count > 1 {
-                              marker.icon = PinImageHelper.shared.applyBadge(to: baseImage, count: count, badgeColor: color, badgeSize: 20)
-                          } else {
-                              marker.icon = baseImage
-                          }
-                      } else { marker.icon = nil }
-                  }
-                  
-                  marker.map = mapView
-                  newMarkers.append(marker)
-              }
+            let userMarker = oldMarkers.first(where: { ($0 as? WasmClusterMarker)?.isUserLocation == true })
             
-            // 5. Update State
+            // Step 1 & 4 Pre-calc: Identify what we need
+            var clustersToAdd: [(centroid: Centroid, items: [UnifiedMapItem])] = []
+            var singlesToAdd: [UnifiedMapItem] = []
+            
+            for (idx, items) in clusters.enumerated() {
+                if items.count == 1 {
+                    singlesToAdd.append(items[0])
+                } else {
+                    clustersToAdd.append((centroids[idx], items))
+                }
+            }
+            
+            // Step 2 & 3: Find what to remove
+            var markersToRemove: [GMSMarker] = []
+            for marker in oldMarkers {
+                guard let custom = marker as? WasmClusterMarker else { continue }
+                if custom.isUserLocation { continue } // Handled separately if needed, but usually reused
+                
+                if custom.items.count == 1 {
+                    // It was a single pin. Is it still a single pin?
+                    let item = custom.items[0]
+                    if !singlesToAdd.contains(where: { $0.id == item.id }) {
+                        markersToRemove.append(marker) // Step 2: It's now in a cluster or gone
+                    } else {
+                        newMarkers.append(marker) // Keep it
+                        singlesToAdd.removeAll(where: { $0.id == item.id }) // Already there
+                    }
+                } else {
+                    // It was a cluster. Remove it (Step 3) - we'll re-add new ones
+                    markersToRemove.append(marker)
+                }
+            }
+            
+            // Apply Steps in Order
+            
+            // Step 1: Add New Singles
+            for item in singlesToAdd {
+                let marker = WasmClusterMarker()
+                marker.items = [item]
+                marker.position = item.location ?? CLLocationCoordinate2D(latitude: 0, longitude: 0)
+                marker.icon = PinImageHelper.shared.fetchPin(type: item.type)
+                marker.groundAnchor = CGPoint(x: 0.5, y: 1.0)
+                marker.map = mapView
+                newMarkers.append(marker)
+            }
+            
+            // Step 2 & 3: Remove
+            for marker in markersToRemove {
+                marker.map = nil
+            }
+            
+            // Step 4: Add New Clusters
+            for cluster in clustersToAdd {
+                let marker = WasmClusterMarker()
+                marker.items = cluster.items
+                
+                var finalCoord = CLLocationCoordinate2D(latitude: cluster.centroid.lat, longitude: cluster.centroid.lon)
+                var isUser = false
+                if let userItem = cluster.items.first(where: { if case .userLocation = $0 { return true }; return false }),
+                   case .userLocation(let coord) = userItem {
+                    finalCoord = coord
+                    isUser = true
+                }
+                
+                marker.position = finalCoord
+                marker.isUserLocation = isUser
+                
+                let (pinType, color, count) = MapLogicHelper.resolveClusterStyle(items: cluster.items)
+                if let baseImage = PinImageHelper.shared.fetchPin(type: pinType) {
+                    marker.icon = PinImageHelper.shared.applyBadge(to: baseImage, count: count, badgeColor: color, badgeSize: 20)
+                }
+                marker.groundAnchor = isUser ? CGPoint(x: 0.5, y: 1.0) : CGPoint(x: 0.4, y: 1.0)
+                marker.map = mapView
+                newMarkers.append(marker)
+            }
+            
+            // Special Handle: User Marker (if exists and not in newMarkers yet)
+            if let user = userMarker, !newMarkers.contains(user) {
+                // Check if user is in any of the new clusters/singles
+                // If not, remove it.
+                let userStillExists = allItems.contains(where: { if case .userLocation = $0 { return true }; return false })
+                if !userStillExists { user.map = nil }
+            }
+            
             self.markers = newMarkers
         }
         

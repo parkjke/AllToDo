@@ -375,20 +375,21 @@ struct NaverMapView: UIViewRepresentable {
             for item in parent.allItems {
                 switch item {
                 case .todo(let t):
+                    if t.latitude.isNaN || t.longitude.isNaN { continue } // [NEW] NaN Guard
                     allItemsToProcess.append(item)
                     rawPoints.append(Int32(t.int_lat))
                     rawPoints.append(Int32(t.int_long))
                 case .history(let log):
+                    if log.latitude.isNaN || log.longitude.isNaN { continue } // [NEW] NaN Guard
                     allItemsToProcess.append(item)
                     rawPoints.append(Int32(log.int_lat))
                     rawPoints.append(Int32(log.int_long))
                 case .userLocation(let coord):
+                    if coord.latitude.isNaN || coord.longitude.isNaN { continue } // [NEW] NaN Guard
                     allItemsToProcess.append(item)
                     rawPoints.append(Int32(coord.latitude * 100_000))
                     rawPoints.append(Int32(coord.longitude * 100_000))
-                case .serverMessage:
-                    break
-                    break
+                default: break
                 }
             }
             
@@ -413,10 +414,8 @@ struct NaverMapView: UIViewRepresentable {
         
         @MainActor
         func renderWasmResults(mapView: NMFMapView, clusterResult: [Int32], allItems: [UnifiedMapItem]) {
-            // [FIX] Disable Native Location Overlay (Blue Dot)
             mapView.locationOverlay.hidden = true
             
-            // [FIX] Restore Parsing Logic (Accidentally deleted)
             struct Centroid { let lat: Double; let lon: Double; let count: Int }
             var centroids: [Centroid] = []
             
@@ -424,204 +423,133 @@ struct NaverMapView: UIViewRepresentable {
                 for i in stride(from: 0, to: clusterResult.count, by: 3) {
                     let lat = Double(clusterResult[i]) / 100_000.0
                     let lon = Double(clusterResult[i+1]) / 100_000.0
-                    let count = Int(clusterResult[i+2])
-                    centroids.append(Centroid(lat: lat, lon: lon, count: count))
+                    if lat.isNaN || lon.isNaN { continue } // [NEW] NaN Guard
+                    centroids.append(Centroid(lat: lat, lon: lon, count: Int(clusterResult[i+2])))
                 }
             }
             
             var clusters: [[UnifiedMapItem]] = Array(repeating: [], count: centroids.count)
-            
             for item in allItems {
-                var itemLat: Double = 0
-                var itemLon: Double = 0
-                switch item {
-                case .todo(let t): if let l = t.location { itemLat = l.latitude; itemLon = l.longitude }
-                case .history(let l): itemLat = l.latitude; itemLon = l.longitude
-                case .userLocation(let coord):
-                    itemLat = coord.latitude; itemLon = coord.longitude
-                case .serverMessage:
-                    break
-                }
+                guard let loc = item.location, !loc.latitude.isNaN, !loc.longitude.isNaN else { continue } // [NEW] NaN Guard
                 
                 var bestIdx = -1
                 var minDist = Double.greatestFiniteMagnitude
-                
                 for (idx, c) in centroids.enumerated() {
-                    let dLat = itemLat - c.lat
-                    let dLon = itemLon - c.lon
-                    let dist = dLat*dLat + dLon*dLon
-                    if dist < minDist {
-                        minDist = dist
-                        bestIdx = idx
-                    }
+                    let dist = pow(loc.latitude - c.lat, 2) + pow(loc.longitude - c.lon, 2)
+                    if dist < minDist { minDist = dist; bestIdx = idx }
                 }
-                
-                if bestIdx >= 0 {
-                    clusters[bestIdx].append(item)
-                }
+                if bestIdx >= 0 { clusters[bestIdx].append(item) }
             }
 
-            // [VISUAL DIFFING ALGORITHM]
-            // Goal: Reuse existing "User Pin" keys to prevent flickering
+            // [SMOOTHING ALGORITHM - 4 STEPS]
+            // Step 1: New Entry (Single pins that weren't there)
+            // Step 2: Merge Cleanup (Remove singles that are now in clusters)
+            // Step 3: Old Cluster Cleanup (Remove old clusters)
+            // Step 4: New Cluster Entry (Add new clusters)
             
+            var oldMarkers = self.markers
             var newMarkers: [NMFMarker] = []
-            var reusedMarker: NMFMarker? = nil
             
-            // 1. Identify New User Marker Data
-            var newUserMarkerData: (position: NMGLatLng, icon: NMFOverlayImage, anchor: CGPoint, size: CGSize)? = nil
-            var newUserItems: [UnifiedMapItem]? = nil
-            var newUserClusterIdx = -1
+            var clustersToProcess: [(centroid: Centroid, items: [UnifiedMapItem])] = []
+            var singlesToProcess: [UnifiedMapItem] = []
             
             for (idx, items) in clusters.enumerated() {
-                guard !items.isEmpty else { continue }
-                let centroid = centroids[idx]
-                var finalCoord = NMGLatLng(lat: centroid.lat, lng: centroid.lon)
+                if items.count == 1 {
+                    singlesToProcess.append(items[0])
+                } else if items.count > 1 {
+                    clustersToProcess.append((centroids[idx], items))
+                }
+            }
+            
+            let userMarker = oldMarkers.first(where: { ($0.userInfo["isUser"] as? Bool) == true })
+            
+            // Step 1: New Entry (Add new single pins)
+            for item in singlesToProcess {
+                if let existing = oldMarkers.first(where: { ($0.userInfo["id"] as? UUID) == item.id }) {
+                    newMarkers.append(existing)
+                } else {
+                    let marker = createMarker(for: [item], lat: item.location?.latitude ?? 0, lon: item.location?.longitude ?? 0)
+                    marker.userInfo["id"] = item.id
+                    if item.type == "user" { marker.userInfo["isUser"] = true }
+                    marker.mapView = mapView
+                    newMarkers.append(marker)
+                }
+            }
+            
+            // Step 2 & 3: Find what to remove
+            for marker in oldMarkers {
+                if marker === userMarker { continue } // Handled via clusters/singles logic
                 
-                // Check for User
-                if let userItem = items.first(where: { if case .userLocation = $0 { return true }; return false }),
-                   let userCoord = userItem.location {
-                    finalCoord = NMGLatLng(lat: userCoord.latitude, lng: userCoord.longitude)
-                    newUserItems = items
-                    newUserClusterIdx = idx
-                    
-                    // Resolve Style
-                     let (pinType, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
-                     let targetSize = CGSize(width: 36, height: 45)
-                     var icon: NMFOverlayImage?
-                     var anchor = CGPoint(x: 0.5, y: 1.0)
-                     
-                     if count > 1 {
-                         anchor = CGPoint(x: 18.0 / 46.0, y: 1.0)
-                     } else {
-                         anchor = CGPoint(x: 0.5, y: 1.0)
-                     }
-                     
-                     // [FIX] Unified Fetch Logic
-                     if let baseImage = PinImageHelper.shared.fetchPin(type: pinType) {
-                         let resizedBaseImage = baseImage.resized(to: targetSize)
-                         if count > 1 {
-                             icon = NMFOverlayImage(image: PinImageHelper.shared.applyBadge(to: resizedBaseImage ?? baseImage, count: count, badgeColor: color, badgeSize: 18))
-                         } else {
-                             icon = NMFOverlayImage(image: resizedBaseImage ?? baseImage)
-                         }
-                     }
-                    
-                    if let ic = icon {
-                        newUserMarkerData = (finalCoord, ic, anchor, targetSize)
+                if let id = marker.userInfo["id"] as? UUID {
+                    // It was a single pin. Is it still a single pin?
+                    if !singlesToProcess.contains(where: { $0.id == id }) {
+                        marker.mapView = nil // Step 2: Now in cluster or gone
                     }
+                } else {
+                    // It was a cluster. Step 3: Remove old clusters
+                    marker.mapView = nil
                 }
             }
             
-            // 2. Try to Find Reusable Marker in Old Set
-            if let newData = newUserMarkerData {
-                // Find a marker that represents user location in `markers`
-                // We don't store metadata in NMFMarker, so we might need a tag or simple heuristics.
-                // Heuristic: Check if any existing marker is CLOSE to the new position (e.g. within previous update)
-                // OR better: In `markers` array, we can track which one was the user marker.
-                // Let's optimize by searching for a marker that *looks* like a user pin (e.g. PinCurrent) or was at the last user loc?
-                // Simplest: Just iterate and check if it WAS the user pin? 
-                // Since we clear `markers` every time, we lose valid references unless we save them.
-                // FIX: We need to know which of the `self.markers` is the user marker. 
-                // Let's assume the user marker is unique.
-                
-                // Let's look for a marker that is currently at the 'old' user location? 
-                // No, we should rely on the fact that we can Identify it via TAG or user info.
-                
-                if let oldUserMarker = self.markers.first(where: {
-                    // Check if tag or some property indicates it's a user pin?
-                    // We can use `userInfo` dict in NMFMarker if available, or just check global state?
-                    // Let's look at `userInfo`. NMFMarker has `userInfo`.
-                    return ($0.userInfo["isUser"] as? Bool) == true
-                }) {
-                     // 3. Reuse!
-                     reusedMarker = oldUserMarker
-                     
-                     // Animate Position
-                     // Naver doesn't have built-in property animation for markers, but we can interpolate or set.
-                     // Setting position is effectively instant, but if called frequently (60fps), it looks smooth.
-                     oldUserMarker.position = newData.position
-                     oldUserMarker.iconImage = newData.icon
-                     oldUserMarker.anchor = newData.anchor
-                     
-                     if let items = newUserItems {
-                         oldUserMarker.touchHandler = { [weak self] (overlay: NMFOverlay) -> Bool in
-                             guard let self = self, let marker = overlay as? NMFMarker else { return false }
-                             let generator = UIImpactFeedbackGenerator(style: .medium); generator.impactOccurred()
-                             self.pendingSelection = (items, marker.position)
-                             let update = NMFCameraUpdate(scrollTo: marker.position)
-                             update.animation = .fly; update.animationDuration = 0.3
-                             self.mapView?.moveCamera(update)
-                             return true
-                         }
-                     }
-                     
-                     // Keep it in new list
-                     newMarkers.append(oldUserMarker)
-                }
-            }
-            
-            // 3. Clean Up Old Markers (Except Reused)
-            for marker in self.markers {
-                if marker === reusedMarker { continue }
-                marker.mapView = nil // Remove from map
-            }
-            
-            // 4. Create NEW Markers (Skip User if Reused)
-            for (idx, items) in clusters.enumerated() {
-                if items.isEmpty { continue }
-                
-                // If this is the user cluster and we reused it, SKIP
-                if idx == newUserClusterIdx && reusedMarker != nil { continue }
-                
-                let centroid = centroids[idx]
-                var finalCoord = NMGLatLng(lat: centroid.lat, lng: centroid.lon)
+            // Step 4: Add New Clusters
+            for cluster in clustersToProcess {
+                var finalLat = cluster.centroid.lat
+                var finalLon = cluster.centroid.lon
                 var isUser = false
                 
-                if let userItem = items.first(where: { if case .userLocation = $0 { return true }; return false }),
+                if let userItem = cluster.items.first(where: { if case .userLocation = $0 { return true }; return false }),
                    let userCoord = userItem.location {
-                    finalCoord = NMGLatLng(lat: userCoord.latitude, lng: userCoord.longitude)
+                    finalLat = userCoord.latitude
+                    finalLon = userCoord.longitude
                     isUser = true
                 }
                 
-                let marker = NMFMarker()
-                marker.position = finalCoord
-                if isUser { marker.userInfo = ["isUser": true] } // TAG
-                
-                let (pinType, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
-                let targetSize = CGSize(width: 36, height: 45)
-                
-                if count > 1 {
-                    marker.anchor = CGPoint(x: 18.0 / 46.0, y: 1.0)
-                } else {
-                    marker.anchor = CGPoint(x: 0.5, y: 1.0)
-                }
-                
-                // [FIX] Unified Fetch Logic
-                if let baseImage = PinImageHelper.shared.fetchPin(type: pinType) {
-                    let resizedBaseImage = baseImage.resized(to: targetSize)
-                    if count > 1 {
-                        marker.iconImage = NMFOverlayImage(image: PinImageHelper.shared.applyBadge(to: resizedBaseImage ?? baseImage, count: count, badgeColor: color, badgeSize: 18))
-                    } else {
-                        marker.iconImage = NMFOverlayImage(image: resizedBaseImage ?? baseImage)
-                    }
-                }
-                
-                marker.touchHandler = { [weak self] (overlay: NMFOverlay) -> Bool in
-                    guard let self = self, let marker = overlay as? NMFMarker else { return false }
-                    let generator = UIImpactFeedbackGenerator(style: .medium); generator.impactOccurred()
-                    self.pendingSelection = (items, marker.position)
-                    let update = NMFCameraUpdate(scrollTo: marker.position)
-                    update.animation = .fly; update.animationDuration = 0.3
-                    self.mapView?.moveCamera(update)
-                    return true
-                }
-                
+                let marker = createMarker(for: cluster.items, lat: finalLat, lon: finalLon)
+                if isUser { marker.userInfo["isUser"] = true }
                 marker.mapView = mapView
                 newMarkers.append(marker)
             }
             
-            // 5. Update Local State
+            // Clean up old user marker if not reused
+            if let user = userMarker, !newMarkers.contains(user) {
+                user.mapView = nil
+            }
+            
             self.markers = newMarkers
+        }
+        
+        private func createMarker(for items: [UnifiedMapItem], lat: Double, lon: Double) -> NMFMarker {
+            let marker = NMFMarker()
+            marker.position = NMGLatLng(lat: lat, lng: lon)
+            
+            let (pinType, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
+            let targetSize = CGSize(width: 36, height: 45)
+            
+            if items.count == 1 {
+                marker.anchor = CGPoint(x: 0.5, y: 1.0)
+                if let img = PinImageHelper.shared.fetchPin(type: items[0].type) {
+                    let resized = img.resized(to: targetSize)
+                    marker.iconImage = NMFOverlayImage(image: resized ?? img)
+                }
+            } else {
+                marker.anchor = CGPoint(x: 18.0/46.0, y: 1.0)
+                if let baseImage = PinImageHelper.shared.fetchPin(type: pinType) {
+                    let resized = baseImage.resized(to: targetSize) ?? baseImage
+                    marker.iconImage = NMFOverlayImage(image: PinImageHelper.shared.applyBadge(to: resized, count: count, badgeColor: color, badgeSize: 18))
+                }
+            }
+            
+            marker.touchHandler = { [weak self] (overlay: NMFOverlay) -> Bool in
+                guard let self = self, let m = overlay as? NMFMarker else { return false }
+                let generator = UIImpactFeedbackGenerator(style: .medium); generator.impactOccurred()
+                self.pendingSelection = (items, m.position)
+                let update = NMFCameraUpdate(scrollTo: m.position)
+                update.animation = .fly; update.animationDuration = 0.3
+                self.mapView?.moveCamera(update)
+                return true
+            }
+            
+            return marker
         }
         
 
