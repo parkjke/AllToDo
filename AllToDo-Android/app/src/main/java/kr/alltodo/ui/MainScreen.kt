@@ -582,8 +582,7 @@ fun MainScreen(
                 pathData = selectedHistoryPath,
                 mapProvider = mapProvider,
                 onClose = { 
-                    android.util.Log.d("MainScreen", ">>> PathViewer onClose called (Setting null)")
-                    viewingPathTodo = null 
+                    showPathDetail = null
                 }
             )
         }

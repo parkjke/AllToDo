@@ -102,37 +102,35 @@ fun NaverMapContent(
         }
     }
 
-    // [FIX] Manage Markers (Recomposition Optimization)
+    // [New Algorithm] 4-Step Incremental Clustering (Naver Parity)
     // We must manually manage Marker objects on the NaverMap instance
-    val currentMarkers = remember { mutableListOf<Marker>() }
+    val currentMarkersMap = remember { mutableMapOf<String, Marker>() }
 
-    // [NEW] Active Path Rendering
+    // [RESTORED] Active Path Rendering
     val activePathOverlay = remember { PathOverlay() }
+    // [RESTORED] Active Path & Blue Dot Trail rendering (Merged to reduce UI thread load)
+    val trailMarkers = remember { mutableListOf<com.naver.maps.map.overlay.Marker>() }
     LaunchedEffect(naverMap, activePoints, showActivePath) {
         val map = naverMap ?: return@LaunchedEffect
+        
+        // 1. Render Active Path Polyline
         if (showActivePath && activePoints.size >= 2) {
             activePathOverlay.coords = activePoints.map { LatLng(it.latitude, it.longitude) }
-            activePathOverlay.width = (5 * context.resources.displayMetrics.density).toInt() // Increased to 5dp
+            activePathOverlay.width = (5 * context.resources.displayMetrics.density).toInt()
             activePathOverlay.color = android.graphics.Color.parseColor("#FF5722") // Orange Red
-            activePathOverlay.globalZIndex = 100000 // Ensure visibility above map
+            activePathOverlay.globalZIndex = 100000 
             activePathOverlay.outlineWidth = 0
             activePathOverlay.map = map
         } else {
             activePathOverlay.map = null
         }
-    }
 
-    // [NEW] Active Path Blue Dot Trail (Immediate Feedback)
-    val trailMarkers = remember { mutableListOf<com.naver.maps.map.overlay.Marker>() }
-    LaunchedEffect(naverMap, activePoints, showActivePath) {
-        val map = naverMap ?: return@LaunchedEffect
-        
-        // 1. Clear Old Markers
+        // 2. Render Blue Dot Trail (Last 20 points)
         trailMarkers.forEach { it.map = null }
         trailMarkers.clear()
         
         if (showActivePath && activePoints.isNotEmpty()) {
-            val tailPoints = activePoints.takeLast(20) // Limit to last 20 for performance
+            val tailPoints = activePoints.takeLast(20)
             val dotBitmap = kr.alltodo.ui.PinImageManager.createDotBitmap(context, android.graphics.Color.BLUE, 3f)
             val overlayImage = com.naver.maps.map.overlay.OverlayImage.fromBitmap(dotBitmap)
             
@@ -141,7 +139,7 @@ fun NaverMapContent(
                 marker.position = LatLng(point.latitude, point.longitude)
                 marker.icon = overlayImage
                 marker.anchor = android.graphics.PointF(0.5f, 0.5f)
-                marker.isFlat = true // Flat against map
+                marker.isFlat = true
                 marker.map = map
                 trailMarkers.add(marker)
             }
@@ -150,153 +148,114 @@ fun NaverMapContent(
 
     LaunchedEffect(naverMap, visibleClusters) {
         val map = naverMap ?: return@LaunchedEffect
+        val count = visibleClusters.size
         
-        // [VISUAL DIFFING ALGORITHM]
-        // 1. Identify User Pin in New Data
-        var newUserMarkerData: Triple<LatLng, com.naver.maps.map.overlay.OverlayImage, android.graphics.PointF>? = null
-        var newUserItems: List<UnifiedItem>? = null
-        var newUserClusterIndex = -1
-        
-        visibleClusters.forEachIndexed { index, cluster ->
-            val isUserFn = { item: UnifiedItem -> item is UnifiedItem.CurrentLocation }
-            if (cluster.items.any(isUserFn)) {
-                // This cluster contains User Location
-                newUserClusterIndex = index
-                newUserItems = cluster.items
+        try {
+            fun generateKey(cluster: PinClusterItem): String {
+                val itemIds = cluster.items.map { 
+                    when(it) {
+                        is UnifiedItem.Todo -> "T_${it.item.todo_id}"
+                        is UnifiedItem.History -> "H_${it.item.todo_id}"
+                        is UnifiedItem.CurrentLocation -> "U"
+                    }
+                }.sorted().joinToString("|")
+                return "k_${cluster.count}_$itemIds"
+            }
+
+            val newKeys = mutableSetOf<String>()
+            val nextMarkersMap = mutableMapOf<String, Marker>()
+            
+            // --- Step 1 & 4: Identification & Addition/Update ---
+            visibleClusters.forEach { cluster ->
+                val lat = cluster.latitude
+                val lng = cluster.longitude
                 
-                // Resolve Style
+                if (lat.isNaN() || lng.isNaN()) return@forEach
+
+                val key = generateKey(cluster)
+                newKeys.add(key)
+                
                 val isSingle = cluster.count == 1
-                val firstItem = cluster.items.first()
-                val position = LatLng(cluster.latitude, cluster.longitude)
+                val isUser = cluster.items.any { it is UnifiedItem.CurrentLocation }
+                val firstItem = cluster.items.firstOrNull() ?: return@forEach
+                val position = LatLng(lat, lng)
                 
-                // (Logic updated for static bitmaps)
-                val (bitmap, anchorX, anchorY) = if (isSingle) { // User Single
-                     Triple(kr.alltodo.ui.createNaverPinBitmap(context, 0, firstItem.pinId, android.graphics.Color.TRANSPARENT), 0.5f, 0.5f) 
-                } else { // User Cluster
-                     val style = kr.alltodo.utils.MapLogicHelper.resolveClusterStyle(cluster.items)
-                     val b = kr.alltodo.ui.createNaverPinBitmap(context, cluster.count, style.pinId, style.color)
-                     
-                     // Cluster anchor logic
-                     val density = context.resources.displayMetrics.density
-                     val scale = 1.0f 
-                     val pinW = (40 * density * scale)
-                     val badgeRadius = 10f * density * scale
-                     val padding = (badgeRadius * 1.2f)
-                     val canvasW = pinW + padding
-                     Triple(b, 0.392f, 1.0f)
-                }
-                
-                if (bitmap != null) {
-                    newUserMarkerData = Triple(position, OverlayImage.fromBitmap(bitmap), android.graphics.PointF(anchorX, anchorY))
-                }
-            }
-        }
-        
-        // 2. Find Existing User Marker to Reuse
-        var reusedMarker: Marker? = null
-        val oldUserMarker = currentMarkers.find { it.tag == "UserPin" }
-        
-        if (newUserMarkerData != null && oldUserMarker != null) {
-            // REUSE
-            reusedMarker = oldUserMarker
-            val (pos, icon, anchor) = newUserMarkerData!!
-            
-            oldUserMarker.position = pos
-            oldUserMarker.icon = icon
-            oldUserMarker.anchor = anchor
-            oldUserMarker.zIndex = 100 // Keep user on top
-            
-            // Update Click Listener with new Items
-            oldUserMarker.setOnClickListener { _ ->
-                val proj = map.projection
-                val screenPt = proj.toScreenLocation(pos)
-                if (newUserItems!!.size == 1) {
-                     onItemClickWithCoords(newUserItems!![0], screenPt.x.toFloat(), screenPt.y.toFloat())
+                // Resolve Style & Icon
+                val (bitmap, anchorX, anchorY) = if (isSingle) {
+                    val b = kr.alltodo.ui.createNaverPinBitmap(context, 0, firstItem.pinId, android.graphics.Color.TRANSPARENT)
+                    val aH = if (isUser) 0.5f else 1.0f
+                    Triple(b, 0.5f, aH)
                 } else {
-                     onClusterClickWithCoords(newUserItems!!, screenPt.x.toFloat(), screenPt.y.toFloat())
+                    val style = kr.alltodo.utils.MapLogicHelper.resolveClusterStyle(cluster.items)
+                    val b = kr.alltodo.ui.createNaverPinBitmap(context, cluster.count, style.pinId, style.color)
+                    Triple(b, 0.392f, 1.0f)
                 }
-                true
-            }
-        }
-        
-        // 3. Prepare New Marker List
-        val newMarkersList = mutableListOf<Marker>()
-        if (reusedMarker != null) newMarkersList.add(reusedMarker)
-        
-        // 4. Create New Markers (Skip User if Reused)
-        visibleClusters.forEachIndexed { index, cluster ->
-            if (index == newUserClusterIndex && reusedMarker != null) return@forEachIndexed
-            
-            val isSingle = cluster.count == 1
-            val firstItem = cluster.items.firstOrNull() ?: return@forEachIndexed
-            val position = LatLng(cluster.latitude, cluster.longitude)
-            
-            val marker = Marker()
-            marker.position = position
-            
-            // Mark as User Pin if applicable (for future reuse)
-            val isUserCluster = index == newUserClusterIndex
-            if (isUserCluster) marker.tag = "UserPin"
-            
-            val (bitmap, anchorX, anchorY) = if (isSingle) {
-                val b = kr.alltodo.ui.createNaverPinBitmap(context, 0, firstItem.pinId, android.graphics.Color.TRANSPARENT)
-                // [FIX] Current Location Single Pin center is 0.5, 0.5. Others are 0.5, 1.0
-                val aH = if (firstItem is UnifiedItem.CurrentLocation) 0.5f else 1.0f
-                Triple(b, 0.5f, aH)
-            } else {
-                 val style = kr.alltodo.utils.MapLogicHelper.resolveClusterStyle(cluster.items)
-                 val b = kr.alltodo.ui.createNaverPinBitmap(context, cluster.count, style.pinId, style.color)
-                 
-                 val density = context.resources.displayMetrics.density
-                 val scale = 1.0f
-                 val pinW = (40 * density * scale)
-                 val badgeRadius = 10f * density * scale
-                 val padding = (badgeRadius * 1.2f)
-                 val canvasW = pinW + padding
-                 Triple(b, 0.392f, 1.0f)
-            }
-            
-            if (bitmap != null) {
-                marker.icon = OverlayImage.fromBitmap(bitmap)
-                marker.anchor = android.graphics.PointF(anchorX, anchorY)
-                marker.zIndex = if (isUserCluster) 100 else 10
+                
+                val marker = currentMarkersMap[key] ?: Marker().apply { 
+                    this.tag = key
+                    this.position = position
+                    this.map = map // Add to map if new
+                }
+                
+                // Update Properties
+                marker.position = position
+                if (bitmap != null) {
+                    marker.icon = OverlayImage.fromBitmap(bitmap)
+                    marker.anchor = android.graphics.PointF(anchorX, anchorY)
+                }
+                marker.zIndex = if (isUser) 100 else 10
                 
                 marker.setOnClickListener { _ ->
                     val proj = map.projection
                     val screenPt = proj.toScreenLocation(position)
                     if (isSingle) {
-                         onItemClickWithCoords(firstItem, screenPt.x.toFloat(), screenPt.y.toFloat())
+                        onItemClickWithCoords(firstItem, screenPt.x.toFloat(), screenPt.y.toFloat())
                     } else {
-                         onClusterClickWithCoords(cluster.items, screenPt.x.toFloat(), screenPt.y.toFloat())
+                        onClusterClickWithCoords(cluster.items, screenPt.x.toFloat(), screenPt.y.toFloat())
                     }
                     true
                 }
                 
-                marker.map = map
-                newMarkersList.add(marker)
+                nextMarkersMap[key] = marker
             }
-        }
-        
-        // 5. Cleanup Old Markers
-        currentMarkers.forEach { old ->
-            if (old != reusedMarker) {
-                old.map = null
+            
+            // --- Step 2 & 3: Removal ---
+            val it = currentMarkersMap.entries.iterator()
+            while (it.hasNext()) {
+                val entry = it.next()
+                if (!newKeys.contains(entry.key)) {
+                    entry.value.map = null 
+                    it.remove()
+                }
             }
-        }
-        currentMarkers.clear()
-        currentMarkers.addAll(newMarkersList)
-        
-        // [NEW] Show Creating Todo Pin (Green)
-        if (creatingTodoLocation != null) {
-            val marker = Marker()
-            marker.position = creatingTodoLocation
-            val b = kr.alltodo.ui.createNaverPinBitmap(context, 0, "10", android.graphics.Color.TRANSPARENT)
-            if (b != null) {
-                marker.icon = OverlayImage.fromBitmap(b)
-                marker.anchor = android.graphics.PointF(0.5f, 1.0f)
-                marker.map = map
-                currentMarkers.add(marker)
+            
+            currentMarkersMap.putAll(nextMarkersMap)
+
+            // Creating Todo Pin
+            if (creatingTodoLocation != null) {
+                val key = "CREATING_TODO"
+                val marker = currentMarkersMap.getOrPut(key) {
+                    Marker().apply { 
+                        this.position = creatingTodoLocation
+                        this.map = map 
+                    }
+                }
+                marker.position = creatingTodoLocation
+                val b = kr.alltodo.ui.createNaverPinBitmap(context, 0, "10", android.graphics.Color.TRANSPARENT)
+                if (b != null) {
+                    marker.icon = OverlayImage.fromBitmap(b)
+                    marker.anchor = android.graphics.PointF(0.5f, 1.0f)
+                }
+                marker.zIndex = 50
+            } else {
+                currentMarkersMap.remove("CREATING_TODO")?.map = null
             }
+            
+        } catch (e: Exception) {
+            if (e !is kotlinx.coroutines.CancellationException) {
+                android.util.Log.e("NaverMap", "Error Rendering Clusters: ${e.message}", e)
+            }
+            throw e
         }
     }
 

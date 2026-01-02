@@ -416,7 +416,7 @@ struct GoogleMapView: UIViewRepresentable {
             let zoom = mapView.camera.zoom
             // Meters per pixel ~ 156543.03392 * cos(lat) / 2^zoom
             let metersPerPixel = 156543.03392 * cos(center.latitude * .pi / 180.0) / pow(2, Double(zoom))
-            let wasmCellSize = metersPerPixel * 100.0 // [FIX] Restored Standard Sensitivity (100.0)
+            let wasmCellSize = metersPerPixel * 30.0 // [MODIFIED] Reduced to 30.0
             
             // [OPTIMIZATION] Strict Loop Prevention: Do NOT update binding during launch or if change is negligible
             if !isLaunchPhase {

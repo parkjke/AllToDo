@@ -167,8 +167,6 @@ fun GoogleMapContent(
     }
 
     Box(modifier = modifier) {
-    // [DEBUG] Check State Identity
-    android.util.Log.e("ANTIGRAVITY", ">>> [GoogleMapContent] Received StateHash: ${System.identityHashCode(cameraPositionState)}")
     
     GoogleMap(
         modifier = Modifier.fillMaxSize(),
@@ -176,14 +174,12 @@ fun GoogleMapContent(
         properties = properties,
         uiSettings = uiSettings,
         onMapClick = { latLng ->
-            android.util.Log.e("ANTIGRAVITY", ">>> [GoogleMapContent] Map Clicked at $latLng")
             onMapClick(com.kakao.vectormap.LatLng.from(latLng.latitude, latLng.longitude))
         },
         onMapLongClick = { latLng ->
              onMapLongClick(com.kakao.vectormap.LatLng.from(latLng.latitude, latLng.longitude))
         },
         onMapLoaded = {
-            android.util.Log.e("ANTIGRAVITY", ">>> [GoogleMapContent] onMapLoaded Triggered")
             onMapLoaded()
         },
         contentPadding = PaddingValues(bottom = (contentPaddingBottom / context.resources.displayMetrics.density).dp)
@@ -191,19 +187,12 @@ fun GoogleMapContent(
         // [FIX] Use SideEffect/LaunchedEffect to track projection/rotation without breaking internal listeners
         
         MapEffect(Unit) { map ->
-            android.util.Log.e("ANTIGRAVITY", ">>> [GoogleMapContent] MapEffect: Got GoogleMap Instance")
             googleMapInstance = map
-            
-            // [DEBUG] Native Listener to bypass Compose State
-            map.setOnCameraMoveListener {
-                android.util.Log.e("ANTIGRAVITY", ">>> [GoogleMapContent] NATIVE OnCameraMove")
-            }
         }
 
         
         LaunchedEffect(googleMapInstance, cameraPositionState.isMoving) {
             val map = googleMapInstance ?: return@LaunchedEffect
-            android.util.Log.e("ANTIGRAVITY", ">>> [GoogleMapContent] Camera Moving State: ${cameraPositionState.isMoving}")
             snapshotFlow { cameraPositionState.position }
                 .collectLatest { 
                     mapProjection = map.projection
@@ -280,62 +269,58 @@ fun GoogleMapContent(
             )
         }
         
-        // [VISUAL DIFFING]
-        // Maintain stable MarkerState objects to enable smooth updates (especially for User Pin)
+        // [New Algorithm] 4-Step Incremental Clustering (Google Parity)
+        fun generateKey(cluster: PinClusterItem): String {
+            val itemIds = cluster.items.map { 
+                when(it) {
+                    is UnifiedItem.Todo -> "T_${it.item.todo_id}"
+                    is UnifiedItem.History -> "H_${it.item.todo_id}"
+                    is UnifiedItem.CurrentLocation -> "U"
+                }
+            }.sorted().joinToString("|")
+            return "k_${cluster.count}_$itemIds"
+        }
+
+        // Maintain stable MarkerState objects to enable smooth updates
         val markerStates = remember { mutableStateMapOf<String, com.google.maps.android.compose.MarkerState>() }
         val currentKeys = mutableSetOf<String>()
         
-        System.out.println(">>> [GoogleMapContent] Processing Cluster Markers: ${filteredItems.size}")
-        
-        filteredItems.forEachIndexed { idx, cluster ->
-            if (idx == 0) System.out.println(">>> [GoogleMapContent] Marker[0] at ${cluster.latitude},${cluster.longitude} count=${cluster.count}")
+        filteredItems.forEach { cluster ->
+            val lat = cluster.latitude
+            val lng = cluster.longitude
+            if (lat.isNaN() || lng.isNaN()) return@forEach
 
-            val isSingle = cluster.count == 1
-            val firstItem = cluster.items.firstOrNull() as? UnifiedItem.Todo
-            
-            // Generate Stable ID
-            // User Pin: "UserPin"
-            // Others: "Cluster_{lat}_{lon}_{count}" (or just lat/lon if static)
-            var stableId = "Cluster_${cluster.latitude}_${cluster.longitude}_${cluster.count}"
-            
-            // Check if this cluster contains User Location
-            var hasUserLocation = false
-            cluster.items.forEach { 
-                if (it is UnifiedItem.CurrentLocation) hasUserLocation = true
-            }
-            if (hasUserLocation) {
-                stableId = "UserPin" 
-            }
-            
+            val stableId = generateKey(cluster)
             currentKeys.add(stableId)
             
+            val isSingle = cluster.count == 1
+            val isUser = cluster.items.any { it is UnifiedItem.CurrentLocation }
+            val firstItem = cluster.items.firstOrNull()
+            
             // Get or Create State
-            val position = LatLng(cluster.latitude, cluster.longitude)
+            val position = LatLng(lat, lng)
             val state = markerStates.getOrPut(stableId) {
                 MarkerState(position = position)
             }
-            // Update Position (Maps Compose optimizes this: if same, no-op; if diff, animate/move)
+            
+            // For smooth user movement, we allow MarkerState to handle the position update
             state.position = position
             
             // Determine Icon
             val style = kr.alltodo.utils.MapLogicHelper.resolveClusterStyle(cluster.items)
-            
             val iconDescriptor = if (isSingle && firstItem != null) {
-                // Formatting Single Item
                 val bitmap = kr.alltodo.ui.createGooglePinBitmap(context, 0, firstItem.pinId, android.graphics.Color.TRANSPARENT)
                 com.google.android.gms.maps.model.BitmapDescriptorFactory.fromBitmap(bitmap)
             } else {
-                // [FIX] Use Cached Cluster Bitmap to prevent flickering & show Badge
                 kr.alltodo.ui.getCachedClusterBitmap(context, cluster.count, style.pinId, style.color)
             }
             
-            // [FIX] Add Marker with Stable State and Key
             key(stableId) {
                 Marker(
                     state = state,
                     icon = iconDescriptor,
                     // [FIX] Adjust anchor for cluster (offset due to badge overhang)
-                    anchor = if (isSingle && firstItem != null) Offset(0.5f, 1.0f) else Offset(0.392f, 1.0f),
+                    anchor = if (isSingle) Offset(0.5f, 1.0f) else Offset(0.392f, 1.0f),
                     onClick = {
                         val point = mapProjection?.toScreenLocation(position)
                         if (point != null) {
@@ -347,7 +332,7 @@ fun GoogleMapContent(
                         }
                         true
                     },
-                    zIndex = if (hasUserLocation) 100f else 1.0f
+                    zIndex = if (isUser) 100f else 1.0f
                 )
             }
         }

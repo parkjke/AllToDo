@@ -31,16 +31,16 @@ object MapLogicHelper {
         calendar.add(Calendar.HOUR, 24)
         val maxTime = calendar.timeInMillis
         
-        // 1. Path Existence Filter (Strict Requirement: no_of_path > 0)
-        val withLocation = allItems.filter { 
-            it.no_of_path > 0
-        }
-        
-        // 2. Time Window Filter (±24h)
-        val timeFiltered = withLocation.filter { item ->
+        // 1. Time Window Filter (±24h)
+        val timeFiltered = allItems.filter { item ->
             // Use begin_time or date_time(parsed) or created_at
             val itemTime = item.begin_time ?: item.created_at
             itemTime in minTime..maxTime
+        }
+        
+        // 2. Path Existence Filter (Strict Requirement: no_of_path > 0)
+        val withLocation = timeFiltered.filter { 
+            it.no_of_path > 0
         }
         
         val results = mutableListOf<UnifiedItem>()
@@ -51,7 +51,7 @@ object MapLogicHelper {
         }
         
         // 4. Transform to UnifiedMapItem
-        for (item in timeFiltered) {
+        for (item in withLocation) {
             if (item.type.startsWith("0")) {
                 results.add(UnifiedItem.History(item))
             } else {

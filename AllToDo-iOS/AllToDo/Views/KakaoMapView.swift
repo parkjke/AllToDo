@@ -312,7 +312,7 @@ struct KakaoMapView: UIViewRepresentable {
             let zoom = Double(mapView.zoomLevel)
             let centerLat = mapView.getPosition(CGPoint(x: mapView.viewRect.width/2, y: mapView.viewRect.height/2)).wgsCoord.latitude
             let metersPerPixel = 156543.03392 * cos(centerLat * .pi / 180.0) / pow(2, zoom)
-            let wasmCellSize = metersPerPixel * 100.0
+            let wasmCellSize = metersPerPixel * 30.0 // [MODIFIED] Reduced to 30.0
             
             // [NEW] 1.5x Threshold Check
             let currentWm = metersPerPixel * mapView.viewRect.width

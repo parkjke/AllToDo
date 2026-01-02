@@ -343,9 +343,8 @@ struct NaverMapView: UIViewRepresentable {
             let zoom = map.zoomLevel
             let centerLat = map.cameraPosition.target.lat
             
-            // Meter/Pixel Calc: 156543.03392 * cos(lat) / 2^zoom
             let metersPerPixel = 156543.03392 * cos(centerLat * .pi / 180.0) / pow(2, zoom)
-            let wasmCellSize = metersPerPixel * 100.0
+            let wasmCellSize = metersPerPixel * 30.0 // [MODIFIED] Reduced to 30.0
             
             // [NEW] 1.5x Threshold Check
             let isLaunchPhase = parent.action == .launchSequence || firstRender

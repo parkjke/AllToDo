@@ -1,3 +1,18 @@
+## 2026-01-02
+### Android Map Stabilization & Clustering Optimization
+- **Naver Map Freeze Resolution (Silent Killer)**:
+    - **Issue**: Naver Map was freezing/crashing on Android due to `InvalidCoordinateException` (NaN coordinates) and incorrect initialization order.
+    - **Fix 1 (Order)**: Reordered marker property assignments to set `position` **before** attaching it to the `map`.
+    - **Fix 2 (Guard)**: Implemented a robust `NaN` guard at the beginning of the cluster rendering loop to skip invalid data without stopping the engine.
+    - **Diagnosis**: Identified the issue through instrumented `try-catch` logging after a 4-hour investigation into thread contention proved to be a red herring.
+- **Cross-Platform Stabilization (Google/Kakao)**:
+    - Proactively applied the same `NaN` coordinate guards to `GoogleMapContent.kt` and `KakaoMapContent.kt` to ensure architectural consistency and prevent similar crashes.
+- **Log Purge & Code Purity**:
+    - Removed all instrumented debug logs and over 20 `System.out.println` statements from `MapFeatureViewModel`, `NaverMapContent`, and `GoogleMapContent` to restore a clean production-ready state.
+- **Technical Documentation Refinement**:
+    - Updated `map_begin_logic.md` and `APP_LAUNCH_SCENARIO.md` with the new **ScreenWidthMeters-based clustering** strategy (1.5x threshold) and unified **SSOT filtering** rules (+/- 24h, `no_of_path > 0`).
+    - Added a detailed 'Silent Killer' post-mortem to `NAVER_MAP_ANDROID_CASE_STUDY.md`.
+
 ## 2026-01-01
 ### Web Deployment Refactor & Android Map Stabilization
 - **Web Landing Page Deployment Strategy (Final)**:

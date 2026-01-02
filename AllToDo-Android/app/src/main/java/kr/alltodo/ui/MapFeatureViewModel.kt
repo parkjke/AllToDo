@@ -77,7 +77,6 @@ class MapFeatureViewModel @Inject constructor(
     fun updateZoom(zoom: Float, lat: Double? = null, provider: MapProvider? = null) {
         var changed = false
         if (Math.abs(_currentZoom.value - zoom) > 0.01f) {
-            System.out.println(">>> [MapViewModel] Zoom Changed: ${_currentZoom.value} -> $zoom")
             _currentZoom.value = zoom
             changed = true
         }
@@ -150,12 +149,10 @@ class MapFeatureViewModel @Inject constructor(
         // or significant data change triggers call directly
         
         if (shouldRecluster) {
-            System.out.println(">>> [MapViewModel] Clustering Triggered: Ratio=${if(wm0>0) wm1/wm0 else "Init"} (Wm1=$wm1, Wm0=$wm0)")
             lastClusteredScreenWidthMeters = wm1
             recalculateClusters()
         } else if (changed) {
             // Just update state, no cluster (Optimization)
-             System.out.println(">>> [MapViewModel] Zoom/Move Updated (No Recluster): Ratio=${if(wm0>0) wm1/wm0 else "Init"}")
         }
     }
     
@@ -237,7 +234,6 @@ class MapFeatureViewModel @Inject constructor(
     }
 
     private fun recalculateClusters() {
-        System.out.println(">>> [MapViewModel] recalculateClusters triggered")
         viewModelScope.launch {
             performClusteringLogic()
         }
@@ -272,10 +268,8 @@ class MapFeatureViewModel @Inject constructor(
 
         // 5. Execute WASM Logic
         val clustersFlat = try {
-             System.out.println(">>> [MapViewModel] Invoking WASM cluster: points=${flatPoints.size/2} cell=$cellSizeMeters")
              wasmManager.cluster(flatPoints, cellSizeMeters)
         } catch (e: Exception) {
-             System.out.println(">>> [MapViewModel] WASM Error: ${e.message}")
              emptyList<Int>()
         }
         
@@ -285,8 +279,6 @@ class MapFeatureViewModel @Inject constructor(
         } else {
             mapClustersToItems(clustersFlat, items)
         }
-        
-        System.out.println(">>> [MapViewModel] Cluster Update Complete. Count=${_clusteredItems.value.size}")
     }
 
     // MARK: - Clustering Helpers
@@ -318,7 +310,7 @@ class MapFeatureViewModel @Inject constructor(
     private fun mapClustersToItems(clustersFlat: List<Int>, items: List<UnifiedItem>): List<PinClusterItem> {
         // Safety Check for WASM output
         if (clustersFlat.size % 3 != 0) {
-             System.out.println(">>> [MapViewModel] CRITICAL: WASM returned invalid size: ${clustersFlat.size}")
+             // CRITICAL: WASM returned invalid size
         }
         
         val newClusters = mutableListOf<PinClusterItem>()
@@ -364,22 +356,16 @@ class MapFeatureViewModel @Inject constructor(
     // [NEW] Launch Sequence (Raw -> 3s -> Cluster)
     private fun launchMapSequence() {
         viewModelScope.launch {
-            System.out.println(">>> [MapViewModel] Launch Sequence Start: Showing Raw Pins")
-            
             // 1. Initial State: Raw Pins (Clustering Disabled by default logic in init)
             
             // 2. Wait 3 seconds
-            System.out.println(">>> [MapViewModel] Launch Sequence Step 1: Delaying 3s...")
             kotlinx.coroutines.delay(3000)
-            System.out.println(">>> [MapViewModel] Launch Sequence Step 2: Delay Over. Triggering Transition...")
 
             // 3. Enable Clustering
             isInitialLaunch = false
             _isClusteringEnabled.value = true
-            System.out.println(">>> [MapViewModel] Launch Sequence Step 3: Clustering Enabled")
 
             // 4. Trigger Zoom to Current Location
-            System.out.println(">>> [MapViewModel] Launch Sequence Step 4: Emit CURRENT_LOCATION action")
             _mapAction.value = MapAction.CURRENT_LOCATION
             
             // Force Recalculate
@@ -388,7 +374,6 @@ class MapFeatureViewModel @Inject constructor(
             
             kotlinx.coroutines.delay(500) // Give UI time to react to Zoom
             _mapAction.value = MapAction.NONE
-            System.out.println(">>> [MapViewModel] Launch Sequence Step 5: Reset Action to NONE")
         }
     }
     
@@ -458,8 +443,7 @@ class MapFeatureViewModel @Inject constructor(
         // [Fire & Forget] Start WASM Init (Background)
         wasmManager.initialize { success ->
             if (success) {
-                // Log success or update internal state if needed
-                System.out.println(">>> [MapViewModel] WASM Ready")
+                // WASM Ready
             }
         }
         

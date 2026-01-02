@@ -217,72 +217,7 @@ fun KakaoMapContent(
     // [FIX] We need a persistent state for the User Label to reuse it across recompositions
     val userLabelState = remember { mutableStateOf<com.kakao.vectormap.label.Label?>(null) }
     
-    LaunchedEffect(kakaoMap, visibleClusters) {
-        val map = kakaoMap ?: return@LaunchedEffect
-        val labelManager = map.labelManager ?: return@LaunchedEffect
-        val layer = labelManager.getLayer("mainLayer") ?: labelManager.addLayer(LabelLayerOptions.from("mainLayer"))
-        
-        // [FIX] instead of removeAll(), we will remove all EXCEPT the user label if we can find it?
-        // Actually, easiest is to keep a reference.
-        
-        // 1. Identify New User Data
-        var newUserPos: LatLng? = null
-        var newUserBitmap: Bitmap? = null
-        var newUserAnchor: Pair<Float, Float>? = null
-        var newUserItems: List<UnifiedItem>? = null
-        var newUserClusterIndex = -1
-        
-        visibleClusters.forEachIndexed { index, cluster ->
-             if (cluster.items.any { it is UnifiedItem.CurrentLocation }) {
-                 newUserClusterIndex = index
-                 newUserItems = cluster.items
-                 newUserPos = LatLng.from(cluster.latitude, cluster.longitude)
-                 
-                 val isSingle = cluster.items.size == 1
-                 val firstItem = cluster.items.firstOrNull() as? kr.alltodo.ui.UnifiedItem.Todo
-                 
-                 val (b, ax, ay) = if (isSingle && firstItem != null) {
-                     val style = kr.alltodo.utils.MapLogicHelper.resolveClusterStyle(cluster.items)
-                     Triple(kr.alltodo.ui.createKakaoPinBitmap(context, 0, firstItem.pinId, android.graphics.Color.TRANSPARENT), 0.5f, 0.5f)
-                 } else {
-                     val style = kr.alltodo.utils.MapLogicHelper.resolveClusterStyle(cluster.items)
-                     val b = kr.alltodo.ui.createKakaoPinBitmap(context, cluster.count, style.pinId, style.color)
-                     
-                     val density = context.resources.displayMetrics.density
-                     val scale = 0.7f // Kakao Scale
-                     val pinW = (40 * density * scale)
-                     val badgeRadius = 10f * density * scale
-                     val padding = (badgeRadius * 1.5f)
-                     val totalW = pinW + padding
-                     val finalAnchorX = (pinW / 2f) / totalW
-                     
-                     Triple(b, finalAnchorX, 1.0f)
-                 }
-                 newUserBitmap = b
-                 newUserAnchor = Pair(ax, ay)
-             }
-        }
-        
-        // 2. Clear Non-User Labels
-        // We can't selectively remove easily without tracking ALL. 
-        // Strategy: removeAll(), but if userLabelState is valid, does removeAll() invalidate it?
-        // YES. layer.removeAll() destroys all labels.
-        
-        // CHANGE STRATEGY: We must track ALL labels to do proper diffing, OR
-        // just accept that we clear non-user labels.
-        // But to reuse User Label, we must NOT call removeAll().
-        
-        // So we need to iterate internal list? No access.
-        // We MUST maintain our own list of labels.
-        
-        // [Refined Plan]
-        // 1. Clear everything (Performance hit? No, logic is simpler).
-        // 2. BUT to support smooth movement, we need to SAVE the user label instance.
-        // 3. Issue: If we call layer.removeAll(), the user label is dead.
-        // 4. Solution: Don't call removeAll(). Call remove(label) for everyone else.
-        
-        // We need a persistent list of labels.
-    }
+
     
     // [FIX] Persistent State for Labels
     val currentLabels = remember { mutableListOf<com.kakao.vectormap.label.Label>() }
@@ -292,45 +227,58 @@ fun KakaoMapContent(
         val labelManager = map.labelManager ?: return@LaunchedEffect
         val layer = labelManager.getLayer("mainLayer") ?: labelManager.addLayer(LabelLayerOptions.from("mainLayer"))
         
-        // 1. Identify User in New Data
-        var newUserClusterIndex = -1
-        visibleClusters.forEachIndexed { index, cluster ->
-            if (cluster.items.any { it is UnifiedItem.CurrentLocation }) {
-                newUserClusterIndex = index
-            }
+        // [New Algorithm] 4-Step Incremental Clustering
+        // We use stable keys based on item IDs to track identity across re-clustering.
+        fun generateKey(cluster: kr.alltodo.ui.PinClusterItem): String {
+            val itemIds = cluster.items.map { 
+                when(it) {
+                    is kr.alltodo.ui.UnifiedItem.Todo -> "T_${it.item.todo_id}"
+                    is kr.alltodo.ui.UnifiedItem.History -> "H_${it.item.todo_id}"
+                    is kr.alltodo.ui.UnifiedItem.CurrentLocation -> "U"
+                }
+            }.sorted().joinToString("|")
+            return "k_${cluster.count}_$itemIds"
         }
-        
-        // 2. Find Existing User Label
-        var reusedUserLabel: com.kakao.vectormap.label.Label? = null
-        val oldUserLabel = currentLabels.find { (it.tag as? PinClusterItem)?.items?.any { item -> item is UnifiedItem.CurrentLocation } == true }
-        
-        // 3. Render New Labels
+
+        val oldLabelsByKey = currentLabels.associateBy { (it.tag as? kr.alltodo.ui.PinClusterItem)?.let { generateKey(it) } ?: "none" }
         val newLabels = mutableListOf<com.kakao.vectormap.label.Label>()
         
-        visibleClusters.forEachIndexed { index, cluster ->
-            val isUserCluster = (index == newUserClusterIndex)
-            val currentCluster = cluster // Explicit parameter name for better readability
+        // --- Step 1 & 4: Identification & Addition ---
+        visibleClusters.forEach { cluster ->
+            val lat = cluster.latitude
+            val lng = cluster.longitude
+            if (lat.isNaN() || lng.isNaN()) return@forEach
+
+            val key = generateKey(cluster)
+            val existing = oldLabelsByKey[key]
             
-            if (isUserCluster && oldUserLabel != null) {
-                // Reuse!
-                reusedUserLabel = oldUserLabel
-                val pos = LatLng.from(currentCluster.latitude, currentCluster.longitude)
-                oldUserLabel.moveTo(pos, 500) // Smooth Move!
+            if (existing != null) {
+                // [REUSE] Identical cluster content found, just update position/tag
+                val pos = LatLng.from(cluster.latitude, cluster.longitude)
                 
-                // Update Style (Icon/Anchor)
-                // Kakao Label doesn't support changing icon easily without styles.
-                // But we can add new style and set it?
-                // Or just assume style is same (Blue Dot)?
-                // Actually changing styles is possible: label.setStyles(styles)
+                // Smooth move for User Pin, immediate for others to prevent 'lagging' trail
+                val isUserVisible = cluster.items.any { it is kr.alltodo.ui.UnifiedItem.CurrentLocation }
+                if (isUserVisible) {
+                    existing.moveTo(pos, 500)
+                } else {
+                    existing.moveTo(pos, 0)
+                }
                 
+                existing.tag = cluster
+                newLabels.add(existing)
+            } else {
+                // [ADD] New pin or cluster - Step 1/4
                 val isSingle = cluster.count == 1
-                val firstItem = cluster.items.first()
-                val styleId = "cluster_${cluster.count}_User"
+                val isUser = cluster.items.any { it is kr.alltodo.ui.UnifiedItem.CurrentLocation }
+                val firstItem = cluster.items.firstOrNull() ?: return@forEach
                 
+                val styleId = "s_${cluster.count}_${if(isUser) "U" else firstItem.hashCode()}"
                 var styles = labelManager.getLabelStyles(styleId)
+                
                 if (styles == null) {
-                    val (b, ax, ay) = if (isSingle) {
-                        Triple(kr.alltodo.ui.createKakaoPinBitmap(context, 0, firstItem.pinId, android.graphics.Color.TRANSPARENT), 0.5f, 0.5f)
+                    val (bitmap, ax, ay) = if (isSingle) {
+                        val b = kr.alltodo.ui.createKakaoPinBitmap(context, 0, firstItem.pinId, android.graphics.Color.TRANSPARENT)
+                        Triple(b, 0.5f, 1.0f)
                     } else {
                         val style = kr.alltodo.utils.MapLogicHelper.resolveClusterStyle(cluster.items)
                         val b = kr.alltodo.ui.createKakaoPinBitmap(context, cluster.count, style.pinId, style.color)
@@ -343,77 +291,38 @@ fun KakaoMapContent(
                         val totalW = pinW + padding
                         val finalAnchorX = (pinW / 2f) / totalW
                         
-                        Triple(b, 0.392f, 1.0f)
-                    }
-                    if (b != null) {
-                         styles = labelManager.addLabelStyles(LabelStyles.from(styleId, LabelStyle.from(b).setAnchorPoint(ax, ay)))
-                    }
-                }
-                
-                if (styles != null) oldUserLabel.styles = styles
-                
-                // Update Tag
-                oldUserLabel.tag = cluster
-                newLabels.add(oldUserLabel)
-                
-            } else {
-                // Create New
-                val isSingle = cluster.count == 1
-                val firstItem = cluster.items.firstOrNull() ?: return@forEachIndexed
-                
-                val styleId = "cluster_${cluster.count}_${cluster.latitude}_${cluster.longitude}" // Unique per pos
-                var styles = labelManager.getLabelStyles(styleId)
-                
-                    if (styles == null) {
-                    val (bitmap, anchorX, anchorY) = if (isSingle) {
-                        val b = kr.alltodo.ui.createKakaoPinBitmap(context, 0, firstItem.pinId, android.graphics.Color.TRANSPARENT)
-                        Triple(b, 0.5f, 1.0f)
-                    } else {
-                         val style = kr.alltodo.utils.MapLogicHelper.resolveClusterStyle(cluster.items)
-                         val b = kr.alltodo.ui.createKakaoPinBitmap(context, cluster.count, style.pinId, style.color) 
-                        
-                         val density = context.resources.displayMetrics.density
-                         val scale = 0.7f
-                         val pinW = (40 * density * scale)
-                         val badgeRadius = 10f * density * scale
-                         val padding = (badgeRadius * 1.5f)
-                         val totalW = pinW + padding
-                         val finalAnchorX = (pinW / 2f) / totalW
-                         
-                         Triple(b, 0.392f, 1.0f)
+                        Triple(b, finalAnchorX, 1.0f)
                     }
                     
                     if (bitmap != null) {
-                        styles = labelManager.addLabelStyles(LabelStyles.from(styleId, LabelStyle.from(bitmap).setAnchorPoint(anchorX, anchorY)))
+                        styles = labelManager.addLabelStyles(LabelStyles.from(styleId, LabelStyle.from(bitmap).setAnchorPoint(ax, ay)))
                     }
                 }
                 
                 if (styles != null) {
-                     val options = LabelOptions.from(LatLng.from(cluster.latitude, cluster.longitude))
-                            .setStyles(styles)
-                            .setClickable(true)
-                            
-                     // [FIX] Explicit Z-Order (Rank) Logic
-                     // User: 3000, Cluster: 2000, Single: 1000
-                     // Note: setRank takes Long. Higher is on top.
-                     val rank = if (cluster.count > 1) 2000L else 1000L
-                     options.setRank(rank)
-                     
-                     val label = layer?.addLabel(options)
-                     if (label != null) {
-                         label.tag = cluster
-                         newLabels.add(label)
-                     }
+                    val options = LabelOptions.from(LatLng.from(cluster.latitude, cluster.longitude))
+                        .setStyles(styles)
+                        .setClickable(true)
+                    
+                    val rank = if (isUser) 3000L else (if (cluster.count > 1) 2000L else 1000L)
+                    options.setRank(rank)
+                    
+                    layer?.addLabel(options)?.let { label ->
+                        label.tag = cluster
+                        newLabels.add(label)
+                    }
                 }
             }
         }
         
-        // 4. Cleanup Old Labels
+        // --- Step 2 & 3: Removal ---
+        val newLabelIds = newLabels.map { it.labelId }.toSet()
         currentLabels.forEach { old ->
-             if (old != reusedUserLabel) {
-                 layer?.remove(old)
-             }
+            if (!newLabelIds.contains(old.labelId)) {
+                layer?.remove(old)
+            }
         }
+        
         currentLabels.clear()
         currentLabels.addAll(newLabels)
 
