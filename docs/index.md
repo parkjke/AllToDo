@@ -48,6 +48,23 @@
 *   [**기능 적용 현황표 (Feature Status)**](logic/FeatureStatus.md)
     *   Android vs iOS 플랫폼 간 기능 대조표.
 
+## 📁 전체 프로젝트 개요 (Readme)
+*   [**메인 README (Root)**](../README.md)
+    *   전체 AllToDo 프로젝트 구조 및 실행 가이드
+
+
+## 📘 프로젝트별 매뉴얼 (Component Manuals)
+각 컴포넌트의 상세 실행 방법 및 개발 가이드는 아래 링크를 참조하세요.
+
+*   [**🏠 홈페이지 (HomePage)**](../AllToDo-HomePage/README.md)
+    *   서비스 소개 랜딩 페이지 (Vite + GitHub Pages)
+*   [**🔙 백엔드 (Backend)**](../AllToDo-Backend/README.md)
+    *   Python FastAPI 서버 및 DB 관리
+*   [**📱 웹 앱 (WebApp)**](../AllToDo-WebApp/README.md)
+    *   사용자용 모바일 웹 애플리케이션
+*   [**🖥️ 관리자 웹 (WebMng)**](../AllToDo-WebMng/README.md)
+    *   데이터 관리 및 운영자용 대시보드
+
 ## 🪵 최근 작업 히스토리 (Recent Activity & Tasks)
 > [!NOTE]
 > Antigravity AI 에이전트를 통해 진행 중인 최신 작업 산출물입니다.
@@ -76,20 +93,3 @@
 *   [**안드로이드 핀 렌더링 수정 로그 (2025-12-20)**](history/WORK_LOG_20251220_ANDROID_FIXES.md)
 *   [**랜딩 페이지 작업 로그**](history/WORK_LOG_LANDING_PAGE.md)
 *   [**일일 작업 내역 아카이브 (work_log.md)**](history/work_log.md)
-
-## 📁 전체 프로젝트 개요 (Readme)
-*   [**메인 README (Root)**](../README.md)
-    *   전체 AllToDo 프로젝트 구조 및 실행 가이드
-
-
-## 📘 프로젝트별 매뉴얼 (Component Manuals)
-각 컴포넌트의 상세 실행 방법 및 개발 가이드는 아래 링크를 참조하세요.
-
-*   [**🏠 홈페이지 (HomePage)**](../AllToDo-HomePage/README.md)
-    *   서비스 소개 랜딩 페이지 (Vite + GitHub Pages)
-*   [**🔙 백엔드 (Backend)**](../AllToDo-Backend/README.md)
-    *   Python FastAPI 서버 및 DB 관리
-*   [**📱 웹 앱 (WebApp)**](../AllToDo-WebApp/README.md)
-    *   사용자용 모바일 웹 애플리케이션
-*   [**🖥️ 관리자 웹 (WebMng)**](../AllToDo-WebMng/README.md)
-    *   데이터 관리 및 운영자용 대시보드

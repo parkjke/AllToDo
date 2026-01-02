@@ -419,12 +419,18 @@ class TodoViewModel @Inject constructor(
                     // 1. Calculate Midpoint
                     var sumLat: Double = 0.0
                     var sumLng: Double = 0.0
+                    val intPoints = ArrayList<Pair<Int, Int>>(pointCount)
                     for (p in finalPoints) {
                         sumLat += p.latitude
                         sumLng += p.longitude
+                        intPoints.add(p.int_lat to p.int_long)
                     }
                     val avgLat = sumLat / pointCount
                     val avgLon = sumLng / pointCount
+                    
+                    // [NEW] Check for Short Path (under ~30m)
+                    val isShort = kr.alltodo.utils.GeomUtils.isShortPath(intPoints)
+                    val finalNoOfPath = if (isShort) 1 else pointCount
                     
                     // 2. Create TodoItem (Type: 00 - History)
                     val todoId = java.util.UUID.randomUUID().toString()
@@ -432,7 +438,7 @@ class TodoViewModel @Inject constructor(
                         todo_id = todoId,
                         todo_name = "이동 히스토리",
                         type = "00", // History
-                        no_of_path = pointCount,
+                        no_of_path = finalNoOfPath,
                         int_lat = (avgLat * 100_000).toInt(),
                         int_long = (avgLon * 100_000).toInt(),
                         begin_time = start,
@@ -443,17 +449,20 @@ class TodoViewModel @Inject constructor(
                     // 3. Save Todo & Paths to DB
                     todoRepository.insert(historyTodo)
                     
-                    val pathItems = finalPoints.map { p ->
-                        kr.alltodo.data.PathItem(
-                            todo_id = todoId,
-                            int_long = p.int_long,
-                            int_lat = p.int_lat,
-                            time = p.timestamp // Use location's timestamp
-                        )
+                    if (!isShort) {
+                        val pathItems = finalPoints.map { p ->
+                            kr.alltodo.data.PathItem(
+                                todo_id = todoId,
+                                int_long = p.int_long,
+                                int_lat = p.int_lat,
+                                time = p.timestamp // Use location's timestamp
+                            )
+                        }
+                        todoRepository.insertPaths(pathItems)
+                        kr.alltodo.services.RemoteLogger.info(">>> History Saved Successfully to Todo & Path tables (Count: $pointCount).")
+                    } else {
+                        kr.alltodo.services.RemoteLogger.info(">>> Short Path Detected (<30m). Saving as single point (no_of_path=1).")
                     }
-                    todoRepository.insertPaths(pathItems)
-                    
-                    kr.alltodo.services.RemoteLogger.info(">>> History Saved Successfully to Todo & Path tables.")
                     
                     // Refresh data on Main Thread
                     withContext(Dispatchers.Main) {
