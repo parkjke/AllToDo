@@ -200,11 +200,16 @@ fun CalloutRow(
     ) {
         // [Col 1] Map Icon
         Box(modifier = Modifier.width(36.dp), contentAlignment = Alignment.CenterStart) {
-            val history = (item as? UnifiedItem.History)
-            val hasPath = history?.item?.no_of_path ?: 0 > 0
+            val todoItem = when (item) {
+                is UnifiedItem.Todo -> item.item
+                is UnifiedItem.History -> item.item
+                else -> null
+            }
+            val noOfPath = todoItem?.no_of_path ?: 0
+            val hasPath = noOfPath >= 2
             
             IconButton(
-                onClick = { if (hasPath) onSelectLog(history!!.item) },
+                onClick = { if (hasPath && todoItem != null) onSelectLog(todoItem) },
                 enabled = hasPath,
                 modifier = Modifier.size(28.dp)
             ) {
