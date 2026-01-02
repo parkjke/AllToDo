@@ -207,11 +207,34 @@ fun NaverMapContent(
                 
                 marker.setOnClickListener { _ ->
                     val proj = map.projection
-                    val screenPt = proj.toScreenLocation(position)
+                    val density = context.resources.displayMetrics.density
+                    
+                    // Requirement 4: Pin head at center.y + 3pt
+                    // Requirement 3: Tail at center.y
+                    // Actual Map View Dimensions (Safer than displayMetrics)
+                    val viewW = map.width
+                    val viewH = map.height
+                    
+                    // Pin Tip Target Location = center.y + 3dp + 50dp(height) = +53dp
+                    val offsetPx = (53 * density).toInt() 
+                    val targetScreenPt = android.graphics.PointF(viewW / 2f, (viewH / 2f) + offsetPx)
+                    
+                    // Convert Pin's current position to screen, calculate target center
+                    val pinScreenPt = proj.toScreenLocation(position)
+                    val deltaX = pinScreenPt.x - targetScreenPt.x
+                    val deltaY = pinScreenPt.y - targetScreenPt.y
+                    
+                    val currentCenterPt = android.graphics.PointF(viewW / 2f, viewH / 2f)
+                    val targetCenterPt = android.graphics.PointF(currentCenterPt.x + deltaX, currentCenterPt.y + deltaY)
+                    val targetLatLng = proj.fromScreenLocation(targetCenterPt)
+                    
+                    map.moveCamera(com.naver.maps.map.CameraUpdate.scrollTo(targetLatLng).animate(com.naver.maps.map.CameraAnimation.Easing, 400))
+                    
+                    // Pass screen center to CalloutBubble so tail is at center
                     if (isSingle) {
-                        onItemClickWithCoords(firstItem, screenPt.x.toFloat(), screenPt.y.toFloat())
+                        onItemClickWithCoords(firstItem, viewW / 2f, viewH / 2f)
                     } else {
-                        onClusterClickWithCoords(cluster.items, screenPt.x.toFloat(), screenPt.y.toFloat())
+                        onClusterClickWithCoords(cluster.items, viewW / 2f, viewH / 2f)
                     }
                     true
                 }
@@ -396,6 +419,9 @@ fun NaverMapContent(
                 mapView = this
                 getMapAsync { nMap ->
                     naverMap = nMap
+                    
+                    // [NEW] Force Light Mode
+                    nMap.isNightModeEnabled = false
                     
                     // [Stage 1] Set initial camera immediately to beforeLocation/Zoom 15
                     nMap.cameraPosition = CameraPosition(LatLng(beforeLocation.latitude, beforeLocation.longitude), 15.0)

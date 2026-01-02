@@ -32,7 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
  */
 class BubbleShape(
     private val cornerRadius: Dp = 12.dp,
-    private val tailWidth: Dp = 20.dp,
+    private val tailWidth: Dp = 20.dp, // Specified in water_balloon_logic.md
     private val tailHeight: Dp = 10.dp
 ) : Shape {
     override fun createOutline(
@@ -72,7 +72,8 @@ fun CalloutBubble(
     onDeleteLog: (UnifiedItem.History) -> Unit,
     onSelectLog: (kr.alltodo.data.TodoItem) -> Unit,
     onCreateTodo: (UnifiedItem) -> Unit,
-    mapProvider: kr.alltodo.ui.MapProvider = kr.alltodo.ui.MapProvider.Naver
+    mapProvider: kr.alltodo.ui.MapProvider = kr.alltodo.ui.MapProvider.Naver,
+    forceLightMode: Boolean = false // [NEW] Added for theme consistency
 ) {
     val fontSize = when (popupFontSize) {
         0 -> 12.sp
@@ -81,7 +82,7 @@ fun CalloutBubble(
         else -> 15.sp
     }
 
-    val bubbleWidth = 280.dp // Slightly wider for better text fit
+    val bubbleWidth = 260.dp // Standard width from water_balloon_logic.md
     val rowHeight = when (popupFontSize) {
         0 -> 40.dp
         1 -> 48.dp
@@ -96,70 +97,83 @@ fun CalloutBubble(
     val tailHeight = 10.dp
     val bubbleHeight = totalContentHeight + tailHeight
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .clickable(onClick = onClose)
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme() && !forceLightMode
+    val bubbleColor = if (isDark) Color(0xFF1B8A2B).copy(alpha = 0.85f) else AllToDoGreen.copy(alpha = 0.8f)
+
+    androidx.compose.animation.AnimatedVisibility(
+        visible = items.isNotEmpty(),
+        enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.8f),
+        exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(targetScale = 0.8f)
     ) {
         Box(
             modifier = Modifier
-                .offset {
-                    val totalOffset = when(mapProvider) {
-                        kr.alltodo.ui.MapProvider.Google -> 120.dp
-                        kr.alltodo.ui.MapProvider.Kakao, kr.alltodo.ui.MapProvider.Naver -> 130.dp
-                    }.toPx()
-
-                    IntOffset(
-                        x = (screenPosition.x - (bubbleWidth.toPx() / 2)).toInt(),
-                        y = (screenPosition.y - bubbleHeight.toPx() - totalOffset).toInt()
-                    )
-                }
-                .width(bubbleWidth)
-                .height(bubbleHeight)
-                .shadow(elevation = 8.dp, shape = BubbleShape())
-                .clickable(enabled = false) { }
+                .fillMaxSize()
+                .clickable(onClick = onClose)
         ) {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                shape = BubbleShape(),
-                color = Color.White.copy(alpha = 0.95f),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f))
-            ) {
-                Column {
-                    // [Header] Center Close Button (iOS Style)
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(headerHeight)
-                            .clickable(onClick = onClose),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "닫기",
-                            tint = Color.Black.copy(alpha = 0.4f),
-                            modifier = Modifier.size(24.dp)
+            Box(
+                modifier = Modifier
+                    .offset {
+                        // Offset is handled by map camera in Requirement 4
+                        IntOffset(
+                            x = (screenPosition.x - (bubbleWidth.toPx() / 2)).toInt(),
+                            y = (screenPosition.y - bubbleHeight.toPx()).toInt()
                         )
                     }
-
-                    LazyColumn(
-                        modifier = Modifier.fillMaxWidth().weight(1f, fill = false)
-                    ) {
-                        items(items.take(maxPopupItems)) { item ->
-                            CalloutRow(
-                                item = item,
-                                fontSize = fontSize,
-                                onDeleteTodo = onDeleteTodo,
-                                onDeleteLog = onDeleteLog,
-                                onSelectLog = onSelectLog,
-                                onCreateTodo = onCreateTodo
+                    .width(bubbleWidth)
+                    .height(bubbleHeight)
+                    .shadow(elevation = 8.dp, shape = BubbleShape())
+                    .clickable(enabled = false) { }
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    shape = BubbleShape(),
+                    color = bubbleColor,
+                    border = androidx.compose.foundation.BorderStroke(0.5.dp, Color.White.copy(alpha = 0.2f))
+                ) {
+                    Column {
+                        // [Header] Center Close Button (iOS Style)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(headerHeight)
+                                .clickable(onClick = onClose),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "닫기",
+                                tint = if (isDark) Color.White.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.5f),
+                                modifier = Modifier.size(20.dp)
                             )
-                            if (item != items.take(maxPopupItems).last()) {
-                                Divider(color = Color.Black.copy(alpha = 0.1f), modifier = Modifier.padding(horizontal = 12.dp))
+                        }
+
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f, fill = false)
+                                .padding(bottom = 4.dp)
+                        ) {
+                            // [FIX] No .take(maxPopupItems) here to enable scrolling for all items
+                            items(items) { item ->
+                                CalloutRow(
+                                    item = item,
+                                    fontSize = fontSize,
+                                    onDeleteTodo = onDeleteTodo,
+                                    onDeleteLog = onDeleteLog,
+                                    onSelectLog = onSelectLog,
+                                    onCreateTodo = onCreateTodo
+                                )
+                                if (item != items.last()) {
+                                    Divider(
+                                        color = Color.White.copy(alpha = 0.15f),
+                                        modifier = Modifier.padding(horizontal = 12.dp),
+                                        thickness = 0.5.dp
+                                    )
+                                }
                             }
                         }
+                        Spacer(modifier = Modifier.height(10.dp)) // Tail height padding
                     }
-                    Spacer(modifier = Modifier.height(16.dp)) // Extra padding for the tail area
                 }
             }
         }
@@ -197,7 +211,7 @@ fun CalloutRow(
                 Icon(
                     imageVector = Icons.Default.Map,
                     contentDescription = "경로 보기",
-                    tint = if (hasPath) Color(0xFF28CD41) else Color.Gray.copy(alpha = 0.3f),
+                    tint = if (hasPath) Color.White else Color.White.copy(alpha = 0.3f),
                     modifier = Modifier.size(22.dp)
                 )
             }
@@ -222,30 +236,30 @@ fun CalloutRow(
                     if (item is UnifiedItem.History && item.item.no_of_path > 0) {
                         Text(
                             text = "(${item.item.no_of_path})",
-                            color = Color(0xFF28CD41),
-                            fontSize = (fontSize.value - 2).sp,
+                            color = Color.White,
+                            fontSize = (fontSize.value - 3).sp,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.width(32.dp)
+                            modifier = Modifier.padding(end = 4.dp)
                         )
                     }
 
-                    Text(text = dateStr, color = Color.Gray, fontSize = (fontSize.value - 1).sp)
+                    Text(text = dateStr, color = Color.White.copy(alpha = 0.7f), fontSize = (fontSize.value - 1).sp)
                     Spacer(Modifier.width(6.dp))
-                    Text(text = timeStr, color = Color.Black, fontSize = fontSize, fontWeight = FontWeight.Bold)
+                    Text(text = timeStr, color = Color.White, fontSize = fontSize, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.width(8.dp))
-                    Text(text = name, color = Color.Black, fontSize = fontSize, maxLines = 1)
+                    Text(text = name, color = Color.White, fontSize = fontSize, maxLines = 1, modifier = Modifier.weight(1f))
                 }
                 is UnifiedItem.CurrentLocation -> {
-                    Icon(Icons.Default.Person, null, tint = Color.Red, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Person, null, tint = Color.White, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
                     Text(
                         text = timeFormat.format(Date()),
-                        color = Color.Red,
+                        color = Color.White,
                         fontSize = fontSize,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text("현재 위치", color = Color.Red, fontSize = fontSize)
+                    Text("현재 위치", color = Color.White, fontSize = fontSize)
                 }
             }
         }
@@ -265,7 +279,7 @@ fun CalloutRow(
                 Icon(
                     imageVector = Icons.Default.Delete,
                     contentDescription = "삭제",
-                    tint = Color.Red.copy(alpha = 0.6f),
+                    tint = Color.White.copy(alpha = 0.7f),
                     modifier = Modifier.size(22.dp)
                 )
             }

@@ -498,15 +498,38 @@ fun KakaoMapContent(
                                 val clicked = label.tag as? PinClusterItem
                                 
                                 if (clicked != null) {
-                                    val pos = label.position
-                                    val screenPt = kMap.toScreenPoint(pos)
-                                    val scrollX = screenPt?.x?.toFloat() ?: 0f
-                                    val scrollY = screenPt?.y?.toFloat() ?: 0f
+                                    val density = context.resources.displayMetrics.density
                                     
+                                    val viewW = mapView?.width ?: 0
+                                    val viewH = mapView?.height ?: 0
+                                    
+                                    // Requirement 4: Pin head at center.y + 3pt
+                                    // Pin Tip Target Location = center.y + 3dp + 50dp(height) = +53dp
+                                    val offsetPx = (53 * density).toInt() 
+                                    val targetScreenPt = android.graphics.Point(viewW / 2, (viewH / 2) + offsetPx)
+                                    
+                                    // Convert Pin's current position to screen, calculate target center
+                                    val currentPinPos = label.position
+                                    val pinScreenPt = kMap.toScreenPoint(currentPinPos)
+                                    
+                                    if (pinScreenPt != null) {
+                                        val deltaX = pinScreenPt.x - targetScreenPt.x
+                                        val deltaY = pinScreenPt.y - targetScreenPt.y
+                                        
+                                        val currentCenterPt = android.graphics.Point(viewW / 2, viewH / 2)
+                                        val targetCenterPt = android.graphics.Point(currentCenterPt.x + deltaX.toInt(), currentCenterPt.y + deltaY.toInt())
+                                        val targetLatLng = kMap.fromScreenPoint(targetCenterPt.x, targetCenterPt.y)
+                                        
+                                        if (targetLatLng != null) {
+                                            kMap.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.newCenterPosition(targetLatLng), com.kakao.vectormap.camera.CameraAnimation.from(400, true, true))
+                                        }
+                                    }
+                                    
+                                    // Pass screen center to CalloutBubble so tail is at center
                                     if (clicked.count == 1 && clicked.items.isNotEmpty()) {
-                                         onItemClickWithCoords(clicked.items.first(), scrollX, scrollY)
+                                         onItemClickWithCoords(clicked.items.first(), viewW / 2f, viewH / 2f)
                                     } else {
-                                         onClusterClickWithCoords(clicked.items, scrollX, scrollY)
+                                         onClusterClickWithCoords(clicked.items, viewW / 2f, viewH / 2f)
                                     }
                                 }
                                 true

@@ -1,4 +1,16 @@
 ## 2026-01-03
+### CalloutBubble Refinement & Precision Positioning
+- **물풍선(CalloutBubble) 프리미엄 디자인 및 버그 수정**:
+    - 너비 260dp, 12dp 라운딩, 꼬리(20x10dp) 및 80% 투명도 `AllToDoGreen` 적용.
+    - **스크롤 이슈 해결**: `maxPopupItems`에 의한 리스트 잘림 현상을 해결하기 위해 `take` 제약을 제거하고 스크롤 가능한 `LazyColumn` 구조로 전환.
+    - **테마 정책 최적화**: 구글 맵의 시스템 다크 모드 감응 색상 조정 및 네이버/카카오의 라이트 모드 강제 적용(`.forceLightMode`) 완료.
+- **정밀 화면 중앙 정렬(Center-Focused Positioning) 고도화**:
+    - `displayMetrics` 의존성을 제거하고 **지도의 실제 픽셀 크기(`width`, `height`)**를 기반으로 오프셋을 계산하도록 개선.
+    - **53dp 오프셋 전략**: 핀 끝점(Bottom)을 화면 정중앙 기준 +53dp 지점에 배치하여, 핀 머리(Top)와 물풍선 꼬리(Bottom)가 화면 센터에 완벽히 정렬되도록 전 엔진(Google, Naver, Kakao) 로직 통일.
+- **컴파일 및 구문 정합성 확보**:
+    - `GoogleMapContent.kt`의 코루틴 스코프 호출 오류, 누락된 `launch` 임포트, `BoxWithConstraints` 관련 중괄호 누락 이슈를 최종 해결.
+    - `KakaoMapContent.kt`의 `fromScreenPoint` API 파라미터 타입 mismatch 수정.
+
 ### GeomUtils Integration & Google Map Path Fix
 - **정수 좌표계 기반 지리 연산 통합 (`GeomUtils`)**:
     - 안드로이드 프로젝트에도 iOS와 동일한 100,000배 정수 좌표계 시스템(`IntRect`)을 도입하여 지리 연산의 정밀도와 일관성을 확보했습니다.

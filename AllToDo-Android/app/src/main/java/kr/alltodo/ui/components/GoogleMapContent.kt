@@ -15,6 +15,7 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
 import com.google.maps.android.compose.*
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collectLatest
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -59,7 +60,14 @@ fun GoogleMapContent(
     onCameraIdle: (Double, Float, Double) -> Unit // [NEW] Wm, Zoom, Lat
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    // 1. UI Settings (Disable Toolbar & Zoom)
+    val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier = modifier) {
+        val viewWidthPx = with(density) { constraints.maxWidth }
+        val viewHeightPx = with(density) { constraints.maxHeight }
+        
+        // 1. UI Settings (Disable Toolbar & Zoom)
     val uiSettings = remember {
         MapUiSettings(
             zoomControlsEnabled = false,
@@ -307,13 +315,37 @@ fun GoogleMapContent(
                     // [FIX] Adjust anchor for cluster (offset due to badge overhang)
                     anchor = if (isSingle) Offset(0.5f, 1.0f) else Offset(0.392f, 1.0f),
                     onClick = {
-                        val point = mapProjection?.toScreenLocation(position)
-                        if (point != null) {
-                            if (isSingle && firstItem != null) {
-                                onItemClickWithCoords(firstItem, point.x.toFloat(), point.y.toFloat())
-                            } else {
-                                onClusterClickWithCoords(cluster.items, point.x.toFloat(), point.y.toFloat())
-                            }
+                        val map = googleMapInstance ?: return@Marker false
+                        val density = context.resources.displayMetrics.density
+                        
+                        // Requirement 4: Pin head at center.y + 3pt
+                        // Pin Tip Target Location = center.y + 3dp + 50dp(height) = +53dp
+                        val offsetPx = (53 * density).toInt() 
+                        
+                        // Use projection to accurately calculate relative move
+                        val proj = map.projection
+                        val currentPinLatLng = LatLng(cluster.latitude, cluster.longitude)
+                        val pinScreenPt = proj.toScreenLocation(currentPinLatLng)
+                        
+                        // Target screen point for the pin tip (bottom)
+                        val targetScreenPt = android.graphics.Point(viewWidthPx / 2, (viewHeightPx / 2) + offsetPx)
+                        
+                        val deltaX = pinScreenPt.x - targetScreenPt.x
+                        val deltaY = pinScreenPt.y - targetScreenPt.y
+                        
+                        val currentCenterPt = android.graphics.Point(viewWidthPx / 2, viewHeightPx / 2)
+                        val targetCenterPt = android.graphics.Point(currentCenterPt.x + deltaX, currentCenterPt.y + deltaY)
+                        val targetLatLng = proj.fromScreenLocation(targetCenterPt)
+                        
+                        scope.launch {
+                            cameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLng(targetLatLng), 400)
+                        }
+                        
+                        // Pass screen center to CalloutBubble so tail is at center
+                        if (isSingle && firstItem != null) {
+                            onItemClickWithCoords(firstItem, viewWidthPx / 2f, viewHeightPx / 2f)
+                        } else {
+                            onClusterClickWithCoords(cluster.items, viewWidthPx / 2f, viewHeightPx / 2f)
                         }
                         true
                     },
@@ -376,10 +408,9 @@ fun GoogleMapContent(
                 zIndex = 200f
             )
         }
+        }
     }
-
-
-    }
+}
 }
 
 // [NEW] Helper for Bounds

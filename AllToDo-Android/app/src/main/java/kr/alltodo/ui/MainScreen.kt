@@ -340,15 +340,9 @@ fun MainScreen(
                         onMapReady = { naverMapInstance = it },
                         onClusterClickWithCoords = { items, x, y ->
                             mapViewModel.selectCluster(items, x, y)
-                            // Auto-center (Naver)
-                            items.firstOrNull()?.let { first ->
-                                naverMapInstance?.moveCamera(com.naver.maps.map.CameraUpdate.scrollTo(com.naver.maps.geometry.LatLng(first.latitude, first.longitude)).animate(com.naver.maps.map.CameraAnimation.Easing))
-                            }
                         },
                         onItemClickWithCoords = { item, x, y ->
                             mapViewModel.selectCluster(listOf(item), x, y)
-                            // Auto-center (Naver)
-                            naverMapInstance?.moveCamera(com.naver.maps.map.CameraUpdate.scrollTo(com.naver.maps.geometry.LatLng(item.latitude, item.longitude)).animate(com.naver.maps.map.CameraAnimation.Easing))
                         },
                         onCameraRotate = { mapViewModel.updateCompassRotation(it) },
                         initialAnimationDone = initialAnimationDone,
@@ -384,15 +378,9 @@ fun MainScreen(
                         onMapReady = { kakaoMapInstance = it },
                         onClusterClickWithCoords = { items, x, y ->
                             mapViewModel.selectCluster(items, x, y)
-                            // Auto-center (Kakao)
-                            items.firstOrNull()?.let { first ->
-                                kakaoMapInstance?.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.newCenterPosition(com.kakao.vectormap.LatLng.from(first.latitude, first.longitude)), com.kakao.vectormap.camera.CameraAnimation.from(300, true, true))
-                            }
                         },
                         onItemClickWithCoords = { item, x, y ->
                             mapViewModel.selectCluster(listOf(item), x, y)
-                            // Auto-center (Kakao)
-                            kakaoMapInstance?.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.newCenterPosition(com.kakao.vectormap.LatLng.from(item.latitude, item.longitude)), com.kakao.vectormap.camera.CameraAnimation.from(300, true, true))
                         },
                         onCameraRotate = { mapViewModel.updateCompassRotation(it) },
                         initialAnimationDone = initialAnimationDone,
@@ -436,19 +424,9 @@ fun MainScreen(
                         onItemClick = { },
                         onItemClickWithCoords = { item, x, y ->
                             mapViewModel.selectCluster(listOf(item), x, y)
-                            // Auto-center (Google)
-                            scope.launch {
-                                googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLng(com.google.android.gms.maps.model.LatLng(item.latitude, item.longitude)))
-                            }
                         },
                         onClusterClickWithCoords = { items, x, y ->
                             mapViewModel.selectCluster(items, x, y)
-                            // Auto-center (Google)
-                            items.firstOrNull()?.let { first ->
-                                scope.launch {
-                                    googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLng(com.google.android.gms.maps.model.LatLng(first.latitude, first.longitude)))
-                                }
-                            }
                         },
                         onRotationChange = { mapViewModel.updateCompassRotation(it) },
                         isMapReady = isGoogleMapReady,
@@ -570,7 +548,8 @@ fun MainScreen(
                         })
                         mapViewModel.clearSelection()
                     },
-                    mapProvider = mapProvider
+                    mapProvider = mapProvider,
+                    forceLightMode = (mapProvider != kr.alltodo.ui.MapProvider.Google)
                 )
             }
         }
