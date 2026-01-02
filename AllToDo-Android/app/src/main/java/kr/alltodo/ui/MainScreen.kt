@@ -582,7 +582,7 @@ fun MainScreen(
                 pathData = selectedHistoryPath,
                 mapProvider = mapProvider,
                 onClose = { 
-                    showPathDetail = null
+                    viewingPathTodo = null
                 }
             )
         }
