@@ -320,9 +320,6 @@ fun NaverMapContent(
         onEnableClustering = onEnableClustering,
         onMove = { lat, lon, zoom, animate ->
             naverMap?.let { map ->
-                // [FIX] Release Stage 2 constraint if we are targeting a higher zoom (Stage 3)
-                if (zoom > 15f) map.maxZoom = 21.0
-                
                 val update = CameraUpdate.scrollAndZoomTo(LatLng(lat, lon), zoom.toDouble())
                 if (animate) {
                     map.moveCamera(update.animate(CameraAnimation.Easing, 1200))
@@ -340,12 +337,7 @@ fun NaverMapContent(
                     } else {
                         val boundsBuilder = LatLngBounds.Builder()
                         points.forEach { boundsBuilder.include(LatLng(it.first, it.second)) }
-                        val bounds = boundsBuilder.build()
-                        
-                        // [FIX] Lock max zoom to 15.0 for Stage 2. 
-                        // It will be released in Stage 3 (onMove) or when user interacts.
-                        map.maxZoom = 15.0
-                        map.moveCamera(CameraUpdate.fitBounds(bounds, padding))
+                        map.moveCamera(CameraUpdate.fitBounds(boundsBuilder.build(), padding))
                     }
                 }
             }

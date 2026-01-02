@@ -123,10 +123,6 @@ fun KakaoMapContent(
         onEnableClustering = onEnableClustering,
         onMove = { lat, lon, zoom, animate ->
             kakaoMap?.let { map ->
-                // [FIX] Release Stage 2 constraint for Stage 3 Focus
-                map.setCameraMinLevel(1)
-                map.setCameraMaxLevel(21)
-                
                 val update = CameraUpdateFactory.newCenterPosition(LatLng.from(lat, lon), zoom.toInt())
                 if (animate) {
                     map.moveCamera(update, com.kakao.vectormap.camera.CameraAnimation.from(1200, true, true))
@@ -142,12 +138,6 @@ fun KakaoMapContent(
                     map.moveCamera(CameraUpdateFactory.newCenterPosition(LatLng.from(p.first, p.second), 15))
                 } else if (points.isNotEmpty()) {
                     val kakaoPoints = points.map { LatLng.from(it.first, it.second) }.toTypedArray()
-                    
-                    // [FIX] Lock max zoom to 15.0 for Stage 2. 
-                    // Use correct SDK methods: setCameraMinLevel/setCameraMaxLevel
-                    map.setCameraMinLevel(1)
-                    map.setCameraMaxLevel(15)
-                    
                     map.moveCamera(
                         CameraUpdateFactory.fitMapPoints(kakaoPoints, padding),
                         com.kakao.vectormap.camera.CameraAnimation.from(1000, true, true)

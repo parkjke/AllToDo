@@ -453,7 +453,7 @@ fun MainScreen(
                         onRotationChange = { mapViewModel.updateCompassRotation(it) },
                         isMapReady = isGoogleMapReady,
                         onMapLoaded = { isGoogleMapReady = true },
-                        showHistoryMode = false,
+                        showHistoryMode = showActivePath,
                         initialAnimationDone = initialAnimationDone,
                         onInitialAnimationDone = { initialAnimationDone = true },
                         onResetAnimationDone = { initialAnimationDone = false }, // [NEW]
@@ -466,6 +466,7 @@ fun MainScreen(
                         },
                         activePoints = activePoints,
                         showActivePath = showActivePath,
+                        livePath = liveSessionPoints, // [FIX] Essential for Google Map Path rendering
                         onCameraIdle = { wm, zoom, lat -> 
                              mapViewModel.handleCameraIdle(wm, zoom, lat, MapProvider.Google) 
                         }

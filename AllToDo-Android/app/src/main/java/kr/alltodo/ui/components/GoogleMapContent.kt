@@ -122,12 +122,6 @@ fun GoogleMapContent(
         onResetAnimationDone = onResetAnimationDone, // [NEW]
         onEnableClustering = onEnableClustering,
         onMove = { lat, lon, zoom, animate ->
-            val map = googleMapInstance
-            if (zoom > 15f) {
-                // [FIX] Explicitly reset both min and max to ensure Stage 3 (Zoom 18) isn't capped at 15
-                map?.setMinZoomPreference(1f)
-                map?.setMaxZoomPreference(21f)
-            }
             val update = CameraUpdateFactory.newLatLngZoom(LatLng(lat, lon), zoom)
             if (animate) {
                 cameraPositionState.animate(update, 1200)
@@ -138,20 +132,11 @@ fun GoogleMapContent(
         onFitBounds = { points, padding, _ ->
             if (points.size == 1) {
                 val p = points.first()
-                googleMapInstance?.let { map ->
-                    map.setMinZoomPreference(1f)
-                    map.setMaxZoomPreference(21f)
-                }
                 cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(LatLng(p.first, p.second), 15f), 1000)
             } else if (points.isNotEmpty()) {
-                val map = googleMapInstance
                 val builder = LatLngBounds.Builder()
                 points.forEach { builder.include(LatLng(it.first, it.second)) }
-                val bounds = builder.build()
-                
-                // [FIX] Lock max zoom to 15.0 for Stage 2 (Fit Bounds) to prevent over-zooming on single cluster
-                map?.setMaxZoomPreference(15.0f)
-                cameraPositionState.animate(CameraUpdateFactory.newLatLngBounds(bounds, padding), 1000)
+                cameraPositionState.animate(CameraUpdateFactory.newLatLngBounds(builder.build(), padding), 1000)
             }
         },
         onStop = {
@@ -354,7 +339,7 @@ fun GoogleMapContent(
             Polyline(
                 points = polylinePoints,
                 color = Color(0xFFFF5722), // Orange Red for active trail
-                width = 5f * density, // Increased to 5dp
+                width = 8f * density, // Increased to 8dp for better visibility
                 zIndex = 100f,
                 jointType = com.google.android.gms.maps.model.JointType.ROUND,
                 startCap = com.google.android.gms.maps.model.RoundCap(),
@@ -364,15 +349,14 @@ fun GoogleMapContent(
         
         // [NEW] Active Path Blue Dot Trail (Immediate Feedback)
         if (showActivePath && activePoints.isNotEmpty()) {
-            val tailPoints = activePoints.takeLast(20)
             val density = LocalDensity.current.density
             val dotRadius = 3.0 // meters
             
-            tailPoints.forEach { point ->
+            activePoints.forEach { point -> // Show ALL points for full trail visibility
                 Circle(
                     center = LatLng(point.latitude, point.longitude),
                     radius = dotRadius, 
-                    fillColor = Color.Blue,
+                    fillColor = Color.Blue.copy(alpha = 0.6f),
                     strokeColor = Color.Transparent,
                     strokeWidth = 0f,
                     zIndex = 101f

@@ -9,8 +9,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
-import kr.alltodo.ui.TodoViewModel
+import kr.alltodo.ui.UnifiedItem
 import kr.alltodo.ui.PinClusterItem
+import kr.alltodo.utils.GeomUtils
 
 /**
  * MapBegin: Centralized 3-Stage Initialization Sequence
@@ -121,37 +122,24 @@ fun MapBeginSequence(
         }
 
         if (pinPoints.isNotEmpty()) {
-            val precision = 100000.0
-            var minLatInt = Int.MAX_VALUE; var maxLatInt = Int.MIN_VALUE
-            var minLonInt = Int.MAX_VALUE; var maxLonInt = Int.MIN_VALUE
+            // [STAGE 2] Fit Bounds to show all pins
+            // Use GeomUtils to calculate the bounding box.
+            // minDelta = 2000 (~2.2km) ensures the view is wide enough for Stage 2 (Zoom ~14-15)
+            // without needing explicit MaxZoom locks.
+            val intPoints = pinPoints.map { (it.first * GeomUtils.PRECISION).toInt() to (it.second * GeomUtils.PRECISION).toInt() }
+            val intRect = GeomUtils.calculateIntBoundingBox(intPoints, paddingPercent = 0, minDelta = 2000)
             
-            pinPoints.forEach { (lat, lon) ->
-                val latI = (lat * precision).toInt()
-                val lonI = (lon * precision).toInt()
-                if (latI < minLatInt) minLatInt = latI
-                if (latI > maxLatInt) maxLatInt = latI
-                if (lonI < minLonInt) minLonInt = lonI
-                if (lonI > maxLonInt) maxLonInt = lonI
-            }
+            val precision = GeomUtils.PRECISION
             
-            // [FIX] Ensure a minimum span for Fit Bounds to avoid extreme zoom-in
-            // Center the bounds if they are too small
-            val latDiff = maxLatInt - minLatInt
-            val lonDiff = maxLonInt - minLonInt
-            val minSpanValue = 2000 // approx 20m span minimum for sanity
-            
-            if (latDiff < minSpanValue && lonDiff < minSpanValue) {
-                // If cluster is too tight (or single point), jump to center with zoom 15
-                val centerLat = ((minLatInt + maxLatInt) / 2.0) / precision
-                val centerLon = ((minLonInt + maxLonInt) / 2.0) / precision
-                currentOnMove(centerLat, centerLon, 15.0f, true)
+            if (intRect.minLat == intRect.maxLat && intRect.minLon == intRect.maxLon) {
+                // Single-point: Move to center at zoom 15
+                currentOnMove(intRect.minLat / precision, intRect.minLon / precision, 15.0f, true)
             } else {
                 // Multi-point fit bounds
                 val boundsPoints = listOf(
-                    minLatInt / precision to minLonInt / precision,
-                    maxLatInt / precision to maxLonInt / precision
+                    intRect.minLat / precision to intRect.minLon / precision,
+                    intRect.maxLat / precision to intRect.maxLon / precision
                 )
-                // Use 100px padding for better visibility across all maps
                 currentOnFitBounds(boundsPoints, 100, 15.0f)
             }
         }
@@ -164,6 +152,6 @@ fun MapBeginSequence(
         val targetLoc = currentMyLocation ?: currentBeforeLocation
         currentOnMove(targetLoc.latitude, targetLoc.longitude, 18.0f, true)
         
-        onInitialAnimationDone()
+        currentOnInitialAnimationDone()
     }
 }

@@ -1,3 +1,15 @@
+## 2026-01-03
+### GeomUtils Integration & Google Map Path Fix
+- **정수 좌표계 기반 지리 연산 통합 (`GeomUtils`)**:
+    - 안드로이드 프로젝트에도 iOS와 동일한 100,000배 정수 좌표계 시스템(`IntRect`)을 도입하여 지리 연산의 정밀도와 일관성을 확보했습니다.
+    - `MapBegin.kt`를 리팩토링하여 기존의 절차적 위경도 계산 로직을 `GeomUtils.calculateIntBoundingBox`로 일원화했습니다.
+- **선언적 줌 제어 (Declarative Zoom Control)**:
+    - 하드코딩된 `delay`와 `setMaxZoomPreference` 등 명령형 줌 락 로직을 전면 제거했습니다.
+    - 대신 `GeomUtils.minDelta` 파라미터를 통해 데이터 수준에서 최소 지리 범위를 보장함으로써, 엔진의 자연스러운 애니메이션을 방해하지 않고도 구글 맵의 줌 고착 이슈를 근본적으로 해결했습니다.
+- **구글 맵 경로 표시 버그 수정**:
+    - `MainScreen.kt`에서 구글 맵 인스턴스에 `livePath` 데이터 바인딩이 누락되었던 문제를 수정했습니다.
+    - `GoogleMapContent.kt`의 경로 렌더링 가시성을 강화(선 굵기 8dp, 전체 궤적 점 표시)하여 사용자 피드백의 명확성을 높였습니다.
+
 ## 2026-01-02
 ### Android Map Stabilization & Clustering Optimization
 - **Naver Map Freeze Resolution (Silent Killer)**:
