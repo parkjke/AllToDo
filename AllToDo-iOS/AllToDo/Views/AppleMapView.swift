@@ -865,7 +865,7 @@ struct AppleMapView: UIViewRepresentable {
                 // [FIX] Precise 60pt Offset Strategy (10pt Gap)
                 let pinPoint = mapView.convert(annotation.coordinate, toPointTo: mapView)
                 let centerPoint = CGPoint(x: mapView.bounds.width / 2, y: mapView.bounds.height / 2)
-                let targetPoint = CGPoint(x: centerPoint.x, y: centerPoint.y + 53) // [FIX] +2pt Shift Up (60 -> 53)
+                let targetPoint = CGPoint(x: centerPoint.x, y: centerPoint.y + 52) // [FIX] +1pt Shift Up (53 -> 52)
                 
                 let deltaX = pinPoint.x - centerPoint.x
                 let deltaY = pinPoint.y - targetPoint.y
