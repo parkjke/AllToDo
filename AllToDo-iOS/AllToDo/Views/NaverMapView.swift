@@ -549,7 +549,7 @@ struct NaverMapView: UIViewRepresentable {
                 // [FIX] 60pt Offset Strategy (10pt Gap)
                 let centerX = map.bounds.width / 2
                 let centerY = map.bounds.height / 2
-                let targetY = centerY + 60 // Pin Tip Target (50 height + 10 gap)
+                    let targetY = centerY + 54 // [FIX] +6pt Shift Up (60 -> 54)
                 
                 if centerY > 0 {
                     let pinPoint = map.projection.point(from: m.position)

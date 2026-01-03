@@ -349,7 +349,7 @@ struct GoogleMapView: UIViewRepresentable {
                  // [FIX] 60pt Offset Strategy (10pt Gap)
                  let centerX = mapView.bounds.width / 2
                  let centerY = mapView.bounds.height / 2
-                 let targetY = centerY + 59 // [FIX] +1pt Shift Up (60 -> 59)
+                 let targetY = centerY + 54 // [FIX] +6pt Shift Up (60 -> 54)
                  
                  if centerY > 0 {
                      let pinPoint = mapView.projection.point(for: marker.position)

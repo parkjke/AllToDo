@@ -597,7 +597,7 @@ struct KakaoMapView: UIViewRepresentable {
                 // This version uses ONLY getPosition(CGPoint) which is verified to exist.
                 let centerX = kakaoMap.viewRect.width / 2
                 let centerY = kakaoMap.viewRect.height / 2
-                let targetY = centerY + 59 // [FIX] +1pt Shift Up (60 -> 59)
+                let targetY = centerY + 54 // [FIX] +6pt Shift Up (60 -> 54)
                 
                 // 1. Get world coordinate at screen center
                 let centerPoint = CGPoint(x: centerX, y: centerY)
