@@ -1,5 +1,10 @@
 ## 2026-01-03
-### CalloutBubble Refinement & Precision Positioning
+### 🎉 Map Development Milestone: "지도 완료" (Geospatial Perfection)
+이번 업데이트를 통해 AllToDo의 핵심인 4대 지도 엔진(Apple, Google, Naver, Kakao)의 정합성, 안정성, 그리고 시각적 품질을 최종적으로 확보했습니다.
+- **Kakao Map 앱 복귀 시 `KMInitializeException` 크래시 해결**:
+    - 앱이 백그라운드에서 포그라운드로 복귀할 때 엔진이 완전히 활성화되기 전 SDK API(`forceUpdatePins`, `refreshWasmClusters`)를 호출하여 발생하는 'Not initialized' 에러를 해결했습니다.
+    - `isEngineActive` 상태 확인 가드를 추가하고, 불필요한 즉시 호출을 제거하여 안정성을 확보했습니다.
+    - `Coordinator`에 `deinit`을 추가하여 `NotificationCenter` observer 중복 문제 및 메모리 누수를 방지했습니다.
 - **물풍선(CalloutBubble) 프리미엄 디자인 및 버그 수정**:
     - 너비 260dp, 12dp 라운딩, 꼬리(20x10dp) 및 80% 투명도 `AllToDoGreen` 적용.
     - **스크롤 이슈 해결**: `maxPopupItems`에 의한 리스트 잘림 현상을 해결하기 위해 `take` 제약을 제거하고 스크롤 가능한 `LazyColumn` 구조로 전환.
@@ -13,6 +18,7 @@
     - **53dp 오프셋 전략**: 핀 끝점(Bottom)을 화면 정중앙 기준 +53dp 지점에 배치하여, 핀 머리(Top)와 물풍선 꼬리(Bottom)가 화면 센터에 완벽히 정렬되도록 전 엔진(Google, Naver, Kakao) 로직 통일.
 - **물풍선 및 핀 갤러리 시각적 최적화**:
     - **핀 위치 원상 복구**: 애플, 카카오, 구글, 네이버 등 모든 지도 엔진의 핀 앵커 포인트 및 스케일 설정을 이전 상태로 롤백하여 좌표 정밀도를 확보.
+    - **Android 핀 정렬 및 절단 해결**: `PinImageManager`의 캔버스 높이를 확장하여 뱃지 핀의 끝점 절단을 방지하고, 모든 엔진의 뱃지 핀 앵커를 `0.392f`로 표준화했습니다.
     - **물풍선(Callout) 센터링 오프셋 정밀 조정**: 핀 선택 시 지도가 중앙으로 이동할 때, 핀 머리가 가려지지 않도록 엔진별 수직 오프셋(Apple +52pt, Kakao +55pt, Google/Naver +54pt 하향)을 카메라 타겟에 반영.
     - **핀 갤러리 시뮬레이션 동기화**: 실제 지도 환경과 동일한 핀 앵커 및 스케일링이 갤러리 미리보기에도 적용되도록 로직 업데이트.
     - **네이버 맵 스케일 원복**: 네이버 맵 핀 크기를 `0.95x`에서 원래의 `0.9x` (36x45)로 원복.

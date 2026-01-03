@@ -273,15 +273,8 @@ fun KakaoMapContent(
                         val style = kr.alltodo.utils.MapLogicHelper.resolveClusterStyle(cluster.items)
                         val b = kr.alltodo.ui.createKakaoPinBitmap(context, cluster.count, style.pinId, style.color)
                         
-                        val density = context.resources.displayMetrics.density
-                        val scale = 0.7f
-                        val pinW = (40 * density * scale)
-                        val badgeRadius = 10f * density * scale
-                        val padding = (badgeRadius * 1.5f)
-                        val totalW = pinW + padding
-                        val finalAnchorX = (pinW / 2f) / totalW
-                        
-                        Triple(b, finalAnchorX, 1.0f)
+                        // Unified Standard: 0.392f for badged pins (20/51 ratio), 1.0f for bottom alignment
+                        Triple(b, 0.392f, 1.0f)
                     }
                     
                     if (bitmap != null) {

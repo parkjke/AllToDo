@@ -299,21 +299,8 @@ fun EnginePinCell(type: String, scale: Float, provider: String, onDetailClick: (
     }
     
     // Engine specific anchor logic
-    val anchorX = when(provider) {
-        "Naver" -> if (actualCount > 1) 0.392f else 0.5f
-        "Kakao" -> {
-             // Replicate Kakao anchor logic from KakaoMapContent.kt
-             if (actualCount > 1) {
-                val density = context.resources.displayMetrics.density
-                val pinW = (40 * density * scale)
-                val badgeRadius = 10f * density * scale
-                val padding = (badgeRadius * 1.5f)
-                val totalW = pinW + padding
-                (pinW / 2f) / totalW
-             } else 0.5f
-        }
-        else -> 0.5f // Google
-    }
+    // Unified Standard: 0.392f for badged pins (20/51 ratio), 0.5f for raw pins
+    val anchorX = if (actualCount > 1) 0.392f else 0.5f
     val anchorY = 1.0f
 
     Box(

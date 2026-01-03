@@ -55,21 +55,22 @@ object PinImageManager {
             }
             val baseBitmap = BitmapFactory.decodeResource(context.resources, resId, options) ?: return null
 
-            // 3. Create Canvas for Scale & Badge
+            // Create Canvas for Scale & Badge
             val pinW = (TARGET_WIDTH_DP * density * scale).toInt().coerceAtLeast(1)
             val pinH = (TARGET_HEIGHT_DP * density * scale).toInt().coerceAtLeast(1)
             
-            // Match iOS padding for anchor parity (20/51 = 0.392)
-            val padding = if (count > 1) (11 * density * scale).toInt() else 0
+            // Match iOS overhang for anchor parity (20/51 = 0.392)
+            val overhang = if (count > 1) (11 * density * scale).toInt() else 0
+            val badgeExtraW = if (count > 1) (11 * density * scale).toInt() else 0 // iOS uses 11pt extra width
             
-            val totalW = (pinW + padding).coerceAtLeast(1)
-            val totalH = (pinH + (if (count > 1) (5 * density * scale).toInt() else 0)).coerceAtLeast(1)
+            val totalW = (pinW + badgeExtraW).coerceAtLeast(1)
+            val totalH = (pinH + overhang).coerceAtLeast(1)
             
             val bitmap = Bitmap.createBitmap(totalW, totalH, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
             
-            // Draw Shield with Padding (Bottom-Left aligned relative to badge area)
-            val destRect = Rect(0, padding, pinW, pinH + padding)
+            // Draw Shield with Overhang (Pin starts at y = overhang, badge is at top)
+            val destRect = Rect(0, overhang, pinW, pinH + overhang)
             canvas.drawBitmap(baseBitmap, null, destRect, Paint(Paint.FILTER_BITMAP_FLAG))
 
             // 4. Draw Badge if Count > 1
@@ -85,7 +86,7 @@ object PinImageManager {
                 // Overlap slightly with pin shoulder
                 val overlap = 3 * density * scale
                 val cx = pinW.toFloat() - overlap
-                val cy = padding.toFloat() + overlap
+                val cy = overhang.toFloat() + overlap
                 
                 // A. Border
                 badgePaint.color = android.graphics.Color.WHITE
@@ -111,7 +112,6 @@ object PinImageManager {
                 canvas.drawText(text, cx, cy + yOff, textPaint)
             }
             
-            bitmapCache[cacheKey] = bitmap
             bitmapCache[cacheKey] = bitmap
             bitmap
         } catch (e: OutOfMemoryError) {

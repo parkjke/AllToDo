@@ -124,6 +124,10 @@ struct KakaoMapView: UIViewRepresentable {
             self.parent = parent
         }
 
+        deinit {
+            NotificationCenter.default.removeObserver(self)
+        }
+
         func createController(_ view: KMViewContainer) {
             controller = KMController(viewContainer: view)
             controller?.delegate = self
@@ -175,33 +179,16 @@ struct KakaoMapView: UIViewRepresentable {
                 self.fitBoundsInitially(mapView)
             }
             
-            // [FIX] Robust Resume Fix: Ensure activation & 3s zoom sequence
+            // [FIX] Robust Resume Fix: Ensure activation
             NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
                 guard let self = self else { return }
                 guard UIApplication.shared.applicationState == .active else { return }
                 
-                print(">>> MAIN MAP: App Active (Resume) -> Activating Map")
+                print(">>> MAIN MAP: App Active (Resume) -> Triggering Engine Activation")
                 self.checkEngineActivation()
                 
-                self.isInitialPhase = true 
-                self.lastDataSummary = ""
-                self.forceUpdatePins()
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                    guard let mapView = self.controller?.getView("mapview") as? KakaoMap else { return }
-                    guard UIApplication.shared.applicationState == .active else { return }
-                    
-                    print(">>> MAIN MAP: Resume Zoom starting")
-                    self.isInitialPhase = false
-                    self.lastDataSummary = "" 
-                    self.forceUpdatePins()
-                    
-                    if let u = self.parent.locationManager.currentLocation {
-                        let pos = MapPoint(longitude: u.coordinate.longitude, latitude: u.coordinate.latitude)
-                        mapView.animateCamera(cameraUpdate: CameraUpdate.make(target: pos, zoomLevel: 18, mapView: mapView), 
-                                              options: CameraAnimationOptions(autoElevation: true, consecutive: false, durationInMillis: 1200))
-                    }
-                }
+                // [FIX] Removed immediate forceUpdatePins here to prevent KMInitializeException.
+                // activation sequence in checkEngineActivation already handles the 0.5s delayed refresh.
             }
             
             NotificationCenter.default.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
@@ -290,6 +277,7 @@ struct KakaoMapView: UIViewRepresentable {
 
         // MARK: - [STEP 4] Smart Refresh & WASM
         func forceUpdatePins() {
+            guard let controller = controller, controller.isEngineActive else { return } // [FIX] Guard Active Engine
             let createCoord = parent.creatingTodoLocation
             let summary = "\(parent.allItems.count)-\(createCoord?.latitude ?? 0)-\(createCoord?.longitude ?? 0)-\(isInitialPhase)"
             
@@ -306,7 +294,9 @@ struct KakaoMapView: UIViewRepresentable {
 
         @MainActor
         func refreshWasmClusters(force: Bool = false) {
-            guard let mapView = controller?.getView("mapview") as? KakaoMap else { return }
+            // [FIX] Engine Guard: Prevent KMInitializeException
+            guard let controller = controller, controller.isEngineActive else { return }
+            guard let mapView = controller.getView("mapview") as? KakaoMap else { return }
             
             // 1. Calculate Radius & Metrics
             let zoom = Double(mapView.zoomLevel)

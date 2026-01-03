@@ -312,7 +312,7 @@ fun GoogleMapContent(
                 Marker(
                     state = state,
                     icon = iconDescriptor,
-                    // [FIX] Adjust anchor for cluster (offset due to badge overhang)
+                    // [FIX] Adjust anchor for cluster (Unified Standard: 0.392f)
                     anchor = if (isSingle) Offset(0.5f, 1.0f) else Offset(0.392f, 1.0f),
                     onClick = {
                         val map = googleMapInstance ?: return@Marker false

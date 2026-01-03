@@ -26,3 +26,13 @@
 - **수정 금지 사유**: 
     1. **OpenGL 컨텍스트 유실 방지**: 오래된 세션의 맵 뷰가 회색으로 굳는 현상을 방지합니다.
     2. **GPS Cold Start 은폐**: 백그라운드에서 GPS가 끊긴 동안의 위치 점프를 자연스럽게 처리하기 위해 재진입 시퀀스가 필수적입니다.
+
+## 4. Multi-Engine Geospatial Integrity (지도 엔진 정합성)
+- **위치**: 
+    - iOS: `AppleMapView.swift`, `GoogleMapView.swift`, `KakaoMapView.swift`, `NaverMapView.swift`
+    - Android: `GoogleMapContent.kt`, `KakaoMapContent.kt`, `NaverMapContent.kt`, `PinImageManager.kt`
+- **키워드**: `Pin Anchor`, `Center Offset`, `0.392f`, `53dp/pt`
+- **설명**: 4대 지도 엔진 간의 **핀 앵커 포인트(0.392f)** 및 **카메라 센터링 오프셋(53dp/pt)** 등을 픽셀 단위로 일원화한 로직입니다.
+- **수정 금지 사유**: 
+    - 이 로직은 각 SDK의 서로 다른 좌표계와 이미지 처리 방식을 수천 번의 테스트를 통해 동기화한 결과물입니다. 
+    - **절대 지도 엔진 전체를 한 번에 리팩토링하지 마십시오.** 작은 오차만으로도 핀이 공중에 떠 보이거나 물풍선이 핀을 가리는 등의 시각적 파손이 발생합니다.
