@@ -104,9 +104,13 @@ class TodoViewModel @Inject constructor(
     fun updateCurrentLocation(lat: Double, lon: Double) {
         if (lat == 0.0 && lon == 0.0) return
         val newLoc = UnifiedItem.CurrentLocation(lat, lon)
-        // Only update if changed significantly or first time (Optimization can be added here)
         _currentLocation.value = newLoc
-        // Trigger filtering/clustering immediately but protected by debounce in updateFilteredItems
+        
+        // [NEW] Update 0-th record in DB for persistent "Last Known Position"
+        viewModelScope.launch(Dispatchers.IO) {
+            todoRepository.updateCurrentLocation(lat, lon)
+        }
+        
         updateFilteredItems()
     }
 
@@ -131,7 +135,7 @@ class TodoViewModel @Inject constructor(
              // If Normal Mode: Show items from Today
              val targetTime = if (isHistory) now - oneDay else now
              val minTime = targetTime - oneDay
-             val maxTime = targetTime + oneDay
+             val maxTime = Long.MAX_VALUE // [FIX] Future tasks are now always visible
 
              val filteredLogItems = historyItems.filter { (it.int_lat != null) && (it.begin_time ?: it.created_at) in minTime .. maxTime }
                  .map { kr.alltodo.ui.UnifiedItem.History(it) }
@@ -368,6 +372,12 @@ class TodoViewModel @Inject constructor(
         
         loadTodos()
         loadTodayLocations()
+        
+        // [NEW] Ensure CURRENT_LOCATION record exists
+        viewModelScope.launch {
+            todoRepository.ensureCurrentLocationExists()
+        }
+        
         toggleTracking() // [FIX] Use toggleTracking to ensure _isTracking flag is also set
     }
     
@@ -380,8 +390,12 @@ class TodoViewModel @Inject constructor(
         _liveSessionPoints.value = emptyList()
         sessionStartTime = System.currentTimeMillis()
         lastRecordedTime = 0
+        currentSessionId = java.util.UUID.randomUUID().toString() // [NEW] Track session ID
         _debugStatus.value = "Recording... (0 pts)"
     }
+    
+    // [NEW] Track session ID for multi-part history
+    private var currentSessionId: String? = null
     
     fun endSession(scope: kotlinx.coroutines.CoroutineScope = viewModelScope) {
         try {
@@ -395,85 +409,29 @@ class TodoViewModel @Inject constructor(
             val now = System.currentTimeMillis()
             val endTime = now
 
-            // [ROBUST] Snapshot data immediately
-            val finalPoints = ArrayList(processedSessionPoints)
-            if (pendingBuffer.isNotEmpty()) {
-                finalPoints.addAll(pendingBuffer)
-            }
+            val pointCount = processedSessionPoints.size + pendingBuffer.size
+            kr.alltodo.services.RemoteLogger.info(">>> Ending Session. Saving $pointCount points (Start: $start)")
+
+            val snapshotPoints = ArrayList(processedSessionPoints)
+            val snapshotBuffer = ArrayList(pendingBuffer)
+            val oldSessionId = currentSessionId
             
             // [ROBUST] Reset State immediately to prevent Double-Save
             processedSessionPoints.clear()
             pendingBuffer.clear()
             _liveSessionPoints.value = emptyList()
             sessionStartTime = 0
+            currentSessionId = null
             
-            if (finalPoints.isEmpty()) return
-
-            val pointCount = finalPoints.size
-            kr.alltodo.services.RemoteLogger.info(">>> Ending Session. Saving $pointCount points (Start: $start)")
+            if (pointCount == 0) return
 
             // [ROBUST] Launch with NonCancellable to survive ViewModel clearing during save
-            // Using IO Dispatcher for DB operations
             scope.launch(Dispatchers.IO + NonCancellable) {
-                try {
-                    // 1. Calculate Midpoint
-                    var sumLat: Double = 0.0
-                    var sumLng: Double = 0.0
-                    val intPoints = ArrayList<Pair<Int, Int>>(pointCount)
-                    for (p in finalPoints) {
-                        sumLat += p.latitude
-                        sumLng += p.longitude
-                        intPoints.add(p.int_lat to p.int_long)
-                    }
-                    val avgLat = sumLat / pointCount
-                    val avgLon = sumLng / pointCount
-                    
-                    // [NEW] Check for Short Path (under ~30m)
-                    val isShort = kr.alltodo.utils.GeomUtils.isShortPath(intPoints)
-                    val finalNoOfPath = if (isShort) 1 else pointCount
-                    
-                    // 2. Create TodoItem (Type: 00 - History)
-                    val todoId = java.util.UUID.randomUUID().toString()
-                    val historyTodo = TodoItem(
-                        todo_id = todoId,
-                        todo_name = "이동 히스토리",
-                        type = "00", // History
-                        no_of_path = finalNoOfPath,
-                        int_lat = (avgLat * 100_000).toInt(),
-                        int_long = (avgLon * 100_000).toInt(),
-                        begin_time = start,
-                        end_time = endTime,
-                        created_at = System.currentTimeMillis()
-                    )
-                    
-                    // 3. Save Todo & Paths to DB
-                    todoRepository.insert(historyTodo)
-                    
-                    if (!isShort) {
-                        val pathItems = finalPoints.map { p ->
-                            kr.alltodo.data.PathItem(
-                                todo_id = todoId,
-                                int_long = p.int_long,
-                                int_lat = p.int_lat,
-                                time = p.timestamp // Use location's timestamp
-                            )
-                        }
-                        todoRepository.insertPaths(pathItems)
-                        kr.alltodo.services.RemoteLogger.info(">>> History Saved Successfully to Todo & Path tables (Count: $pointCount).")
-                    } else {
-                        kr.alltodo.services.RemoteLogger.info(">>> Short Path Detected (<30m). Saving as single point (no_of_path=1).")
-                    }
-                    
-                    // Refresh data on Main Thread
-                    withContext(Dispatchers.Main) {
-                        loadTodos()
-                        _debugStatus.value = "Saved $pointCount pts"
-                    }
-
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    kr.alltodo.services.RemoteLogger.error(">>> CRITICAL: Failed to save session: ${e.message}")
-                    // Note: Data is in finalPoints snapshot. We could try to recover here if critical.
+                finalizeAndSaveSession(oldSessionId, start, now, snapshotPoints, snapshotBuffer)
+                // Refresh data on Main Thread
+                withContext(Dispatchers.Main) {
+                    loadTodos()
+                    _debugStatus.value = "Saved $pointCount pts"
                 }
             }
         } catch (e: Exception) {
@@ -647,6 +605,27 @@ class TodoViewModel @Inject constructor(
             locationRepository.saveLocation(latitude, longitude)
         }
 
+        // [NEW] Automatic Session Splitting (30 Minutes)
+        val sessionDuration = now - sessionStartTime
+        if (sessionDuration > 30 * 60 * 1000L) {
+             kr.alltodo.services.RemoteLogger.info(">>> 30 mins passed. Splitting session...")
+             val snapshotPoints = ArrayList(processedSessionPoints)
+             val snapshotBuffer = ArrayList(pendingBuffer)
+             val oldStartTime = sessionStartTime
+             val oldSessionId = currentSessionId
+             
+             // Reset for NEW session
+             sessionStartTime = now
+             currentSessionId = java.util.UUID.randomUUID().toString()
+             processedSessionPoints.clear()
+             pendingBuffer.clear()
+             
+             // Finalize OLD session in background
+             viewModelScope.launch(Dispatchers.IO + NonCancellable) {
+                 finalizeAndSaveSession(oldSessionId, oldStartTime, now, snapshotPoints, snapshotBuffer)
+             }
+        }
+
         // Add to Buffer for live visualization/WASM compression
         pendingBuffer.add(entity)
         
@@ -688,6 +667,72 @@ class TodoViewModel @Inject constructor(
             viewModelScope.launch {
                 processBuffer()
             }
+        }
+    }
+
+    private suspend fun finalizeAndSaveSession(
+        sessionId: String?,
+        startTime: Long,
+        endTime: Long,
+        processedPoints: List<LocationEntity>,
+        bufferPoints: List<LocationEntity>
+    ) {
+        try {
+            val finalPoints = ArrayList(processedPoints)
+            finalPoints.addAll(bufferPoints)
+            if (finalPoints.isEmpty()) return
+
+            val pointCount = finalPoints.size
+            val todoId = sessionId ?: java.util.UUID.randomUUID().toString()
+
+            // 1. Calculate Midpoint & Bounding Box
+            var sumLat = 0.0
+            var sumLng = 0.0
+            val intPoints = ArrayList<Pair<Int, Int>>(pointCount)
+            for (p in finalPoints) {
+                sumLat += p.latitude
+                sumLng += p.longitude
+                intPoints.add(p.int_lat to p.int_long)
+            }
+            val avgLat = sumLat / pointCount
+            val avgLon = sumLng / pointCount
+
+            // 2. Check for Short Path (under ~30m)
+            val isShort = kr.alltodo.utils.GeomUtils.isShortPath(intPoints)
+            val finalNoOfPath = if (isShort) 1 else pointCount
+
+            // 3. Create/Insert TodoItem (Type: 00 - History)
+            val historyTodo = TodoItem(
+                todo_id = todoId,
+                todo_name = "이동 히스토리",
+                type = "00", 
+                no_of_path = finalNoOfPath,
+                int_lat = (avgLat * 100_000).toInt(),
+                int_long = (avgLon * 100_000).toInt(),
+                begin_time = startTime,
+                end_time = endTime,
+                created_at = startTime
+            )
+            todoRepository.insert(historyTodo)
+
+            // 4. Insert Paths
+            if (!isShort) {
+                val pathItems = finalPoints.map { p ->
+                    kr.alltodo.data.PathItem(
+                        todo_id = todoId,
+                        int_long = p.int_long,
+                        int_lat = p.int_lat,
+                        time = p.timestamp
+                    )
+                }
+                todoRepository.insertPaths(pathItems)
+                kr.alltodo.services.RemoteLogger.info(">>> History Saved: $todoId ($pointCount pts)")
+            } else {
+                kr.alltodo.services.RemoteLogger.info(">>> Short Path: $todoId (Saved as point)")
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            kr.alltodo.services.RemoteLogger.error(">>> Failed to finalize session: ${e.message}")
         }
     }
 

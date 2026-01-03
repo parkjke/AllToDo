@@ -24,6 +24,26 @@ interface TodoDao {
     @Query("SELECT * FROM contacts WHERE todo_id = :todoId")
     suspend fun getContactForTodo(todoId: String): ContactItem?
 
+    // Current Location (0-th History) Operations
+    @Query("UPDATE todo_items SET int_lat = :lat, int_long = :lng, created_at = :time WHERE todo_id = 'CURRENT_LOCATION'")
+    suspend fun updateCurrentLocation(lat: Int, lng: Int, time: Long = System.currentTimeMillis())
+
+    @Query("SELECT * FROM todo_items WHERE todo_id = 'CURRENT_LOCATION' LIMIT 1")
+    suspend fun getCurrentLocation(): TodoItem?
+
+    @Query("SELECT * FROM todo_items WHERE todo_id = 'CURRENT_LOCATION' LIMIT 1")
+    fun observeCurrentLocation(): Flow<TodoItem?>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertInitialCurrentLocation(item: TodoItem)
+
+    // History Session Operations
+    @Query("SELECT * FROM todo_items WHERE type = '00' AND todo_id != 'CURRENT_LOCATION' ORDER BY created_at DESC LIMIT 1")
+    suspend fun getLatestActiveHistory(): TodoItem?
+
+    @Query("UPDATE todo_items SET end_time = :endTime, no_of_path = :noOfPath WHERE todo_id = :todoId")
+    suspend fun finalizeHistory(todoId: String, endTime: Long, noOfPath: Int)
+
     // Path Operations
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPath(path: PathItem)

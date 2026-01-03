@@ -38,7 +38,7 @@ struct MapLogicHelper {
         // 2. Filter by time window
         let timeFiltered = itemsWithLocation.filter {
             let itemDate = $0.begin_time ?? $0.date_time ?? Date(timeIntervalSince1970: Double($0.created_at)/1000.0)
-            return itemDate >= min && itemDate <= max
+            return itemDate >= min // [FIX] Removed max limit for future tasks
         }
         
         var results: [UnifiedMapItem] = []
