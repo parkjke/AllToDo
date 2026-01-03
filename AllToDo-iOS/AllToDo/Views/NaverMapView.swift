@@ -42,6 +42,9 @@ struct NaverMapView: UIViewRepresentable {
         view.mapView.touchDelegate = context.coordinator
         view.mapView.addCameraDelegate(delegate: context.coordinator)
         
+        // [NEW] Theme Policy: Forced Light Mode
+        view.mapView.isNightModeEnabled = false
+        
         var initialTarget = NMGLatLng(lat: 37.5759, lng: 126.9768)
         
         if let userLoc = locationManager.currentLocation {
@@ -540,12 +543,31 @@ struct NaverMapView: UIViewRepresentable {
             }
             
             marker.touchHandler = { [weak self] (overlay: NMFOverlay) -> Bool in
-                guard let self = self, let m = overlay as? NMFMarker else { return false }
+                guard let self = self, let map = self.mapView, let m = overlay as? NMFMarker else { return false }
                 let generator = UIImpactFeedbackGenerator(style: .medium); generator.impactOccurred()
-                self.pendingSelection = (items, m.position)
-                let update = NMFCameraUpdate(scrollTo: m.position)
-                update.animation = .fly; update.animationDuration = 0.3
-                self.mapView?.moveCamera(update)
+                
+                // [FIX] 60pt Offset Strategy (10pt Gap)
+                let centerX = map.bounds.width / 2
+                let centerY = map.bounds.height / 2
+                let targetY = centerY + 60 // Pin Tip Target (50 height + 10 gap)
+                
+                if centerY > 0 {
+                    let pinPoint = map.projection.point(from: m.position)
+                    let deltaX = pinPoint.x - centerX
+                    let deltaY = pinPoint.y - targetY
+                    
+                    let newCenterPoint = CGPoint(x: centerX + deltaX, y: centerY + deltaY)
+                    let newCenterCoord = map.projection.latlng(from: newCenterPoint)
+                    
+                    // [FIX] Instant Selection
+                    self.parent.tapPosition = CGPoint(x: centerX, y: centerY)
+                    self.parent.selectedClusterItems = items
+                    self.parent.selectedItem = nil
+                    
+                    let update = NMFCameraUpdate(scrollTo: newCenterCoord)
+                    update.animation = .fly; update.animationDuration = 0.2
+                    map.moveCamera(update)
+                }
                 return true
             }
             
@@ -672,16 +694,14 @@ struct NaverMapView: UIViewRepresentable {
                  self.parent.rotation = rotation
              }
              
-             // [NEW] Handle Pending Selection (Auto-Center Complete)
              if let pending = pendingSelection {
                  let items = pending.items
                  let position = pending.position
                  pendingSelection = nil // Reset
                  
                  DispatchQueue.main.async {
-                     // 1. Calculate Screen Position (Should be Center)
-                     let point = mapView.projection.point(from: position)
-                     self.parent.tapPosition = point
+                     // 1. Set tapPosition to Screen Center (to align callout tail at center)
+                     self.parent.tapPosition = CGPoint(x: mapView.bounds.width / 2, y: mapView.bounds.height / 2)
                      
                      // 2. Show Callout
                      self.parent.selectedClusterItems = items

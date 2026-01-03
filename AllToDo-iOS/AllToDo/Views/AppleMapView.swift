@@ -221,40 +221,10 @@ struct AppleMapView: UIViewRepresentable {
         }
         
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
-             // [NEW] Trigger Clustering on Idle (Region Change End)
+             // [FIX] Trigger Clustering on Idle (Region Change End)
              refreshWasmClusters(mapView: mapView, force: false)
-             
-             // [NEW] Handle Pending Selection (Auto-Center Complete)
-             if let pending = pendingSelection {
-                 let annotation = pending.annotation
-                 let position = pending.position
-                 pendingSelection = nil
-                 
-                 DispatchQueue.main.async {
-                     // 1. Calculate Screen Point
-                     let point = mapView.convert(position, toPointTo: mapView)
-                     self.parent.tapPosition = point
-                     
-                     // 2. Show Callout
-                     if let cluster = annotation as? WasmClusterAnnotation {
-                         self.parent.selectedClusterItems = cluster.items
-                         self.parent.selectedItem = nil
-                     } else if let nativeCluster = annotation as? MKClusterAnnotation {
-                         // [FIX] Handle Native Cluster in Pending Selection
-                         var items: [UnifiedMapItem] = []
-                         for member in nativeCluster.memberAnnotations {
-                             if let uni = member as? UnifiedAnnotation, let item = uni.item {
-                                 items.append(item)
-                             }
-                         }
-                         self.parent.selectedClusterItems = items
-                         self.parent.selectedItem = nil
-                     } else if let uni = annotation as? UnifiedAnnotation, let item = uni.item {
-                         self.parent.selectedClusterItems = [item]
-                         self.parent.selectedItem = nil
-                     }
-                 }
-             }
+             // Handle Pending Selection removed: Favoring Instant Selection
+             pendingSelection = nil
         }
         
         func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
@@ -272,8 +242,22 @@ struct AppleMapView: UIViewRepresentable {
                 
                 // Show Overlay
                 if !items.isEmpty {
-                     // Auto-Center on Cluster
-                     mapView.setCenter(cluster.coordinate, animated: true)
+                     // [FIX] 60pt Offset Strategy (Consistent with Android/Google/Naver/Kakao)
+                     pendingSelection = (annotation, annotation.coordinate)
+                     
+                     let screenHeight = mapView.bounds.height
+                     let targetY = (screenHeight / 2) + 53 // [FIX] Return to 53pt Offset
+                     
+                     let targetRatio = targetY / screenHeight
+                     let offsetRatio = 0.5 - targetRatio
+                     
+                     let spanLat = mapView.region.span.latitudeDelta
+                     let offsetLat = spanLat * offsetRatio
+                     
+                     let cameraCenter = CLLocationCoordinate2D(latitude: annotation.coordinate.latitude - offsetLat, longitude: annotation.coordinate.longitude)
+                     
+                     mapView.setCenter(cameraCenter, animated: true)
+                     
                      parent.selectedClusterItems = items
                      parent.selectedItem = nil
                      
@@ -469,7 +453,7 @@ struct AppleMapView: UIViewRepresentable {
             }
             
             // [NEW] NaN Guard for Region
-            if region.center.latitude.isNaN || region.center.longitude.longitude.isNaN { return }
+            if region.center.latitude.isNaN || region.center.longitude.isNaN { return }
             
             // [NEW] 1.5x Threshold Check
             let currentWm = metersPerPixel * mapView.bounds.width
@@ -743,6 +727,12 @@ struct AppleMapView: UIViewRepresentable {
         }
         
         private func configurePinView(view: MKAnnotationView, annotation: MKAnnotation) {
+            // [FIX] Protect User Location
+            if annotation is MKUserLocation {
+                view.frame = .zero // Let system handle MKUserLocation
+                return
+            }
+            
             // 1. Reset
             view.subviews.forEach { $0.removeFromSuperview() }
             
@@ -791,7 +781,9 @@ struct AppleMapView: UIViewRepresentable {
                     }
                     imageView.image = finalImage
                     view.frame = CGRect(origin: .zero, size: finalImage.size)
-                    view.centerOffset = CGPoint(x: 5, y: -30) // Adjusted override: Anchor (0.4, 1.0)
+                    // [FIX] Anchor Point: Badged (0.4, 1.0) -> centerOffset (5, -H/2), Raw (0.5, 1.0) -> centerOffset (0, -H/2)
+                    let offsetX: CGFloat = (count > 1) ? 5 : 0
+                    view.centerOffset = CGPoint(x: offsetX, y: -(finalImage.size.height / 2))
                 }
             } else if let wasmCluster = annotation as? WasmClusterAnnotation {
                 let items = wasmCluster.items
@@ -806,7 +798,9 @@ struct AppleMapView: UIViewRepresentable {
                     }
                     imageView.image = finalImage
                     view.frame = CGRect(origin: .zero, size: finalImage.size)
-                    view.centerOffset = CGPoint(x: -5, y: 30) // Adjusted override
+                    // [FIX] Anchor Point: (0.4, 1.0) -> centerOffset (5, -H/2) for Clusters
+                    let offsetX: CGFloat = (count > 1) ? 5 : 0
+                    view.centerOffset = CGPoint(x: offsetX, y: -(finalImage.size.height / 2))
                 }
             } else if let unified = annotation as? UnifiedAnnotation, let item = unified.item {
                 btn.items = [item]
@@ -814,7 +808,8 @@ struct AppleMapView: UIViewRepresentable {
                 if let img = PinImageHelper.shared.fetchPin(type: item.type) {
                     imageView.image = img
                     view.frame = CGRect(origin: .zero, size: img.size)
-                    view.centerOffset = CGPoint(x: 0, y: -25) // (20-20, 50-25) -> Shift Up by 25
+                    // [FIX] Anchor Point: (0.5, 1.0)
+                    view.centerOffset = CGPoint(x: 0, y: -(img.size.height / 2))
                 }
             }
             
@@ -862,37 +857,28 @@ struct AppleMapView: UIViewRepresentable {
                 // If 'UnifiedAnnotation', it has one item.
                 // So passing the annotation is sufficient.
                 
-                pendingSelection = (annotation, annotation.coordinate)
+                // [FIX] Instant Selection (No delay)
+                self.parent.tapPosition = CGPoint(x: mapView.bounds.width / 2, y: mapView.bounds.height / 2)
+                self.parent.selectedClusterItems = btn.items
+                self.parent.selectedItem = nil
                 
-                // 2. Animate to Center
-                mapView.setCenter(annotation.coordinate, animated: true)
+                // [FIX] Precise 60pt Offset Strategy (10pt Gap)
+                let pinPoint = mapView.convert(annotation.coordinate, toPointTo: mapView)
+                let centerPoint = CGPoint(x: mapView.bounds.width / 2, y: mapView.bounds.height / 2)
+                let targetPoint = CGPoint(x: centerPoint.x, y: centerPoint.y + 58) // [FIX] +2pt Shift Up (60 -> 58)
                 
-                // 3. Defer Selection Update (Handled in regionDidChangeAnimated)
-                // We do NOT set parent.selectedClusterItems here.
+                let deltaX = pinPoint.x - centerPoint.x
+                let deltaY = pinPoint.y - targetPoint.y
+                
+                let newCenterPoint = CGPoint(x: centerPoint.x + deltaX, y: centerPoint.y + deltaY)
+                let newCenterCoord = mapView.convert(newCenterPoint, toCoordinateFrom: mapView)
+                
+                mapView.setCenter(newCenterCoord, animated: true)
+                
+                // Selection is now instant, no need for deferred logic.
             }
         }
-        
-        // Custom Button subclass just to carry data
-        class MapPinButton: UIButton {
-            var items: [UnifiedMapItem] = []
-        }
-        
-        // [NEW] Custom Annotation View to enforce HitTest
-        class TouchableAnnotationView: MKAnnotationView {
-            override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-                // [FIX] Force-return the button if the touch is within our expanded bounds
-                // This guarantees the button receives the touch event
-                if self.point(inside: point, with: event) {
-                    return self.subviews.first { $0 is UIButton } ?? super.hitTest(point, with: event)
-                }
-                return super.hitTest(point, with: event)
-            }
-            override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
-                // [FIX] Expand hit area significantly to catch touches easily
-                let largerBounds = self.bounds.insetBy(dx: -20, dy: -20)
-                return largerBounds.contains(point)
-            }
-        }
+
 
         // MARK: - Overlays
         class HistoryPolyline: MKPolyline {}
@@ -1034,7 +1020,7 @@ struct ClusterListCallout: View {
             // [Header] Center Close Button
             Button(action: onClose) {
                 Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(.gray7)
+                    .foregroundColor(.white) // [FIX] White for better visibility on Green
                     .font(.title3)
             }
             .padding(.top, 8)
@@ -1048,7 +1034,7 @@ struct ClusterListCallout: View {
                         ForEach(items) { item in
                             itemRow(item)
                             if item.id != items.last?.id {
-                                Divider()
+                                Divider().background(Color.white.opacity(0.2))
                             }
                         }
                     }
@@ -1065,18 +1051,18 @@ struct ClusterListCallout: View {
     private func itemRow(_ item: UnifiedMapItem) -> some View {
         HStack(spacing: 8) {
             // [Col 1] Map Icon
-            if case .history(let t) = item, t.no_of_path > 1 {
+            if case .history(let t) = item, t.no_of_path >= 2 {
                 Button(action: { onSelectLog(t) }) {
                     Image(systemName: "map.fill")
                         .font(.system(size: fontSize))
-                        .foregroundColor(Color(.label)) // Adaptive to Dark Mode
+                        .foregroundColor(.white) // Always White for contrast
                         .frame(width: 30)
                 }
                 .buttonStyle(.plain)
             } else {
                 Image(systemName: "map.fill")
                     .font(.system(size: fontSize))
-                    .foregroundColor(.gray) // Use standard gray for better adaptivity
+                    .foregroundColor(.white.opacity(0.3)) // Dimmed White
                     .frame(width: 30)
             }
 
@@ -1087,17 +1073,17 @@ struct ClusterListCallout: View {
                 if case .history(let t) = item {
                     Text("(\(t.no_of_path))")
                         .font(.system(size: fontSize - 2, weight: .bold))
-                        .foregroundColor(.blue)
+                        .foregroundColor(.white.opacity(0.9)) // [FIX] White for better visibility
                         .frame(width: 35)
                 }
 
-                // Date (Adaptive)
+                // Date (White)
                 let dateStr = item.date.formatted(.dateTime.month(.twoDigits).day(.twoDigits))
                 Text(dateStr)
                     .font(.system(size: fontSize - 1))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.white.opacity(0.7))
                 
-                // Time (Forced 24h)
+                // Time (White Bold)
                 let timeStr = {
                     let df = DateFormatter()
                     df.dateFormat = "HH:mm"
@@ -1105,13 +1091,13 @@ struct ClusterListCallout: View {
                 }()
                 Text(timeStr)
                     .font(.system(size: fontSize - 1, weight: .bold))
-                    .foregroundColor(.primary)
+                    .foregroundColor(.white)
 
                 
-                // Title (Adaptive)
+                // Title (White)
                 Text(item.name)
                     .font(.system(size: fontSize))
-                    .foregroundColor(.primary)
+                    .foregroundColor(.white)
                     .lineLimit(1)
 
                 
@@ -1145,5 +1131,23 @@ struct ClusterListCallout: View {
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 10)
+    }
+}
+
+// MARK: - Helper Classes (Top-level for visibility)
+class MapPinButton: UIButton {
+    var items: [UnifiedMapItem] = []
+}
+
+class TouchableAnnotationView: MKAnnotationView {
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        if self.point(inside: point, with: event) {
+            return self.subviews.first { $0 is UIButton } ?? super.hitTest(point, with: event)
+        }
+        return super.hitTest(point, with: event)
+    }
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        let largerBounds = self.bounds.insetBy(dx: -20, dy: -20)
+        return largerBounds.contains(point)
     }
 }

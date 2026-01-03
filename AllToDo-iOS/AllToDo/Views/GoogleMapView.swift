@@ -302,25 +302,11 @@ struct GoogleMapView: UIViewRepresentable {
         }
         
         func mapView(_ mapView: GMSMapView, idleAt position: GMSCameraPosition) {
-            // [NEW] Handle Pending Selection (Auto-Center Complete)
-            if let pending = pendingSelection {
-                let items = pending.0
-                let pos = pending.1
-                pendingSelection = nil
-                
-                DispatchQueue.main.async {
-                    // 1. Calculate Screen Point
-                    let point = mapView.projection.point(for: pos)
-                    self.parent.tapPosition = point
-                    
-                    // 2. Show Callout
-                    self.parent.selectedClusterItems = items
-                    self.parent.selectedItem = nil
-                }
-            } else {
-                 // Trigger WASM Clustering on Idle (Region Change End)
-                 refreshWasmClusters(mapView: mapView)
-            }
+            // [FIX] Instant response: Handle Pending removed
+            pendingSelection = nil
+            
+            // Trigger WASM Clustering on Idle (Region Change End)
+            refreshWasmClusters(mapView: mapView)
         }
         
         func mapView(_ mapView: GMSMapView, didTapAt coordinate: CLLocationCoordinate2D) {
@@ -356,16 +342,40 @@ struct GoogleMapView: UIViewRepresentable {
         }
         
         func mapView(_ mapView: GMSMapView, didTap marker: GMSMarker) -> Bool {
-             // [NEW] Auto-center Logic
-             let update = GMSCameraUpdate.setTarget(marker.position)
-             mapView.animate(with: update)
-
              if let custom = marker as? WasmClusterMarker {
                  let generator = UIImpactFeedbackGenerator(style: .medium)
                  generator.impactOccurred()
                  
-                 // [NEW] Pending Logic
-                 pendingSelection = (custom.items, marker.position)
+                 // [FIX] 60pt Offset Strategy (10pt Gap)
+                 let centerX = mapView.bounds.width / 2
+                 let centerY = mapView.bounds.height / 2
+                 let targetY = centerY + 59 // [FIX] +1pt Shift Up (60 -> 59)
+                 
+                 if centerY > 0 {
+                     let pinPoint = mapView.projection.point(for: marker.position)
+                     let deltaX = pinPoint.x - centerX
+                     let deltaY = pinPoint.y - targetY
+                     
+                     let newCenterPoint = CGPoint(x: centerX + deltaX, y: centerY + deltaY)
+                     let newCenterCoord = mapView.projection.coordinate(for: newCenterPoint)
+                     
+                     // [FIX] Instant Selection (No delay)
+                     self.parent.tapPosition = CGPoint(x: centerX, y: centerY)
+                     self.parent.selectedClusterItems = custom.items
+                     self.parent.selectedItem = nil
+                     
+                     // 2. Animate Camera to Offset Position (Fast 0.2s)
+                     CATransaction.begin()
+                     CATransaction.setAnimationDuration(0.2)
+                     mapView.animate(with: GMSCameraUpdate.setTarget(newCenterCoord))
+                     CATransaction.commit()
+                 } else {
+                     // [FIX] Instant Selection
+                     self.parent.tapPosition = CGPoint(x: centerX, y: centerY)
+                     self.parent.selectedClusterItems = custom.items
+                     self.parent.selectedItem = nil
+                     mapView.animate(with: GMSCameraUpdate.setTarget(marker.position))
+                 }
                  
                  return true
              }
@@ -589,10 +599,14 @@ struct GoogleMapView: UIViewRepresentable {
                 marker.isUserLocation = isUser
                 
                 let (pinType, color, count) = MapLogicHelper.resolveClusterStyle(items: cluster.items)
-                if let baseImage = PinImageHelper.shared.fetchPin(type: pinType) {
+                let isBadged = !isUser && count > 1
+                if isBadged, let baseImage = PinImageHelper.shared.fetchPin(type: pinType) {
                     marker.icon = PinImageHelper.shared.applyBadge(to: baseImage, count: count, badgeColor: color, badgeSize: 20)
+                    marker.groundAnchor = CGPoint(x: 0.4, y: 1.0)
+                } else if let baseImage = PinImageHelper.shared.fetchPin(type: pinType) {
+                    marker.icon = baseImage
+                    marker.groundAnchor = CGPoint(x: 0.5, y: 1.0)
                 }
-                marker.groundAnchor = isUser ? CGPoint(x: 0.5, y: 1.0) : CGPoint(x: 0.4, y: 1.0)
                 marker.map = mapView
                 newMarkers.append(marker)
             }

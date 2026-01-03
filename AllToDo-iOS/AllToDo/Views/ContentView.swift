@@ -266,7 +266,6 @@ struct ContentView: View {
                     Color.black.opacity(0.01)
                         .contentShape(Rectangle())
                         .onTapGesture { viewModel.selectedClusterItems = nil }
-                        .ignoresSafeArea()
                     
                     VStack(spacing: 0) {
                         VStack(spacing: 0) {
@@ -285,43 +284,39 @@ struct ContentView: View {
                                     viewModel.selectedClusterItems = nil
                                 }
                             )
-                            .padding(.bottom, 8)
                         }
-                        .frame(width: 320)
-                        .background(Color(.systemBackground))
-                        .cornerRadius(20) // Changed from 12 to 20
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 20)
-                                .strokeBorder(
-                                    LinearGradient(
-                                        colors: [
-                                            .white.opacity(0.9), // Bright Highlight
-                                            .white.opacity(0.2)  // Fades out
-                                        ],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    ),
-                                    lineWidth: 1.5 // Thicker Edge
-                                )
+                        .frame(width: 380) // Fixed Width 380pt (to prevent date/time wrap on large devices)
+                        .background(
+                            // Adaptive Theme Policy
+                            (mapProvider == .google && UIScreen.main.traitCollection.userInterfaceStyle == .dark)
+                            ? Color(red: 27/255, green: 138/255, blue: 43/255).opacity(0.85) // #1B8A2B
+                            : Color.allToDoGreen.opacity(0.8) // AllToDoGreen 80%
                         )
-                        .clipShape(RoundedRectangle(cornerRadius: 20))
-                        .preferredColorScheme((mapProvider == .apple || mapProvider == .google) ? nil : .light)
+                        .cornerRadius(12) // Corner Radius 12pt
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .strokeBorder(Color.white.opacity(0.2), lineWidth: 1) // White 20% Border
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
                         
-                        // [FIX] Restore Tail
+                        // [Tail]
                         CalloutTriangle()
-                            .fill(Color(.systemBackground))
-                            .frame(width: 18, height: 12)
-                            .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1) // Match bubble shadow if any
-                            .padding(.top, -1.5) // Slight overlap to merge
-                            .zIndex(10) // On top of border
+                            .fill(
+                                (mapProvider == .google && UIScreen.main.traitCollection.userInterfaceStyle == .dark)
+                                ? Color(red: 27/255, green: 138/255, blue: 43/255).opacity(0.85)
+                                : Color.allToDoGreen.opacity(0.8)
+                            )
+                            .frame(width: 20, height: 10) // 20x10pt Tail
+                            .padding(.top, -0.5)
                     }
-                    .shadow(color: .black.opacity(0.15), radius: 5, x: 0, y: 2) // Global shadow
-                    .padding(.top, -1)
-                    .frame(width: 320, height: 0, alignment: .bottom) // [사용자 원천기술] 하단 고정 상단 확장
-                    .position(x: (viewModel.tapPosition?.x ?? 0) + mapXOffset, y: (viewModel.tapPosition?.y ?? 0) + mapYOffset)
+                    .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4) // 8dp elevation shadow
+                    .frame(width: 380, height: 0, alignment: .bottom)
+                    .position(x: (viewModel.tapPosition?.x ?? 0), y: (viewModel.tapPosition?.y ?? 0))
                     .transition(.scale.combined(with: .opacity))
+                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: viewModel.selectedClusterItems != nil)
                 }
                 .zIndex(999)
+                .ignoresSafeArea() // [FIX] Required for 8:8 Centering (absolute positioning)
             }
         }
     }

@@ -471,7 +471,9 @@ struct KakaoMapView: UIViewRepresentable {
             
             // Step 1: New Entry (Singles)
             for item in singles {
-                let poiID = (case .userLocation = item) ? "UserPoi" : "pin_\(item.id.uuidString.prefix(8))"
+                var isUserLocation = false
+                if case .userLocation = item { isUserLocation = true }
+                let poiID = isUserLocation ? "UserPoi" : "pin_\(item.id.uuidString.prefix(8))"
                 newPoiIDs.insert(poiID)
                 labelIdToClusterItems[poiID] = [item]
                 
@@ -481,7 +483,7 @@ struct KakaoMapView: UIViewRepresentable {
                 if !registeredStyleIDs.contains(styleID) {
                     if let img = PinImageHelper.shared.fetchPin(type: pinType) {
                         let resized = img.resized(to: CGSize(width: 28, height: 35))
-                        validLayer.getLabelManager().addPoiStyle(PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: PoiIconStyle(symbol: resized ?? img, anchorPoint: CGPoint(x: 0.5, y: 1.0)), level: 0)]))
+                        labelManager.addPoiStyle(PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: PoiIconStyle(symbol: resized ?? img, anchorPoint: CGPoint(x: 0.5, y: 1.0)), level: 0)]))
                         registeredStyleIDs.insert(styleID)
                     }
                 }
@@ -525,9 +527,15 @@ struct KakaoMapView: UIViewRepresentable {
                     let targetSize = CGSize(width: 28, height: 35)
                     if let base = PinImageHelper.shared.fetchPin(type: pinType),
                        let resized = base.resized(to: targetSize) {
-                        let badged = PinImageHelper.shared.applyBadge(to: resized, count: count, badgeColor: color, badgeSize: 14)
-                        let anchor = CGPoint(x: 14.0/38.0, y: 1.0)
-                        validLayer.getLabelManager().addPoiStyle(PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: PoiIconStyle(symbol: badged, anchorPoint: anchor), level: 0)]))
+                        
+                        let isBadged = !isUser && count > 1
+                        if isBadged {
+                            let badged = PinImageHelper.shared.applyBadge(to: resized, count: count, badgeColor: color, badgeSize: 14)
+                            let anchor = CGPoint(x: 14.0/38.0, y: 1.0)
+                            labelManager.addPoiStyle(PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: PoiIconStyle(symbol: badged, anchorPoint: anchor), level: 0)]))
+                        } else {
+                            labelManager.addPoiStyle(PoiStyle(styleID: styleID, styles: [PerLevelPoiStyle(iconStyle: PoiIconStyle(symbol: resized, anchorPoint: CGPoint(x: 0.5, y: 1.0)), level: 0)]))
+                        }
                         registeredStyleIDs.insert(styleID)
                     }
                 }
@@ -585,15 +593,39 @@ struct KakaoMapView: UIViewRepresentable {
             if poiID == "cre_pin" || poiID == "creation_pin" { return }
             
             if let items = labelIdToClusterItems[poiID] {
-                // [FIX] Faster Animation (200ms) for snappy "Apple-like" response
-                kakaoMap.animateCamera(cameraUpdate: CameraUpdate.make(target: position, mapView: kakaoMap), options: CameraAnimationOptions(autoElevation: false, consecutive: true, durationInMillis: 200))
+                // [ROBUST FIX] Calculate Offset without map-to-screen API
+                // This version uses ONLY getPosition(CGPoint) which is verified to exist.
+                let centerX = kakaoMap.viewRect.width / 2
+                let centerY = kakaoMap.viewRect.height / 2
+                let targetY = centerY + 59 // [FIX] +1pt Shift Up (60 -> 59)
                 
-                Task { @MainActor in
-                    // [FIX] Instant response: No delay for SwiftUI redraw
-                    let center = CGPoint(x: kakaoMap.viewRect.size.width / 2, y: kakaoMap.viewRect.size.height / 2)
-                    self.parent.tapPosition = center
-                    self.parent.selectedClusterItems = items
-                }
+                // 1. Get world coordinate at screen center
+                let centerPoint = CGPoint(x: centerX, y: centerY)
+                let centerCoord = kakaoMap.getPosition(centerPoint).wgsCoord
+                
+                // 2. Get world coordinate at target point (60pt below center)
+                let targetPoint = CGPoint(x: centerX, y: targetY)
+                let offsetCoord = kakaoMap.getPosition(targetPoint).wgsCoord
+                
+                // 3. Calculate Delta Vector (Degrees per 60pt)
+                let deltaLat = offsetCoord.latitude - centerCoord.latitude
+                let deltaLon = offsetCoord.longitude - centerCoord.longitude
+                
+                // 4. New Camera Center: Pin position - Delta
+                let newCenterCoord = MapPoint(longitude: position.wgsCoord.longitude - deltaLon,
+                                             latitude: position.wgsCoord.latitude - deltaLat)
+                
+                // 5. Instant Selection (No delay)
+                self.parent.tapPosition = CGPoint(x: centerX, y: centerY)
+                self.parent.selectedClusterItems = items
+                self.parent.selectedItem = nil
+                
+                // 6. Impact Feedback
+                let generator = UIImpactFeedbackGenerator(style: .medium)
+                generator.impactOccurred()
+                
+                // 7. Animate to Offset Position
+                kakaoMap.animateCamera(cameraUpdate: CameraUpdate.make(target: newCenterCoord, mapView: kakaoMap), options: CameraAnimationOptions(autoElevation: false, consecutive: true, durationInMillis: 200))
             }
         }
 

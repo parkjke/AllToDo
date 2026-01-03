@@ -16,10 +16,12 @@ struct PinGalleryView: View {
     // Layout
     let columns = [GridItem(.adaptive(minimum: 80, maximum: 100), spacing: 20)]
     
+    @State private var selectedDetail: PinDetail? = nil
+    
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 40) {
+                VStack(spacing: 20) {
                     headerView
                     
                     // Section 1: All Bitmap Pins
@@ -40,7 +42,9 @@ struct PinGalleryView: View {
                         SectionHeader(title: "2. Badged Pins + Anchor", subtitle: "뱃지(Count: 5) 적용 및 지도 좌표(Anchor) 빨간 점 표시")
                         HStack(spacing: 30) {
                             ForEach(targetTypes, id: \.self) { type in
-                                AnchorPinCell(type: type, count: 5, showBadge: true)
+                                AnchorPinCell(type: type, count: 5, showBadge: true) { detail in
+                                    selectedDetail = detail
+                                }
                             }
                         }
                         .frame(maxWidth: .infinity)
@@ -54,7 +58,9 @@ struct PinGalleryView: View {
                         SectionHeader(title: "3. Raw Pins + Anchor", subtitle: "뱃지 없음, 지도 좌표(Anchor) 빨간 점 표시")
                         HStack(spacing: 30) {
                             ForEach(targetTypes, id: \.self) { type in
-                                AnchorPinCell(type: type, count: 0, showBadge: false)
+                                AnchorPinCell(type: type, count: 0, showBadge: false) { detail in
+                                    selectedDetail = detail
+                                }
                             }
                         }
                         .frame(maxWidth: .infinity)
@@ -87,11 +93,17 @@ struct PinGalleryView: View {
                                         .frame(width: 50, alignment: .leading)
                                         .foregroundColor(providerColor(provider))
                                     
-                                    MapProviderPinCell(provider: provider, type: "00", count: 1)
+                                    MapProviderPinCell(provider: provider, type: "00", count: 1) { detail in
+                                        selectedDetail = detail
+                                    }
                                         .frame(maxWidth: .infinity)
-                                    MapProviderPinCell(provider: provider, type: "10", count: 1)
+                                    MapProviderPinCell(provider: provider, type: "10", count: 1) { detail in
+                                        selectedDetail = detail
+                                    }
                                         .frame(maxWidth: .infinity)
-                                    MapProviderPinCell(provider: provider, type: "20", count: 5)
+                                    MapProviderPinCell(provider: provider, type: "20", count: 5) { detail in
+                                        selectedDetail = detail
+                                    }
                                         .frame(maxWidth: .infinity)
                                 }
                             }
@@ -101,15 +113,23 @@ struct PinGalleryView: View {
                 }
                 .padding(.vertical)
             }
-            .navigationTitle("Pin Gallery")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    EmptyView() // Remove text from nav bar
+                }
+            }
+            .sheet(item: $selectedDetail) { detail in
+                PinInspectorView(detail: detail)
+            }
         }
     }
     
     var headerView: some View {
-        VStack(spacing: 8) {
-            Text("📌 Pin Gallery Refactored")
-                .font(.title2.bold())
+        VStack(spacing: 4) {
+            Text("Pin Gallery")
+                .font(.system(size: 24, weight: .black))
+                .foregroundColor(Color(red: 0.53, green: 0.53, blue: 0.53)) // Approximately Gray 8 (#888888)
             Text("Static Asset Verification")
                 .font(.caption)
                 .foregroundColor(.secondary)
@@ -186,9 +206,17 @@ struct AnchorPinCell: View {
     let type: String
     let count: Int
     let showBadge: Bool
+    var onTap: ((PinDetail) -> Void)? = nil
     
     var body: some View {
-        VStack {
+        Button(action: {
+            if let params = getPinExample() {
+                // For Section 2 & 3, we simulate using Naver as a base reference provider for anchor viewing
+                let detail = PinDetail(provider: .naver, type: type, count: count, image: params.image, anchor: params.anchor)
+                onTap?(detail)
+            }
+        }) {
+            VStack {
             ZStack(alignment: .topLeading) {
                 // 1. Reference Box (Light Gray)
                 Rectangle()
@@ -202,8 +230,8 @@ struct AnchorPinCell: View {
                 Path { path in
                     path.move(to: CGPoint(x: 40, y: 0))
                     path.addLine(to: CGPoint(x: 40, y: 80))
-                    path.move(to: CGPoint(x: 0, y: 40))
-                    path.addLine(to: CGPoint(x: 80, y: 40))
+                    path.move(to: CGPoint(x: 0, y: 60))
+                    path.addLine(to: CGPoint(x: 80, y: 60))
                 }
                 .stroke(Color.blue.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4]))
                 
@@ -211,7 +239,7 @@ struct AnchorPinCell: View {
                 Circle()
                     .fill(Color.red)
                     .frame(width: 4, height: 4)
-                    .position(x: 40, y: 40)
+                    .position(x: 40, y: 60)
                     .zIndex(100)
                 
                 // 4. The Pin Image (Positioned relative to Red Dot using Anchor)
@@ -220,7 +248,7 @@ struct AnchorPinCell: View {
                     let anchor = params.anchor
                     
                     // Calculation:
-                    // We want the image's "Anchor Point" to be at (40, 40).
+                    // We want the image's "Anchor Point" to be at (40, 60).
                     // Image Size
                     let w = img.size.width
                     let h = img.size.height
@@ -231,15 +259,10 @@ struct AnchorPinCell: View {
                     let offsetX = -1 * anchor.x * w
                     let offsetY = -1 * anchor.y * h
                     
-                    // SwiftUI Image Layout
-                    // Position places the CENTER of the view.
-                    // So we need to calculate where the CENTER should be.
-                    // Target TopLeft = (40 + offsetX, 40 + offsetY)
-                    // CenterX = TargetTopLeftX + w/2
-                    // CenterY = TargetTopLeftY + h/2
+                    // Target TopLeft = (40 + offsetX, 60 + offsetY)
                     
                     let targetCx = 40 + offsetX + (w/2)
-                    let targetCy = 40 + offsetY + (h/2)
+                    let targetCy = 60 + offsetY + (h/2)
                     
                     Image(uiImage: img)
                         .position(x: targetCx, y: targetCy)
@@ -250,7 +273,9 @@ struct AnchorPinCell: View {
             Text(type)
                 .font(.caption)
                 .bold()
+            }
         }
+        .buttonStyle(.plain)
     }
     
     func getPinExample() -> (image: UIImage, anchor: CGPoint)? {
@@ -264,13 +289,13 @@ struct AnchorPinCell: View {
         if type == "10" { badgeColor = .allToDoGreen } // Local todo default? check logic
         else if type == "20" { badgeColor = .systemBlue }
         
-        // Resize for Retina/consistency (Naver size 36x45)
+        // Resize for Retina/consistency (Original size 36x45 - 0.9x)
         let targetSize = CGSize(width: 36, height: 45)
         guard let resized = base.resized(to: targetSize) else { return nil }
         
         if showBadge {
             let badged = PinImageHelper.shared.applyBadge(to: resized, count: count, badgeColor: badgeColor, badgeSize: 18)
-            return (badged, anchor) // Badged Anchor (0.39)
+            return (badged, CGPoint(x: 18.0 / 46.0, y: 1.0)) // Badged Anchor (0.39)
         } else {
             // [FIX] Unbadged Anchor should be centered (0.5)
             let centeredAnchor = CGPoint(x: 0.5, y: 1.0)

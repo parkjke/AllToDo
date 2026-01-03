@@ -10,7 +10,6 @@ import androidx.compose.foundation.shape.CircleShape
 import kr.alltodo.R
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -27,11 +26,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.drawBehind
 
 @Composable
 fun PinGalleryScreen(onDismiss: () -> Unit) {
     val context = LocalContext.current
-    var refreshKey by remember { mutableStateOf(0) }
+    var selectedDetail by remember { mutableStateOf<PinDetail?>(null) }
 
     val allTypes = listOf(
         "00", "01", "02",
@@ -57,8 +65,8 @@ fun PinGalleryScreen(onDismiss: () -> Unit) {
                 ) {
                     item {
                         Spacer(modifier = Modifier.height(30.dp))
-                        Text("📌 Pin Gallery Refactored", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                        Text("Static Asset Verification (Android)", fontSize = 14.sp, color = Color.Gray)
+                        Text("Pin Gallery", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF888888))
+                        Text("Static Asset Verification (Android)", fontSize = 16.sp, color = Color.DarkGray)
                     }
 
                     // Section 1: All Bitmap Pins
@@ -85,7 +93,9 @@ fun PinGalleryScreen(onDismiss: () -> Unit) {
                             horizontalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             targetTypes.forEach { type ->
-                                AnchorPinCell(type = type, count = 5, showBadge = true)
+                                AnchorPinCell(type = type, count = 5, showBadge = true) { detail ->
+                                    selectedDetail = detail
+                                }
                             }
                         }
                     }
@@ -100,7 +110,9 @@ fun PinGalleryScreen(onDismiss: () -> Unit) {
                             horizontalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             targetTypes.forEach { type ->
-                                AnchorPinCell(type = type, count = 0, showBadge = false)
+                                AnchorPinCell(type = type, count = 0, showBadge = false) { detail ->
+                                    selectedDetail = detail
+                                }
                             }
                         }
                     }
@@ -110,7 +122,9 @@ fun PinGalleryScreen(onDismiss: () -> Unit) {
                     // Section 4: Engine Preview
                     item {
                         SectionHeader("4. Engine Provider Preview", "각 지도 SDK별 렌더링 시뮬레이션 (Scale 0.7-1.0)")
-                        EnginePreviewTable(targetTypes)
+                        EnginePreviewTable(targetTypes) { detail ->
+                            selectedDetail = detail
+                        }
                     }
                     
                     item { Spacer(modifier = Modifier.height(100.dp)) }
@@ -121,15 +135,17 @@ fun PinGalleryScreen(onDismiss: () -> Unit) {
                     modifier = Modifier.align(Alignment.TopEnd).padding(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    IconButton(onClick = { 
-                        PinImageManager.clearCache()
-                        refreshKey++ 
-                    }) {
-                        Icon(Icons.Default.Refresh, "Refresh", tint = Color(0xFF28CD41))
-                    }
                     IconButton(onClick = onDismiss) {
                         Icon(Icons.Default.Close, "Close")
                     }
+                }
+                
+                // Pin Inspector Overlay
+                if (selectedDetail != null) {
+                    PinInspectorDialog(
+                        detail = selectedDetail!!,
+                        onDismiss = { selectedDetail = null }
+                    )
                 }
             }
         }
@@ -138,9 +154,9 @@ fun PinGalleryScreen(onDismiss: () -> Unit) {
 
 @Composable
 fun SectionHeader(title: String, subtitle: String) {
-    Column(modifier = Modifier.padding(bottom = 8.dp)) {
-        Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        Text(subtitle, fontSize = 12.sp, color = Color.Gray)
+    Column(modifier = Modifier.padding(bottom = 12.dp)) {
+        Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+        Text(subtitle, fontSize = 14.sp, color = Color.DarkGray)
     }
 }
 
@@ -165,12 +181,12 @@ fun PinCell(type: String) {
         } else {
             Icon(Icons.Default.Error, "Error", tint = Color.Red, modifier = Modifier.size(40.dp))
         }
-        Text(type, fontSize = 10.sp, color = Color.Gray)
+        Text(type, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.Black)
     }
 }
 
 @Composable
-fun AnchorPinCell(type: String, count: Int, showBadge: Boolean) {
+fun AnchorPinCell(type: String, count: Int, showBadge: Boolean, onTap: (PinDetail) -> Unit) {
     val context = LocalContext.current
     val density = LocalContext.current.resources.displayMetrics.density
     
@@ -189,39 +205,45 @@ fun AnchorPinCell(type: String, count: Int, showBadge: Boolean) {
         PinImageManager.fetchStaticPin(context, type, count, badgeColor)
     }
 
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable {
+            if (bitmap != null) {
+                // Section 2, 3 uses Naver logic (0.392 or 0.5) as reference
+                onTap(PinDetail("Simulated", type, count, bitmap, Offset(anchorX, anchorY)))
+            }
+        }
+    ) {
         Box(
             modifier = Modifier
                 .size(60.dp)
                 .background(Color.Gray.copy(alpha = 0.1f))
         ) {
-            // Coordinate Crosshair
-            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.Blue.copy(alpha = 0.2f)).align(Alignment.Center))
-            Box(modifier = Modifier.fillMaxHeight().width(1.dp).background(Color.Blue.copy(alpha = 0.2f)).align(Alignment.Center))
+            // Coordinate Crosshair (75% position: X=30, Y=45)
+            Box(modifier = Modifier.fillMaxWidth().height(45.dp).drawBehind {
+                drawLine(Color.Blue.copy(alpha = 0.2f), Offset(0f, size.height), Offset(size.width, size.height), strokeWidth = 1.dp.toPx())
+            })
+            Box(modifier = Modifier.fillMaxHeight().width(30.dp).drawBehind {
+                drawLine(Color.Blue.copy(alpha = 0.2f), Offset(size.width, 0f), Offset(size.width, size.height), strokeWidth = 1.dp.toPx())
+            })
             
-            // Map Point (Anchor Destination)
-            Box(modifier = Modifier.size(4.dp).background(Color.Red, CircleShape).align(Alignment.Center).zIndex(5f))
+            // Map Point (Anchor Destination at 30, 45)
+            Box(modifier = Modifier.size(4.dp).offset(x = 28.dp, y = 43.dp).background(Color.Red, CircleShape).zIndex(5f))
 
             if (bitmap != null) {
-                // Calculation to place Anchor at Center of Box
-                // Box Center = (30dp, 30dp)
-                // We want Bitmap(anchorX, anchorY) to be at Box Center.
-                
                 val imgW = bitmap.width / density
                 val imgH = bitmap.height / density
                 
-                // Offset calculation:
-                // Normal align(Center) places bitmap center at (30, 30).
-                // Offset needed = (BitmapCenter - Anchor)
-                val offsetX = (imgW / 2f) - (imgW * anchorX)
-                val offsetY = (imgH / 2f) - (imgH * anchorY)
+                // Target Point is (30, 45). Pin Anchor (ax, ay) should be there.
+                // Image TopLeft = (30 - ax*w, 45 - ay*h)
+                val drawX = 30f - (anchorX * imgW)
+                val drawY = 45f - (anchorY * imgH)
 
                 Image(
                     bitmap = bitmap.asImageBitmap(),
                     contentDescription = type,
                     modifier = Modifier
-                        .align(Alignment.Center)
-                        .offset(x = offsetX.dp, y = offsetY.dp)
+                        .offset(x = drawX.dp, y = drawY.dp)
                 )
             }
         }
@@ -230,7 +252,7 @@ fun AnchorPinCell(type: String, count: Int, showBadge: Boolean) {
 }
 
 @Composable
-fun EnginePreviewTable(types: List<String>) {
+fun EnginePreviewTable(types: List<String>, onDetailClick: (PinDetail) -> Unit) {
     val providers = listOf(
         Triple("Google", 1.0f, Color.Blue),
         Triple("Naver", 0.9f, Color(0xFF28CD41)),
@@ -240,8 +262,8 @@ fun EnginePreviewTable(types: List<String>) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Table Header
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Engine", fontSize = 11.sp, fontWeight = FontWeight.Black, modifier = Modifier.width(50.dp))
-            types.forEach { _ -> Text("Type", fontSize = 11.sp, modifier = Modifier.weight(1f), textAlign = TextAlign.Center) }
+            Text("Engine", fontSize = 13.sp, fontWeight = FontWeight.Black, modifier = Modifier.width(60.dp))
+            types.forEach { _ -> Text("Type", fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), textAlign = TextAlign.Center) }
         }
         
         Divider(thickness = 1.dp)
@@ -252,11 +274,13 @@ fun EnginePreviewTable(types: List<String>) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(name, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color, modifier = Modifier.width(50.dp))
+                Text(name, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = color, modifier = Modifier.width(60.dp))
                 
                 types.forEach { type ->
                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        EnginePinCell(type = type, scale = scale)
+                        EnginePinCell(type = type, scale = scale, provider = name) { detail ->
+                            onDetailClick(detail)
+                        }
                     }
                 }
             }
@@ -266,19 +290,67 @@ fun EnginePreviewTable(types: List<String>) {
 }
 
 @Composable
-fun EnginePinCell(type: String, scale: Float) {
+fun EnginePinCell(type: String, scale: Float, provider: String, onDetailClick: (PinDetail) -> Unit) {
     val context = LocalContext.current
-    val badgeColor = if (type == "20") android.graphics.Color.BLUE else android.graphics.Color.RED
+    val badgeColor = if (type == "20") android.graphics.Color.RED else android.graphics.Color.RED // Red is default for Todo
+    val actualCount = if (type == "20") 5 else 0
     val bitmap = remember(type, scale) { 
-        PinImageManager.fetchStaticPin(context, type, count = if (type == "20") 5 else 0, badgeColor = badgeColor, scale = scale) 
+        PinImageManager.fetchStaticPin(context, type, count = actualCount, badgeColor = badgeColor, scale = scale) 
     }
+    
+    // Engine specific anchor logic
+    val anchorX = when(provider) {
+        "Naver" -> if (actualCount > 1) 0.392f else 0.5f
+        "Kakao" -> {
+             // Replicate Kakao anchor logic from KakaoMapContent.kt
+             if (actualCount > 1) {
+                val density = context.resources.displayMetrics.density
+                val pinW = (40 * density * scale)
+                val badgeRadius = 10f * density * scale
+                val padding = (badgeRadius * 1.5f)
+                val totalW = pinW + padding
+                (pinW / 2f) / totalW
+             } else 0.5f
+        }
+        else -> 0.5f // Google
+    }
+    val anchorY = 1.0f
 
-    if (bitmap != null) {
-        Image(
-            bitmap = bitmap.asImageBitmap(),
-            contentDescription = null,
-            modifier = Modifier.height(40.dp) // Visual constraint for table
-        )
+    Box(
+        modifier = Modifier
+            .size(60.dp)
+            .background(Color.Gray.copy(alpha = 0.1f))
+            .clickable {
+                if (bitmap != null) {
+                    onDetailClick(PinDetail(provider, type, actualCount, bitmap, Offset(anchorX, anchorY)))
+                }
+            }
+    ) {
+        // Coordinate Crosshair (75% position: X=30, Y=45)
+        Box(modifier = Modifier.fillMaxWidth().height(45.dp).drawBehind {
+            drawLine(Color.Blue.copy(alpha = 0.2f), Offset(0f, size.height), Offset(size.width, size.height), strokeWidth = 1.dp.toPx())
+        })
+        Box(modifier = Modifier.fillMaxHeight().width(30.dp).drawBehind {
+            drawLine(Color.Blue.copy(alpha = 0.2f), Offset(size.width, 0f), Offset(size.width, size.height), strokeWidth = 1.dp.toPx())
+        })
+        
+        // Map Point (Anchor Destination at 30, 45)
+        Box(modifier = Modifier.size(4.dp).offset(x = 28.dp, y = 43.dp).background(Color.Red, CircleShape).zIndex(5f))
+
+        if (bitmap != null) {
+            val density = context.resources.displayMetrics.density
+            val imgW = bitmap.width / density
+            val imgH = bitmap.height / density
+            
+            val drawX = 30f - (anchorX * imgW)
+            val drawY = 45f - (anchorY * imgH)
+
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier.offset(x = drawX.dp, y = drawY.dp)
+            )
+        }
     }
 }
 
@@ -326,4 +398,105 @@ fun FlowRow(
         }
     }
 }
+
+@Composable
+fun PinInspectorDialog(detail: PinDetail, onDismiss: () -> Unit) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = Color.White
+        ) {
+            val context = LocalContext.current
+            val density = context.resources.displayMetrics.density
+
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("${detail.provider} Map - Type ${detail.type}", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = Color.Black)
+                        Text(if (detail.count > 1) "Cluster (${detail.count} items)" else "Single Item", fontSize = 16.sp, color = Color.DarkGray)
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, "Close")
+                    }
+                }
+                Divider()
+
+                // Inspection Area (8x Zoom)
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .background(Color(0xFFF5F5F5))
+                        .pointerInput(Unit) { /* Just consume pointer */ }
+                ) {
+                    androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                        val center = Offset(size.width / 2f, size.height * 0.75f)
+                        val scale = 8.0f
+                        
+                        // 1. Grid
+                        val step = 20.dp.toPx()
+                        for (x in 0..(size.width / step).toInt()) {
+                            drawLine(Color.LightGray.copy(alpha = 0.5f), Offset(x * step, 0f), Offset(x * step, size.height))
+                        }
+                        for (y in 0..(size.height / step).toInt()) {
+                            drawLine(Color.LightGray.copy(alpha = 0.5f), Offset(0f, y * step), Offset(size.width, y * step))
+                        }
+
+                        // 2. Crosshair (Map Target)
+                        drawLine(Color.Blue.copy(alpha = 0.7f), Offset(center.x, 0f), Offset(center.x, size.height), strokeWidth = 2f)
+                        drawLine(Color.Blue.copy(alpha = 0.7f), Offset(0f, center.y), Offset(size.width, center.y), strokeWidth = 2f)
+
+                        // 3. Pin (8x Zoomed) - Target: Anchor Point at Crosshair
+                        val img = detail.bitmap
+                        val ax = detail.anchor.x
+                        val ay = detail.anchor.y
+                        
+                        val w = img.width * scale / density
+                        val h = img.height * scale / density
+                        
+                        // TopLeft = Center - (Anchor * Size)
+                        val topLeft = Offset(
+                            center.x - (ax * w),
+                            center.y - (ay * h)
+                        )
+                        
+                        drawImage(
+                            image = img.asImageBitmap(),
+                            dstOffset = androidx.compose.ui.unit.IntOffset(topLeft.x.toInt(), topLeft.y.toInt()),
+                            dstSize = androidx.compose.ui.unit.IntSize(w.toInt(), h.toInt()),
+                            filterQuality = FilterQuality.None // CRITICAL: Sharp Pixels
+                        )
+
+                        // 4. Anchor Point Indicator (Red Dot)
+                        drawCircle(Color.Red, radius = 4f, center = center)
+                    }
+                }
+
+                // Footer Info
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Logic Mirroring", fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, color = Color.Black)
+                    Text("Policy: normalized anchor (UV)", fontSize = 13.sp, color = Color.DarkGray)
+                    Text("Anchor: (${String.format("%.3f", detail.anchor.x)}, ${String.format("%.3f", detail.anchor.y)})", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1976D2))
+                    Text("Asset Size: ${detail.bitmap.width}x${detail.bitmap.height} px", fontSize = 13.sp, color = Color.DarkGray)
+                }
+            }
+        }
+    }
+}
+
+data class PinDetail(
+    val provider: String,
+    val type: String,
+    val count: Int,
+    val bitmap: Bitmap,
+    val anchor: androidx.compose.ui.geometry.Offset
+)
 
