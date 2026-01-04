@@ -60,6 +60,7 @@ fun KakaoMapContent(
 
     showActivePath: Boolean = true,
     livePath: List<kr.alltodo.data.LocationEntity> = emptyList(), // [FIX] Added parameter
+    showMyLocation: Boolean = true, // [NEW] Control user location visibility
     onCameraIdle: (Double, Float, Double) -> Unit // [NEW] Wm, Zoom, Lat
 ) {
     val context = LocalContext.current
@@ -235,6 +236,9 @@ fun KakaoMapContent(
         
         // --- Step 1 & 4: Identification & Addition ---
         visibleClusters.forEach { cluster ->
+            val isUser = cluster.items.any { it is kr.alltodo.ui.UnifiedItem.CurrentLocation }
+            if (isUser && !showMyLocation) return@forEach // [FIX] Hide user on map when requested
+            
             val lat = cluster.latitude
             val lng = cluster.longitude
             if (lat.isNaN() || lng.isNaN()) return@forEach

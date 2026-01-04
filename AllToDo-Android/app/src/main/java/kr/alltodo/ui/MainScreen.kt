@@ -406,7 +406,8 @@ fun MainScreen(
                         livePath = liveSessionPoints, // [FIX] Pass live path data
                         onCameraIdle = { wm, zoom, lat -> 
                              mapViewModel.handleCameraIdle(wm, zoom, lat, MapProvider.Naver) 
-                        }
+                        },
+                        showMyLocation = !isListVisible // [FIX] Hide user on map when list is open
                     )
                 }
                 MapProvider.Kakao -> {
@@ -440,7 +441,8 @@ fun MainScreen(
                         livePath = liveSessionPoints, // [FIX] Pass live path data
                         onCameraIdle = { wm, zoom, lat -> 
                              mapViewModel.handleCameraIdle(wm, zoom, lat, MapProvider.Kakao) 
-                        }
+                        },
+                        showMyLocation = !isListVisible // [FIX] Hide user on map when list is open
                     )
                 }
                 MapProvider.Google -> {
@@ -489,39 +491,42 @@ fun MainScreen(
                         livePath = liveSessionPoints, // [FIX] Essential for Google Map Path rendering
                         onCameraIdle = { wm, zoom, lat -> 
                              mapViewModel.handleCameraIdle(wm, zoom, lat, MapProvider.Google) 
-                        }
+                        },
+                        showMyLocation = !isListVisible // [FIX] Hide user on map when list is open
                     )
                 }
             }
         }
 
         // [Item 1] Top Left Widget
-        if (!isListVisible) {
-            val todoItems by todoViewModel.todoItems.collectAsState()
-            TopLeftWidget(
-                historyCount = todoItems.count { it.type == "00" },
-                localTodoCount = todoItems.count { it.source == "local" && it.type == "10" },
-                serverTodoCount = todoItems.count { it.source != "local" && it.type == "10" },
-                modifier = Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = 40.dp),
-                onExpandClick = { todoViewModel.toggleListLayer() } // [FIX] Connect to List Layer
-            )
-        }
+        // [Item 1] Top Left Widget (Todo Info)
+        val currentTodoItems by todoViewModel.todoItems.collectAsState()
+        TopLeftWidget(
+            historyCount = currentTodoItems.count { it.type == "00" },
+            localTodoCount = currentTodoItems.count { it.source == "local" && it.type == "10" },
+            serverTodoCount = currentTodoItems.count { it.source != "local" && it.type == "10" },
+            modifier = Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = 40.dp),
+            onExpandClick = { todoViewModel.toggleListLayer() } 
+        )
 
         // [Item 2] Right Side Controls
         // State is now at the top of MainScreen
 
-        RightSideControls(
-            modifier = Modifier.align(Alignment.TopEnd).padding(top = 40.dp),
-            compassRotation = compassRotation,
-            isTracking = isTracking,
-            showActivePath = showActivePath,
-            onToggleActivePath = { gpsAuthViewModel.toggleActivePath() },
-            onLoginClick = { mapViewModel.toggleMyInfo(true) },
-            onZoomInClick = { mapViewModel.handleZoomIn() },
-            onZoomOutClick = { mapViewModel.handleZoomOut() },
-            onLocationClick = { mapViewModel.handleLocationClick() },
-            onCompassClick = { mapViewModel.handleCompassClick() }
-        )
+        // [Item 2] Right Side Controls (Includes My Info)
+        if (!isListVisible) {
+            RightSideControls(
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = 40.dp),
+                compassRotation = compassRotation,
+                isTracking = isTracking,
+                showActivePath = showActivePath,
+                onToggleActivePath = { gpsAuthViewModel.toggleActivePath() },
+                onLoginClick = { mapViewModel.toggleMyInfo(true) },
+                onZoomInClick = { mapViewModel.handleZoomIn() },
+                onZoomOutClick = { mapViewModel.handleZoomOut() },
+                onLocationClick = { mapViewModel.handleLocationClick() },
+                onCompassClick = { mapViewModel.handleCompassClick() }
+            )
+        }
 
         // [NEW] Global Overlay Theme Logic (iOS Parity)
         val isSystemDark = isSystemInDarkTheme()

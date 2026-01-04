@@ -51,6 +51,7 @@ fun NaverMapContent(
 
     showActivePath: Boolean = true,
     livePath: List<kr.alltodo.data.LocationEntity> = emptyList(), // [FIX] Added parameter
+    showMyLocation: Boolean = true, // [NEW] Control user location visibility
     onCameraIdle: (Double, Float, Double) -> Unit // [NEW] Wm, Zoom, Lat
 ) {
     val context = LocalContext.current
@@ -428,6 +429,9 @@ fun NaverMapContent(
                     
                     isMapReady = true
                     onMapReady(nMap)
+                    
+                    // [NEW] Dynamic Location Support
+                    nMap.locationOverlay.isVisible = showMyLocation
                     
                     // Basic Settings
                     nMap.uiSettings.isZoomControlEnabled = false

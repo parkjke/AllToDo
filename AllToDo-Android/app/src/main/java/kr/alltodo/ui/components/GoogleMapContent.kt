@@ -59,6 +59,7 @@ fun GoogleMapContent(
 
     showActivePath: Boolean = true,
     livePath: List<kr.alltodo.data.LocationEntity> = emptyList(), // [FIX] Added parameter
+    showMyLocation: Boolean = true, // [NEW] Control user location visibility
     onCameraIdle: (Double, Float, Double) -> Unit // [NEW] Wm, Zoom, Lat
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -84,9 +85,9 @@ fun GoogleMapContent(
     // [DEBUG] Entry Log
 
     val isDark = androidx.compose.foundation.isSystemInDarkTheme()
-    val properties = remember(isDark) {
+    val properties = remember(isDark, showMyLocation) {
         MapProperties(
-            isMyLocationEnabled = false,
+            isMyLocationEnabled = showMyLocation, // [FIX] Sync with showMyLocation
             mapStyleOptions = if (isDark) {
                 MapStyleOptions.loadRawResourceStyle(context, R.raw.google_map_dark_style)
             } else {

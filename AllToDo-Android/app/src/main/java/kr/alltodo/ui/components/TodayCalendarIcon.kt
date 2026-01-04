@@ -30,36 +30,44 @@ fun TodayCalendarIcon(
         else -> tint
     }
 
-    // [FIX] Increase overall size slightly (36 -> 38) and add enough padding to avoid clipping
+    // [FIX] Use a slightly larger outer box (40dp) with enough internal space (32dp content) to prevent ANY clipping
     Box(
         modifier = modifier
-            .size(38.dp) // Slightly larger to accommodate border
-            .border(2.dp, tint, RoundedCornerShape(8.dp))
-            .padding(1.dp), // Minimal padding inside border
+            .size(40.dp), // Fixed size for the whole component area
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally
+        Box(
+            modifier = Modifier
+                .size(32.dp) // The actual visual icon size
+                .border(2.dp, tint, RoundedCornerShape(6.dp))
+                .padding(0.dp),
+            contentAlignment = Alignment.Center
         ) {
-            // Top bar like a desk calendar
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(5.dp) // Slightly taller
-                    .background(tint, RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
-            )
-            Box(
-                modifier = Modifier.weight(1f),
-                contentAlignment = Alignment.Center
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = dayOfMonth.toString(),
-                    fontSize = 15.sp, // Slightly larger
-                    fontWeight = FontWeight.ExtraBold, // More emphasis
-                    color = textColor,
-                    modifier = Modifier.offset(y = (-1).dp) // Adjust visual balance
+                // Top accent bar
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .background(tint, RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
                 )
+                
+                // Day number area
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = dayOfMonth.toString(),
+                        fontSize = 14.sp,
+                        lineHeight = 14.sp,
+                        fontWeight = FontWeight.Black,
+                        color = textColor
+                    )
+                }
             }
         }
     }
