@@ -81,6 +81,7 @@ fun MainScreen(
     // [NEW] Search VM (Moved up to avoid unresolved references)
     val searchViewModel: kr.alltodo.ui.SearchViewModel = hiltViewModel()
     val isSearchVisible by searchViewModel.isOverlayVisible.collectAsState()
+    val isListVisible by todoViewModel.isListLayerVisible.collectAsState()
 
     // [NEW] Path Viewer State (Now using TodoItem for ID context)
     var viewingPathTodo by remember { mutableStateOf<kr.alltodo.data.TodoItem?>(null) }
