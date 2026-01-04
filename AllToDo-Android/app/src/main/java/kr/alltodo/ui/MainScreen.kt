@@ -494,7 +494,7 @@ fun MainScreen(
             localTodoCount = todoItems.count { it.source == "local" && it.type == "10" },
             serverTodoCount = todoItems.count { it.source != "local" && it.type == "10" },
             modifier = Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = 40.dp),
-            onExpandClick = { /* Disabled for now */ }
+            onExpandClick = { todoViewModel.toggleListLayer() } // [FIX] Connect to List Layer
         )
 
         // [Item 2] Right Side Controls
@@ -685,6 +685,30 @@ fun MainScreen(
                         }
                         mapViewModel.cancelCreatingTodo()
                     }
+                )
+            }
+        }
+
+        // [NEW] Todo List Layer
+        val isListVisible by todoViewModel.isListLayerVisible.collectAsState()
+        if (isListVisible) {
+            AllToDoTheme(darkTheme = isOverlayDark) {
+                kr.alltodo.ui.components.TodoListLayer(
+                    viewModel = todoViewModel,
+                    onPathClick = { item ->
+                        todoViewModel.toggleListLayer()
+                        if (item is kr.alltodo.ui.UnifiedItem.History) {
+                            viewingPathTodo = item.item
+                            todoViewModel.fetchPathForHistory(item.item)
+                        } else if (item is kr.alltodo.ui.UnifiedItem.Todo) {
+                            viewingPathTodo = item.item
+                            todoViewModel.fetchPathForHistory(item.item)
+                        }
+                    },
+                    onDismiss = { todoViewModel.toggleListLayer() },
+                    modifier = Modifier
+                        .padding(top = 100.dp) // Below TopLeftWidget
+                        .fillMaxSize()
                 )
             }
         }

@@ -82,6 +82,28 @@ class TodoViewModel @Inject constructor(
     private val _showHistoryMode = MutableStateFlow(false)
     val showHistoryMode: StateFlow<Boolean> = _showHistoryMode.asStateFlow()
 
+    // [NEW] Todo List Layer States
+    private val _isListLayerVisible = MutableStateFlow(false)
+    val isListLayerVisible: StateFlow<Boolean> = _isListLayerVisible.asStateFlow()
+
+    private val _sortByTime = MutableStateFlow(true) // true: Time, false: Color (Blue-Green-Red)
+    val sortByTime: StateFlow<Boolean> = _sortByTime.asStateFlow()
+
+    private val _filterServer = MutableStateFlow(true)
+    val filterServer: StateFlow<Boolean> = _filterServer.asStateFlow()
+
+    private val _filterTodo = MutableStateFlow(true)
+    val filterTodo: StateFlow<Boolean> = _filterTodo.asStateFlow()
+
+    private val _filterHistory = MutableStateFlow(true)
+    val filterHistory: StateFlow<Boolean> = _filterHistory.asStateFlow()
+
+    fun toggleListLayer() { _isListLayerVisible.value = !_isListLayerVisible.value }
+    fun setSortByTime(value: Boolean) { _sortByTime.value = value; updateFilteredItems(immediate = true) }
+    fun toggleFilterServer() { _filterServer.value = !_filterServer.value; updateFilteredItems(immediate = true) }
+    fun toggleFilterTodo() { _filterTodo.value = !_filterTodo.value; updateFilteredItems(immediate = true) }
+    fun toggleFilterHistory() { _filterHistory.value = !_filterHistory.value; updateFilteredItems(immediate = true) }
+
     fun updateZoom(zoom: Float) {
         if (_currentZoom.value != zoom) {
              _currentZoom.value = zoom
@@ -137,13 +159,34 @@ class TodoViewModel @Inject constructor(
              val minTime = targetTime - oneDay
              val maxTime = Long.MAX_VALUE // [FIX] Future tasks are now always visible
 
-             val filteredLogItems = historyItems.filter { (it.int_lat != null) && (it.begin_time ?: it.created_at) in minTime .. maxTime }
-                 .map { kr.alltodo.ui.UnifiedItem.History(it) }
-             
-             // [RESTORED] Apply 24h filter to Todos as requested
-             val filteredTodoItems = normalTodos.filter { (it.int_lat != null) && it.created_at in minTime .. maxTime }
+             // [NEW] Apply Multi-Category Filter
+             val filteredLogItems = if (_filterHistory.value) {
+                 historyItems.filter { (it.int_lat != null) && (it.begin_time ?: it.created_at) in minTime..maxTime }
+                     .map { kr.alltodo.ui.UnifiedItem.History(it) }
+             } else emptyList()
+
+             val filteredTodoItems = normalTodos.filter { (it.int_lat != null) && it.created_at in minTime..maxTime }
+                 .filter { item ->
+                     val isServer = item.source != "local"
+                     if (isServer) _filterServer.value else _filterTodo.value
+                 }
                  .map { kr.alltodo.ui.UnifiedItem.Todo(it) }
-             
+
+             // [NEW] Combine & Sort
+             val combinedRaw = filteredLogItems + filteredTodoItems
+             val sorted = if (_sortByTime.value) {
+                 combinedRaw.sortedByDescending { it.createdAt }
+             } else {
+                 // Color Sort: Blue (Server) -> Green (Local) -> Red (History)
+                 combinedRaw.sortedWith(compareBy<kr.alltodo.ui.UnifiedItem> {
+                     when (it) {
+                         is kr.alltodo.ui.UnifiedItem.Todo -> if (it.item.source != "local") 0 else 1
+                         is kr.alltodo.ui.UnifiedItem.History -> 2
+                         else -> 3
+                     }
+                 }.thenByDescending { it.createdAt })
+             }
+
              // [DEBUG LOGGING] Log only if counts changed or immediate
              val timeStr = SimpleDateFormat("HH:mm:ss", Locale.KOREA).format(Date())
              val currentFilteredTodoCount = filteredTodoItems.size
@@ -165,7 +208,7 @@ class TodoViewModel @Inject constructor(
                  lastTotalTodoCount = rawTodoCount
              }
 
-             val combined = filteredLogItems + filteredTodoItems
+             val combined = sorted
 
              // [NEW] 500km Filter Logic
              val farThreshold = 500_000f // 500km
