@@ -63,7 +63,7 @@ fun TodoListLayer(
                         Icon(
                             imageVector = if (sortByTime) Icons.Default.AccessTime else Icons.Default.Palette,
                             contentDescription = "정렬",
-                            tint = Gray2
+                            tint = Gray8
                         )
                     }
                     
@@ -96,7 +96,7 @@ fun TodoListLayer(
                         Icon(
                             imageVector = Icons.Default.CalendarToday,
                             contentDescription = "캘린더",
-                            tint = Gray2
+                            tint = Gray8
                         )
                     }
 
@@ -105,7 +105,7 @@ fun TodoListLayer(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "닫기",
-                            tint = Gray2
+                            tint = Gray8
                         )
                     }
                 }
@@ -119,7 +119,14 @@ fun TodoListLayer(
                 items(displayItems.filter { it !is UnifiedItem.CurrentLocation }) { item ->
                     TodoItemCard(
                         item = item,
-                        onPathClick = { onPathClick(item) }
+                        onPathClick = { onPathClick(item) },
+                        onDeleteClick = {
+                            when (item) {
+                                is UnifiedItem.Todo -> viewModel.deleteTodo(item.item)
+                                is UnifiedItem.History -> viewModel.deleteTodo(item.item)
+                                else -> {}
+                            }
+                        }
                     )
                 }
             }

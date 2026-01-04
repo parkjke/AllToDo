@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
@@ -24,34 +25,36 @@ import java.util.*
 fun TodoItemCard(
     item: kr.alltodo.ui.UnifiedItem,
     onPathClick: () -> Unit,
+    onDeleteClick: () -> Unit, // [NEW] Added for single row layout
     modifier: Modifier = Modifier
 ) {
     val backgroundColor = when (item) {
-        is kr.alltodo.ui.UnifiedItem.Todo -> if (item.item.source != "local") AllToDoBlue.copy(alpha = 0.1f) else AllToDoGreen.copy(alpha = 0.1f)
-        is kr.alltodo.ui.UnifiedItem.History -> AllToDoRed.copy(alpha = 0.1f)
+        is kr.alltodo.ui.UnifiedItem.Todo -> if (item.item.source != "local") AllToDoBlue.copy(alpha = 0.05f) else AllToDoGreen.copy(alpha = 0.05f)
+        is kr.alltodo.ui.UnifiedItem.History -> AllToDoRed.copy(alpha = 0.05f)
         else -> Color.White
     }
 
     val typeColor = when (item) {
         is kr.alltodo.ui.UnifiedItem.Todo -> if (item.item.source != "local") AllToDoBlue else AllToDoGreen
         is kr.alltodo.ui.UnifiedItem.History -> AllToDoRed
-        else -> Gray3
+        else -> Gray8
     }
 
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 4.dp),
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(8.dp) // Slightly tighter corners for list feel
     ) {
         Row(
             modifier = Modifier
-                .padding(16.dp)
+                .padding(horizontal = 12.dp, vertical = 8.dp)
                 .fillMaxWidth(),
-            verticalAlignment = Alignment.Top
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // 1. Map Icon
+            // 1. Map Icon [지]
             val noOfPath = when (item) {
                 is kr.alltodo.ui.UnifiedItem.Todo -> item.item.no_of_path
                 is kr.alltodo.ui.UnifiedItem.History -> item.item.no_of_path
@@ -62,101 +65,102 @@ fun TodoItemCard(
                 IconButton(
                     onClick = onPathClick,
                     enabled = noOfPath > 1,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(28.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Map,
                         contentDescription = "경로 보기",
-                        tint = if (noOfPath > 1) typeColor else Gray4
+                        tint = if (noOfPath > 1) typeColor else Color.LightGray.copy(alpha = 0.5f),
+                        modifier = Modifier.size(20.dp)
                     )
                 }
-                Spacer(modifier = Modifier.width(12.dp))
             } else {
-                Spacer(modifier = Modifier.width(36.dp))
+                Spacer(modifier = Modifier.width(28.dp))
             }
 
-            Column(modifier = Modifier.weight(1f)) {
-                // 2. Date/Time (Water balloon style)
-                val dateTime = when (item) {
-                    is kr.alltodo.ui.UnifiedItem.Todo -> item.item.date_time
-                    is kr.alltodo.ui.UnifiedItem.History -> {
-                        val sdf = SimpleDateFormat("yyyy.MM.dd HH:mm", Locale.KOREA)
-                        sdf.format(Date(item.item.begin_time ?: item.item.created_at))
-                    }
-                    else -> null
-                }
+            Spacer(modifier = Modifier.width(4.dp))
 
-                if (!dateTime.isNullOrEmpty()) {
-                    Surface(
-                        color = Color.White.copy(alpha = 0.5f),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.padding(bottom = 4.dp)
-                    ) {
-                        Text(
-                            text = dateTime,
-                            fontSize = 11.sp,
-                            color = Gray2,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                        )
-                    }
-                }
+            // 2 & 3. Date & Time
+            val timestamp = when (item) {
+                is kr.alltodo.ui.UnifiedItem.Todo -> item.item.created_at
+                is kr.alltodo.ui.UnifiedItem.History -> item.item.begin_time ?: item.item.created_at
+                else -> System.currentTimeMillis()
+            }
+            
+            val dateStr = SimpleDateFormat("M/d", Locale.KOREA).format(Date(timestamp))
+            val timeStr = SimpleDateFormat("HH:mm", Locale.KOREA).format(Date(timestamp))
 
-                // 3. Name
-                val name = when (item) {
-                    is kr.alltodo.ui.UnifiedItem.Todo -> item.item.todo_name
-                    is kr.alltodo.ui.UnifiedItem.History -> item.item.todo_name
-                    else -> ""
-                }
+            Text(
+                text = dateStr,
+                fontSize = 13.sp,
+                color = Gray8,
+                modifier = Modifier.padding(end = 4.dp)
+            )
+            Text(
+                text = timeStr,
+                fontSize = 13.sp,
+                color = Gray8,
+                fontWeight = FontWeight.Bold, // (bolt)
+                modifier = Modifier.padding(end = 8.dp)
+            )
 
-                Text(
-                    text = name,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Gray1,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                // 4. Memo
-                val memo = when (item) {
-                    is kr.alltodo.ui.UnifiedItem.Todo -> item.item.memo
-                    is kr.alltodo.ui.UnifiedItem.History -> null
-                    else -> null
-                }
-
-                if (!memo.isNullOrEmpty()) {
-                    Text(
-                        text = memo,
-                        fontSize = 13.sp,
-                        color = Gray3,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
+            // 4. Name (went places, etc.)
+            val name = when (item) {
+                is kr.alltodo.ui.UnifiedItem.Todo -> item.item.todo_name
+                is kr.alltodo.ui.UnifiedItem.History -> item.item.todo_name
+                else -> ""
             }
 
-            // 5. Person Count
+            Text(
+                text = name,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                color = Gray8,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+
+            // 5. Person Icon & Count [사]
             val personCount = when (item) {
                 is kr.alltodo.ui.UnifiedItem.Todo -> item.item.person?.toIntOrNull() ?: 0
                 else -> 0
             }
 
             if (personCount > 0) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                ) {
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = null,
-                        tint = Gray4,
+                        tint = Gray8,
                         modifier = Modifier.size(16.dp)
                     )
+                    Spacer(Modifier.width(2.dp))
                     Text(
-                        text = personCount.toString(),
-                        fontSize = 12.sp,
-                        color = Gray4,
+                        text = String.format("%02d", personCount), // 00 format
+                        fontSize = 13.sp,
+                        color = Gray8,
                         fontWeight = FontWeight.Medium
                     )
                 }
+            } else {
+                Spacer(modifier = Modifier.width(8.dp))
+            }
+
+            // 6. Delete Icon [휴]
+            IconButton(
+                onClick = onDeleteClick,
+                modifier = Modifier.size(28.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "삭제",
+                    tint = Gray8,
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
     }

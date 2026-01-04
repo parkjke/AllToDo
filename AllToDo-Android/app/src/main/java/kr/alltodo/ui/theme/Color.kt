@@ -47,16 +47,16 @@ object AppColors {
         fun background(isDark: Boolean): Color = 
             if (isDark) Black.copy(alpha = 0.9f) else White.copy(alpha = 0.9f)
             
-        fun headerText(isDark: Boolean): Color = if (isDark) White else Black
+        fun headerText(isDark: Boolean): Color = if (isDark) White else Gray8 // [FIX] Stronger visibility
         
-        fun labelText(isDark: Boolean): Color = if (isDark) Gray5 else Gray7
+        fun labelText(isDark: Boolean): Color = if (isDark) Gray5 else Gray8
         
         fun inputBackground(isDark: Boolean): Color = 
             if (isDark) Color(0xFF1A1A1A) else Gray1
             
-        fun placeholderText(isDark: Boolean): Color = if (isDark) Gray7 else Gray5
+        fun placeholderText(isDark: Boolean): Color = if (isDark) Gray7 else Gray6
         
-        fun primaryText(isDark: Boolean): Color = if (isDark) White else Black
+        fun primaryText(isDark: Boolean): Color = if (isDark) White else Gray8
     }
     
     // MARK: - 장소 검색 오버레이 시맨틱 (Search)
@@ -65,13 +65,13 @@ object AppColors {
         fun background(isDark: Boolean): Color = TodoLayer.background(isDark)
         
         /// 검색바 내부의 구성 요소(아이콘, 텍스트, 지우기 버튼) 통합 색상 (다크: Gray3, 라이트: Gray7)
-        fun searchBarTint(isDark: Boolean): Color = if (isDark) Gray4 else Gray7
+        fun searchBarTint(isDark: Boolean): Color = if (isDark) Gray4 else Gray8 // [FIX] Strong visibility
 
-        fun searchBarPlaceholder(isDark: Boolean): Color = if (isDark) Gray7 else Gray6
+        fun searchBarPlaceholder(isDark: Boolean): Color = if (isDark) Gray7 else Gray7
             
-        fun resultName(isDark: Boolean): Color = if (isDark) Gray6 else Gray7
+        fun resultName(isDark: Boolean): Color = if (isDark) Gray6 else Gray8
         
-        fun resultAddress(isDark: Boolean): Color = if (isDark) Gray7 else Gray6
+        fun resultAddress(isDark: Boolean): Color = if (isDark) Gray7 else Gray7
         
         fun distance(isDark: Boolean): Color = if (isDark) AllToDoDarkGreen else AllToDoGreen
         

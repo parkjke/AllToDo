@@ -175,7 +175,7 @@ class TodoViewModel @Inject constructor(
              // [NEW] Combine & Sort
              val combinedRaw = filteredLogItems + filteredTodoItems
              val sorted = if (_sortByTime.value) {
-                 combinedRaw.sortedByDescending { it.createdAt }
+                 combinedRaw.sortedByDescending { it.timestamp }
              } else {
                  // Color Sort: Blue (Server) -> Green (Local) -> Red (History)
                  combinedRaw.sortedWith(compareBy<kr.alltodo.ui.UnifiedItem> {
@@ -184,7 +184,7 @@ class TodoViewModel @Inject constructor(
                          is kr.alltodo.ui.UnifiedItem.History -> 2
                          else -> 3
                      }
-                 }.thenByDescending { it.createdAt })
+                 }.thenByDescending { it.timestamp })
              }
 
              // [DEBUG LOGGING] Log only if counts changed or immediate
