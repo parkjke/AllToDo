@@ -36,6 +36,7 @@ struct UserProfileView: View {
                         .foregroundColor(.gray)
                         .font(.title2)
                 }
+                .buttonStyle(PlainButtonStyle()) // [FIX] Remove system ghost shadow
             }
 
             .padding()
@@ -157,6 +158,7 @@ struct UserProfileView: View {
         }
         .onAppear(perform: loadUserInfo)
         .onDisappear(perform: saveUserInfo)
+        .ignoresSafeArea(.keyboard) // [FIX] Stable layout for user info editing
         #if DEBUG
         .sheet(isPresented: $showPinGallery) {
             PinGalleryView()

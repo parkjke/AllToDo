@@ -7,6 +7,15 @@
 - **Pin Display Filter Refinement (Cross-Platform)**:
     - 핀 표시 시간 범위를 기존 `±24시간`에서 **`-24시간 ~ 무제한(미래)`**으로 확장하여, 어제부터 내일 이후의 모든 일정이 지도에 표시되도록 양대 플랫폼 동시 적용 완료.
 
+- **Unified Search Experience (iOS/Android)**:
+    - **UI/UX Refinement**: iOS `SearchOverlay`, `CreateTodoLayer`, `UserProfileView`의 모든 버튼에 `PlainButtonStyle`을 적용하여 유령 그림자(Ghost Shadow) 현상을 완전히 박멸함.
+    - **Layout Stability**: iOS 오버레이에 `.ignoresSafeArea(.keyboard)` 정책을 강화하여 키보드 호출 시 화면 레이아웃이 밀리는 현상을 원천 차단함.
+    - **Android Polish**: 안드로이드 검색창의 커서 색상(테마 감응), 입력 밑줄(VisualTransformation으로 시각적 제거), 한글 입력 복구 및 볼드(Bold) 스타일 적용 및 거리 단위 km 자동 변환 로직(1000m 이상) 구현.
+- **Kakao Search Feature Implementation**:
+    - **iOS/Android**: 카카오 로컬 키워드 검색 API 연동 및 `SearchViewModel`을 통한 양대 플랫폼 검색 로직 통합.
+    - **Features**: 음성 인식 검색 지원 및 검색 결과 클릭 시 해당 장소로의 즉시 카메라 이동 기능 구현.
+    - **Color System**: `searchBarTint` 시맨틱 컬러 도입 및 플랫폼별 라이트 모드 배경(Pure White) 고정 정책 적용.
+
 ## 2026-01-03
 ### 🎉 Map Development Milestone: "지도 완료" (Geospatial Perfection)
 이번 업데이트를 통해 AllToDo의 핵심인 4대 지도 엔진(Apple, Google, Naver, Kakao)의 정합성, 안정성, 그리고 시각적 품질을 최종적으로 확보했습니다.
