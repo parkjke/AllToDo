@@ -463,66 +463,47 @@ fun KakaoMapContent(
     if (isSdkInitialized) {
         AndroidView(
             factory = { ctx ->
-                MapView(ctx).apply {
-                    mapView = this // [FIX] Capture Reference
+                val contextThemeWrapper = android.view.ContextThemeWrapper(ctx, androidx.appcompat.R.style.Theme_AppCompat_Light_NoActionBar)
+                MapView(contextThemeWrapper).apply {
+                    mapView = this
                     start(object : MapLifeCycleCallback() {
                         override fun onMapDestroy() {}
                         override fun onMapError(e: Exception?) {}
                     }, object : KakaoMapReadyCallback() {
-                        // onMapReady, getPosition, getZoomLevel이 모두 이 블록 안에 있어야 합니다.
                         override fun onMapReady(kMap: KakaoMap) {
                             kakaoMap = kMap
                             isMapReady = true
-                            activeOnMapReady(kMap) // Call captured parent callback with Map instance
+                            activeOnMapReady(kMap)
                             
-                            // [NEW] Apply Padding
                             kMap.setPadding(0, 0, 0, contentPaddingBottom)
 
-                            // [NEW] Map Long Click (Terrain)
                             kMap.setOnTerrainLongClickListener(object : KakaoMap.OnTerrainLongClickListener {
                                 override fun onTerrainLongClicked(kakaoMap: KakaoMap, latLng: LatLng, screenPoint: PointF) {
                                     onMapLongClick(latLng)
                                 }
                             })
 
-                            // [FIX] Polling for Zoom Change (since Listener API is uncertain/failed)
-                            // This ensures we catch Zoom changes even if listeners are tricky
-                            // We will handle this in a LaunchedEffect outside, or basic polling here?
-                            // LaunchedEffect is better.
-                            
                             kMap.setOnLabelClickListener { _, _, label ->
-                                // [FIX] Use tag for 100% reliable identification
                                 val clicked = label.tag as? PinClusterItem
-                                
                                 if (clicked != null) {
                                     val density = context.resources.displayMetrics.density
-                                    
                                     val viewW = mapView?.width ?: 0
                                     val viewH = mapView?.height ?: 0
-                                    
-                                    // Requirement 4: Pin head at center.y + 3pt
-                                    // Pin Tip Target Location = center.y + 3dp + 50dp(height) = +53dp
                                     val offsetPx = (53 * density).toInt() 
                                     val targetScreenPt = android.graphics.Point(viewW / 2, (viewH / 2) + offsetPx)
-                                    
-                                    // Convert Pin's current position to screen, calculate target center
                                     val currentPinPos = label.position
                                     val pinScreenPt = kMap.toScreenPoint(currentPinPos)
                                     
                                     if (pinScreenPt != null) {
                                         val deltaX = pinScreenPt.x - targetScreenPt.x
                                         val deltaY = pinScreenPt.y - targetScreenPt.y
-                                        
                                         val currentCenterPt = android.graphics.Point(viewW / 2, viewH / 2)
                                         val targetCenterPt = android.graphics.Point(currentCenterPt.x + deltaX.toInt(), currentCenterPt.y + deltaY.toInt())
                                         val targetLatLng = kMap.fromScreenPoint(targetCenterPt.x, targetCenterPt.y)
-                                        
                                         if (targetLatLng != null) {
                                             kMap.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.newCenterPosition(targetLatLng), com.kakao.vectormap.camera.CameraAnimation.from(400, true, true))
                                         }
                                     }
-                                    
-                                    // Pass screen center to CalloutBubble so tail is at center
                                     if (clicked.count == 1 && clicked.items.isNotEmpty()) {
                                          onItemClickWithCoords(clicked.items.first(), viewW / 2f, viewH / 2f)
                                     } else {
@@ -532,43 +513,32 @@ fun KakaoMapContent(
                                 true
                             }
                             
-                            // [NEW] Camera Idle Listener
-                            // [NEW] Camera Idle Listener
-                            // [NEW] Camera Idle Listener
-                            // Using setOnCameraMoveEndListener directly if unified listener is missing
                             kMap.setOnCameraMoveEndListener { kakaoMap, position, gestureType ->
-                                    val width = mapView?.width ?: 0
-                                    val height = mapView?.height ?: 0
-                                    if (width > 0 && height > 0) {
-                                        val left = kakaoMap.fromScreenPoint(0, height / 2)
-                                        val right = kakaoMap.fromScreenPoint(width, height / 2)
-                                        
-                                        if (left != null && right != null) {
-                                            val results = FloatArray(1)
-                                            android.location.Location.distanceBetween(
-                                                position.position.latitude, left.longitude,
-                                                position.position.latitude, right.longitude,
-                                                results
-                                            )
-                                            val widthMeters = results[0].toDouble()
-                                            
-                                            // Report to ViewModel
-                                            onCameraIdle(widthMeters, position.zoomLevel.toFloat(), position.position.latitude)
-                                        }
+                                val width = mapView?.width ?: 0
+                                val height = mapView?.height ?: 0
+                                if (width > 0 && height > 0) {
+                                    val left = kakaoMap.fromScreenPoint(0, height / 2)
+                                    val right = kakaoMap.fromScreenPoint(width, height / 2)
+                                    if (left != null && right != null) {
+                                        val results = FloatArray(1)
+                                        android.location.Location.distanceBetween(
+                                            position.position.latitude, left.longitude,
+                                            position.position.latitude, right.longitude,
+                                            results
+                                        )
+                                        val widthMeters = results[0].toDouble()
+                                        onCameraIdle(widthMeters, position.zoomLevel.toFloat(), position.position.latitude)
                                     }
+                                }
                             }
                         }
 
-                        override fun getPosition(): LatLng {
-                             return LatLng.from(beforeLocation.latitude, beforeLocation.longitude)
-                        }
+                        override fun getPosition(): LatLng = 
+                            LatLng.from(beforeLocation.latitude, beforeLocation.longitude)
 
-                        override fun getZoomLevel(): Int {
-                             return 15
-                        }
+                        override fun getZoomLevel(): Int = 15
                     })
                     
-                    // [FIX] Black Screen Fix: Force Resume if Activity is already Resumed
                     if (lifecycleOwner.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
                         this.resume()
                     }

@@ -66,8 +66,10 @@ fun RightSideControls(
     onCompassClick: () -> Unit = {},
     isTracking: Boolean = false,
     showActivePath: Boolean = true,
-    onToggleActivePath: () -> Unit = {}
+    onToggleActivePath: () -> Unit = {},
+    isDark: Boolean = androidx.compose.foundation.isSystemInDarkTheme()
 ) {
+    val iconTint = if (isDark) Color.White else Color(0xFF333333)
     Column(
         modifier = modifier.padding(end = 16.dp),
         horizontalAlignment = Alignment.End
@@ -78,7 +80,7 @@ fun RightSideControls(
             contentDescription = "My Info",
             onClick = onLoginClick,
             containerColor = AllToDoGreen.copy(alpha = 0.8f),
-            iconTint = Color(0xFF333333)
+            iconTint = iconTint
         )
 
         Spacer(modifier = Modifier.height(24.dp)) // "--" Spacing (2 spaces)
@@ -89,7 +91,7 @@ fun RightSideControls(
             contentDescription = "Current Location",
             onClick = onLocationClick,
             containerColor = AllToDoGreen.copy(alpha = 0.8f),
-            iconTint = Color(0xFF333333)
+            iconTint = iconTint
         )
 
         Spacer(modifier = Modifier.height(12.dp)) // "-" Spacing (1 space)
@@ -107,17 +109,17 @@ fun RightSideControls(
                     .clickable { onZoomInClick() },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Zoom In", tint = Gray8, modifier = Modifier.size(24.dp))
+                Icon(Icons.Default.Add, contentDescription = "Zoom In", tint = iconTint, modifier = Modifier.size(24.dp))
             }
             // Thin divider
-            Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(Gray8.copy(alpha = 0.3f)))
+            Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(iconTint.copy(alpha = 0.3f)))
             Box(
                 modifier = Modifier
                     .size(48.dp)
                     .clickable { onZoomOutClick() },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Remove, contentDescription = "Zoom Out", tint = Color(0xFF333333), modifier = Modifier.size(24.dp))
+                Icon(Icons.Default.Remove, contentDescription = "Zoom Out", tint = iconTint, modifier = Modifier.size(24.dp))
             }
         }
 
@@ -170,7 +172,7 @@ fun RightSideControls(
                         lineTo(0f, heightMid)
                         close()
                     }
-                    drawPath(outlinePath, Gray8, style = Stroke(width = 1f)) 
+                    drawPath(outlinePath, iconTint, style = Stroke(width = 1f)) 
                 }
             }
         }
@@ -188,7 +190,7 @@ fun RightSideControls(
             Icon(
                 painter = androidx.compose.ui.res.painterResource(id = kr.alltodo.R.drawable.ic_path_toggle),
                 contentDescription = "Toggle Path",
-                tint = if (showActivePath) Color(0xFF333333) else Color.Gray,
+                tint = if (showActivePath) iconTint else Color.Gray,
                 modifier = Modifier.size(24.dp)
             )
         }

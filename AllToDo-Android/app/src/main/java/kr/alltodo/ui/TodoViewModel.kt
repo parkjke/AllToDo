@@ -166,6 +166,7 @@ class TodoViewModel @Inject constructor(
              // [NEW] Apply Multi-Category Filter
              val filteredLogItems = if (_filterHistory.value) {
                  historyItems.filter { (it.int_lat != null) && (it.begin_time ?: it.created_at) in minTime..maxTime }
+                     .filter { it.todo_id != "CURRENT_LOCATION" } // [FIX] Don't show technical record in list
                      .map { kr.alltodo.ui.UnifiedItem.History(it) }
              } else emptyList()
 

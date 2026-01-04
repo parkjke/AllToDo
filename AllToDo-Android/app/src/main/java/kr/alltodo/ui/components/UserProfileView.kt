@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kr.alltodo.ui.theme.AllToDoGreen
+import kr.alltodo.ui.theme.AppColors
 import kr.alltodo.ui.MapProvider
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -44,8 +45,12 @@ fun UserProfileView(
     currentMapProvider: MapProvider,
     onMapProviderChange: (MapProvider) -> Unit,
     isTracking: Boolean = false,
-    onGpsAuthClick: () -> Unit = {} // [NEW]
+    onGpsAuthClick: () -> Unit = {}, // [NEW]
+    isDark: Boolean = androidx.compose.foundation.isSystemInDarkTheme()
 ) {
+    val backgroundColor = AppColors.UserProfile.background(isDark)
+    val contentColor = AppColors.UserProfile.content(isDark)
+    val dividerColor = AppColors.UserProfile.divider(isDark)
     var showPinViewer by remember { mutableStateOf(false) }
 
 
@@ -55,18 +60,19 @@ fun UserProfileView(
             .fillMaxHeight()
             .fillMaxWidth(0.85f), // Leave 15% for right controls
         shape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFE0E0E0)), // Opaque Gray 2
+        colors = CardDefaults.cardColors(containerColor = backgroundColor), // Opaque Gray 2
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
         Column(
             modifier = Modifier
-                .padding(16.dp)
+                .padding(horizontal = 16.dp)
+                .padding(top = 16.dp, bottom = 16.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             val context = androidx.compose.ui.platform.LocalContext.current
             
-            // Triple Tap Logic State
+            // Triple Tap Logic State (Simplified/Restored)
             var tapCount by remember { mutableStateOf(0) }
             LaunchedEffect(tapCount) {
                 if (tapCount > 0) {
@@ -75,10 +81,10 @@ fun UserProfileView(
                     tapCount = 0
                 }
             }
-
+            
             // Header
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp), // [NEW] Top margin
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -87,70 +93,71 @@ fun UserProfileView(
                     text = "내 정보",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF333333),
-                    modifier = Modifier.clickable { tapCount++ } // Triple tap logic
+                    color = contentColor,
+                    modifier = Modifier.clickable { tapCount++ } // Triple tap logic restored
                 )
 
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "닫기", tint = Color(0xFF333333), modifier = Modifier.size(32.dp))
+                    Icon(Icons.Default.Close, contentDescription = "닫기", tint = contentColor, modifier = Modifier.size(32.dp))
                 }
             }
             
-            Divider(color = Color(0xFF333333).copy(alpha = 0.3f), modifier = Modifier.padding(vertical = 16.dp))
+            Divider(color = dividerColor, modifier = Modifier.padding(vertical = 16.dp))
             
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Profile Section with side buttons (iOS Style)
+            // Profile Section (Restored Gallery, Larger Profile)
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left Button: Pin Gallery
+                // Left: Pin Gallery (Restored)
                 Surface(
                     onClick = { showPinViewer = true },
-                    modifier = Modifier.size(50.dp),
+                    modifier = Modifier.size(52.dp),
                     shape = androidx.compose.foundation.shape.CircleShape,
-                    color = Color.White.copy(alpha = 0.5f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF333333).copy(alpha = 0.3f))
+                    color = AppColors.UserProfile.subButtonBackground(isDark),
+                    border = androidx.compose.foundation.BorderStroke(width = 1.dp, color = dividerColor)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             painter = androidx.compose.ui.res.painterResource(kr.alltodo.R.drawable.map_pin_01),
                             contentDescription = "핀 보관함",
                             tint = Color.Unspecified,
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(30.dp)
                         )
                     }
                 }
 
                 Spacer(modifier = Modifier.width(32.dp))
 
-                // Center: Profile Icon
+                // Center: Profile Icon (Enlarged for better impact)
                 Icon(
                     imageVector = Icons.Default.Person,
                     contentDescription = null,
                     modifier = Modifier
-                        .size(80.dp)
-                        .background(Color.LightGray.copy(alpha = 0.2f), RoundedCornerShape(40.dp))
-                        .padding(16.dp),
-                    tint = Color(0xFF333333)
+                        .size(100.dp)
+                        .background(AppColors.UserProfile.profileIconBackground(isDark), RoundedCornerShape(50.dp))
+                        .padding(20.dp),
+                    tint = contentColor
                 )
 
                 Spacer(modifier = Modifier.width(32.dp))
 
+                // Right: GPS Auth
                 Surface(
                     onClick = onGpsAuthClick,
-                    modifier = Modifier.size(50.dp),
+                    modifier = Modifier.size(52.dp),
                     shape = androidx.compose.foundation.shape.CircleShape,
-                    color = Color.White.copy(alpha = 0.5f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF333333).copy(alpha = 0.3f))
+                    color = AppColors.UserProfile.subButtonBackground(isDark),
+                    border = androidx.compose.foundation.BorderStroke(width = 1.dp, color = dividerColor)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             painter = androidx.compose.ui.res.painterResource(id = kr.alltodo.R.drawable.ic_path_tracking),
                             contentDescription = "경로추적",
-                            tint = if (isTracking) kr.alltodo.ui.theme.AllToDoRed else Color(0xFF333333),
+                            tint = if (isTracking) kr.alltodo.ui.theme.AllToDoRed else AppColors.UserProfile.subButtonContent(isDark),
                             modifier = Modifier.size(32.dp)
                         )
                     }
@@ -165,12 +172,12 @@ fun UserProfileView(
                 onValueChange = {},
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedLabelColor = Color(0xFF333333),
-                    unfocusedLabelColor = Color(0xFF333333).copy(alpha = 0.7f),
-                    focusedBorderColor = Color(0xFF333333),
-                    unfocusedBorderColor = Color(0xFF333333).copy(alpha = 0.5f),
-                    focusedTextColor = Color(0xFF333333),
-                    unfocusedTextColor = Color(0xFF333333)
+                    focusedLabelColor = contentColor,
+                    unfocusedLabelColor = contentColor.copy(alpha = 0.7f),
+                    focusedBorderColor = contentColor,
+                    unfocusedBorderColor = contentColor.copy(alpha = 0.5f),
+                    focusedTextColor = contentColor,
+                    unfocusedTextColor = contentColor
                 )
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -179,12 +186,12 @@ fun UserProfileView(
                 onValueChange = {},
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedLabelColor = Color(0xFF333333),
-                    unfocusedLabelColor = Color(0xFF333333).copy(alpha = 0.7f),
-                    focusedBorderColor = Color(0xFF333333),
-                    unfocusedBorderColor = Color(0xFF333333).copy(alpha = 0.5f),
-                    focusedTextColor = Color(0xFF333333),
-                    unfocusedTextColor = Color(0xFF333333)
+                    focusedLabelColor = contentColor,
+                    unfocusedLabelColor = contentColor.copy(alpha = 0.7f),
+                    focusedBorderColor = contentColor,
+                    unfocusedBorderColor = contentColor.copy(alpha = 0.5f),
+                    focusedTextColor = contentColor,
+                    unfocusedTextColor = contentColor
                 )
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -193,19 +200,19 @@ fun UserProfileView(
                 onValueChange = {},
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedLabelColor = Color(0xFF333333),
-                    unfocusedLabelColor = Color(0xFF333333).copy(alpha = 0.7f),
-                    focusedBorderColor = Color(0xFF333333),
-                    unfocusedBorderColor = Color(0xFF333333).copy(alpha = 0.5f),
-                    focusedTextColor = Color(0xFF333333),
-                    unfocusedTextColor = Color(0xFF333333)
+                    focusedLabelColor = contentColor,
+                    unfocusedLabelColor = contentColor.copy(alpha = 0.7f),
+                    focusedBorderColor = contentColor,
+                    unfocusedBorderColor = contentColor.copy(alpha = 0.5f),
+                    focusedTextColor = contentColor,
+                    unfocusedTextColor = contentColor
                 )
             )
 
-            Divider(modifier = Modifier.padding(vertical = 16.dp))
-
+            Divider(modifier = Modifier.padding(vertical = 16.dp), color = dividerColor)
+            
             // Settings
-            Text("설정", color = Color(0xFF333333), fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
+            Text("설정", color = AppColors.UserProfile.settingHeader(isDark), fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
             Spacer(modifier = Modifier.height(8.dp))
 
             // Max Items Stepper
@@ -214,13 +221,13 @@ fun UserProfileView(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("최대 팝업 항목 수: $maxPopupItems", color = Color(0xFF333333))
+                Text("최대 팝업 항목 수: $maxPopupItems", color = contentColor)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { if (maxPopupItems > 1) onMaxItemsChange(maxPopupItems - 1) }) {
-                        Icon(Icons.Default.Remove, contentDescription = "감소", tint = Color(0xFF333333))
+                        Icon(Icons.Default.Remove, contentDescription = "감소", tint = contentColor)
                     }
                     IconButton(onClick = { if (maxPopupItems < 10) onMaxItemsChange(maxPopupItems + 1) }) {
-                        Icon(Icons.Default.Add, contentDescription = "증가", tint = Color(0xFF333333))
+                        Icon(Icons.Default.Add, contentDescription = "증가", tint = contentColor)
                     }
                 }
             }
@@ -228,12 +235,13 @@ fun UserProfileView(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Font Size
-            Text("글꼴 크기", color = Color(0xFF333333), modifier = Modifier.align(Alignment.Start))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            Text("글꼴 크기", color = contentColor, modifier = Modifier.align(Alignment.Start))
+            Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                 val chipColors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = Color(0xFF9E9E9E), // Gray 500 (Gray 5)
-                    selectedLabelColor = Color.White,
-                    labelColor = Color(0xFF333333)
+                    selectedContainerColor = AppColors.UserProfile.chipSelectedContainer(isDark),
+                    selectedLabelColor = AppColors.UserProfile.chipText(isDark),
+                    containerColor = AppColors.UserProfile.chipUnselectedContainer(isDark),
+                    labelColor = contentColor
                 )
 
                 FilterChip(
@@ -256,8 +264,8 @@ fun UserProfileView(
                 )
             }
             // Map Provider Settings
-            Divider(color = Color(0xFF333333).copy(alpha = 0.3f), modifier = Modifier.padding(vertical = 8.dp))
-            Text("지도 서비스 제공자", color = Color(0xFF333333), fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
+            Divider(color = dividerColor, modifier = Modifier.padding(vertical = 8.dp))
+            Text("지도 서비스 제공자", color = AppColors.UserProfile.settingHeader(isDark), fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
             Column {
                 MapProvider.values().forEach { provider ->
                     Row(
@@ -269,17 +277,20 @@ fun UserProfileView(
                         RadioButton(
                             selected = (provider == currentMapProvider),
                             onClick = { onMapProviderChange(provider) },
-                            colors = RadioButtonDefaults.colors(selectedColor = kr.alltodo.ui.theme.AllToDoGreen, unselectedColor = Color(0xFF333333).copy(alpha = 0.7f))
+                            colors = RadioButtonDefaults.colors(
+                                selectedColor = kr.alltodo.ui.theme.AllToDoGreen,
+                                unselectedColor = contentColor.copy(alpha = 0.5f)
+                            )
                         )
                         Text(
                             text = provider.name,
                             style = MaterialTheme.typography.bodyLarge,
-                            color = Color(0xFF333333),
+                            color = contentColor,
                             modifier = Modifier.padding(start = 8.dp)
                         )
                     }
-                    if (provider != MapProvider.values().last()) { // Add divider between items, but not after the last one
-                        Divider(color = Color(0xFF333333).copy(alpha = 0.3f))
+                    if (provider != MapProvider.values().last()) { 
+                        Divider(color = dividerColor)
                     }
                 }
             }

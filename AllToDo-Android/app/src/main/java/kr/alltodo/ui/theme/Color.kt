@@ -43,48 +43,112 @@ object AppColors {
     
     // MARK: - 할 일 만들기 레이어 시맨틱 (TodoLayer)
     object TodoLayer {
+        /// 창 전체 배경색 (0.9 투명도 적용)
         @Composable
         fun background(isDark: Boolean): Color = 
             if (isDark) Black.copy(alpha = 0.9f) else White.copy(alpha = 0.9f)
             
-        fun headerText(isDark: Boolean): Color = if (isDark) White else Gray8 // [FIX] Stronger visibility
+        /// '할 일 만들기' 헤더 텍스트 색상
+        fun headerText(isDark: Boolean): Color = if (isDark) White else Gray8
         
+        /// 입력 필드 상단 레이블(이름, 날짜 등) 텍스트 색상
         fun labelText(isDark: Boolean): Color = if (isDark) Gray5 else Gray8
         
+        /// 입력창 내부 배경색
         fun inputBackground(isDark: Boolean): Color = 
             if (isDark) Color(0xFF1A1A1A) else Gray1
             
+        /// 입력창 플레이스홀더 텍스트 색상
         fun placeholderText(isDark: Boolean): Color = if (isDark) Gray7 else Gray6
         
+        /// 입력창 실제 입력 텍스트 및 기본 텍스트 색상
         fun primaryText(isDark: Boolean): Color = if (isDark) White else Gray8
+    }
+    
+    // MARK: - 할 일 목록 레이어 시맨틱 (TodoList)
+    object TodoList {
+        /// 목록 내부 보조 아이콘(인원수 등)의 틴트 컬러
+        fun iconTint(isDark: Boolean): Color = if (isDark) Gray5 else Gray5
+        
+        /// 목록 항목의 주요 이름 및 시간 텍스트 색상
+        fun primaryText(isDark: Boolean): Color = if (isDark) Gray3 else Gray7
+        
+        /// 목록 항목 카드 뒤의 배경색
+        fun background(isDark: Boolean): Color = if (isDark) Gray8 else Gray2
     }
     
     // MARK: - 장소 검색 오버레이 시맨틱 (Search)
     object Search {
+        /// 검색창 전체 배경색 (할 일 레이어와 공유)
         @Composable
         fun background(isDark: Boolean): Color = TodoLayer.background(isDark)
         
-        /// 검색바 내부의 구성 요소(아이콘, 텍스트, 지우기 버튼) 통합 색상 (다크: Gray3, 라이트: Gray7)
-        fun searchBarTint(isDark: Boolean): Color = if (isDark) Gray4 else Gray8 // [FIX] Strong visibility
+        /// 검색바 내부 구성 요소(주요 아이콘, 텍스트)의 색상
+        fun searchBarTint(isDark: Boolean): Color = if (isDark) Gray4 else Gray8 
 
+        /// 검색바 힌트(찾을 곳) 텍스트 색상
         fun searchBarPlaceholder(isDark: Boolean): Color = if (isDark) Gray7 else Gray7
             
+        /// 검색 결과 목록의 장소 명칭 색상
         fun resultName(isDark: Boolean): Color = if (isDark) Gray6 else Gray8
         
+        /// 검색 결과 목록의 상세 주소 색상
         fun resultAddress(isDark: Boolean): Color = if (isDark) Gray7 else Gray7
         
+        /// 검색 결과 목록의 거리 표시 색상 (브랜드 컬러 활용)
         fun distance(isDark: Boolean): Color = if (isDark) AllToDoDarkGreen else AllToDoGreen
         
-        /// 검색 결과 리스트 및 항목 간 구분선 통합 색상 (두께로 구분 권장)
+        /// 검색 결과 항목 간 구분선 색상
         fun divider(isDark: Boolean): Color = 
             if (isDark) White.copy(alpha = 0.1f) else Black.copy(alpha = 0.1f)
             
+        /// 검색 창 상단 테두리 그라데이션 시작 색상
         fun borderGradientTop(isDark: Boolean): Color = 
             if (isDark) White.copy(alpha = 0.4f) else White.copy(alpha = 0.6f)
 
-        /// 검색 결과 이동 시 표시되는 물결(Ripple) 색상
+        /// 클릭 시 발생하는 시각적 피드백(Ripple) 색상
         fun ripple(isDark: Boolean): Color = 
             if (isDark) AllToDoLightGreen else AllToDoDarkGreen
+    }
+
+    // MARK: - 지도 테마 시맨틱 (Map)
+    object Map {
+        /// 구글 맵 스타일 리소스 ID (다크: R.raw.google_map_dark_style, 라이트: null)
+        fun googleStyleRes(isDark: Boolean): Int? = 
+            if (isDark) kr.alltodo.R.raw.google_map_dark_style else null
+    }
+
+    // MARK: - 내 정보 창 시맨틱 (UserProfile)
+    object UserProfile {
+        /// 창 전체 배경색
+        fun background(isDark: Boolean): Color = if (isDark) Color(0xFF1E1E1E) else Gray2
+        
+        /// 주요 텍스트 및 기본 콘텐츠 색상
+        fun content(isDark: Boolean): Color = if (isDark) White else Gray8
+        
+        /// 항목 간 경계 구분선 색상
+        fun divider(isDark: Boolean): Color = content(isDark).copy(alpha = 0.2f)
+        
+        /// 상단 보조 버튼(핀 보관함, 경로추적)의 배경색
+        fun subButtonBackground(isDark: Boolean): Color = if (isDark) Gray7.copy(alpha = 0.3f) else White.copy(alpha = 0.5f)
+        
+        /// 상단 보조 버튼 내부 아이콘 및 텍스트 색상
+        fun subButtonContent(isDark: Boolean): Color = if (isDark) White else Gray8
+        
+        /// 프로필 기본 아이콘의 원형 배경색
+        fun profileIconBackground(isDark: Boolean): Color = if (isDark) Gray7.copy(alpha = 0.2f) else Gray3.copy(alpha = 0.3f)
+        
+        /// '설정', '지도 서비스' 등 섹션 헤더 텍스트 색상
+        fun settingHeader(isDark: Boolean): Color = if (isDark) Gray5 else Gray8
+        
+        /// 선택된 칩(글꼴 크기 등)의 배경색
+        fun chipSelectedContainer(isDark: Boolean): Color = if (isDark) Gray6 else Gray5
+        
+        /// 선택되지 않은 칩의 배경색
+        fun chipUnselectedContainer(isDark: Boolean): Color = if (isDark) Gray8 else Gray3.copy(alpha = 0.2f)
+        
+        /// 칩 내부의 레이블 텍스트 및 아이콘 색상
+        fun chipText(isDark: Boolean): Color = if (isDark) White else Gray8
     }
 }
 

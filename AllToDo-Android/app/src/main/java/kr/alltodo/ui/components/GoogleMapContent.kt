@@ -9,6 +9,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.geometry.Offset
 import kr.alltodo.ui.UnifiedItem
 import kr.alltodo.ui.PinClusterItem
+import kr.alltodo.ui.theme.*
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
@@ -39,8 +40,8 @@ fun GoogleMapContent(
     beforeLocation: android.location.Location,
     currentLocation: android.location.Location?,
     cameraPositionState: CameraPositionState,
-    onMapClick: (com.kakao.vectormap.LatLng) -> Unit,
-    onMapLongClick: (com.kakao.vectormap.LatLng) -> Unit, 
+    onMapClick: (com.google.android.gms.maps.model.LatLng) -> Unit,
+    onMapLongClick: (com.google.android.gms.maps.model.LatLng) -> Unit, 
     onItemClick: (UnifiedItem) -> Unit,
     onItemClickWithCoords: (UnifiedItem, Float, Float) -> Unit, 
     onClusterClickWithCoords: (List<UnifiedItem>, Float, Float) -> Unit,
@@ -86,13 +87,10 @@ fun GoogleMapContent(
 
     val isDark = androidx.compose.foundation.isSystemInDarkTheme()
     val properties = remember(isDark, showMyLocation) {
+        val styleResId = AppColors.Map.googleStyleRes(isDark)
         MapProperties(
-            isMyLocationEnabled = showMyLocation, // [FIX] Sync with showMyLocation
-            mapStyleOptions = if (isDark) {
-                MapStyleOptions.loadRawResourceStyle(context, R.raw.google_map_dark_style)
-            } else {
-                null
-            }
+            isMyLocationEnabled = false, // [FIX] Use custom pin instead of SDK blue dot
+            mapStyleOptions = if (styleResId != null) MapStyleOptions.loadRawResourceStyle(context, styleResId) else null
         )
     }
 
@@ -176,10 +174,10 @@ fun GoogleMapContent(
         properties = properties,
         uiSettings = uiSettings,
         onMapClick = { latLng ->
-            onMapClick(com.kakao.vectormap.LatLng.from(latLng.latitude, latLng.longitude))
+            onMapClick(latLng)
         },
         onMapLongClick = { latLng ->
-             onMapLongClick(com.kakao.vectormap.LatLng.from(latLng.latitude, latLng.longitude))
+             onMapLongClick(latLng)
         },
         onMapLoaded = {
             onMapLoaded()

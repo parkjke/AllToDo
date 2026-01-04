@@ -48,14 +48,9 @@ fun SearchOverlay(
     onSearch: () -> Unit,
     onVoiceClick: () -> Unit,
     onResultClick: (SearchResult) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isDark: Boolean = androidx.compose.foundation.isSystemInDarkTheme()
 ) {
-    // [NEW] Provider-aware theme logic (iOS parity)
-    val isSystemDark = isSystemInDarkTheme()
-    val isDark = remember(mapProvider, isSystemDark) {
-        if (mapProvider == MapProvider.Google) isSystemDark else false
-    }
-    
     val focusRequester = remember { FocusRequester() }
     var isFlashing by remember { mutableStateOf(false) }
 

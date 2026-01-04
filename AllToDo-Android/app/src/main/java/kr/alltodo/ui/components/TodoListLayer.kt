@@ -31,6 +31,7 @@ fun TodoListLayer(
     onEditTodo: (UnifiedItem) -> Unit,
     onAddClick: () -> Unit,
     onDismiss: () -> Unit,
+    isDark: Boolean = androidx.compose.foundation.isSystemInDarkTheme(),
     modifier: Modifier = Modifier
 ) {
     val isVisible by viewModel.isListLayerVisible.collectAsState()
@@ -39,6 +40,7 @@ fun TodoListLayer(
     val filterTodo by viewModel.filterTodo.collectAsState()
     val filterHistory by viewModel.filterHistory.collectAsState()
     val displayItems by viewModel.displayItems.collectAsState()
+    val iconTint = AppColors.TodoList.iconTint(isDark)
 
     AnimatedVisibility(
         visible = isVisible,
@@ -49,7 +51,7 @@ fun TodoListLayer(
         Column(
             modifier = modifier
                 .fillMaxSize()
-                .background(Color.White) // Cover everything
+                .background(AppColors.TodoList.background(isDark)) // Semantic background
         ) {
             // 1. Header Row
             Row(
@@ -66,7 +68,7 @@ fun TodoListLayer(
                         Icon(
                             imageVector = Icons.Default.Add,
                             contentDescription = "추가",
-                            tint = Gray8,
+                            tint = iconTint,
                             modifier = Modifier.size(36.dp)
                         )
                     }
@@ -78,7 +80,7 @@ fun TodoListLayer(
                         Icon(
                             imageVector = if (sortByTime) Icons.Default.AccessTime else Icons.Default.Palette,
                             contentDescription = "정렬",
-                            tint = Gray8,
+                            tint = iconTint,
                             modifier = Modifier.size(36.dp)
                         )
                     }
@@ -106,7 +108,7 @@ fun TodoListLayer(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // [FIX] Dynamic Calendar Icon
                     IconButton(onClick = { viewModel.toggleCalendar() }) {
-                        TodayCalendarIcon(tint = Gray8)
+                        TodayCalendarIcon(tint = iconTint)
                     }
 
                     // Close
@@ -114,7 +116,7 @@ fun TodoListLayer(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "닫기",
-                            tint = Gray8,
+                            tint = iconTint,
                             modifier = Modifier.size(36.dp)
                         )
                     }
@@ -137,7 +139,8 @@ fun TodoListLayer(
                                 else -> {}
                             }
                         },
-                        onNameClick = { onEditTodo(item) }
+                        onNameClick = { onEditTodo(item) },
+                        isDark = isDark
                     )
                 }
             }

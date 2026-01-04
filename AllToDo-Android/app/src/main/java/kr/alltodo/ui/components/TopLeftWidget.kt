@@ -40,8 +40,12 @@ fun TopLeftWidget(
     localTodoCount: Int,
     serverTodoCount: Int,
     modifier: Modifier = Modifier,
-    onExpandClick: () -> Unit
+    onExpandClick: () -> Unit,
+    isDark: Boolean = androidx.compose.foundation.isSystemInDarkTheme()
 ) {
+    val iconTint = AppColors.TodoList.iconTint(isDark)
+    val textColor = AppColors.TodoList.primaryText(isDark)
+
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
@@ -56,12 +60,12 @@ fun TopLeftWidget(
             Icon(
                 imageVector = Icons.Filled.Checklist,
                 contentDescription = null,
-                tint = Gray8,
+                tint = iconTint,
                 modifier = Modifier.size(24.dp)
             )
             Text(
                 text = "할 일",
-                color = Gray8,
+                color = textColor,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Black
             )

@@ -431,7 +431,7 @@ fun NaverMapContent(
                     onMapReady(nMap)
                     
                     // [NEW] Dynamic Location Support
-                    nMap.locationOverlay.isVisible = showMyLocation
+                    nMap.locationOverlay.isVisible = false // [FIX] Use custom pin instead of SDK overlay
                     
                     // Basic Settings
                     nMap.uiSettings.isZoomControlEnabled = false

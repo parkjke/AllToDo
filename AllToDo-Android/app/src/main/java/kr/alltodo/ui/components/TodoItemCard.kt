@@ -28,12 +28,15 @@ fun TodoItemCard(
     onPathClick: () -> Unit,
     onDeleteClick: () -> Unit,
     onNameClick: () -> Unit,
+    isDark: Boolean = androidx.compose.foundation.isSystemInDarkTheme(),
     modifier: Modifier = Modifier
 ) {
+    val textColor = AppColors.TodoList.primaryText(isDark)
+    
     val backgroundColor = when (item) {
-        is kr.alltodo.ui.UnifiedItem.Todo -> if (item.item.source != "local") AllToDoBlue.copy(alpha = 0.05f) else AllToDoGreen.copy(alpha = 0.05f)
-        is kr.alltodo.ui.UnifiedItem.History -> AllToDoRed.copy(alpha = 0.05f)
-        else -> Color.White
+        is kr.alltodo.ui.UnifiedItem.Todo -> if (item.item.source != "local") AllToDoBlue.copy(alpha = 0.1f) else AllToDoGreen.copy(alpha = 0.1f)
+        is kr.alltodo.ui.UnifiedItem.History -> AllToDoRed.copy(alpha = 0.1f)
+        else -> AppColors.TodoList.background(isDark)
     }
 
     val typeColor = when (item) {
@@ -95,13 +98,13 @@ fun TodoItemCard(
             Text(
                 text = dateStr,
                 fontSize = 13.sp,
-                color = Gray8,
+                color = textColor,
                 modifier = Modifier.padding(end = 4.dp)
             )
             Text(
                 text = timeStr,
                 fontSize = 13.sp,
-                color = Gray8,
+                color = textColor,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(end = 8.dp)
             )
@@ -117,7 +120,7 @@ fun TodoItemCard(
                 text = name,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Medium,
-                color = Gray8,
+                color = textColor,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
@@ -125,33 +128,30 @@ fun TodoItemCard(
                     .clickable { onNameClick() }
             )
 
-            // 5. Person Icon & Count
+            // 5. Person Icon & Count (FORCED FOR TESTING)
             val personCount = when (item) {
                 is kr.alltodo.ui.UnifiedItem.Todo -> item.item.person?.toIntOrNull() ?: 0
                 else -> 0
             }
 
-            if (personCount > 0) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = null,
-                        tint = Gray8,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(Modifier.width(2.dp))
-                    Text(
-                        text = String.format("%02d", personCount),
-                        fontSize = 13.sp,
-                        color = Gray8,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            } else {
-                Spacer(modifier = Modifier.width(8.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null,
+                    tint = textColor,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(2.dp))
+                val personCount = item.person?.split(",")?.filter { it.isNotBlank() }?.size ?: 0
+                Text(
+                    text = personCount.toString(),
+                    fontSize = 13.sp,
+                    color = textColor,
+                    fontWeight = FontWeight.Medium
+                )
             }
 
             // 6. Delete Icon [휴] - [FIX] 1.5x Size (alltodoRed)

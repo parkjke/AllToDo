@@ -368,6 +368,12 @@ fun MainScreen(
         val centerX = with(density) { (maxWidth / 2).toPx() }
         val centerY = with(density) { (maxHeight / 2).toPx() }
 
+        // [NEW] Global Overlay Theme Logic (iOS Parity)
+        val isSystemDark = isSystemInDarkTheme()
+        val isOverlayDark = remember(mapProvider, isSystemDark) {
+            if (mapProvider == MapProvider.Google) isSystemDark else false
+        }
+
         key(mapProvider) {
             System.out.println(">>> [MainScreen] Displaying Map: $mapProvider")
             when (mapProvider) {
@@ -394,7 +400,6 @@ fun MainScreen(
                         // MapViewModel needs zoom updates too!
                         // Wait, mapViewModel has updateZoom logic.
                         // Checked MapFeatureViewModel: fun updateZoom(zoom: Float)
-                        // TodoViewModel also had it.
                         // Let's check MainScreen usage for onZoomChange.
                         onEnableClustering = { mapViewModel.enableClustering() },
                         onMapLongClick = { latLng ->
@@ -483,7 +488,7 @@ fun MainScreen(
                         onFarItemsDetected = { },
                         creatingTodoLocation = creatingLocation?.let { com.google.android.gms.maps.model.LatLng(it.latitude, it.longitude) },
                         contentPaddingBottom = if (isCreatingTodo) (context.resources.displayMetrics.heightPixels * 0.7).toInt() else 0,
-                        onMapLongClick = { latLng: com.kakao.vectormap.LatLng ->
+                        onMapLongClick = { latLng: com.google.android.gms.maps.model.LatLng ->
                             mapViewModel.startCreatingTodo(latLng.latitude, latLng.longitude)
                         },
                         activePoints = activePoints,
@@ -498,7 +503,6 @@ fun MainScreen(
             }
         }
 
-        // [Item 1] Top Left Widget
         // [Item 1] Top Left Widget (Todo Info)
         val currentTodoItems by todoViewModel.todoItems.collectAsState()
         TopLeftWidget(
@@ -506,7 +510,8 @@ fun MainScreen(
             localTodoCount = currentTodoItems.count { it.source == "local" && it.type == "10" },
             serverTodoCount = currentTodoItems.count { it.source != "local" && it.type == "10" },
             modifier = Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = 40.dp),
-            onExpandClick = { todoViewModel.toggleListLayer() } 
+            onExpandClick = { todoViewModel.toggleListLayer() },
+            isDark = isOverlayDark
         )
 
         // [Item 2] Right Side Controls
@@ -524,65 +529,17 @@ fun MainScreen(
                 onZoomInClick = { mapViewModel.handleZoomIn() },
                 onZoomOutClick = { mapViewModel.handleZoomOut() },
                 onLocationClick = { mapViewModel.handleLocationClick() },
-                onCompassClick = { mapViewModel.handleCompassClick() }
+                onCompassClick = { mapViewModel.handleCompassClick() },
+                isDark = isOverlayDark
             )
         }
-
-        // [NEW] Global Overlay Theme Logic (iOS Parity)
-        val isSystemDark = isSystemInDarkTheme()
-        val isOverlayDark = remember(mapProvider, isSystemDark) {
-            if (mapProvider == MapProvider.Google) isSystemDark else false
-        }
-
-        // [Item 3] My Info (UserProfileView)
-        if (showMyInfo) {
-            val maxPopupItems by todoViewModel.maxPopupItems.collectAsState()
-            val popupFontSize by todoViewModel.popupFontSize.collectAsState()
-            val isTracking by gpsAuthViewModel.isTracking.collectAsState()
-            
-            AllToDoTheme(darkTheme = isOverlayDark) {
-                UserProfileView(
-                    modifier = Modifier.align(Alignment.CenterStart),
-                    onDismiss = { mapViewModel.toggleMyInfo(false) },
-                    maxPopupItems = maxPopupItems,
-                    onMaxItemsChange = { todoViewModel.updateMaxPopupItems(it) },
-                    popupFontSize = popupFontSize,
-                    onFontSizeChange = { todoViewModel.updatePopupFontSize(it) },
-                    currentMapProvider = mapProvider,
-                    onMapProviderChange = { newProvider ->
-                        mapViewModel.toggleMyInfo(false) // [FIX] Move to top for immediate UI feedback
-                        mapProvider = newProvider
-                        prefs.edit().putString("map_provider", newProvider.name).apply()
-                    },
-                    isTracking = isTracking,
-                    onGpsAuthClick = { 
-                        if (isTracking) {
-                            todoViewModel.toggleTracking() // Stops Todo session
-                            gpsAuthViewModel.stopTrackingAndSave() // Stops GPS session
-                            mapViewModel.toggleMyInfo(false)
-                        } else {
-                            todoViewModel.toggleTracking() // Starts Todo session
-                            gpsAuthViewModel.startTracking() // Starts GPS session
-                            gpsAuthViewModel.setOverlayVisible(true) // Open for feedback
-                            mapViewModel.toggleMyInfo(false)
-                        }
-                    }
-                )
-            }
-        }
-
-        // [NEW] GPS Auth Overlay Layer
+        
+        // --- Overlay Visibility States (Lifted Scope) ---
         val isOverlayVisible by gpsAuthViewModel.isOverlayVisible.collectAsState()
-        if (isOverlayVisible) {
-            AllToDoTheme(darkTheme = isOverlayDark) {
-                kr.alltodo.ui.components.GpsAuthOverlay(
-                    viewModel = gpsAuthViewModel,
-                    currentLocation = currentLocation.value,
-                    mapProvider = mapProvider,
-                    onDismiss = { gpsAuthViewModel.setOverlayVisible(false) }
-                )
-            }
-        }
+        val showCalendar by todoViewModel.showCalendar.collectAsState()
+
+
+
         // [NEW] Callout (Water Balloon) Overlay
         selectedCluster?.let { cluster ->
             tapScreenPosition?.let { pos ->
@@ -803,6 +760,7 @@ fun MainScreen(
                         }
                     },
                     onDismiss = { todoViewModel.toggleListLayer() },
+                    isDark = isOverlayDark,
                     modifier = Modifier
                         .padding(top = 100.dp) // Below TopLeftWidget
                         .fillMaxSize()
@@ -810,16 +768,6 @@ fun MainScreen(
             }
         }
 
-        // [NEW] Calendar Overlay Layer
-        val showCalendar by todoViewModel.showCalendar.collectAsState()
-        if (showCalendar) {
-            AllToDoTheme(darkTheme = isOverlayDark) {
-                kr.alltodo.ui.components.CalendarOverlay(
-                    isDark = isOverlayDark,
-                    onDismiss = { todoViewModel.toggleCalendar() }
-                )
-            }
-        }
 
         // [NEW] Search Button and Overlay
         val searchQuery by searchViewModel.searchQuery.collectAsState()
@@ -878,20 +826,83 @@ fun MainScreen(
                         searchViewModel.toggleOverlay()
                     },
                     modifier = Modifier
-                        .padding(top = 110.dp, start = 16.dp) // [FIX] Increased spacing from TopLeftWidget
-                        .align(Alignment.TopStart)
+                        .padding(top = 110.dp, start = 16.dp)
+                        .align(Alignment.TopStart),
+                    isDark = isOverlayDark
                 )
             }
         }
 
         // Search Button (Bottom Center)
-        if (!isListVisible) {
+        if (!isListVisible && !showMyInfo) { // [FIX] Hide search when my info is open
             kr.alltodo.ui.components.SearchButton(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 60.dp),
                 onClick = { searchViewModel.toggleOverlay() }
             )
+        }
+
+        // --- Final Layering: Modal Overlays (Always on Top) ---
+
+        // [Item 3] My Info (UserProfileView)
+        if (showMyInfo) {
+            val maxPopupItems by todoViewModel.maxPopupItems.collectAsState()
+            val popupFontSize by todoViewModel.popupFontSize.collectAsState()
+            val isGpsTracking by gpsAuthViewModel.isTracking.collectAsState()
+            
+            AllToDoTheme(darkTheme = isOverlayDark) {
+                UserProfileView(
+                    modifier = Modifier.align(Alignment.CenterStart),
+                    onDismiss = { mapViewModel.toggleMyInfo(false) },
+                    maxPopupItems = maxPopupItems,
+                    onMaxItemsChange = { todoViewModel.updateMaxPopupItems(it) },
+                    popupFontSize = popupFontSize,
+                    onFontSizeChange = { todoViewModel.updatePopupFontSize(it) },
+                    currentMapProvider = mapProvider,
+                    onMapProviderChange = { newProvider ->
+                        mapViewModel.toggleMyInfo(false) 
+                        mapProvider = newProvider
+                        prefs.edit().putString("map_provider", newProvider.name).apply()
+                    },
+                    isTracking = isGpsTracking,
+                    onGpsAuthClick = { 
+                        if (isGpsTracking) {
+                            todoViewModel.toggleTracking() 
+                            gpsAuthViewModel.stopTrackingAndSave() 
+                            mapViewModel.toggleMyInfo(false)
+                        } else {
+                            todoViewModel.toggleTracking() 
+                            gpsAuthViewModel.startTracking() 
+                            gpsAuthViewModel.setOverlayVisible(true) 
+                            mapViewModel.toggleMyInfo(false)
+                        }
+                    },
+                    isDark = isOverlayDark
+                )
+            }
+        }
+
+        // GPS Auth Overlay
+        if (isOverlayVisible) {
+            AllToDoTheme(darkTheme = isOverlayDark) {
+                kr.alltodo.ui.components.GpsAuthOverlay(
+                    viewModel = gpsAuthViewModel,
+                    currentLocation = currentLocation.value,
+                    mapProvider = mapProvider,
+                    onDismiss = { gpsAuthViewModel.setOverlayVisible(false) }
+                )
+            }
+        }
+
+        // Calendar Overlay
+        if (showCalendar) {
+            AllToDoTheme(darkTheme = isOverlayDark) {
+                kr.alltodo.ui.components.CalendarOverlay(
+                    isDark = isOverlayDark,
+                    onDismiss = { todoViewModel.toggleCalendar() }
+                )
+            }
         }
 
         // [NEW] Ripple Effect for Search Results
