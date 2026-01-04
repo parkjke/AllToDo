@@ -78,6 +78,10 @@ fun MainScreen(
     val showActivePath by gpsAuthViewModel.showActivePath.collectAsState()
     val activePoints by gpsAuthViewModel.points.collectAsState()
     
+    // [NEW] Search VM (Moved up to avoid unresolved references)
+    val searchViewModel: kr.alltodo.ui.SearchViewModel = hiltViewModel()
+    val isSearchVisible by searchViewModel.isOverlayVisible.collectAsState()
+
     // [NEW] Path Viewer State (Now using TodoItem for ID context)
     var viewingPathTodo by remember { mutableStateOf<kr.alltodo.data.TodoItem?>(null) }
 
@@ -692,7 +696,6 @@ fun MainScreen(
         }
 
         // [NEW] Overlay Coordination: Hide Info/Search when List is shown, Restore when closed
-        val isListVisible by todoViewModel.isListLayerVisible.collectAsState()
         var wasInfoVisibleBeforeList by remember { mutableStateOf(false) }
         var wasSearchVisibleBeforeList by remember { mutableStateOf(false) }
 
@@ -723,7 +726,6 @@ fun MainScreen(
         }
 
         // [NEW] Todo List Layer
-        val isListVisible by todoViewModel.isListLayerVisible.collectAsState()
         if (isListVisible) {
             AllToDoTheme(darkTheme = isOverlayDark) {
                 kr.alltodo.ui.components.TodoListLayer(
@@ -746,7 +748,7 @@ fun MainScreen(
                                     lat = item.latitude,
                                     lon = item.longitude,
                                     title = "할 일 수정",
-                                    initialName = item.item.todo_name
+                                    name = item.item.todo_name
                                 )
                             }
                             is kr.alltodo.ui.UnifiedItem.History -> {
@@ -754,7 +756,7 @@ fun MainScreen(
                                     lat = item.latitude,
                                     lon = item.longitude,
                                     title = "히스토리 수정",
-                                    initialName = item.item.todo_name
+                                    name = item.item.todo_name
                                 )
                             }
                             else -> {}
@@ -793,7 +795,6 @@ fun MainScreen(
         }
 
         // [NEW] Search Button and Overlay
-        val isSearchVisible by searchViewModel.isOverlayVisible.collectAsState()
         val searchQuery by searchViewModel.searchQuery.collectAsState()
         val searchResults by searchViewModel.searchResults.collectAsState()
         val isSearching by searchViewModel.isSearching.collectAsState()
