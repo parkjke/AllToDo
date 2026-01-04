@@ -95,6 +95,9 @@ fun MainScreen(
     // Bridge for legacy LatLng types locally if needed, or use the one from VM
     // We will update the usages to use `creatingLocation`.
     
+    // [NEW] Navigation Recovery State
+    var shouldRestoreList by remember { mutableStateOf(false) }
+
     // [Item 0] beforeLocation Persistence
     val beforeLocation = remember {
         val lat = prefs.getFloat("before_lat", kr.alltodo.utils.SmartLocationManager.GWANGHWAMUN_LAT.toFloat())
@@ -615,8 +618,11 @@ fun MainScreen(
                     mapProvider = mapProvider,
                     onClose = { 
                         viewingPathTodo = null
-                        // [FIX] Return to list layer if it was previously open
-                        todoViewModel.toggleListLayer()
+                        // [FIX] Use restoration logic
+                        if (shouldRestoreList) {
+                            todoViewModel.toggleListLayer()
+                            shouldRestoreList = false
+                        }
                     }
                 )
             }
@@ -682,6 +688,11 @@ fun MainScreen(
                             }
                         }
                         mapViewModel.cancelCreatingTodo()
+                        // [FIX] Restore list if needed
+                        if (shouldRestoreList) {
+                            todoViewModel.toggleListLayer()
+                            shouldRestoreList = false
+                        }
                     },
                     onCancel = {
                         creatingLocation?.let { loc ->
@@ -691,6 +702,11 @@ fun MainScreen(
                             }
                         }
                         mapViewModel.cancelCreatingTodo()
+                        // [FIX] Restore list if needed
+                        if (shouldRestoreList) {
+                            todoViewModel.toggleListLayer()
+                            shouldRestoreList = false
+                        }
                     }
                 )
             }
@@ -733,6 +749,7 @@ fun MainScreen(
                     viewModel = todoViewModel,
                     onPathClick = { item ->
                         todoViewModel.toggleListLayer()
+                        shouldRestoreList = true // [FIX] Store state for return
                         if (item is kr.alltodo.ui.UnifiedItem.History) {
                             viewingPathTodo = item.item
                             todoViewModel.fetchPathForHistory(item.item)
@@ -743,6 +760,7 @@ fun MainScreen(
                     },
                     onEditTodo = { item ->
                         todoViewModel.toggleListLayer()
+                        shouldRestoreList = true // [FIX] Store state for return
                         when (item) {
                             is kr.alltodo.ui.UnifiedItem.Todo -> {
                                 mapViewModel.startCreatingTodo(
@@ -765,6 +783,7 @@ fun MainScreen(
                     },
                     onAddClick = {
                         todoViewModel.toggleListLayer()
+                        shouldRestoreList = true // [FIX] Store state for return
                         // Use current map center or current location
                         val center = when (mapProvider) {
                             MapProvider.Naver -> naverMapInstance?.cameraPosition?.target?.let { LatLng(it.latitude, it.longitude) }

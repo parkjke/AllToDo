@@ -28,8 +28,8 @@ import kr.alltodo.ui.theme.*
 fun TodoListLayer(
     viewModel: TodoViewModel,
     onPathClick: (UnifiedItem) -> Unit,
-    onEditTodo: (UnifiedItem) -> Unit, // [NEW] Added for name click
-    onAddClick: () -> Unit, // [NEW] Added for [+] button
+    onEditTodo: (UnifiedItem) -> Unit,
+    onAddClick: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -45,21 +45,23 @@ fun TodoListLayer(
         enter = expandVertically() + fadeIn(),
         exit = shrinkVertically() + fadeOut()
     ) {
+        // [FIX] Full Screen Background (Non-Transparent)
         Column(
             modifier = modifier
                 .fillMaxSize()
-                .background(Color.White.copy(alpha = 0.95f))
+                .background(Color.White) // Cover everything
         ) {
             // 1. Header Row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 40.dp, bottom = 16.dp), // Account for TopLeftWidget area
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // [+] Add Todo Button (Left of Sort)
+                    // [+] Add Todo Button
                     IconButton(onClick = onAddClick) {
                         Icon(
                             imageVector = Icons.Default.Add,
@@ -83,21 +85,18 @@ fun TodoListLayer(
                     
                     Spacer(modifier = Modifier.width(12.dp))
 
-                    // Filter Buttons (Rounded Rectangles)
+                    // [FIX] Filter Buttons (No circles, just rounded check boxes)
                     FilterIconButton(
-                        icon = Icons.Default.CheckCircle,
                         color = AllToDoBlue,
                         isSelected = filterServer,
                         onClick = { viewModel.toggleFilterServer() }
                     )
                     FilterIconButton(
-                        icon = Icons.Default.CheckCircle,
                         color = AllToDoGreen,
                         isSelected = filterTodo,
                         onClick = { viewModel.toggleFilterTodo() }
                     )
                     FilterIconButton(
-                        icon = Icons.Default.CheckCircle,
                         color = AllToDoRed,
                         isSelected = filterHistory,
                         onClick = { viewModel.toggleFilterHistory() }
@@ -105,14 +104,9 @@ fun TodoListLayer(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Calendar
+                    // [FIX] Dynamic Calendar Icon
                     IconButton(onClick = { viewModel.toggleCalendar() }) {
-                        Icon(
-                            imageVector = Icons.Default.CalendarToday,
-                            contentDescription = "캘린더",
-                            tint = Gray8,
-                            modifier = Modifier.size(36.dp)
-                        )
+                        TodayCalendarIcon(tint = Gray8)
                     }
 
                     // Close
@@ -143,7 +137,7 @@ fun TodoListLayer(
                                 else -> {}
                             }
                         },
-                        onNameClick = { onEditTodo(item) } // [NEW] Edit detail
+                        onNameClick = { onEditTodo(item) }
                     )
                 }
             }
@@ -153,26 +147,27 @@ fun TodoListLayer(
 
 @Composable
 fun FilterIconButton(
-    icon: ImageVector,
     color: Color,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    // [FIX] Rounded Rectangle Style
+    // [FIX] Rounded Rectangle Style without circle icon
     Box(
         modifier = Modifier
             .padding(horizontal = 4.dp)
             .size(36.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(if (isSelected) color.copy(alpha = 0.15f) else Color.Transparent)
+            .background(if (isSelected) color else color.copy(alpha = 0.2f))
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = if (isSelected) color else color.copy(alpha = 0.3f),
-            modifier = Modifier.size(28.dp)
-        )
+        if (isSelected) {
+            Icon(
+                imageVector = Icons.Default.Check, // Sharp checkmark
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(24.dp)
+            )
+        }
     }
 }

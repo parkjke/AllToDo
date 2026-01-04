@@ -27,7 +27,7 @@ fun TodoItemCard(
     item: kr.alltodo.ui.UnifiedItem,
     onPathClick: () -> Unit,
     onDeleteClick: () -> Unit,
-    onNameClick: () -> Unit, // [NEW] Added for viewing/editing detail
+    onNameClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val backgroundColor = when (item) {
@@ -56,7 +56,7 @@ fun TodoItemCard(
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 1. Map Icon [지]
+            // 1. Map Icon [지] - [FIX] 1.5x Size (approx 42dp for button, 30dp for icon)
             val noOfPath = when (item) {
                 is kr.alltodo.ui.UnifiedItem.Todo -> item.item.no_of_path
                 is kr.alltodo.ui.UnifiedItem.History -> item.item.no_of_path
@@ -67,17 +67,17 @@ fun TodoItemCard(
                 IconButton(
                     onClick = onPathClick,
                     enabled = noOfPath > 1,
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(42.dp) // [FIX] Enlarge
                 ) {
                     Icon(
                         imageVector = Icons.Default.Map,
                         contentDescription = "경로 보기",
                         tint = if (noOfPath > 1) typeColor else Color.LightGray.copy(alpha = 0.5f),
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(30.dp) // [FIX] Enlarge
                     )
                 }
             } else {
-                Spacer(modifier = Modifier.width(28.dp))
+                Spacer(modifier = Modifier.width(42.dp))
             }
 
             Spacer(modifier = Modifier.width(4.dp))
@@ -106,7 +106,7 @@ fun TodoItemCard(
                 modifier = Modifier.padding(end = 8.dp)
             )
 
-            // 4. Name (went places, etc.) - [FIX] Clickable
+            // 4. Name
             val name = when (item) {
                 is kr.alltodo.ui.UnifiedItem.Todo -> item.item.todo_name
                 is kr.alltodo.ui.UnifiedItem.History -> item.item.todo_name
@@ -122,10 +122,10 @@ fun TodoItemCard(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .weight(1f)
-                    .clickable { onNameClick() } // [NEW] Open Detail
+                    .clickable { onNameClick() }
             )
 
-            // 5. Person Icon & Count [사]
+            // 5. Person Icon & Count
             val personCount = when (item) {
                 is kr.alltodo.ui.UnifiedItem.Todo -> item.item.person?.toIntOrNull() ?: 0
                 else -> 0
@@ -154,16 +154,16 @@ fun TodoItemCard(
                 Spacer(modifier = Modifier.width(8.dp))
             }
 
-            // 6. Delete Icon [휴] - [FIX] Change to Red
+            // 6. Delete Icon [휴] - [FIX] 1.5x Size (alltodoRed)
             IconButton(
                 onClick = onDeleteClick,
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(42.dp) // [FIX] Enlarge
             ) {
                 Icon(
                     imageVector = Icons.Default.Delete,
                     contentDescription = "삭제",
-                    tint = AllToDoRed, // [FIX] Gray8 -> Red
-                    modifier = Modifier.size(20.dp)
+                    tint = AllToDoRed,
+                    modifier = Modifier.size(30.dp) // [FIX] Enlarge
                 )
             }
         }
