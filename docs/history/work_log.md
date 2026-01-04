@@ -1,4 +1,17 @@
-## 2026-01-04
+## 2026-01-05
+### 🎨 UI/UX Detail Refinement & Layout Optimization (iOS/Android)
+- **iOS Persistent UI Refinement**:
+    - **Search Button Alignment**: `SearchButton`의 위치를 하단 Safe Area로부터 **16pt 여백**을 두도록 조정하여 시각적 안정감과 조작 편의성을 확보함.
+    - **Typography Elevation**: 할 일 만들기/상세 화면의 가이드 문구 폰트 크기를 **19pt**로 강화하여 시인성을 대폭 개선함.
+    - **Memo Area Expansion**: 창 전체 높이(550pt)를 유지하면서 메모 입력 필드의 기본 높이를 **180pt**로 확장하여 풍부한 입력 공간 확보.
+- **Android Layout Standardization**:
+    - **Unified Spacing (iOS Style)**: 모든 입력 항목(이름, 인물, 날짜, 메모) 사이의 간격을 **16dp**로 통일하여 iOS 수준의 정갈한 수직 리듬과 디자인 일관성을 구현함.
+    - **Button & Icon Enhancement**: 상단 [완료], [취소] 아이콘 크기를 **32dp**로 확대하고, 빌드 안정성을 위해 `Icons.Default` 세트를 적용하여 웅장하고 뚜렷한 조작계 완성.
+    - **Height Optimization**: 사용자 피드백에 따라 바텀 시트 전체 높이를 **0.7f(70%)**로 복구하여 화면 점유율을 최적화하고, 내부 메모 영역(min 250dp)은 스크롤을 통해 충분히 활용 가능하도록 레이아웃 재배치.
+- **Build & Stability Fixes**:
+    - **Android 아이콘 참조 오류 수정**: `Icons.Rounded` 호출 시 발생하던 컴파일 에러를 `Icons.Default` 교체 및 크기(32dp) 유지 방식으로 해결함.
+    - **iOS 레이아웃 고착**: 검색 버튼 이동 및 폰트 변경 사항을 `ContentView` 및 `CreateTodoLayer`에 즉각 반영하여 정합성 확보.
+
 ### 🚀 Data Management Elevation & Pin Display Refinement
 - **DB & History Logic Elevation (Android)**:
     - **0번 레코드(`CURRENT_LOCATION`) 관리**: 실시간 위치 업데이트 시 DB의 고정 ID 레코드를 즉각 갱신하여 지도의 반응성을 높이고 데이터 비대화를 방지함.

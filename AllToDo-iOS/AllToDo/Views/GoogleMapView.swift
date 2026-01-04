@@ -18,6 +18,7 @@ struct GoogleMapView: UIViewRepresentable {
     @Binding var tapPosition: CGPoint? // [NEW]
     @Binding var clusterRadius: Double? // [NEW]
     @Binding var creatingTodoLocation: CLLocationCoordinate2D? // [NEW]
+    @Binding var targetLocation: CLLocationCoordinate2D? // [NEW] For search
     var hasItems: Bool
     
     // Actions
@@ -255,6 +256,11 @@ struct GoogleMapView: UIViewRepresentable {
                 }
             case .launchSequence:
                 self.performLaunchAnimation(mapView: mapView, userLocation: parent.locationManager.currentLocation)
+            case .moveToLocation:
+                if let loc = parent.targetLocation {
+                    let update = GMSCameraUpdate.setTarget(loc, zoom: 18)
+                    mapView.animate(with: update)
+                }
             case .none: break
             }
         }

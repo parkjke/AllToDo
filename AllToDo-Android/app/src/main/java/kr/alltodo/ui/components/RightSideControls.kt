@@ -35,7 +35,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import kr.alltodo.ui.theme.AllToDoGreen
+import kr.alltodo.ui.theme.*
 
 import androidx.compose.material.icons.filled.ArrowDropUp
 import kotlin.math.abs
@@ -107,10 +107,10 @@ fun RightSideControls(
                     .clickable { onZoomInClick() },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Zoom In", tint = Color(0xFF333333), modifier = Modifier.size(24.dp))
+                Icon(Icons.Default.Add, contentDescription = "Zoom In", tint = Gray8, modifier = Modifier.size(24.dp))
             }
             // Thin divider
-            Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(Color(0xFF333333).copy(alpha = 0.3f)))
+            Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(Gray8.copy(alpha = 0.3f)))
             Box(
                 modifier = Modifier
                     .size(48.dp)
@@ -170,7 +170,7 @@ fun RightSideControls(
                         lineTo(0f, heightMid)
                         close()
                     }
-                    drawPath(outlinePath, Color.White.copy(alpha = 0.5f), style = Stroke(width = 1f)) 
+                    drawPath(outlinePath, Gray8, style = Stroke(width = 1f)) 
                 }
             }
         }
@@ -205,7 +205,7 @@ fun ControlIcon(
     iconModifier: Modifier = Modifier,
     enabled: Boolean = true,
     containerColor: Color = AllToDoGreen.copy(alpha = 0.7f),
-    iconTint: Color = Color(0xFF333333)
+    iconTint: Color = Gray8
 ) {
     Box(
         modifier = Modifier

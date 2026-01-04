@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardReturn
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -28,9 +29,6 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.OffsetMapping
-import androidx.compose.ui.text.input.TransformedText
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
@@ -114,10 +112,6 @@ fun SearchOverlay(
                 .background(AppColors.TodoLayer.inputBackground(isDark), RoundedCornerShape(8.dp)),
             singleLine = true,
             cursorBrush = SolidColor(if (isDark) Color.White else Color.Black),
-            visualTransformation = { text ->
-                // [FIX] Strip all SpanStyles (including IME composition underline) to provide clean UI
-                TransformedText(AnnotatedString(text.text), OffsetMapping.Identity)
-            },
             keyboardOptions = KeyboardOptions(
                 imeAction = ImeAction.Search,
                 autoCorrect = false,
@@ -234,36 +228,53 @@ fun SearchResultItem(
     isDark: Boolean,
     onClick: () -> Unit
 ) {
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
-            .padding(12.dp)
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = result.name,
-            fontSize = 19.sp,
-            fontWeight = FontWeight.Bold,
-            color = AppColors.Search.resultName(isDark)
+        // [NEW] Type-specific Icon
+        val icon = if (result.isAddress) Icons.Default.Place else Icons.Default.Search
+        val iconTint = if (result.isAddress) Color(0xFF4285F4) else Gray5
+
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = iconTint,
+            modifier = Modifier.size(20.dp)
         )
-        Text(
-            text = result.address,
-            fontSize = 16.sp,
-            color = AppColors.Search.resultAddress(isDark)
-        )
-        if (!result.distance.isNullOrEmpty()) {
-            val distInt = result.distance.toIntOrNull() ?: 0
-            val displayDistance = if (distInt >= 1000) {
-                String.format("%.1fkm", distInt / 1000.0)
-            } else {
-                "${distInt}m"
-            }
+        
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = displayDistance,
-                fontSize = 14.sp,
-                color = AppColors.Search.distance(isDark),
-                fontWeight = FontWeight.Medium
+                text = if (result.isAddress) "[주소] ${result.name}" else result.name,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = AppColors.Search.resultName(isDark)
             )
+            Text(
+                text = result.address,
+                fontSize = 14.sp,
+                color = AppColors.Search.resultAddress(isDark),
+                maxLines = 2
+            )
+            if (!result.distance.isNullOrEmpty() && !result.isAddress) {
+                val distInt = result.distance.toIntOrNull() ?: 0
+                val displayDistance = if (distInt >= 1000) {
+                    String.format("%.1fkm", distInt / 1000.0)
+                } else {
+                    "${distInt}m"
+                }
+                Text(
+                    text = displayDistance,
+                    fontSize = 12.sp,
+                    color = AppColors.Search.distance(isDark),
+                    fontWeight = FontWeight.Medium
+                )
+            }
         }
     }
 }

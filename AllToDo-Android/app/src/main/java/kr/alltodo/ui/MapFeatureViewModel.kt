@@ -19,7 +19,8 @@ enum class MapAction {
     ZOOM_OUT,
     CURRENT_LOCATION,
     ROTATE_NORTH,
-    ZOOM_TO_FIT
+    ZOOM_TO_FIT,
+    MOVE_TO_LOCATION // [NEW]
 }
 
 @HiltViewModel
@@ -41,6 +42,19 @@ class MapFeatureViewModel @Inject constructor(
     
     fun updateCompassRotation(rotation: Float) {
         _compassRotation.value = rotation
+    }
+
+    // [NEW] Destination Coordinate for MOVE_TO_LOCATION
+    private val _targetLocation = MutableStateFlow<android.location.Location?>(null)
+    val targetLocation: StateFlow<android.location.Location?> = _targetLocation.asStateFlow()
+
+    fun moveToLocation(lat: Double, lng: Double) {
+        val loc = android.location.Location("search").apply {
+            latitude = lat
+            longitude = lng
+        }
+        _targetLocation.value = loc
+        _mapAction.value = MapAction.MOVE_TO_LOCATION
     }
 
     // MARK: - Item Selection & Interaction

@@ -4,23 +4,25 @@ import CoreLocation
 import KakaoMapsSDK
 import GoogleMaps
 
-@main
-struct AllToDoApp: App {
-    
-    init() {
-        // Initialize KakaoMapsSDK
-        // NOTE: Replace the key if the Android one doesn't work for iOS
+class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+        // Initialize KakaoMapsSDK (Required in AppDelegate for stability)
         SDKInitializer.InitSDK(appKey: "73c078184e5277946f8078004f60bd51")
         
         // Initialize Google Maps SDK
         GMSServices.provideAPIKey("AIzaSyCeE1yauStrXS0Xw6EUkUEgm5wFK_yBHcE")
         
         // Initialize WASM Engine
-        WasmManager.shared.initialize { success in
-            // Logs are already handled inside Manager
-        }
+        WasmManager.shared.initialize { _ in }
+        
+        return true
     }
+}
 
+@main
+struct AllToDoApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
+    
     @Environment(\.scenePhase) var scenePhase
 
     var body: some Scene {

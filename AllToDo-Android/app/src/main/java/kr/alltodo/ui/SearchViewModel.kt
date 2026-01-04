@@ -63,25 +63,47 @@ class SearchViewModel @Inject constructor(
         val query = _searchQuery.value.trim()
         if (query.isEmpty()) return
 
-        println(">>> [SearchViewModel] performSearch: query='$query'")
         _isSearching.value = true
-        _errorMessage.value = null // Clear previous error
+        _errorMessage.value = null
         
-        // Assuming searchService.searchKeyword now provides an errorCode
-        searchService.searchKeyword(query, latitude, longitude) { results, errorCode ->
+        searchService.searchKeyword(query, latitude, longitude) { poiResults, errorCode ->
             viewModelScope.launch {
-                if (results == null) {
-                    println(">>> [SearchViewModel] performSearch: FAILED with code $errorCode")
-                    _errorMessage.value = "검색 실패 (HTTP $errorCode)"
-                    _searchResults.value = emptyList()
-                } else {
-                    println(">>> [SearchViewModel] performSearch: resultsCount=${results.size}")
-                    _searchResults.value = results
-                    if (results.isEmpty()) {
-                        _errorMessage.value = "검색 결과가 없습니다."
+                // 검증: 비동기 결과가 도착했을 때의 쿼리가 현재 쿼리와 같은지 확인
+                if (_searchQuery.value.trim() != query) return@launch
+
+                val finalResults = mutableListOf<SearchResult>()
+                poiResults?.let { finalResults.addAll(it) }
+
+                // POI 결과가 부족한 경우(0~1건) 주소 검색 병행
+                if (finalResults.size <= 1) {
+                    searchService.searchAddress(query) { addrResults, _ ->
+                        viewModelScope.launch {
+                            if (_searchQuery.value.trim() != query) return@launch
+                            
+                            addrResults?.forEach { addr ->
+                                // 중복 좌표 제거 (이미 POI로 검색된 위치는 제외)
+                                if (finalResults.none { it.latitude == addr.latitude && it.longitude == addr.longitude }) {
+                                    finalResults.add(addr)
+                                }
+                            }
+                            finalizeSearch(finalResults, errorCode)
+                        }
                     }
+                } else {
+                    finalizeSearch(finalResults, errorCode)
                 }
-                _isSearching.value = false
+            }
+        }
+    }
+
+    private fun finalizeSearch(results: List<SearchResult>, errorCode: Int?) {
+        _isSearching.value = false
+        _searchResults.value = results
+        if (results.isEmpty()) {
+            _errorMessage.value = if (errorCode != null && errorCode != 200 && errorCode != -1) {
+                "검색 실패 (HTTP $errorCode)"
+            } else {
+                "검색 결과가 없습니다."
             }
         }
     }

@@ -28,33 +28,26 @@ class KakaoSearchService @Inject constructor() {
             .addPathSegment("search")
             .addPathSegment("keyword.json")
             .addQueryParameter("query", query)
-            .addQueryParameter("size", "5")
+            .addQueryParameter("size", "10")
 
         if (latitude != null && longitude != null) {
             urlBuilder.addQueryParameter("x", longitude.toString())
             urlBuilder.addQueryParameter("y", latitude.toString())
-            urlBuilder.addQueryParameter("radius", "20000") // 20km radius search
+            urlBuilder.addQueryParameter("radius", "20000")
         }
         val request = Request.Builder()
             .url(urlBuilder.build())
             .addHeader("Authorization", "KakaoAK $REST_API_KEY")
             .build()
-        
-        println(">>> [KakaoSearchService] Request URL: ${request.url}")
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                println(">>> [KakaoSearchService] onFailure: ${e.message}")
-                Log.e("KakaoSearch", "Search failed: ${e.message}")
-                onResult(null, -1) // -1 for network failure
+                onResult(null, -1)
             }
 
             override fun onResponse(call: Call, response: Response) {
                 val bodyString = response.body?.string()
-                println(">>> [KakaoSearchService] onResponse: code=${response.code}")
-                
                 if (!response.isSuccessful) {
-                    println(">>> [KakaoSearchService] onResponse: FAILED with body=$bodyString")
                     onResult(null, response.code)
                     return
                 }
@@ -72,12 +65,71 @@ class KakaoSearchService @Inject constructor() {
                                     address = doc.getString("address_name"),
                                     latitude = doc.getDouble("y"),
                                     longitude = doc.getDouble("x"),
-                                    distance = doc.optString("distance")
+                                    distance = doc.optString("distance"),
+                                    isAddress = false
                                 )
                             )
                         }
                     } catch (e: Exception) {
-                        println(">>> [KakaoSearchService] Parsing error: ${e.message}")
+                        Log.e("KakaoSearch", "Parsing error: ${e.message}")
+                    }
+                }
+                onResult(results, response.code)
+            }
+        })
+    }
+
+    fun searchAddress(
+        query: String,
+        onResult: (List<SearchResult>?, Int?) -> Unit
+    ) {
+        val urlBuilder = HttpUrl.Builder()
+            .scheme("https")
+            .host("dapi.kakao.com")
+            .addPathSegment("v2")
+            .addPathSegment("local")
+            .addPathSegment("search")
+            .addPathSegment("address.json")
+            .addQueryParameter("query", query)
+            .addQueryParameter("size", "10")
+
+        val request = Request.Builder()
+            .url(urlBuilder.build())
+            .addHeader("Authorization", "KakaoAK $REST_API_KEY")
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                onResult(null, -1)
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val bodyString = response.body?.string()
+                if (!response.isSuccessful) {
+                    onResult(null, response.code)
+                    return
+                }
+
+                val results = mutableListOf<SearchResult>()
+                bodyString?.let { body ->
+                    try {
+                        val json = JSONObject(body)
+                        val documents = json.getJSONArray("documents")
+                        for (i in 0 until documents.length()) {
+                            val doc = documents.getJSONObject(i)
+                            // address.json parsing
+                            val addressName = doc.getString("address_name")
+                            results.add(
+                                SearchResult(
+                                    name = addressName,
+                                    address = addressName,
+                                    latitude = doc.getDouble("y"),
+                                    longitude = doc.getDouble("x"),
+                                    isAddress = true
+                                )
+                            )
+                        }
+                    } catch (e: Exception) {
                         Log.e("KakaoSearch", "Parsing error: ${e.message}")
                     }
                 }
@@ -92,5 +144,6 @@ data class SearchResult(
     val address: String,
     val latitude: Double,
     val longitude: Double,
-    val distance: String? = null
+    val distance: String? = null,
+    val isAddress: Boolean = false
 )

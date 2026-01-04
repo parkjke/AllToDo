@@ -3,6 +3,7 @@ package kr.alltodo.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -22,7 +23,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.TextStyle
-import kr.alltodo.ui.theme.AllToDoGreen
+import kr.alltodo.ui.theme.*
 
 @Composable
 fun CreateTodoLayer(
@@ -32,6 +33,7 @@ fun CreateTodoLayer(
     defaultName: String = "요기",
     initialName: String = "",
     title: String = "할 일 만들기",
+    isDark: Boolean = isSystemInDarkTheme(),
     onRegister: (name: String, person: String, date: String, time: String, memo: String) -> Unit,
     onCancel: () -> Unit
 ) {
@@ -44,17 +46,15 @@ fun CreateTodoLayer(
 
     var activeInputMode by remember { mutableStateOf(InputMode.None) }
 
-    val gray7 = Color(0xFF616161)
-
     Box(modifier = modifier.fillMaxSize()) {
         // Main Bottom Sheet
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .fillMaxHeight(0.7f) // Increased height for visibility
+                .fillMaxHeight(0.7f) // [REVERT] Back to 0.7f per user request
                 .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-                .background(Color(0xFFE0E0E0)) // Gray 2
+                .background(AppColors.TodoLayer.background(isDark))
         ) {
             Column(
                 modifier = Modifier
@@ -71,29 +71,45 @@ fun CreateTodoLayer(
                         text = title,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF333333) // Gray 8
+                        color = AppColors.TodoLayer.headerText(isDark)
                     )
                     Row {
-                        IconButton(onClick = { 
-                            val finalName = if (todoName.isBlank()) defaultName else todoName
-                            
-                            // [NEW] Default Date/Time to Current if blank
-                            val finalDate = if (date.isBlank()) {
-                                val cal = java.util.Calendar.getInstance()
-                                String.format("%d.%02d.%02d", cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH) + 1, cal.get(java.util.Calendar.DAY_OF_MONTH))
-                            } else date
-                            
-                            val finalTime = if (time.isBlank()) {
-                                val cal = java.util.Calendar.getInstance()
-                                String.format("%02d:%02d", cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE))
-                            } else time
+                        IconButton(
+                            modifier = Modifier.size(48.dp),
+                            onClick = { 
+                                val finalName = if (todoName.isBlank()) defaultName else todoName
+                                
+                                // [NEW] Default Date/Time to Current if blank
+                                val finalDate = if (date.isBlank()) {
+                                    val cal = java.util.Calendar.getInstance()
+                                    String.format("%d.%02d.%02d", cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH) + 1, cal.get(java.util.Calendar.DAY_OF_MONTH))
+                                } else date
+                                
+                                val finalTime = if (time.isBlank()) {
+                                    val cal = java.util.Calendar.getInstance()
+                                    String.format("%02d:%02d", cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE))
+                                } else time
 
-                            onRegister(finalName, person, finalDate, finalTime, memo) 
-                        }) {
-                            Icon(Icons.Default.Check, contentDescription = "Register", tint = gray7)
+                                onRegister(finalName, person, finalDate, finalTime, memo) 
+                            }
+                        ) {
+                            Icon(
+                                Icons.Default.Check, // [FIX] Back to Default (Filled) to avoid import error
+                                contentDescription = "Register", 
+                                tint = AppColors.TodoLayer.primaryText(isDark),
+                                modifier = Modifier.size(32.dp) // [STAY] Keep 32dp for "웅장함"
+                            )
                         }
-                        IconButton(onClick = onCancel) {
-                            Icon(Icons.Default.Close, contentDescription = "Cancel", tint = gray7)
+                        IconButton(
+                            modifier = Modifier.size(48.dp),
+                            onClick = onCancel
+                        ) {
+                            Icon(
+                                Icons.Default.Close, // [FIX] Back to Default (Filled) to avoid import error
+                                contentDescription = "Cancel", 
+                                tint = AppColors.TodoLayer.primaryText(isDark),
+                                modifier = Modifier.size(32.dp) // [STAY] Keep 32dp for "웅장함"
+                            )
                         }
                     }
                 }
@@ -106,29 +122,32 @@ fun CreateTodoLayer(
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
                 ) {
-                    Spacer(modifier = Modifier.height(24.dp))
                     InputField(
-                        label = "할 일 이름",
-                        value = if (todoName.isEmpty()) "할 일 이름을 넣어주세요 (미입력 시 '$defaultName')" else todoName,
-                        labelColor = gray7,
+                        label = "",
+                        value = if (todoName.isEmpty()) "할 일에 이름을 지어주세요" else todoName,
+                        labelColor = AppColors.TodoLayer.labelText(isDark),
                         isPlaceholder = todoName.isEmpty(),
+                        isDark = isDark,
                         onClick = { activeInputMode = InputMode.Name }
                     )
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(16.dp)) // [FIX] Unified Spacing
                     InputField(
-                        label = "같이 할 사람이 있나요",
-                        value = if (person.isEmpty()) "연락처에서 선택" else person,
-                        labelColor = gray7,
+                        label = "",
+                        value = if (person.isEmpty()) "알릴 사람을 주소록에서 넣을 수 있어요" else person,
+                        labelColor = AppColors.TodoLayer.labelText(isDark),
                         isPlaceholder = person.isEmpty(),
+                        isDark = isDark,
                         onClick = { activeInputMode = InputMode.Person }
                     )
+                    Spacer(modifier = Modifier.height(16.dp)) // [FIX] Added missing spacing to match iOS
                     Row(modifier = Modifier.fillMaxWidth()) {
                         Box(modifier = Modifier.weight(1f)) {
                             InputField(
-                                label = "날짜",
+                                label = "",
                                 value = if (date.isEmpty()) "날짜" else date,
-                                labelColor = gray7,
+                                labelColor = AppColors.TodoLayer.labelText(isDark),
                                 isPlaceholder = date.isEmpty(),
+                                isDark = isDark,
                                 onClick = {
                                     val calendar = java.util.Calendar.getInstance()
                                     android.app.DatePickerDialog(
@@ -144,10 +163,11 @@ fun CreateTodoLayer(
                         Spacer(modifier = Modifier.width(8.dp))
                         Box(modifier = Modifier.weight(1f)) {
                             InputField(
-                                label = "시간",
+                                label = "",
                                 value = if (time.isEmpty()) "시간" else time,
-                                labelColor = gray7,
+                                labelColor = AppColors.TodoLayer.labelText(isDark),
                                 isPlaceholder = time.isEmpty(),
+                                isDark = isDark,
                                 onClick = {
                                     val calendar = java.util.Calendar.getInstance()
                                     android.app.TimePickerDialog(
@@ -161,14 +181,17 @@ fun CreateTodoLayer(
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(16.dp)) // [FIX] Unified Spacing
                     InputField(
-                        label = "메모",
+                        label = "",
                         value = if (memo.isEmpty()) "기억을 위한 메모" else memo,
-                        labelColor = gray7,
+                        labelColor = AppColors.TodoLayer.labelText(isDark),
                         isPlaceholder = memo.isEmpty(),
+                        isDark = isDark,
+                        modifier = Modifier.heightIn(min = 250.dp),
                         onClick = { activeInputMode = InputMode.Memo }
                     )
+                    Spacer(modifier = Modifier.height(40.dp))
                 }
             }
         }
@@ -178,16 +201,19 @@ fun CreateTodoLayer(
             InputMode.Name -> TodoNameInputOverlay(
                 initialValue = todoName,
                 recents = recentNames,
+                isDark = isDark,
                 onDone = { todoName = it; activeInputMode = InputMode.None },
                 onCancel = { activeInputMode = InputMode.None }
             )
             InputMode.Person -> ContactPickerOverlay(
+                isDark = isDark,
                 onDone = { person = it; activeInputMode = InputMode.None },
                 onCancel = { activeInputMode = InputMode.None }
             )
             InputMode.Memo -> MemoInputOverlay(
                 initialValue = memo,
                 recents = recentMemos,
+                isDark = isDark,
                 onDone = { memo = it; activeInputMode = InputMode.None },
                 onCancel = { activeInputMode = InputMode.None }
             )
@@ -202,28 +228,22 @@ fun InputField(
     value: String,
     labelColor: Color,
     isPlaceholder: Boolean,
+    isDark: Boolean,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
+    Box(
+        modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
+            .background(AppColors.TodoLayer.inputBackground(isDark), RoundedCornerShape(8.dp))
             .clickable { onClick() }
+            .padding(12.dp)
     ) {
-        Text(text = label, fontSize = 12.sp, color = labelColor, fontWeight = FontWeight.Medium)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 4.dp)
-                .background(Color.White, RoundedCornerShape(8.dp))
-                .padding(12.dp)
-        ) {
-            Text(
-                text = value,
-                fontSize = 16.sp,
-                color = if (isPlaceholder) Color.Gray else Color(0xFF212121) // Gray 9
-            )
-        }
+        Text(
+            text = value,
+            fontSize = 16.sp,
+            color = if (isPlaceholder) AppColors.TodoLayer.placeholderText(isDark) else AppColors.TodoLayer.primaryText(isDark)
+        )
     }
 }
 
@@ -235,18 +255,18 @@ enum class InputMode {
 fun TodoNameInputOverlay(
     initialValue: String,
     recents: List<String>,
+    isDark: Boolean,
     onDone: (String) -> Unit,
     onCancel: () -> Unit
 ) {
-    val gray7 = Color(0xFF616161)
     var text by remember { mutableStateOf(initialValue) }
-    Box(Modifier.fillMaxSize().background(Color.White)) {
+    Box(Modifier.fillMaxSize().background(AppColors.TodoLayer.background(isDark))) {
         Column(Modifier.padding(16.dp)) {
             Spacer(modifier = Modifier.height(24.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                IconButton(onClick = onCancel) { Icon(Icons.Default.Close, null, tint = gray7) }
-                Text("할 일 이름", fontWeight = FontWeight.Bold, color = gray7, fontSize = 18.sp)
-                IconButton(onClick = { onDone(text) }) { Icon(Icons.Default.Check, null, tint = gray7) }
+                IconButton(onClick = onCancel) { Icon(Icons.Default.Close, null, tint = AppColors.TodoLayer.primaryText(isDark)) }
+                Text("할 일 이름", fontWeight = FontWeight.Bold, color = AppColors.TodoLayer.headerText(isDark), fontSize = 18.sp)
+                IconButton(onClick = { onDone(text) }) { Icon(Icons.Default.Check, null, tint = AppColors.TodoLayer.primaryText(isDark)) }
             }
             Spacer(modifier = Modifier.height(16.dp))
             val focusRequester = remember { FocusRequester() }
@@ -257,14 +277,18 @@ fun TodoNameInputOverlay(
                 value = text,
                 onValueChange = { text = it },
                 modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
-                placeholder = { Text("할 일 이름을 넣어주세요", style = TextStyle(color = gray7)) },
+                placeholder = { Text("할 일에 이름을 지어주세요", style = TextStyle(color = AppColors.TodoLayer.placeholderText(isDark))) },
                 shape = RoundedCornerShape(12.dp),
-                textStyle = TextStyle(color = Color(0xFF212121))
+                textStyle = TextStyle(color = AppColors.TodoLayer.primaryText(isDark)),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = AppColors.TodoLayer.labelText(isDark).copy(alpha = 0.3f),
+                    focusedBorderColor = AppColors.TodoLayer.primaryText(isDark)
+                )
             )
             
             if (recents.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(24.dp))
-                Text("최근 할 일", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                Text("최근 할 일", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AppColors.TodoLayer.labelText(isDark))
                 Spacer(modifier = Modifier.height(8.dp))
                 recents.forEach { name ->
                     Text(
@@ -274,9 +298,9 @@ fun TodoNameInputOverlay(
                             .clickable { onDone(name) }
                             .padding(vertical = 12.dp),
                         fontSize = 16.sp,
-                        color = Color(0xFF212121) // Gray 9
+                        color = AppColors.TodoLayer.primaryText(isDark)
                     )
-                    Divider(color = Color(0xFFEEEEEE))
+                    Divider(color = AppColors.Search.divider(isDark))
                 }
             }
         }
@@ -284,16 +308,15 @@ fun TodoNameInputOverlay(
 }
 
 @Composable
-fun ContactPickerOverlay(onDone: (String) -> Unit, onCancel: () -> Unit) {
-    val gray7 = Color(0xFF616161)
+fun ContactPickerOverlay(isDark: Boolean, onDone: (String) -> Unit, onCancel: () -> Unit) {
     var search by remember { mutableStateOf("") }
-    Box(Modifier.fillMaxSize().background(Color.White)) {
+    Box(Modifier.fillMaxSize().background(AppColors.TodoLayer.background(isDark))) {
         Column(Modifier.padding(16.dp)) {
             Spacer(modifier = Modifier.height(24.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                IconButton(onClick = onCancel) { Icon(Icons.Default.Close, null, tint = gray7) }
-                Text("연락처 검색", fontWeight = FontWeight.Bold, color = gray7, fontSize = 18.sp)
-                IconButton(onClick = { onDone("Sample Person") }) { Icon(Icons.Default.Check, null, tint = gray7) }
+                IconButton(onClick = onCancel) { Icon(Icons.Default.Close, null, tint = AppColors.TodoLayer.primaryText(isDark)) }
+                Text("연락처 검색", fontWeight = FontWeight.Bold, color = AppColors.TodoLayer.headerText(isDark), fontSize = 18.sp)
+                IconButton(onClick = { onDone("Sample Person") }) { Icon(Icons.Default.Check, null, tint = AppColors.TodoLayer.primaryText(isDark)) }
             }
             Spacer(modifier = Modifier.height(16.dp))
             val focusRequester = remember { FocusRequester() }
@@ -304,15 +327,19 @@ fun ContactPickerOverlay(onDone: (String) -> Unit, onCancel: () -> Unit) {
                 value = search,
                 onValueChange = { search = it },
                 modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
-                placeholder = { Text("연락처에서 선택", style = TextStyle(color = gray7)) },
+                placeholder = { Text("알릴 사람을 주소록에서 넣을 수 있어요", style = TextStyle(color = AppColors.TodoLayer.placeholderText(isDark))) },
                 shape = RoundedCornerShape(12.dp),
-                leadingIcon = { Icon(Icons.Default.Search, null, tint = Color.Gray) },
-                textStyle = TextStyle(color = Color(0xFF212121))
+                leadingIcon = { Icon(Icons.Default.Search, null, tint = AppColors.TodoLayer.labelText(isDark)) },
+                textStyle = TextStyle(color = AppColors.TodoLayer.primaryText(isDark)),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = AppColors.TodoLayer.labelText(isDark).copy(alpha = 0.3f),
+                    focusedBorderColor = AppColors.TodoLayer.primaryText(isDark)
+                )
             )
             Spacer(modifier = Modifier.height(24.dp))
-            Text("연락처 리스트", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+            Text("연락처 리스트", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AppColors.TodoLayer.labelText(isDark))
             // list... (Sample UI)
-            Text("데이터를 불러오는 중...", Modifier.padding(top = 16.dp), color = Color.Gray)
+            Text("데이터를 불러오는 중...", Modifier.padding(top = 16.dp), color = AppColors.TodoLayer.placeholderText(isDark))
         }
     }
 }
@@ -321,18 +348,18 @@ fun ContactPickerOverlay(onDone: (String) -> Unit, onCancel: () -> Unit) {
 fun MemoInputOverlay(
     initialValue: String,
     recents: List<String>,
+    isDark: Boolean,
     onDone: (String) -> Unit,
     onCancel: () -> Unit
 ) {
-    val gray7 = Color(0xFF616161)
     var text by remember { mutableStateOf(initialValue) }
-    Box(Modifier.fillMaxSize().background(Color.White)) {
+    Box(Modifier.fillMaxSize().background(AppColors.TodoLayer.background(isDark))) {
         Column(Modifier.padding(16.dp)) {
             Spacer(modifier = Modifier.height(24.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                IconButton(onClick = onCancel) { Icon(Icons.Default.Close, null, tint = gray7) }
-                Text("메모 입력", fontWeight = FontWeight.Bold, color = gray7, fontSize = 18.sp)
-                IconButton(onClick = { onDone(text) }) { Icon(Icons.Default.Check, null, tint = gray7) }
+                IconButton(onClick = onCancel) { Icon(Icons.Default.Close, null, tint = AppColors.TodoLayer.primaryText(isDark)) }
+                Text("메모 입력", fontWeight = FontWeight.Bold, color = AppColors.TodoLayer.headerText(isDark), fontSize = 18.sp)
+                IconButton(onClick = { onDone(text) }) { Icon(Icons.Default.Check, null, tint = AppColors.TodoLayer.primaryText(isDark)) }
             }
             Spacer(modifier = Modifier.height(16.dp))
             val focusRequester = remember { FocusRequester() }
@@ -343,14 +370,18 @@ fun MemoInputOverlay(
                 value = text,
                 onValueChange = { text = it },
                 modifier = Modifier.fillMaxWidth().height(200.dp).focusRequester(focusRequester),
-                placeholder = { Text("기억을 위한 메모", style = TextStyle(color = gray7)) },
+                placeholder = { Text("기억을 위한 메모", style = TextStyle(color = AppColors.TodoLayer.placeholderText(isDark))) },
                 shape = RoundedCornerShape(12.dp),
-                textStyle = TextStyle(color = Color(0xFF212121))
+                textStyle = TextStyle(color = AppColors.TodoLayer.primaryText(isDark)),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = AppColors.TodoLayer.labelText(isDark).copy(alpha = 0.3f),
+                    focusedBorderColor = AppColors.TodoLayer.primaryText(isDark)
+                )
             )
             
             if (recents.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(24.dp))
-                Text("이전에 썼던 메모", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                Text("이전에 썼던 메모", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AppColors.TodoLayer.labelText(isDark))
                 Spacer(modifier = Modifier.height(8.dp))
                 recents.forEach { memo ->
                     Text(
@@ -360,10 +391,10 @@ fun MemoInputOverlay(
                             .clickable { onDone(memo) }
                             .padding(vertical = 12.dp),
                         fontSize = 14.sp,
-                        color = Color(0xFF212121), // Gray 9
+                        color = AppColors.TodoLayer.primaryText(isDark),
                         maxLines = 2
                     )
-                    Divider(color = Color(0xFFEEEEEE))
+                    Divider(color = AppColors.Search.divider(isDark))
                 }
             }
         }

@@ -43,23 +43,47 @@ class SearchViewModel: ObservableObject {
     }
     
     func performSearch(latitude: Double?, longitude: Double?) {
-        guard query.count >= 2 else { return }
+        let currentQuery = query.trimmingCharacters(in: .whitespaces)
+        guard currentQuery.count >= 2 else { return }
         
         isSearching = true
         errorMessage = nil
         
-        searchService.searchKeyword(query: query, latitude: latitude, longitude: longitude) { [weak self] results, errorCode in
-            DispatchQueue.main.async {
-                self?.isSearching = false
-                if let results = results {
-                    self?.results = results
-                    if results.isEmpty {
-                        self?.errorMessage = "검색 결과가 없습니다."
+        searchService.searchKeyword(query: currentQuery, latitude: latitude, longitude: longitude) { [weak self] poiResults, statusCode in
+            guard let self = self else { return }
+            
+            // 검증: 결과가 도착했을 때의 쿼리가 현재 쿼리와 같은지 확인
+            guard self.query.trimmingCharacters(in: .whitespaces) == currentQuery else { return }
+            
+            var finalResults = poiResults ?? []
+            
+            // POI 결과가 부족한 경우(0~1건) 주소 검색 병행
+            if finalResults.count <= 1 {
+                self.searchService.searchAddress(query: currentQuery) { addrResults, _ in
+                    guard self.query.trimmingCharacters(in: .whitespaces) == currentQuery else { return }
+                    
+                    if let addrResults = addrResults {
+                        for addr in addrResults {
+                            // 중복 좌표 제거
+                            if !finalResults.contains(where: { $0.latitude == addr.latitude && $0.longitude == addr.longitude }) {
+                                finalResults.append(addr)
+                            }
+                        }
                     }
-                } else {
-                    self?.errorMessage = "검색 실패 (HTTP \(errorCode))"
-                    self?.results = []
+                    self.finalizeSearch(results: finalResults, statusCode: statusCode)
                 }
+            } else {
+                self.finalizeSearch(results: finalResults, statusCode: statusCode)
+            }
+        }
+    }
+    
+    private func finalizeSearch(results: [SearchResult], statusCode: Int) {
+        DispatchQueue.main.async {
+            self.isSearching = false
+            self.results = results
+            if results.isEmpty {
+                self.errorMessage = statusCode == 200 ? "검색 결과가 없습니다." : "검색 실패 (HTTP \(statusCode))"
             }
         }
     }

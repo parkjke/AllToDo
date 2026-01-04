@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.*
+import kr.alltodo.ui.theme.AllToDoTheme
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -22,6 +24,8 @@ import kr.alltodo.ui.components.UserProfileView
 import kr.alltodo.ui.components.KakaoMapContent
 import kr.alltodo.ui.components.NaverMapContent
 import kr.alltodo.ui.components.GoogleMapContent
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.maps.model.CameraPosition
@@ -278,31 +282,61 @@ fun MainScreen(
                         MapProvider.Naver -> {
                             naverMapInstance?.let { map ->
                                 val loc = currentLocation.value!!
-                                val cameraUpdate = com.naver.maps.map.CameraUpdate.scrollTo(com.naver.maps.geometry.LatLng(loc.latitude, loc.longitude))
-                                    .animate(com.naver.maps.map.CameraAnimation.Easing)
-                                map.moveCamera(cameraUpdate)
-                                // Also set Zoom to 18
+                                map.moveCamera(com.naver.maps.map.CameraUpdate.scrollTo(com.naver.maps.geometry.LatLng(loc.latitude, loc.longitude)).animate(com.naver.maps.map.CameraAnimation.Easing))
                                 map.moveCamera(com.naver.maps.map.CameraUpdate.zoomTo(18.0).animate(com.naver.maps.map.CameraAnimation.Easing))
                             }
                         }
                         MapProvider.Kakao -> {
                              kakaoMapInstance?.let { map ->
                                 val loc = currentLocation.value!!
-                                val cameraUpdate = com.kakao.vectormap.camera.CameraUpdateFactory.newCenterPosition(com.kakao.vectormap.LatLng.from(loc.latitude, loc.longitude))
-                                map.moveCamera(cameraUpdate, com.kakao.vectormap.camera.CameraAnimation.from(300, true, true))
-                                // Zoom 18
+                                map.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.newCenterPosition(com.kakao.vectormap.LatLng.from(loc.latitude, loc.longitude)), com.kakao.vectormap.camera.CameraAnimation.from(300, true, true))
                                 map.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.zoomTo(18), com.kakao.vectormap.camera.CameraAnimation.from(300, true, true))
                              }
                         }
                         MapProvider.Google -> {
                             scope.launch {
                                 val loc = currentLocation.value!!
-                                android.util.Log.e("ANTIGRAVITY", ">>> [MainScreen] EXECUTE Action on StateHash: ${System.identityHashCode(googleCameraPositionState)}")
                                 googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(com.google.android.gms.maps.model.LatLng(loc.latitude, loc.longitude), 18f), 1000)
                             }
                         }
                     }
                  }
+            }
+            MapAction.MOVE_TO_LOCATION -> {
+                val loc = mapViewModel.targetLocation.value
+                println(">>> [MainScreen] MOVE_TO_LOCATION triggered for loc=$loc, provider=$mapProvider")
+                loc?.let { l ->
+                    when (mapProvider) {
+                        MapProvider.Naver -> {
+                            println(">>> [MainScreen] Moving Naver Map to ${l.latitude}, ${l.longitude}")
+                            naverMapInstance?.let { map ->
+                                val update = com.naver.maps.map.CameraUpdate.scrollAndZoomTo(
+                                    com.naver.maps.geometry.LatLng(l.latitude, l.longitude), 18.0
+                                ).animate(com.naver.maps.map.CameraAnimation.Easing)
+                                map.moveCamera(update)
+                            } ?: println(">>> [MainScreen] ERROR: naverMapInstance is NULL")
+                        }
+                        MapProvider.Kakao -> {
+                            println(">>> [MainScreen] Moving Kakao Map to ${l.latitude}, ${l.longitude}")
+                            kakaoMapInstance?.let { map ->
+                                val update = com.kakao.vectormap.camera.CameraUpdateFactory.newCenterPosition(
+                                    com.kakao.vectormap.LatLng.from(l.latitude, l.longitude), 18
+                                )
+                                map.moveCamera(update, com.kakao.vectormap.camera.CameraAnimation.from(500, true, true))
+                            } ?: println(">>> [MainScreen] ERROR: kakaoMapInstance is NULL")
+                        }
+                        MapProvider.Google -> {
+                            println(">>> [MainScreen] Moving Google Map to ${l.latitude}, ${l.longitude}")
+                            scope.launch {
+                                googleCameraPositionState.animate(
+                                    com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(
+                                        com.google.android.gms.maps.model.LatLng(l.latitude, l.longitude), 18f
+                                    ), 1000
+                                )
+                            }
+                        }
+                    }
+                } ?: println(">>> [MainScreen] ERROR: targetLocation is NULL")
             }
             else -> {}
         }
@@ -479,92 +513,106 @@ fun MainScreen(
             onCompassClick = { mapViewModel.handleCompassClick() }
         )
 
+        // [NEW] Global Overlay Theme Logic (iOS Parity)
+        val isSystemDark = isSystemInDarkTheme()
+        val isOverlayDark = remember(mapProvider, isSystemDark) {
+            if (mapProvider == MapProvider.Google) isSystemDark else false
+        }
+
         // [Item 3] My Info (UserProfileView)
         if (showMyInfo) {
             val maxPopupItems by todoViewModel.maxPopupItems.collectAsState()
             val popupFontSize by todoViewModel.popupFontSize.collectAsState()
             val isTracking by gpsAuthViewModel.isTracking.collectAsState()
             
-            UserProfileView(
-                modifier = Modifier.align(Alignment.CenterStart),
-                onDismiss = { mapViewModel.toggleMyInfo(false) },
-                maxPopupItems = maxPopupItems,
-                onMaxItemsChange = { todoViewModel.updateMaxPopupItems(it) },
-                popupFontSize = popupFontSize,
-                onFontSizeChange = { todoViewModel.updatePopupFontSize(it) },
-                currentMapProvider = mapProvider,
-                onMapProviderChange = { newProvider ->
-                    mapViewModel.toggleMyInfo(false) // [FIX] Move to top for immediate UI feedback
-                    mapProvider = newProvider
-                    prefs.edit().putString("map_provider", newProvider.name).apply()
-                },
-                isTracking = isTracking,
-                onGpsAuthClick = { 
-                    if (isTracking) {
-                        todoViewModel.toggleTracking() // Stops Todo session
-                        gpsAuthViewModel.stopTrackingAndSave() // Stops GPS session
-                        mapViewModel.toggleMyInfo(false)
-                    } else {
-                        todoViewModel.toggleTracking() // Starts Todo session
-                        gpsAuthViewModel.startTracking() // Starts GPS session
-                        gpsAuthViewModel.setOverlayVisible(true) // Open for feedback
-                        mapViewModel.toggleMyInfo(false)
+            AllToDoTheme(darkTheme = isOverlayDark) {
+                UserProfileView(
+                    modifier = Modifier.align(Alignment.CenterStart),
+                    onDismiss = { mapViewModel.toggleMyInfo(false) },
+                    maxPopupItems = maxPopupItems,
+                    onMaxItemsChange = { todoViewModel.updateMaxPopupItems(it) },
+                    popupFontSize = popupFontSize,
+                    onFontSizeChange = { todoViewModel.updatePopupFontSize(it) },
+                    currentMapProvider = mapProvider,
+                    onMapProviderChange = { newProvider ->
+                        mapViewModel.toggleMyInfo(false) // [FIX] Move to top for immediate UI feedback
+                        mapProvider = newProvider
+                        prefs.edit().putString("map_provider", newProvider.name).apply()
+                    },
+                    isTracking = isTracking,
+                    onGpsAuthClick = { 
+                        if (isTracking) {
+                            todoViewModel.toggleTracking() // Stops Todo session
+                            gpsAuthViewModel.stopTrackingAndSave() // Stops GPS session
+                            mapViewModel.toggleMyInfo(false)
+                        } else {
+                            todoViewModel.toggleTracking() // Starts Todo session
+                            gpsAuthViewModel.startTracking() // Starts GPS session
+                            gpsAuthViewModel.setOverlayVisible(true) // Open for feedback
+                            mapViewModel.toggleMyInfo(false)
+                        }
                     }
-                }
-            )
+                )
+            }
         }
 
         // [NEW] GPS Auth Overlay Layer
         val isOverlayVisible by gpsAuthViewModel.isOverlayVisible.collectAsState()
         if (isOverlayVisible) {
-            kr.alltodo.ui.components.GpsAuthOverlay(
-                viewModel = gpsAuthViewModel,
-                currentLocation = currentLocation.value,
-                mapProvider = mapProvider,
-                onDismiss = { gpsAuthViewModel.setOverlayVisible(false) }
-            )
+            AllToDoTheme(darkTheme = isOverlayDark) {
+                kr.alltodo.ui.components.GpsAuthOverlay(
+                    viewModel = gpsAuthViewModel,
+                    currentLocation = currentLocation.value,
+                    mapProvider = mapProvider,
+                    onDismiss = { gpsAuthViewModel.setOverlayVisible(false) }
+                )
+            }
         }
         // [NEW] Callout (Water Balloon) Overlay
         selectedCluster?.let { cluster ->
             tapScreenPosition?.let { pos ->
-                kr.alltodo.ui.components.CalloutBubble(
-                    items = cluster,
-                    screenPosition = pos,
-                    maxPopupItems = maxPopupItems,
-                    popupFontSize = popupFontSize,
-                    onClose = { mapViewModel.clearSelection() },
-                    onDeleteTodo = { todoViewModel.deleteTodo(it.item) },
-                    onDeleteLog = { todoViewModel.deleteTodo(it.item) },
-                    onSelectLog = { 
-                        mapViewModel.clearSelection()
-                        viewingPathTodo = it
-                        todoViewModel.fetchPathForHistory(it)
-                    },
-                    onCreateTodo = { 
-                        mapViewModel.startCreatingTodo(it.latitude, it.longitude, "할 일", when(it) {
-                            is kr.alltodo.ui.UnifiedItem.Todo -> it.item.todo_name
-                            is kr.alltodo.ui.UnifiedItem.History -> it.item.todo_name
-                            else -> ""
-                        })
-                        mapViewModel.clearSelection()
-                    },
-                    mapProvider = mapProvider,
-                    forceLightMode = (mapProvider != kr.alltodo.ui.MapProvider.Google)
-                )
+                AllToDoTheme(darkTheme = isOverlayDark) {
+                    kr.alltodo.ui.components.CalloutBubble(
+                        items = cluster,
+                        screenPosition = pos,
+                        maxPopupItems = maxPopupItems,
+                        popupFontSize = popupFontSize,
+                        onClose = { mapViewModel.clearSelection() },
+                        onDeleteTodo = { todoViewModel.deleteTodo(it.item) },
+                        onDeleteLog = { todoViewModel.deleteTodo(it.item) },
+                        onSelectLog = { 
+                            mapViewModel.clearSelection()
+                            viewingPathTodo = it
+                            todoViewModel.fetchPathForHistory(it)
+                        },
+                        onCreateTodo = { 
+                            mapViewModel.startCreatingTodo(it.latitude, it.longitude, "할 일", when(it) {
+                                is kr.alltodo.ui.UnifiedItem.Todo -> it.item.todo_name
+                                is kr.alltodo.ui.UnifiedItem.History -> it.item.todo_name
+                                else -> ""
+                            })
+                            mapViewModel.clearSelection()
+                        },
+                        mapProvider = mapProvider,
+                        forceLightMode = !isOverlayDark
+                    )
+                }
             }
         }
 
         // [NEW] Path Viewer Layer
         val selectedHistoryPath by todoViewModel.selectedHistoryPath.collectAsState()
         viewingPathTodo?.let { todo ->
-            kr.alltodo.ui.components.PathViewer(
-                todo = todo,
-                pathData = selectedHistoryPath,
-                mapProvider = mapProvider,
-                onClose = { 
-                    viewingPathTodo = null
-                }
-            )
+            AllToDoTheme(darkTheme = isOverlayDark) {
+                kr.alltodo.ui.components.PathViewer(
+                    todo = todo,
+                    pathData = selectedHistoryPath,
+                    mapProvider = mapProvider,
+                    onClose = { 
+                        viewingPathTodo = null
+                    }
+                )
+            }
         }
 
         // [NEW] Create Todo Layer
@@ -609,33 +657,114 @@ fun MainScreen(
                 }
             }
 
-            kr.alltodo.ui.components.CreateTodoLayer(
-                modifier = Modifier.align(Alignment.BottomCenter),
-                recentNames = recentNames,
-                recentMemos = recentMemos,
-                defaultName = defaultTodoName,
-                initialName = initialTodoName,
-                title = initialTodoTitle,
-                onRegister = { name, person, date, time, memo ->
-                    creatingLocation?.let { loc ->
-                        todoViewModel.addTodo(name, loc.latitude, loc.longitude, person, date, time, memo)
-                        scope.launch {
-                            delay(300) // Wait for padding removal animation
-                            centerMapOn(loc.latitude, loc.longitude)
+            AllToDoTheme(darkTheme = isOverlayDark) {
+                kr.alltodo.ui.components.CreateTodoLayer(
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                    recentNames = recentNames,
+                    recentMemos = recentMemos,
+                    defaultName = defaultTodoName,
+                    initialName = initialTodoName,
+                    title = initialTodoTitle,
+                    isDark = isOverlayDark,
+                    onRegister = { name, person, date, time, memo ->
+                        creatingLocation?.let { loc ->
+                            todoViewModel.addTodo(name, loc.latitude, loc.longitude, person, date, time, memo)
+                            scope.launch {
+                                delay(300) // Wait for padding removal animation
+                                centerMapOn(loc.latitude, loc.longitude)
+                            }
+                        }
+                        mapViewModel.cancelCreatingTodo()
+                    },
+                    onCancel = {
+                        creatingLocation?.let { loc ->
+                            scope.launch {
+                                delay(300) // Wait for padding removal animation
+                                centerMapOn(loc.latitude, loc.longitude)
+                            }
+                        }
+                        mapViewModel.cancelCreatingTodo()
+                    }
+                )
+            }
+        }
+
+        // [NEW] Search Button and Overlay
+        val searchViewModel: kr.alltodo.ui.SearchViewModel = hiltViewModel()
+        val isSearchVisible by searchViewModel.isOverlayVisible.collectAsState()
+        val searchQuery by searchViewModel.searchQuery.collectAsState()
+        val searchResults by searchViewModel.searchResults.collectAsState()
+        val isSearching by searchViewModel.isSearching.collectAsState()
+        val errorMessage by searchViewModel.errorMessage.collectAsState()
+        val showRipple by searchViewModel.showRipple.collectAsState()
+
+        val voiceLauncher = rememberLauncherForActivityResult(
+            contract = androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            if (result.resultCode == android.app.Activity.RESULT_OK) {
+                val data = result.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)
+                data?.get(0)?.let { searchViewModel.onVoiceResult(it) }
+            }
+        }
+
+        fun startVoiceRecognition() {
+            val intent = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.KOREAN)
+            }
+            try {
+                voiceLauncher.launch(intent)
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(context, "음성 인식을 사용할 수 없습니다.", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // Search Overlay (Positioned below TopLeftWidget)
+        if (isSearchVisible) {
+            // [NEW] Dismissal Layer: Touching anywhere outside the search overlay closes it
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        detectTapGestures {
+                            searchViewModel.toggleOverlay()
                         }
                     }
-                    mapViewModel.cancelCreatingTodo()
-                },
-                onCancel = {
-                    creatingLocation?.let { loc ->
-                        scope.launch {
-                            delay(300) // Wait for padding removal animation
-                            centerMapOn(loc.latitude, loc.longitude)
-                        }
-                    }
-                    mapViewModel.cancelCreatingTodo()
-                }
             )
+
+            AllToDoTheme(darkTheme = isOverlayDark) {
+                kr.alltodo.ui.components.SearchOverlay(
+                    query = searchQuery,
+                    results = searchResults,
+                    isSearching = isSearching,
+                    errorMessage = errorMessage,
+                    mapProvider = mapProvider, // [FIX] Required for theme policy
+                    onQueryChange = { searchViewModel.onQueryChange(it, currentLocation.value?.latitude, currentLocation.value?.longitude) },
+                    onSearch = { searchViewModel.performSearch(currentLocation.value?.latitude, currentLocation.value?.longitude) },
+                    onVoiceClick = { startVoiceRecognition() },
+                    onResultClick = { result ->
+                        mapViewModel.moveToLocation(result.latitude, result.longitude)
+                        searchViewModel.triggerRipple()
+                        searchViewModel.toggleOverlay()
+                    },
+                    modifier = Modifier
+                        .padding(top = 110.dp, start = 16.dp) // [FIX] Increased spacing from TopLeftWidget
+                        .align(Alignment.TopStart)
+                )
+            }
+        }
+
+        // Search Button (Bottom Center)
+        kr.alltodo.ui.components.SearchButton(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 60.dp),
+            onClick = { searchViewModel.toggleOverlay() }
+        )
+
+        // [NEW] Ripple Effect for Search Results
+        if (showRipple) {
+            kr.alltodo.ui.components.RippleEffectView(isDark = isOverlayDark)
         }
     }
 }

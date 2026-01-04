@@ -16,6 +16,7 @@ struct NaverMapView: UIViewRepresentable {
     @Binding var tapPosition: CGPoint? // [NEW]
     @Binding var clusterRadius: Double? // [NEW]
     @Binding var creatingTodoLocation: CLLocationCoordinate2D? // [NEW]
+    @Binding var targetLocation: CLLocationCoordinate2D? // [NEW] For search
     var onLongTap: ((CLLocationCoordinate2D) -> Void)?
     var onUserLocationTap: (() -> Void)?
     
@@ -233,6 +234,13 @@ struct NaverMapView: UIViewRepresentable {
                  }
             case .launchSequence:
                 performLaunchAnimation(userLocation: parent.locationManager.currentLocation)
+            case .moveToLocation:
+                if let loc = parent.targetLocation {
+                    let update = NMFCameraUpdate(scrollTo: NMGLatLng(lat: loc.latitude, lng: loc.longitude), zoomTo: 18)
+                    update.animation = .fly
+                    update.animationDuration = 0.5
+                    map.moveCamera(update)
+                }
             case .none: break
             }
         }

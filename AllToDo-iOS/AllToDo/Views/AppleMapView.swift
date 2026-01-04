@@ -16,6 +16,7 @@ struct AppleMapView: UIViewRepresentable {
     @Binding var tapPosition: CGPoint?
     @Binding var clusterRadius: Double?
     @Binding var creatingTodoLocation: CLLocationCoordinate2D? // [NEW]
+    @Binding var targetLocation: CLLocationCoordinate2D? // [NEW] For search
     var onLongTap: ((CLLocationCoordinate2D) -> Void)?
     var onUserLocationTap: (() -> Void)?
     var onDelete: ((ToDoItem) -> Void)?
@@ -333,6 +334,12 @@ struct AppleMapView: UIViewRepresentable {
             case .launchSequence:
                 // [NEW] Relaunch Animation
                 self.performLaunchAnimation(mapView: mapView, userLocation: parent.locationManager.currentLocation)
+            case .moveToLocation:
+                if let loc = parent.targetLocation {
+                    let zoom18Span = 0.0013
+                    let region = MKCoordinateRegion(center: loc, span: MKCoordinateSpan(latitudeDelta: zoom18Span, longitudeDelta: zoom18Span))
+                    mapView.setRegion(region, animated: true)
+                }
             }
         }
         

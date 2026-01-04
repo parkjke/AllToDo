@@ -31,9 +31,7 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kr.alltodo.ui.theme.AllToDoBlue
-import kr.alltodo.ui.theme.AllToDoGreen
-import kr.alltodo.ui.theme.AllToDoRed
+import kr.alltodo.ui.theme.*
 import androidx.compose.material.icons.filled.Checklist
 
 @Composable
@@ -58,12 +56,12 @@ fun TopLeftWidget(
             Icon(
                 imageVector = Icons.Filled.Checklist,
                 contentDescription = null,
-                tint = Color(0xFF333333),
+                tint = Gray8,
                 modifier = Modifier.size(24.dp)
             )
             Text(
                 text = "할 일",
-                color = Color(0xFF333333),
+                color = Gray8,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Black
             )
@@ -93,7 +91,7 @@ fun StatBadge(color: Color, count: Int) {
             .drawWithCache {
                 val brush = Brush.sweepGradient(
                     0.0f to Color.White,
-                    0.416f to Color(0xFF9E9E9E), // Gray 5
+                    0.416f to Gray5, // Gray 5
                     1.0f to Color.White
                 )
                 onDrawWithContent {

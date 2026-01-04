@@ -10,6 +10,7 @@ class MapFeatureViewModel: ObservableObject {
     // MARK: - Map Control State
     @Published var mapAction: MapAction = .none
     @Published var compassRotation: Double = 0.0
+    @Published var targetLocation: CLLocationCoordinate2D? // [NEW] For search result movement
     
     // MARK: - Item Selection & Interaction
     @Published var selectedItem: ToDoItem?
@@ -38,6 +39,7 @@ class MapFeatureViewModel: ObservableObject {
     @Published var creatingTodoLocation: CLLocationCoordinate2D?
     @Published var initialTodoName: String = ""
     @Published var initialTodoTitle: String = "할 일 만들기"
+    @Published var showRipple: Bool = false // [NEW] Search target ripple
     
     // MARK: - Anchor for filtering
     @Published var anchorDate: Date = Date()
@@ -60,6 +62,24 @@ class MapFeatureViewModel: ObservableObject {
     
     func handleCompassClick() {
         self.mapAction = .rotateNorth
+    }
+    
+    func moveToLocation(_ coordinate: CLLocationCoordinate2D) {
+        self.targetLocation = coordinate
+        self.mapAction = .moveToLocation
+        
+        // [MODIFIED] Trigger ripple AFTER arrival (approx 1s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            self.triggerRipple()
+        }
+    }
+    
+    func triggerRipple() {
+        self.showRipple = true
+        // Keep visible for enough time to complete "팅팅팅" (approx 2.5s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+            self.showRipple = false
+        }
     }
     
     func handleHistoryClick() {

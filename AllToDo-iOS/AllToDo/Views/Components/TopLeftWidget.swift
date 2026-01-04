@@ -20,11 +20,11 @@ struct TopLeftWidget: View {
                     Image(systemName: "checklist")
                         .resizable()
                         .frame(width: 22, height: 22)
-                        .foregroundColor(Color(white: 0.2))
+                        .foregroundColor(Color.gray8)
                     
                     Text("할 일")
                         .font(.system(size: 21, weight: .bold)) // 21pt bold
-                        .foregroundColor(Color(white: 0.2))
+                        .foregroundColor(Color.gray8)
                 }
                 .padding(.horizontal, 16) // 16pt both sides
                 
@@ -63,7 +63,7 @@ struct StatBadge: View {
                     AngularGradient(
                         gradient: Gradient(stops: [
                             .init(color: .white, location: 0.0),   // 12 o'clock
-                            .init(color: .gray5, location: 0.416), // 5 o'clock (5/12)
+                            .init(color: Color.gray5, location: 0.416), // 5 o'clock (5/12)
                             .init(color: .white, location: 1.0)    // Wrapping back to 12
                         ]),
                         center: .center,

@@ -90,7 +90,7 @@ struct RightSideControls: View {
                                     path.addLine(to: CGPoint(x: 0, y: 18))
                                     path.closeSubpath()
                                 }
-                                .stroke(Color(white: 0.2), lineWidth: 1)
+                                .stroke(Color.gray8, lineWidth: 1)
                             }
                             .frame(width: 12, height: 36)
                             .rotationEffect(.degrees(-compassRotation))
@@ -111,7 +111,7 @@ struct RightSideControls: View {
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 24, height: 24)
-                            .foregroundColor(Color(white: 0.2))
+                            .foregroundColor(.gray8)
                     }
                 }
                 .buttonStyle(.plain)
@@ -138,7 +138,7 @@ struct ControlIcon: View {
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 24, height: 24)
-                    .foregroundColor(Color(white: 0.2))
+                    .foregroundColor(.gray8)
                     .rotationEffect(.degrees(rotation))
             }
         }

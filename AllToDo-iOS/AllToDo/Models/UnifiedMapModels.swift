@@ -117,6 +117,7 @@ enum MapAction {
     case rotateNorth
     case zoomToFit
     case launchSequence
+    case moveToLocation
 }
 
 // Custom Annotation Class

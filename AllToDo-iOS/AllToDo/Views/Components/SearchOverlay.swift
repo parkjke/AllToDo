@@ -143,20 +143,28 @@ struct SearchResultRow: View {
     
     var body: some View {
         Button(action: onClick) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(result.name)
-                    .font(.system(size: 19, weight: .bold))
-                    .foregroundColor(Color.Search.resultName(isDark: isDark))
-                
-                Text(result.address)
+            HStack(spacing: 12) {
+                // [NEW] Type-specific Icon
+                Image(systemName: result.isAddress ? "mappin.and.ellipse" : "magnifyingglass")
+                    .foregroundColor(result.isAddress ? Color.blue : .gray)
                     .font(.system(size: 16))
-                    .foregroundColor(Color.Search.resultAddress(isDark: isDark))
                 
-                if let distStr = result.distance, let dist = Int(distStr) {
-                    let formattedDist = dist >= 1000 ? String(format: "%.1fkm", Double(dist)/1000.0) : "\(dist)m"
-                    Text(formattedDist)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(Color.Search.distance(isDark: isDark))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(result.isAddress ? "[주소] \(result.name)" : result.name)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(Color.Search.resultName(isDark: isDark))
+                    
+                    Text(result.address)
+                        .font(.system(size: 14))
+                        .foregroundColor(Color.Search.resultAddress(isDark: isDark))
+                        .lineLimit(2)
+                    
+                    if let distStr = result.distance, let dist = Int(distStr), !result.isAddress {
+                        let formattedDist = dist >= 1000 ? String(format: "%.1fkm", Double(dist)/1000.0) : "\(dist)m"
+                        Text(formattedDist)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(Color.Search.distance(isDark: isDark))
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

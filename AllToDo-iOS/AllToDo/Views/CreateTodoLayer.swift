@@ -17,8 +17,9 @@ struct CreateTodoLayer: View {
     @State private var memo: String = ""
     
     @State private var activeInputMode: InputMode = .none
+    @FocusState private var focusedField: InputMode?
 
-    enum InputMode {
+    enum InputMode: Hashable {
         case none, name, person, memo
     }
     
@@ -64,18 +65,18 @@ struct CreateTodoLayer: View {
                     .padding(.bottom, 8)
                     
                     ScrollView {
-                        VStack(spacing: 24) {
+                        VStack(spacing: 20) {
                             InputField(
-                                label: "할 일 이름",
-                                value: todoName.isEmpty ? "할 일 이름을 넣어주세요 (미입력 시 '\(defaultName)')" : todoName,
+                                label: "",
+                                value: todoName.isEmpty ? "할 일에 이름을 지어주세요" : todoName,
                                 isPlaceholder: todoName.isEmpty,
                                 isDark: isDark,
                                 onClick: { activeInputMode = .name }
                             )
                             
                             InputField(
-                                label: "같이 할 사람이 있나요",
-                                value: person.isEmpty ? "연락처에서 선택" : person,
+                                label: "",
+                                value: person.isEmpty ? "알릴 사람을 주소록에서 넣을 수 있어요" : person,
                                 isPlaceholder: person.isEmpty,
                                 isDark: isDark,
                                 onClick: { activeInputMode = .person }
@@ -83,7 +84,7 @@ struct CreateTodoLayer: View {
                             
                             HStack(spacing: 12) {
                                 InputField(
-                                    label: "날짜",
+                                    label: "",
                                     value: date.isEmpty ? "날짜" : date,
                                     isPlaceholder: date.isEmpty,
                                     isDark: isDark,
@@ -92,7 +93,7 @@ struct CreateTodoLayer: View {
                                 .frame(maxWidth: .infinity)
                                 
                                 InputField(
-                                    label: "시간",
+                                    label: "",
                                     value: time.isEmpty ? "시간" : time,
                                     isPlaceholder: time.isEmpty,
                                     isDark: isDark,
@@ -101,13 +102,15 @@ struct CreateTodoLayer: View {
                                 .frame(maxWidth: .infinity)
                             }
                             
+                            // Memo field with expanded height to fill space
                             InputField(
-                                label: "메모",
+                                label: "",
                                 value: memo.isEmpty ? "기억을 위한 메모" : memo,
                                 isPlaceholder: memo.isEmpty,
                                 isDark: isDark,
                                 onClick: { activeInputMode = .memo }
                             )
+                            .frame(minHeight: 180, alignment: .top) // [FIX] Increased from 120 for better visibility
                         }
                         .padding(.top, 8)
                     }
@@ -126,6 +129,11 @@ struct CreateTodoLayer: View {
                     Color.TodoLayer.background(isDark: isDark).ignoresSafeArea()
                     
                     VStack(spacing: 24) {
+                        // [FIX] Ensure safe area overhead padding to prevent notch overlap
+                        Rectangle()
+                            .fill(Color.clear)
+                            .frame(height: 44) // Standard safe area top approximation
+                        
                         HStack {
                             Button(action: { activeInputMode = .none }) {
                                 Image(systemName: "xmark")
@@ -152,12 +160,15 @@ struct CreateTodoLayer: View {
                         .padding(.top, 16)
                         
                         if activeInputMode == .name {
-                            TextField("할 일 이름을 넣어주세요", text: $todoName)
+                            TextField("할 일에 이름을 지어주세요", text: $todoName)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
-                                .font(.system(size: 16))
+                                .font(.system(size: 19)) // [FIX] Increased from 16
+                                .focused($focusedField, equals: .name)
+                                .submitLabel(.done)
                         } else if activeInputMode == .memo {
                             TextEditor(text: $memo)
                                 .frame(height: 200)
+                                .focused($focusedField, equals: .memo)
                                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.TodoLayer.labelText(isDark: isDark).opacity(0.2)))
                         } else if activeInputMode == .person {
                             Text("연락처 검색 UI (준비 중)")
@@ -185,6 +196,10 @@ struct CreateTodoLayer: View {
                 todoName = initialName
             }
         }
+        .onChange(of: activeInputMode) { _, newValue in
+            // [FIX] Give immediate focus whenever input mode changes
+            focusedField = newValue != .none ? newValue : nil
+        }
         .ignoresSafeArea(.keyboard) // [FIX] Prevent layout shifts when keyboard appears
     }
     
@@ -206,22 +221,16 @@ struct InputField: View {
     let onClick: () -> Void
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(Color.TodoLayer.labelText(isDark: isDark))
-            
-            Button(action: onClick) {
-                Text(value)
-                    .font(.system(size: 16))
-                    .foregroundColor(isPlaceholder ? Color.TodoLayer.placeholderText(isDark: isDark) : Color.TodoLayer.primaryText(isDark: isDark))
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.TodoLayer.inputBackground(isDark: isDark))
-                    .cornerRadius(8)
-            }
-            .buttonStyle(PlainButtonStyle())
+        Button(action: onClick) {
+            Text(value)
+                .font(.system(size: 19)) // [FIX] Increased from 16 for better visibility
+                .foregroundColor(isPlaceholder ? Color.TodoLayer.placeholderText(isDark: isDark) : Color.TodoLayer.primaryText(isDark: isDark))
+                .padding(12)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .background(Color.TodoLayer.inputBackground(isDark: isDark))
+                .cornerRadius(8)
         }
+        .buttonStyle(PlainButtonStyle())
     }
 }
 

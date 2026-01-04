@@ -17,6 +17,7 @@ struct KakaoMapView: UIViewRepresentable {
     @Binding var tapPosition: CGPoint?
     @Binding var clusterRadius: Double?
     @Binding var creatingTodoLocation: CLLocationCoordinate2D?
+    @Binding var targetLocation: CLLocationCoordinate2D? // [NEW] For search
     var onLongTap: ((CLLocationCoordinate2D) -> Void)?
     var onDelete: ((ToDoItem) -> Void)?
     var onDeleteLog: ((ToDoItem) -> Void)?
@@ -690,6 +691,11 @@ struct KakaoMapView: UIViewRepresentable {
                 }
             case .rotateNorth:
                 mapView.moveCamera(CameraUpdate.make(rotation: 0, tilt: 0, mapView: mapView))
+            case .moveToLocation:
+                if let loc = parent.targetLocation {
+                    let pos = MapPoint(longitude: loc.longitude, latitude: loc.latitude)
+                    mapView.animateCamera(cameraUpdate: CameraUpdate.make(target: pos, zoomLevel: 18, mapView: mapView), options: CameraAnimationOptions(autoElevation: false, consecutive: true, durationInMillis: 500))
+                }
             default: break
             }
         }

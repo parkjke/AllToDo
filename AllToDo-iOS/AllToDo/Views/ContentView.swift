@@ -9,6 +9,7 @@ struct ContentView: View {
     
     // [Phase 1 Refactoring] Central Controller
     @StateObject private var viewModel = MapFeatureViewModel()
+    @StateObject private var searchViewModel = SearchViewModel() // [NEW]
     
     @StateObject private var locationManager = AppLocationManager()
     
@@ -23,79 +24,20 @@ struct ContentView: View {
     // MARK: - Body
     var body: some View {
         ZStack {
-            // Map Layer
-            mapLayer
-
-            .ignoresSafeArea()
-            
-            // UI Layer
-            VStack {
-                 HStack(alignment: .top) {
-                     statusWidget
-                     Spacer()
-                     VStack(spacing: 12) {
-                        if viewModel.showFarNotification {
-                            Button(action: { viewModel.showFarItems() }) { // [FIX] Show Items
-                                HStack {
-                                    Image(systemName: "mappin.circle.fill")
-                                    Text("\(viewModel.farItemsCount)개의 핀이 멀리 있어요")
-                                        .font(.system(size: 12, weight: .bold))
-                                }
-                                .padding(10)
-                                .background(Color.white.opacity(0.8)) // 80% transparency
-                                .foregroundColor(.red)
-                                .cornerRadius(20)
-                            }
-                        }
-                        navigationControls
-                     }
-                     .padding(.trailing, 8)
-                     .padding(.bottom, viewModel.isCreatingTodo ? 350 : 0)
-                     .animation(.spring(), value: viewModel.isCreatingTodo)
-                 }
-                 .padding(.top, 32)
-                 .padding(.horizontal, 8)
-                 Spacer()
-            }
-            
-            // Overlays
+            mapLayer.ignoresSafeArea()
+            uiLayer
             clusterOverlay
             todoDetailOverlay
             allItemsOverlay
             sideMenuLayer
+            createTodoLayer
+            searchLayer
             
-            // Create Todo Layer
-            if viewModel.isCreatingTodo {
-                CreateTodoLayer(
-                    title: viewModel.initialTodoTitle,
-                    defaultName: "새 할 일",
-                    initialName: viewModel.initialTodoName,
-                    onRegister: { name, person, dateStr, timeStr, memo in
-                        if let loc = viewModel.creatingTodoLocation {
-                            let formatter = DateFormatter()
-                            formatter.dateFormat = "yyyy.MM.dd HH:mm"
-                            let combinedStr = "\(dateStr) \(timeStr)"
-                            let dateTime = formatter.date(from: combinedStr) ?? Date()
-                            handleLongTap(lat: loc.latitude, lon: loc.longitude, name: name, dateTime: dateTime)
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { centerMapOn(loc) }
-                        }
-                        viewModel.isCreatingTodo = false
-                        viewModel.creatingTodoLocation = nil
-                        viewModel.initialTodoName = ""
-                    },
-                    onCancel: {
-                        if let loc = viewModel.creatingTodoLocation {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { centerMapOn(loc) }
-                        }
-                        viewModel.isCreatingTodo = false
-                        viewModel.creatingTodoLocation = nil
-                        viewModel.initialTodoName = ""
-                    }
-                )
-                .preferredColorScheme((mapProvider == .apple || mapProvider == .google) ? nil : .light)
-                .transition(.move(edge: .bottom))
-
-                .animation(.spring(), value: viewModel.isCreatingTodo)
+            // Ripple Effect (Centered for Search Result)
+            if viewModel.showRipple {
+                let isDarkRipple = (mapProvider == .apple || mapProvider == .google) ? (UIScreen.main.traitCollection.userInterfaceStyle == .dark) : false
+                RippleEffectView(isDark: isDarkRipple)
+                    .allowsHitTesting(false)
             }
         }
         .sheet(item: $viewModel.viewingHistoryItem) { item in
@@ -216,6 +158,7 @@ struct ContentView: View {
                  // print(">>> Smart Diffing: Skipping full map update (moved < 50m)")
             }
         }
+        .ignoresSafeArea(.keyboard) // [FIX] Disconnect UI from keyboard shifts for stable window-like experience
     }
 
 
@@ -391,6 +334,117 @@ struct ContentView: View {
 
 extension ContentView {
     
+    var uiLayer: some View {
+        VStack {
+             HStack(alignment: .top) {
+                 statusWidget
+                 Spacer()
+                 VStack(spacing: 12) {
+                    if viewModel.showFarNotification {
+                        Button(action: { viewModel.showFarItems() }) { // [FIX] Show Items
+                            HStack {
+                                Image(systemName: "mappin.circle.fill")
+                                Text("\(viewModel.farItemsCount)개의 핀이 멀리 있어요")
+                                    .font(.system(size: 12, weight: .bold))
+                            }
+                            .padding(10)
+                            .background(Color.white.opacity(0.8)) // 80% transparency
+                            .foregroundColor(.red)
+                            .cornerRadius(20)
+                        }
+                    }
+                    navigationControls
+                 }
+                 .padding(.trailing, 8)
+                 .padding(.bottom, viewModel.isCreatingTodo ? 350 : 0)
+                 .animation(.spring(), value: viewModel.isCreatingTodo)
+             }
+             .padding(.top, 32)
+             .padding(.horizontal, 8)
+             Spacer()
+        }
+    }
+
+    var createTodoLayer: some View {
+        Group {
+            if viewModel.isCreatingTodo {
+                CreateTodoLayer(
+                    title: viewModel.initialTodoTitle,
+                    defaultName: "새 할 일",
+                    initialName: viewModel.initialTodoName,
+                    onRegister: { name, person, dateStr, timeStr, memo in
+                        if let loc = viewModel.creatingTodoLocation {
+                            let formatter = DateFormatter()
+                            formatter.dateFormat = "yyyy.MM.dd HH:mm"
+                            let combinedStr = "\(dateStr) \(timeStr)"
+                            let dateTime = formatter.date(from: combinedStr) ?? Date()
+                            handleLongTap(lat: loc.latitude, lon: loc.longitude, name: name, dateTime: dateTime)
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { centerMapOn(loc) }
+                        }
+                        viewModel.isCreatingTodo = false
+                        viewModel.creatingTodoLocation = nil
+                        viewModel.initialTodoName = ""
+                    },
+                    onCancel: {
+                        if let loc = viewModel.creatingTodoLocation {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { centerMapOn(loc) }
+                        }
+                        viewModel.isCreatingTodo = false
+                        viewModel.creatingTodoLocation = nil
+                        viewModel.initialTodoName = ""
+                    }
+                )
+                .preferredColorScheme((mapProvider == .apple || mapProvider == .google) ? nil : .light)
+                .transition(.move(edge: .bottom))
+                .animation(.spring(), value: viewModel.isCreatingTodo)
+            }
+        }
+    }
+
+    var searchLayer: some View {
+        ZStack {
+            // Search Button (Bottom Center)
+            VStack {
+                Spacer()
+                SearchButton {
+                    withAnimation {
+                        searchViewModel.isOverlayVisible = true
+                    }
+                }
+                .padding(.bottom, 16) // [FIX] Added 16pt margin from Safe Area
+            }
+            .ignoresSafeArea()
+
+            // Search Overlay
+            if searchViewModel.isOverlayVisible {
+                // [NEW] Tap background map area to close search
+                Color.black.opacity(0.001)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation {
+                            searchViewModel.isOverlayVisible = false
+                        }
+                    }
+                    .zIndex(999)
+
+                SearchOverlay(
+                    viewModel: searchViewModel,
+                    mapProvider: mapProvider, // [NEW] Pass provider for theme control
+                    latitude: locationManager.currentLocation?.coordinate.latitude,
+                    longitude: locationManager.currentLocation?.coordinate.longitude
+                ) { result in
+                    viewModel.moveToLocation(result.coordinate)
+                    withAnimation {
+                        searchViewModel.isOverlayVisible = false
+                    }
+                }
+                .preferredColorScheme((mapProvider == .apple || mapProvider == .google) ? nil : .light)
+                .transition(.opacity)
+                .zIndex(1000)
+            }
+        }
+    }
+
     var allItemsOverlay: some View {
         Group {
             if viewModel.showListView {
@@ -466,7 +520,7 @@ extension ContentView {
         let newItem = ToDoItem(
             todo_name: name,
             date_time: dateTime,
-            no_of_path: 0
+            no_of_path: 1
         )
         newItem.type = "10"
         newItem.latitude = lat
@@ -552,6 +606,7 @@ extension ContentView {
             tapPosition: $viewModel.tapPosition,
             clusterRadius: $viewModel.clusterRadius,
             creatingTodoLocation: $viewModel.creatingTodoLocation,
+            targetLocation: $viewModel.targetLocation, // [NEW]
             onLongTap: { coord in
                 viewModel.creatingTodoLocation = coord
                 viewModel.initialTodoName = ""
@@ -584,6 +639,7 @@ extension ContentView {
              tapPosition: $viewModel.tapPosition,
              clusterRadius: $viewModel.clusterRadius,
              creatingTodoLocation: $viewModel.creatingTodoLocation,
+             targetLocation: $viewModel.targetLocation, // [NEW]
              onLongTap: { coord in
                 viewModel.creatingTodoLocation = coord
                 viewModel.initialTodoName = ""
@@ -618,6 +674,7 @@ extension ContentView {
             tapPosition: $viewModel.tapPosition,
             clusterRadius: $viewModel.clusterRadius,
             creatingTodoLocation: $viewModel.creatingTodoLocation,
+            targetLocation: $viewModel.targetLocation, // [NEW]
             onLongTap: { coord in
                 viewModel.creatingTodoLocation = coord
                 viewModel.initialTodoName = ""
@@ -653,6 +710,7 @@ extension ContentView {
             tapPosition: $viewModel.tapPosition,
             clusterRadius: $viewModel.clusterRadius,
             creatingTodoLocation: $viewModel.creatingTodoLocation,
+            targetLocation: $viewModel.targetLocation, // [NEW]
             hasItems: !viewModel.cachedMapItems.isEmpty,
             onLongTap: { coord in
                 viewModel.creatingTodoLocation = coord
