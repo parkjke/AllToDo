@@ -713,6 +713,17 @@ fun MainScreen(
             }
         }
 
+        // [NEW] Calendar Overlay Layer
+        val showCalendar by todoViewModel.showCalendar.collectAsState()
+        if (showCalendar) {
+            AllToDoTheme(darkTheme = isOverlayDark) {
+                kr.alltodo.ui.components.CalendarOverlay(
+                    isDark = isOverlayDark,
+                    onDismiss = { todoViewModel.toggleCalendar() }
+                )
+            }
+        }
+
         // [NEW] Search Button and Overlay
         val searchViewModel: kr.alltodo.ui.SearchViewModel = hiltViewModel()
         val isSearchVisible by searchViewModel.isOverlayVisible.collectAsState()

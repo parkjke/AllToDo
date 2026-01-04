@@ -63,7 +63,8 @@ fun TodoListLayer(
                         Icon(
                             imageVector = if (sortByTime) Icons.Default.AccessTime else Icons.Default.Palette,
                             contentDescription = "정렬",
-                            tint = Gray8
+                            tint = Gray8,
+                            modifier = Modifier.size(36.dp) // [FIX] 1.5x size
                         )
                     }
                     
@@ -92,11 +93,12 @@ fun TodoListLayer(
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // Calendar
-                    IconButton(onClick = { /* Calendar logic later */ }) {
+                    IconButton(onClick = { viewModel.toggleCalendar() }) { // [NEW] Toggle full screen calendar
                         Icon(
                             imageVector = Icons.Default.CalendarToday,
                             contentDescription = "캘린더",
-                            tint = Gray8
+                            tint = Gray8,
+                            modifier = Modifier.size(36.dp) // [FIX] 1.5x size
                         )
                     }
 
@@ -105,7 +107,8 @@ fun TodoListLayer(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "닫기",
-                            tint = Gray8
+                            tint = Gray8,
+                            modifier = Modifier.size(36.dp) // [FIX] 1.5x size
                         )
                     }
                 }
@@ -145,7 +148,8 @@ fun FilterIconButton(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = if (isSelected) color else color.copy(alpha = 0.3f)
+            tint = if (isSelected) color else color.copy(alpha = 0.3f),
+            modifier = Modifier.size(36.dp) // [FIX] 1.5x size
         )
     }
 }

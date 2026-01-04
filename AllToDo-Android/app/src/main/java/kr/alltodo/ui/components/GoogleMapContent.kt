@@ -14,6 +14,8 @@ import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
 import com.google.maps.android.compose.*
+import com.google.android.gms.maps.model.MapStyleOptions // [NEW]
+import kr.alltodo.R // [NEW]
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collectLatest
@@ -81,9 +83,14 @@ fun GoogleMapContent(
     
     // [DEBUG] Entry Log
 
-    val properties = remember {
+    val properties = remember(androidx.compose.foundation.isSystemInDarkTheme()) {
         MapProperties(
-            isMyLocationEnabled = false // [FIX] Disable native blue dot to avoid overlap with custom marker
+            isMyLocationEnabled = false,
+            mapStyleOptions = if (androidx.compose.foundation.isSystemInDarkTheme()) {
+                MapStyleOptions.loadRawResourceStyle(context, R.raw.google_map_dark_style)
+            } else {
+                null
+            }
         )
     }
 

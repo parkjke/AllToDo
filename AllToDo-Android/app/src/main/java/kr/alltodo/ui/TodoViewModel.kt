@@ -98,11 +98,15 @@ class TodoViewModel @Inject constructor(
     private val _filterHistory = MutableStateFlow(true)
     val filterHistory: StateFlow<Boolean> = _filterHistory.asStateFlow()
 
+    private val _showCalendar = MutableStateFlow(false) // [NEW]
+    val showCalendar: StateFlow<Boolean> = _showCalendar.asStateFlow()
+
     fun toggleListLayer() { _isListLayerVisible.value = !_isListLayerVisible.value }
     fun setSortByTime(value: Boolean) { _sortByTime.value = value; updateFilteredItems(immediate = true) }
     fun toggleFilterServer() { _filterServer.value = !_filterServer.value; updateFilteredItems(immediate = true) }
     fun toggleFilterTodo() { _filterTodo.value = !_filterTodo.value; updateFilteredItems(immediate = true) }
     fun toggleFilterHistory() { _filterHistory.value = !_filterHistory.value; updateFilteredItems(immediate = true) }
+    fun toggleCalendar() { _showCalendar.value = !_showCalendar.value } // [NEW]
 
     fun updateZoom(zoom: Float) {
         if (_currentZoom.value != zoom) {
