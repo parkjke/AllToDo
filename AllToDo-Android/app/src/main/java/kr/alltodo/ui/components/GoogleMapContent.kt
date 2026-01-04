@@ -83,10 +83,11 @@ fun GoogleMapContent(
     
     // [DEBUG] Entry Log
 
-    val properties = remember(androidx.compose.foundation.isSystemInDarkTheme()) {
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val properties = remember(isDark) {
         MapProperties(
             isMyLocationEnabled = false,
-            mapStyleOptions = if (androidx.compose.foundation.isSystemInDarkTheme()) {
+            mapStyleOptions = if (isDark) {
                 MapStyleOptions.loadRawResourceStyle(context, R.raw.google_map_dark_style)
             } else {
                 null

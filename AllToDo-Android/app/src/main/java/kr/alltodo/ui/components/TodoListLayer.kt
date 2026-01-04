@@ -6,7 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -29,6 +28,8 @@ import kr.alltodo.ui.theme.*
 fun TodoListLayer(
     viewModel: TodoViewModel,
     onPathClick: (UnifiedItem) -> Unit,
+    onEditTodo: (UnifiedItem) -> Unit, // [NEW] Added for name click
+    onAddClick: () -> Unit, // [NEW] Added for [+] button
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -58,19 +59,31 @@ fun TodoListLayer(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    // [+] Add Todo Button (Left of Sort)
+                    IconButton(onClick = onAddClick) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "추가",
+                            tint = Gray8,
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
                     // Sort Toggle
                     IconButton(onClick = { viewModel.setSortByTime(!sortByTime) }) {
                         Icon(
                             imageVector = if (sortByTime) Icons.Default.AccessTime else Icons.Default.Palette,
                             contentDescription = "정렬",
                             tint = Gray8,
-                            modifier = Modifier.size(36.dp) // [FIX] 1.5x size
+                            modifier = Modifier.size(36.dp)
                         )
                     }
                     
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
 
-                    // Filter Checkboxes
+                    // Filter Buttons (Rounded Rectangles)
                     FilterIconButton(
                         icon = Icons.Default.CheckCircle,
                         color = AllToDoBlue,
@@ -93,12 +106,12 @@ fun TodoListLayer(
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // Calendar
-                    IconButton(onClick = { viewModel.toggleCalendar() }) { // [NEW] Toggle full screen calendar
+                    IconButton(onClick = { viewModel.toggleCalendar() }) {
                         Icon(
                             imageVector = Icons.Default.CalendarToday,
                             contentDescription = "캘린더",
                             tint = Gray8,
-                            modifier = Modifier.size(36.dp) // [FIX] 1.5x size
+                            modifier = Modifier.size(36.dp)
                         )
                     }
 
@@ -108,7 +121,7 @@ fun TodoListLayer(
                             imageVector = Icons.Default.Close,
                             contentDescription = "닫기",
                             tint = Gray8,
-                            modifier = Modifier.size(36.dp) // [FIX] 1.5x size
+                            modifier = Modifier.size(36.dp)
                         )
                     }
                 }
@@ -129,7 +142,8 @@ fun TodoListLayer(
                                 is UnifiedItem.History -> viewModel.deleteTodo(item.item)
                                 else -> {}
                             }
-                        }
+                        },
+                        onNameClick = { onEditTodo(item) } // [NEW] Edit detail
                     )
                 }
             }
@@ -144,12 +158,21 @@ fun FilterIconButton(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    IconButton(onClick = onClick) {
+    // [FIX] Rounded Rectangle Style
+    Box(
+        modifier = Modifier
+            .padding(horizontal = 4.dp)
+            .size(36.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (isSelected) color.copy(alpha = 0.15f) else Color.Transparent)
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
             tint = if (isSelected) color else color.copy(alpha = 0.3f),
-            modifier = Modifier.size(36.dp) // [FIX] 1.5x size
+            modifier = Modifier.size(28.dp)
         )
     }
 }

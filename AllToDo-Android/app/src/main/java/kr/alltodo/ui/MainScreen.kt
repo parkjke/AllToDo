@@ -610,6 +610,8 @@ fun MainScreen(
                     mapProvider = mapProvider,
                     onClose = { 
                         viewingPathTodo = null
+                        // [FIX] Return to list layer if it was previously open
+                        todoViewModel.toggleListLayer()
                     }
                 )
             }
@@ -689,6 +691,37 @@ fun MainScreen(
             }
         }
 
+        // [NEW] Overlay Coordination: Hide Info/Search when List is shown, Restore when closed
+        val isListVisible by todoViewModel.isListLayerVisible.collectAsState()
+        var wasInfoVisibleBeforeList by remember { mutableStateOf(false) }
+        var wasSearchVisibleBeforeList by remember { mutableStateOf(false) }
+
+        LaunchedEffect(isListVisible) {
+            if (isListVisible) {
+                // Store previous states correctly if they were visible
+                if (mapViewModel.showMyInfo.value) {
+                    wasInfoVisibleBeforeList = true
+                    mapViewModel.toggleMyInfo(false)
+                }
+                if (searchViewModel.isOverlayVisible.value) {
+                    wasSearchVisibleBeforeList = true
+                    searchViewModel.toggleOverlay()
+                }
+            } else {
+                // Restore if needed when list is closed (excluding when path viewer is active)
+                if (viewingPathTodo == null) {
+                    if (wasInfoVisibleBeforeList) {
+                        mapViewModel.toggleMyInfo(true)
+                        wasInfoVisibleBeforeList = false
+                    }
+                    if (wasSearchVisibleBeforeList) {
+                        searchViewModel.toggleOverlay()
+                        wasSearchVisibleBeforeList = false
+                    }
+                }
+            }
+        }
+
         // [NEW] Todo List Layer
         val isListVisible by todoViewModel.isListLayerVisible.collectAsState()
         if (isListVisible) {
@@ -703,6 +736,41 @@ fun MainScreen(
                         } else if (item is kr.alltodo.ui.UnifiedItem.Todo) {
                             viewingPathTodo = item.item
                             todoViewModel.fetchPathForHistory(item.item)
+                        }
+                    },
+                    onEditTodo = { item ->
+                        todoViewModel.toggleListLayer()
+                        when (item) {
+                            is kr.alltodo.ui.UnifiedItem.Todo -> {
+                                mapViewModel.startCreatingTodo(
+                                    lat = item.latitude,
+                                    lon = item.longitude,
+                                    title = "할 일 수정",
+                                    initialName = item.item.todo_name
+                                )
+                            }
+                            is kr.alltodo.ui.UnifiedItem.History -> {
+                                mapViewModel.startCreatingTodo(
+                                    lat = item.latitude,
+                                    lon = item.longitude,
+                                    title = "히스토리 수정",
+                                    initialName = item.item.todo_name
+                                )
+                            }
+                            else -> {}
+                        }
+                    },
+                    onAddClick = {
+                        todoViewModel.toggleListLayer()
+                        // Use current map center or current location
+                        val center = when (mapProvider) {
+                            MapProvider.Naver -> naverMapInstance?.cameraPosition?.target?.let { LatLng(it.latitude, it.longitude) }
+                            MapProvider.Kakao -> kakaoMapInstance?.cameraPosition?.getPosition()?.let { LatLng(it.latitude, it.longitude) }
+                            MapProvider.Google -> googleCameraPositionState.position.target.let { LatLng(it.latitude, it.longitude) }
+                        } ?: currentLocation.value?.let { LatLng(it.latitude, it.longitude) }
+                        
+                        center?.let {
+                            mapViewModel.startCreatingTodo(it.latitude, it.longitude, "할 일 만들기")
                         }
                     },
                     onDismiss = { todoViewModel.toggleListLayer() },
@@ -725,7 +793,6 @@ fun MainScreen(
         }
 
         // [NEW] Search Button and Overlay
-        val searchViewModel: kr.alltodo.ui.SearchViewModel = hiltViewModel()
         val isSearchVisible by searchViewModel.isOverlayVisible.collectAsState()
         val searchQuery by searchViewModel.searchQuery.collectAsState()
         val searchResults by searchViewModel.searchResults.collectAsState()

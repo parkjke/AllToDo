@@ -1,6 +1,7 @@
 package kr.alltodo.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -25,7 +26,8 @@ import java.util.*
 fun TodoItemCard(
     item: kr.alltodo.ui.UnifiedItem,
     onPathClick: () -> Unit,
-    onDeleteClick: () -> Unit, // [NEW] Added for single row layout
+    onDeleteClick: () -> Unit,
+    onNameClick: () -> Unit, // [NEW] Added for viewing/editing detail
     modifier: Modifier = Modifier
 ) {
     val backgroundColor = when (item) {
@@ -46,7 +48,7 @@ fun TodoItemCard(
             .padding(horizontal = 12.dp, vertical = 4.dp),
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = RoundedCornerShape(8.dp) // Slightly tighter corners for list feel
+        shape = RoundedCornerShape(8.dp)
     ) {
         Row(
             modifier = Modifier
@@ -100,11 +102,11 @@ fun TodoItemCard(
                 text = timeStr,
                 fontSize = 13.sp,
                 color = Gray8,
-                fontWeight = FontWeight.Bold, // (bolt)
+                fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(end = 8.dp)
             )
 
-            // 4. Name (went places, etc.)
+            // 4. Name (went places, etc.) - [FIX] Clickable
             val name = when (item) {
                 is kr.alltodo.ui.UnifiedItem.Todo -> item.item.todo_name
                 is kr.alltodo.ui.UnifiedItem.History -> item.item.todo_name
@@ -118,7 +120,9 @@ fun TodoItemCard(
                 color = Gray8,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { onNameClick() } // [NEW] Open Detail
             )
 
             // 5. Person Icon & Count [사]
@@ -140,7 +144,7 @@ fun TodoItemCard(
                     )
                     Spacer(Modifier.width(2.dp))
                     Text(
-                        text = String.format("%02d", personCount), // 00 format
+                        text = String.format("%02d", personCount),
                         fontSize = 13.sp,
                         color = Gray8,
                         fontWeight = FontWeight.Medium
@@ -150,7 +154,7 @@ fun TodoItemCard(
                 Spacer(modifier = Modifier.width(8.dp))
             }
 
-            // 6. Delete Icon [휴]
+            // 6. Delete Icon [휴] - [FIX] Change to Red
             IconButton(
                 onClick = onDeleteClick,
                 modifier = Modifier.size(28.dp)
@@ -158,7 +162,7 @@ fun TodoItemCard(
                 Icon(
                     imageVector = Icons.Default.Delete,
                     contentDescription = "삭제",
-                    tint = Gray8,
+                    tint = AllToDoRed, // [FIX] Gray8 -> Red
                     modifier = Modifier.size(20.dp)
                 )
             }
