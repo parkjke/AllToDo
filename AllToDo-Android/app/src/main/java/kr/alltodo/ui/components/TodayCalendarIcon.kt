@@ -44,7 +44,6 @@ fun TodayCalendarIcon(
                     .fillMaxWidth()
                     .height(4.dp)
                     .background(tint, RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                    .align(Alignment.TopCenter)
             )
             Box(
                 modifier = Modifier.weight(1f),
