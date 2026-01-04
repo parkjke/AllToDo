@@ -30,20 +30,24 @@ fun TodayCalendarIcon(
         else -> tint
     }
 
+    // [FIX] Increase overall size slightly (36 -> 38) and add enough padding to avoid clipping
     Box(
         modifier = modifier
-            .size(36.dp)
+            .size(38.dp) // Slightly larger to accommodate border
             .border(2.dp, tint, RoundedCornerShape(8.dp))
-            .padding(2.dp),
+            .padding(1.dp), // Minimal padding inside border
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            // [OPTIONAL] Could add a small bar at the top like a real calendar icon
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Top bar like a desk calendar
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(4.dp)
-                    .background(tint, RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                    .height(5.dp) // Slightly taller
+                    .background(tint, RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
             )
             Box(
                 modifier = Modifier.weight(1f),
@@ -51,9 +55,10 @@ fun TodayCalendarIcon(
             ) {
                 Text(
                     text = dayOfMonth.toString(),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = textColor
+                    fontSize = 15.sp, // Slightly larger
+                    fontWeight = FontWeight.ExtraBold, // More emphasis
+                    color = textColor,
+                    modifier = Modifier.offset(y = (-1).dp) // Adjust visual balance
                 )
             }
         }

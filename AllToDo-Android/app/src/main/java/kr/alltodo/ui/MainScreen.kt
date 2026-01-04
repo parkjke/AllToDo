@@ -496,14 +496,16 @@ fun MainScreen(
         }
 
         // [Item 1] Top Left Widget
-        val todoItems by todoViewModel.todoItems.collectAsState()
-        TopLeftWidget(
-            historyCount = todoItems.count { it.type == "00" },
-            localTodoCount = todoItems.count { it.source == "local" && it.type == "10" },
-            serverTodoCount = todoItems.count { it.source != "local" && it.type == "10" },
-            modifier = Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = 40.dp),
-            onExpandClick = { todoViewModel.toggleListLayer() } // [FIX] Connect to List Layer
-        )
+        if (!isListVisible) {
+            val todoItems by todoViewModel.todoItems.collectAsState()
+            TopLeftWidget(
+                historyCount = todoItems.count { it.type == "00" },
+                localTodoCount = todoItems.count { it.source == "local" && it.type == "10" },
+                serverTodoCount = todoItems.count { it.source != "local" && it.type == "10" },
+                modifier = Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = 40.dp),
+                onExpandClick = { todoViewModel.toggleListLayer() } // [FIX] Connect to List Layer
+            )
+        }
 
         // [Item 2] Right Side Controls
         // State is now at the top of MainScreen
@@ -878,12 +880,14 @@ fun MainScreen(
         }
 
         // Search Button (Bottom Center)
-        kr.alltodo.ui.components.SearchButton(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 60.dp),
-            onClick = { searchViewModel.toggleOverlay() }
-        )
+        if (!isListVisible) {
+            kr.alltodo.ui.components.SearchButton(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 60.dp),
+                onClick = { searchViewModel.toggleOverlay() }
+            )
+        }
 
         // [NEW] Ripple Effect for Search Results
         if (showRipple) {
