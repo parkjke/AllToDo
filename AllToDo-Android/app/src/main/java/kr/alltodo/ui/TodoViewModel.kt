@@ -685,17 +685,9 @@ class TodoViewModel @Inject constructor(
             val pointCount = finalPoints.size
             val todoId = sessionId ?: java.util.UUID.randomUUID().toString()
 
-            // 1. Calculate Midpoint & Bounding Box
-            var sumLat = 0.0
-            var sumLng = 0.0
-            val intPoints = ArrayList<Pair<Int, Int>>(pointCount)
-            for (p in finalPoints) {
-                sumLat += p.latitude
-                sumLng += p.longitude
-                intPoints.add(p.int_lat to p.int_long)
-            }
-            val avgLat = sumLat / pointCount
-            val avgLon = sumLng / pointCount
+            // 1. Calculate Midpoint & Bounding Box (Standardized Integer Math)
+            val intPoints = finalPoints.map { it.int_lat to it.int_long }
+            val centroid = kr.alltodo.utils.GeomUtils.calculateCentroid(intPoints)
 
             // 2. Check for Short Path (under ~30m)
             val isShort = kr.alltodo.utils.GeomUtils.isShortPath(intPoints)
@@ -704,11 +696,11 @@ class TodoViewModel @Inject constructor(
             // 3. Create/Insert TodoItem (Type: 00 - History)
             val historyTodo = TodoItem(
                 todo_id = todoId,
-                todo_name = "이동 히스토리",
+                todo_name = "갔던 곳",
                 type = "00", 
                 no_of_path = finalNoOfPath,
-                int_lat = (avgLat * 100_000).toInt(),
-                int_long = (avgLon * 100_000).toInt(),
+                int_lat = centroid.first,
+                int_long = centroid.second,
                 begin_time = startTime,
                 end_time = endTime,
                 created_at = startTime

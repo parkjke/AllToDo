@@ -304,7 +304,7 @@ struct NaverMapView: UIViewRepresentable {
             // 2. Check visibility
             guard visible && points.count >= 2 else { return }
             
-            // 3. Render new trail (Convert Int32 -> Double)
+            // 3. Render new trail (Convert Int -> Double)
             let coords = points.map { NMGLatLng(lat: Double($0.latitude)/100_000.0, lng: Double($0.longitude)/100_000.0) }
             let path = NMFPath()
             path.path = NMGLineString(points: coords)
@@ -381,25 +381,25 @@ struct NaverMapView: UIViewRepresentable {
             
             // Prepare Data
             var allItemsToProcess: [UnifiedMapItem] = []
-            var rawPoints: [Int32] = []
+            var rawPoints: [Int] = []
             
             for item in parent.allItems {
                 switch item {
                 case .todo(let t):
                     if t.latitude.isNaN || t.longitude.isNaN { continue } // [NEW] NaN Guard
                     allItemsToProcess.append(item)
-                    rawPoints.append(Int32(t.int_lat))
-                    rawPoints.append(Int32(t.int_long))
+                    rawPoints.append(t.int_lat)
+                    rawPoints.append(t.int_long)
                 case .history(let log):
                     if log.latitude.isNaN || log.longitude.isNaN { continue } // [NEW] NaN Guard
                     allItemsToProcess.append(item)
-                    rawPoints.append(Int32(log.int_lat))
-                    rawPoints.append(Int32(log.int_long))
+                    rawPoints.append(log.int_lat)
+                    rawPoints.append(log.int_long)
                 case .userLocation(let coord):
                     if coord.latitude.isNaN || coord.longitude.isNaN { continue } // [NEW] NaN Guard
                     allItemsToProcess.append(item)
-                    rawPoints.append(Int32(coord.latitude * 100_000))
-                    rawPoints.append(Int32(coord.longitude * 100_000))
+                    rawPoints.append(Int(coord.latitude * 100_000))
+                    rawPoints.append(Int(coord.longitude * 100_000))
                 default: break
                 }
             }
@@ -408,8 +408,8 @@ struct NaverMapView: UIViewRepresentable {
             if let target = creatingTodoLocationBinding?.wrappedValue {
                 let newItem = ToDoItem(todo_name: "New Entry", latitude: target.latitude, longitude: target.longitude)
                 allItemsToProcess.append(.todo(newItem))
-                rawPoints.append(Int32(target.latitude * 100_000))
-                rawPoints.append(Int32(target.longitude * 100_000))
+                rawPoints.append(Int(target.latitude * 100_000))
+                rawPoints.append(Int(target.longitude * 100_000))
             }
             
             Task {
@@ -424,7 +424,7 @@ struct NaverMapView: UIViewRepresentable {
         }
         
         @MainActor
-        func renderWasmResults(mapView: NMFMapView, clusterResult: [Int32], allItems: [UnifiedMapItem]) {
+        func renderWasmResults(mapView: NMFMapView, clusterResult: [Int], allItems: [UnifiedMapItem]) {
             mapView.locationOverlay.hidden = true
             
             struct Centroid { let lat: Double; let lon: Double; let count: Int }
@@ -435,7 +435,7 @@ struct NaverMapView: UIViewRepresentable {
                     let lat = Double(clusterResult[i]) / 100_000.0
                     let lon = Double(clusterResult[i+1]) / 100_000.0
                     if lat.isNaN || lon.isNaN { continue } // [NEW] NaN Guard
-                    centroids.append(Centroid(lat: lat, lon: lon, count: Int(clusterResult[i+2])))
+                    centroids.append(Centroid(lat: lat, lon: lon, count: clusterResult[i+2]))
                 }
             }
             

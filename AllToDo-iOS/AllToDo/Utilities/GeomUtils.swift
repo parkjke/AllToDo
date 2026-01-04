@@ -17,9 +17,8 @@ struct GeomUtils {
     static func calculateCentroid(from points: [PathPoint]) -> (lat: Int, lon: Int) {
         guard !points.isEmpty else { return (0, 0) }
         
-        // Int32 합산 시 오버플로우 방지를 위해 Int(64bit)로 변환하여 합산
-        let totalLat = points.reduce(0) { $0 + Int($1.latitude) }
-        let totalLon = points.reduce(0) { $0 + Int($1.longitude) }
+        let totalLat = points.reduce(0) { $0 + $1.latitude }
+        let totalLon = points.reduce(0) { $0 + $1.longitude }
         let count = points.count
         
         return (totalLat / count, totalLon / count)
@@ -31,8 +30,8 @@ struct GeomUtils {
     static func calculateCentroid(from points: [PathItem]) -> (centerLat: Double, centerLon: Double) {
         guard !points.isEmpty else { return (37.566691, 126.978365) }
         
-        let totalLat = points.reduce(0) { $0 + Int($1.int_lat) }
-        let totalLon = points.reduce(0) { $0 + Int($1.int_long) }
+        let totalLat = points.reduce(0) { $0 + $1.int_lat }
+        let totalLon = points.reduce(0) { $0 + $1.int_long }
         let count = points.count
         
         let avgLat = Double(totalLat / count) / 100_000.0
@@ -89,14 +88,14 @@ struct GeomUtils {
             return IntRect(minLat: 0, minLon: 0, maxLat: 0, maxLon: 0)
         }
         
-        var minLat = Int(points[0].latitude)
-        var maxLat = Int(points[0].latitude)
-        var minLon = Int(points[0].longitude)
-        var maxLon = Int(points[0].longitude)
+        var minLat = points[0].latitude
+        var maxLat = points[0].latitude
+        var minLon = points[0].longitude
+        var maxLon = points[0].longitude
         
         for p in points {
-            let lat = Int(p.latitude)
-            let lon = Int(p.longitude)
+            let lat = p.latitude
+            let lon = p.longitude
             
             if lat < minLat { minLat = lat }
             if lat > maxLat { maxLat = lat }
@@ -132,16 +131,15 @@ struct GeomUtils {
     static func isShortPath(points: [PathPoint], thresholdUnits: Int = 30) -> Bool {
         guard points.count >= 2 else { return true }
         
-        // 패딩 없이 순수 Bounding Box 계산을 위해 내부 로직 사용 혹은 padding 0 호출
         // 계산 효율을 위해 직접 Min/Max 만 빠르게 추출 (Padding 불필요)
-        var minLat = Int(points[0].latitude)
-        var maxLat = Int(points[0].latitude)
-        var minLon = Int(points[0].longitude)
-        var maxLon = Int(points[0].longitude)
+        var minLat = points[0].latitude
+        var maxLat = points[0].latitude
+        var minLon = points[0].longitude
+        var maxLon = points[0].longitude
         
         for p in points {
-            let lat = Int(p.latitude)
-            let lon = Int(p.longitude)
+            let lat = p.latitude
+            let lon = p.longitude
             if lat < minLat { minLat = lat }
             if lat > maxLat { maxLat = lat }
             if lon < minLon { minLon = lon }

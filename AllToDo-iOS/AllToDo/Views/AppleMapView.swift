@@ -418,22 +418,22 @@ struct AppleMapView: UIViewRepresentable {
 
             // 1. Prepare Data
             var allItemsToProcess: [UnifiedMapItem] = []
-            var rawPoints: [Int32] = []
+            var rawPoints: [Int] = []
             
             for item in parent.allItems {
                 switch item {
                 case .todo(let t):
                     allItemsToProcess.append(item)
-                    rawPoints.append(Int32(t.int_lat))
-                    rawPoints.append(Int32(t.int_long))
+                    rawPoints.append(t.int_lat)
+                    rawPoints.append(t.int_long)
                 case .history(let log):
                     allItemsToProcess.append(item)
-                    rawPoints.append(Int32(log.int_lat))
-                    rawPoints.append(Int32(log.int_long))
+                    rawPoints.append(log.int_lat)
+                    rawPoints.append(log.int_long)
                 case .userLocation(let coord):
                     allItemsToProcess.append(item)
-                    rawPoints.append(Int32(coord.latitude * 100_000))
-                    rawPoints.append(Int32(coord.longitude * 100_000))
+                    rawPoints.append(Int(coord.latitude * 100_000))
+                    rawPoints.append(Int(coord.longitude * 100_000))
                 case .serverMessage:
                     break
                 }
@@ -443,8 +443,8 @@ struct AppleMapView: UIViewRepresentable {
             if let target = creatingTodoLocationBinding?.wrappedValue {
                 let newItem = ToDoItem(todo_name: "New Entry", latitude: target.latitude, longitude: target.longitude)
                 allItemsToProcess.append(.todo(newItem))
-                rawPoints.append(Int32(target.latitude * 100_000))
-                rawPoints.append(Int32(target.longitude * 100_000))
+                rawPoints.append(Int(target.latitude * 100_000))
+                rawPoints.append(Int(target.longitude * 100_000))
             }
             
             // 2. WASM Clustering
@@ -492,7 +492,7 @@ struct AppleMapView: UIViewRepresentable {
             }
         }
         
-        private func renderWasmResults(mapView: MKMapView, clusterResult: [Int32], allItems: [UnifiedMapItem], userLocation: CLLocation?) {
+        private func renderWasmResults(mapView: MKMapView, clusterResult: [Int], allItems: [UnifiedMapItem], userLocation: CLLocation?) {
             struct Centroid { let lat: Double; let lon: Double; let count: Int }
             var centroids: [Centroid] = []
             
@@ -501,7 +501,7 @@ struct AppleMapView: UIViewRepresentable {
                     let lat = Double(clusterResult[i]) / 100_000.0
                     let lon = Double(clusterResult[i+1]) / 100_000.0
                     if lat.isNaN || lon.isNaN { continue } // [NEW] NaN Guard
-                    centroids.append(Centroid(lat: lat, lon: lon, count: Int(clusterResult[i+2])))
+                    centroids.append(Centroid(lat: lat, lon: lon, count: clusterResult[i+2]))
                 }
             }
             

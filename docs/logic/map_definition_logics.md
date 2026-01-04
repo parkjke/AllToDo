@@ -29,7 +29,7 @@
 ## 3. 지도 시작 방식 (3-Stage Map Start Sequence)
 *   **1단계 (Fast Jump)**: `before location` (없으면 광화문)을 중심으로 **줌 15.0**에서 엔진을 즉시 렌더링한다.
 *   **2단계 (Fit Bounds & Raw Pins)**:
-    - 500km 이내의 모든 핀과 내 위치를 포함하도록 영역을 조정(Fit Bounds Zoom < 15.0).
+    - **500km 이내**의 모든 유효 핀과 내 위치를 포함하도록 영역을 조정(Fit Bounds Zoom < 15.0).
     - **클러스터링 비활성화**: 이 단계에서는 모든 핀을 **Raw 상태(개별 핀)**로 렌더링한다.
     - **3초 대기**: 사용자가 핀의 전체적인 분포를 인지할 수 있도록 3초간 상태를 유지한다.
 *   **3단계 (User Focus & Cluster)**:
@@ -69,4 +69,4 @@
     - **iOS**: `SmartLocationManager.swift` 및 `AppleMapView.swift`의 `MKMapRect`, `region.span` 연산 로직.
 
 ---
-*Last Updated: 2026-01-02 (iOS Clustering Optimization & Smoothing Algorithm Implementation)*
+*Last Updated: 2026-01-05 (Cross-Platform UI/UX Refinement & Search Polishing)*

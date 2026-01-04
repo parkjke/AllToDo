@@ -27,6 +27,8 @@
     *   핀 유무에 따른 동적 초기화 및 테더링 활성화 시나리오.
 *   [**물풍선(Callout) 디자인 및 로직**](logic/water_balloon_logic.md)
     *   인터랙티브 프리미엄 오버레이 및 중앙 정렬 로직.
+*   [**지도 검색 기능 (Map Search)**](logic/Map_Search.md)
+    *   검색 버튼 위치, 거리 단위 변환, 테마 정책 및 POI 로직.
 
 ### ⚙️ 시스템 아키텍처 (System Architecture)
 *   [**핵심 기술 및 IP (CORE_TECHNOLOGY_IP)**](logic/CORE_TECHNOLOGY_IP.md)

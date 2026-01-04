@@ -109,8 +109,8 @@ final class WasmManager {
         print("[WASM_STATUS] 🧪 Starting WASM Self-Test (RDP + Clustering)...")
         do {
             // 1. RDP Test
-            let rdpPoints: [Int32] = [0, 0, 100000, 100000, 200000, 200000]
-            let rdpResult = try await runtime.compressTrajectory(rdpPoints, minDistMeters: 5.0, angleThreshDeg: 5.0)
+            let rdpPoints: [Int] = [0, 0, 100000, 100000, 200000, 200000]
+            let rdpResult = try await runtime.compressTrajectory(rdpPoints.map { Int32($0) }, minDistMeters: 5.0, angleThreshDeg: 5.0)
             
             var rdpPassed = false
             if rdpResult.count == 4 {
@@ -120,7 +120,7 @@ final class WasmManager {
             }
             
             // 2. Clustering Test
-            let clusterPoints: [Int32] = [0, 0, 100, 100] // Dist ~ 141 units
+            let clusterPoints: [Int] = [0, 0, 100, 100] // Dist ~ 141 units
             // Radius 200m -> ~180 units > 141 units -> Should Cluster
             let clusterResult = await cluster(points: clusterPoints, cellSize: 200.0)
             
@@ -161,18 +161,23 @@ final class WasmManager {
     
     public private(set) var lastErrorMessage: String? = nil
 
-    func compress(points: [Int32]) async -> [Int32] {
+    func compress(points: [Int]) async -> [Int] {
         let start = Date()
         print("[WASM_STATUS] ⚡️ Executing WASM 'compressTrajectory' with \(points.count/2) points...")
         
+        // Convert to Int32 for WASM Engine
+        let int32Points = points.map { Int32($0) }
+        
         do {
-            let result = try await runtime.compressTrajectory(points, minDistMeters: 3.0, angleThreshDeg: 10.0)
+            let result32 = try await runtime.compressTrajectory(int32Points, minDistMeters: 3.0, angleThreshDeg: 10.0)
+            
+            // Convert back to Int for App Logic
+            let result = result32.map { Int($0) }
             
             let duration = Date().timeIntervalSince(start) * 1000
             let msg = "WASM Success: \(points.count/2) -> \(result.count/2) pts (\(String(format: "%.1f", duration))ms)"
             print("[WASM_STATUS] ✨ \(msg)")
             
-            // RemoteLogger.info(msg) // Disabled to avoid spam with batch streaming. Parent handles it.
             lastErrorMessage = nil
             return result
         } catch {
@@ -183,22 +188,23 @@ final class WasmManager {
         }
     }
     
-    // [NEW] Expose Clustering
-    func cluster(points: [Int32], cellSize: Double) async -> [Int32] {
+    // [NEW] Expose Clustering (Updated to accept Int)
+    func cluster(points: [Int], cellSize: Double) async -> [Int] {
         let start = Date()
-        // print("[WASM_STATUS] ⚡️ Executing WASM 'clusterPoints' with \(points.count/2) points...")
+        
+        // Convert to Int32 for WASM Engine
+        let int32Points = points.map { Int32($0) }
         
         // Integer Conversion (Meters -> Scaled 1e5 Units)
-        // 1 degree ≈ 111,320 meters
-        // 1 scaled unit (1e-5 deg) ≈ 1.1132 meters
         let radiusInt = Int32(cellSize / 1.1132)
         
         do {
-            let result = try await runtime.clusterPoints(points, radiusInt: radiusInt)
+            let result32 = try await runtime.clusterPoints(int32Points, radiusInt: radiusInt)
+            
+            // Convert back to Int for App Logic
+            let result = result32.map { Int($0) }
             
             let duration = Date().timeIntervalSince(start) * 1000
-            // print("[WASM_STATUS] ✨ WASM Cluster Success: \(result.count/3) clusters found (\(String(format: "%.1f", duration))ms)")
-            
             lastErrorMessage = nil
             return result
         } catch {

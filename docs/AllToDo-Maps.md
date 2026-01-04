@@ -1,7 +1,7 @@
 # AllToDo Unified Map System (통합 지도 시스템)
 
-**작성일**: 2026-01-03  
-**버전**: 2.0 (Geospatial Perfection)
+**작성일**: 2026-01-05  
+**버전**: 2.1 (Search & UI Refinement)
 
 이 문서는 AllToDo 서비스의 핵심인 지도 시스템의 설계 철학, 기술적 규격, UX 로직, 그리고 유지보수 가이드를 집대성한 종합 기술 문서(Master Documentation)입니다. iOS와 Android 양대 플랫폼에서 Apple, Google, Naver, Kakao 등 4대 지도 엔진을 단일한 사용자 경험으로 통합하기 위한 모든 지식이 담겨 있습니다.
 
@@ -109,8 +109,24 @@
 
 ---
 
+## 7. 지도 검색 기능 (Map Search System)
+
+지도 상에서 원하는 장소를 신속하게 찾고 탐색하기 위한 지능형 검색 시스템입니다.
+
+### 7.1 UX & UI 가이드라인
+- **검색 버튼**: iOS 기준 하단 Safe Area + 16pt 여백 배치로 한 손 조작성 최적화.
+- **결과 리스트**: 1km 기준 `m`와 `km` 단위를 자동 전환하여 직관적인 거리감 제공.
+- **테마 일치**: 하단 지도의 모드(Naver/Kakao: Light Fixed)에 맞춰 UI 테마를 강제 동기화.
+
+### 7.2 한글 입력 최적화 (Android)
+- **Visual Underline Removal**: 한글 입력 시 발생하는 시스템 밑줄을 제거하여 디자인 순도 유지.
+- **Instant Matching**: `KoreanUtils` 기반의 초성 검색을 지원하여 최소한의 타이핑으로 결과 도출.
+
+---
+
 **관련 문서**:
 - [CRITICAL_CODE_LOCKS.md](CRITICAL_CODE_LOCKS.md)
 - [logic/map_begin_logic.md](logic/map_begin_logic.md)
+- [logic/Map_Search.md](logic/Map_Search.md)
 - [logic/water_balloon_logic.md](logic/water_balloon_logic.md)
 - [logic/MAP_PIN_DESIGN.md](logic/MAP_PIN_DESIGN.md)

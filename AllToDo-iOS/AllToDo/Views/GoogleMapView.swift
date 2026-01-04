@@ -458,25 +458,25 @@ struct GoogleMapView: UIViewRepresentable {
             
             // Prepare Data
             var allItemsToProcess: [UnifiedMapItem] = []
-            var rawPoints: [Int32] = []
+            var rawPoints: [Int] = []
             
             for item in parent.allItems {
                 switch item {
                 case .todo(let t):
                     if t.latitude.isNaN || t.longitude.isNaN { continue } // [NEW] NaN Guard
                     allItemsToProcess.append(item)
-                    rawPoints.append(Int32(t.int_lat))
-                    rawPoints.append(Int32(t.int_long))
+                    rawPoints.append(t.int_lat)
+                    rawPoints.append(t.int_long)
                 case .history(let log):
                     if log.latitude.isNaN || log.longitude.isNaN { continue } // [NEW] NaN Guard
                     allItemsToProcess.append(item)
-                    rawPoints.append(Int32(log.int_lat))
-                    rawPoints.append(Int32(log.int_long))
+                    rawPoints.append(log.int_lat)
+                    rawPoints.append(log.int_long)
                 case .userLocation(let coord):
                     if coord.latitude.isNaN || coord.longitude.isNaN { continue } // [NEW] NaN Guard
                     allItemsToProcess.append(item)
-                    rawPoints.append(Int32(coord.latitude * 100_000))
-                    rawPoints.append(Int32(coord.longitude * 100_000))
+                    rawPoints.append(Int(coord.latitude * 100_000))
+                    rawPoints.append(Int(coord.longitude * 100_000))
                 default: break
                 }
             }
@@ -485,8 +485,8 @@ struct GoogleMapView: UIViewRepresentable {
             if let target = creatingTodoLocationBinding?.wrappedValue {
                 let newItem = ToDoItem(todo_name: "New Entry", latitude: target.latitude, longitude: target.longitude)
                 allItemsToProcess.append(.todo(newItem))
-                rawPoints.append(Int32(target.latitude * 100_000))
-                rawPoints.append(Int32(target.longitude * 100_000))
+                rawPoints.append(Int(target.latitude * 100_000))
+                rawPoints.append(Int(target.longitude * 100_000))
             }
             
             Task {
@@ -498,14 +498,14 @@ struct GoogleMapView: UIViewRepresentable {
         }
         
         @MainActor
-        func renderWasmResults(mapView: GMSMapView, clusterResult: [Int32], allItems: [UnifiedMapItem]) {
+        func renderWasmResults(mapView: GMSMapView, clusterResult: [Int], allItems: [UnifiedMapItem]) {
             // [FIX] Restore Parsing Logic
             struct Centroid { let lat: Double; let lon: Double; let count: Int }
             var centroids: [Centroid] = []
             
              if clusterResult.count % 3 == 0 {
                  for i in stride(from: 0, to: clusterResult.count, by: 3) {
-                     centroids.append(Centroid(lat: Double(clusterResult[i])/100_000.0, lon: Double(clusterResult[i+1])/100_000.0, count: Int(clusterResult[i+2])))
+                     centroids.append(Centroid(lat: Double(clusterResult[i])/100_000.0, lon: Double(clusterResult[i+1])/100_000.0, count: clusterResult[i+2]))
                  }
              }
             

@@ -83,14 +83,17 @@ final class ToDoItem {
         self.source = source
     }
 
-    // [NEW] Integer-based Initializer
+    // [NEW] Integer-based Initializer (Updated with Time Fields)
     init(
         todo_id: UUID = UUID(),
         todo_name: String,
         no_of_path: Int = 0,
         type: String = "10",
         int_lat: Int,
-        int_long: Int
+        int_long: Int,
+        begin_time: Date? = nil,
+        end_time: Date? = nil,
+        created_at: Int64? = nil
     ) {
         self.todo_id = todo_id
         self.todo_name = todo_name
@@ -98,10 +101,10 @@ final class ToDoItem {
         self.date_time = nil
         self.memo = ""
         self.no_of_path = no_of_path
-        self.begin_time = nil
-        self.end_time = nil
+        self.begin_time = begin_time
+        self.end_time = end_time
         self.type = type
-        self.created_at = Int64(Date().timeIntervalSince1970 * 1000)
+        self.created_at = created_at ?? Int64(Date().timeIntervalSince1970 * 1000)
         self.int_lat = int_lat
         self.int_long = int_long
         self.is_completed = false

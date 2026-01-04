@@ -5,8 +5,8 @@ import Combine
 import SwiftData
 
 struct PathPoint: Codable {
-    var latitude: Int32
-    var longitude: Int32
+    var latitude: Int
+    var longitude: Int
     var timestamp: Date
 }
 
@@ -47,8 +47,8 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         let rawPoints = pendingBuffer
         pendingBuffer.removeAll()
         
-        // 1. Convert to Int32 for WASM (Already Int32)
-        var intPoints: [Int32] = []
+        // 1. Collect points as Int for WASM Manager (Internal encapsulation)
+        var intPoints: [Int] = []
         for p in rawPoints {
             intPoints.append(p.latitude)
             intPoints.append(p.longitude)
@@ -61,8 +61,8 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         var newPoints: [PathPoint] = []
         if compressedInts.count % 2 == 0 {
             for i in stride(from: 0, to: compressedInts.count, by: 2) {
-                let lat = compressedInts[i]
-                let lon = compressedInts[i+1]
+                let lat = Int(compressedInts[i])
+                let lon = Int(compressedInts[i+1])
                 let originalTimestamp = rawPoints.first?.timestamp ?? Date() 
                 newPoints.append(PathPoint(latitude: lat, longitude: lon, timestamp: originalTimestamp))
             }
@@ -90,14 +90,21 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         // A. Ensure Trip (ToDoItem) exists
         if currentTripID == nil {
             let startLoc = points.first!
-            // Use Integer Initializer
+            let beginTime = points.first?.timestamp ?? Date()
+            let endTime = points.last?.timestamp ?? Date()
+            
+            // Use Consolidated Integer Initializer
             let newTrip = ToDoItem(
-                todo_name: "자동 기록 경로 (\(Date().formatted(.dateTime.hour().minute())))",
+                todo_name: "갔던 곳",
                 no_of_path: points.count,
                 type: "00",
                 int_lat: Int(startLoc.latitude),
-                int_long: Int(startLoc.longitude)
+                int_long: Int(startLoc.longitude),
+                begin_time: beginTime,
+                end_time: endTime,
+                created_at: Int64(beginTime.timeIntervalSince1970 * 1000)
             )
+            
             if isShortPath {
                 newTrip.no_of_path = 1
             }
@@ -211,8 +218,8 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         await processBuffer()
         
         if processedSessionPoints.isEmpty, let current = currentLocation {
-            let latInt = Int32(current.coordinate.latitude * 100_000)
-            let lonInt = Int32(current.coordinate.longitude * 100_000)
+            let latInt = Int(current.coordinate.latitude * 100_000)
+            let lonInt = Int(current.coordinate.longitude * 100_000)
             let point = PathPoint(latitude: latInt, longitude: lonInt, timestamp: Date())
             processedSessionPoints.append(point)
         }
@@ -295,8 +302,8 @@ class AppLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate 
         }
         
         if isRecording {
-            let latInt = Int32(location.coordinate.latitude * 100_000)
-            let lonInt = Int32(location.coordinate.longitude * 100_000)
+            let latInt = Int(location.coordinate.latitude * 100_000)
+            let lonInt = Int(location.coordinate.longitude * 100_000)
             let data = PathPoint(latitude: latInt, longitude: lonInt, timestamp: location.timestamp)
             pendingBuffer.append(data)
             
