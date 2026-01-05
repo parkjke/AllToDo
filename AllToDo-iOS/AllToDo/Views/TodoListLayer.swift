@@ -30,11 +30,14 @@ struct TodoListLayer: View {
         }
     }
     
+    @State private var dragOffset: CGFloat = 0
+
     var body: some View {
         ZStack {
             // 안드로이드 스타일: 불투명 배경 (접근성 및 집중도 향상)
             Color.TodoList.background(isDark: isDark)
                 .ignoresSafeArea()
+                .offset(y: dragOffset > 0 ? dragOffset : 0)
             
             VStack(spacing: 0) {
                 // 1. Header Row (안드로이드 TodoListLayer.kt 57행 규격)
@@ -135,7 +138,28 @@ struct TodoListLayer: View {
                     .padding(.bottom, 80)
                 }
             }
+            .offset(y: dragOffset > 0 ? dragOffset : 0)
         }
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    if value.translation.height > 0 {
+                        dragOffset = value.translation.height
+                    }
+                }
+                .onEnded { value in
+                    if value.translation.height > 100 {
+                        withAnimation {
+                            viewModel.showTodoList = false
+                            dragOffset = 0
+                        }
+                    } else {
+                        withAnimation {
+                            dragOffset = 0
+                        }
+                    }
+                }
+        )
     }
 }
 
@@ -193,24 +217,24 @@ struct TodoItemCard: View {
             
             Spacer().frame(width: 4)
             
-            // 2 & 3. Date & Time - [SPEC] 13pt
+            // 2 & 3. Date & Time - [SPEC] 15pt (+2pt)
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 4) {
                     Text(dateString)
-                        .font(.system(size: 13))
+                        .font(.system(size: 15))
                     Text(timeString)
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: 15, weight: .bold))
                 }
                 .foregroundColor(textColor)
             }
-            .frame(width: 85, alignment: .leading)
+            .frame(width: 95, alignment: .leading)
             
             Spacer().frame(width: 8)
             
-            // 4. Name - [SPEC] 15pt Medium
+            // 4. Name - [SPEC] 17pt Medium (+2pt)
             Button(action: onEditClick) {
                 Text(item.todo_name)
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.system(size: 17, weight: .medium))
                     .lineLimit(1)
                     .foregroundColor(textColor)
             }
@@ -218,7 +242,16 @@ struct TodoItemCard: View {
             
             Spacer()
             
-            // 5. Person Icon (Optional, skip for brevity as per Android)
+            // 5. Person Icon - [NEW] 임시 "99" 표시
+            HStack(spacing: 2) {
+                Image(systemName: "person.fill")
+                    .resizable()
+                    .frame(width: 14, height: 14)
+                Text("99")
+                    .font(.system(size: 13, weight: .bold))
+            }
+            .foregroundColor(textColor.opacity(0.8))
+            .padding(.trailing, 8)
             
             // 6. Delete Icon [휴] - [SPEC] 30pt Icon, 42pt Button
             Button(action: onDeleteClick) {

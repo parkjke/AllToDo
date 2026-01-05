@@ -135,7 +135,7 @@ extension Color {
     // MARK: - 캘린더 시맨틱 컬러 (Calendar)
     struct Calendar {
         static func background(isDark: Bool) -> Color {
-            isDark ? Color.black.opacity(0.9) : Color.white.opacity(0.9)
+            isDark ? Color.black : Color.white
         }
         
         static func primaryText(isDark: Bool) -> Color {

@@ -20,12 +20,14 @@ struct CalendarDialog: View {
     
     private let calendar = Calendar.current
     
+    @State private var dragOffset: CGFloat = 0
+    
     var body: some View {
         ZStack {
-            // 배경 흐림 효과
-            Color.black.opacity(0.4)
+            // 배경: 불투명 솔리드 배경 [SPEC]
+            Color.Calendar.background(isDark: isDark)
                 .ignoresSafeArea()
-                .onTapGesture { viewModel.showCalendar = false }
+                .offset(y: dragOffset > 0 ? dragOffset : 0)
             
             VStack(spacing: 0) {
                 // Header (연/월 & 닫기)
@@ -67,11 +69,29 @@ struct CalendarDialog: View {
                     )
                 }
             }
-            .background(Color.Calendar.background(isDark: isDark))
-            .cornerRadius(24)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 40)
-            // Shadow removed as per user instruction [FIX]
+            .padding(.top, 40) // Status bar 배려
+            .offset(y: dragOffset > 0 ? dragOffset : 0)
+        }
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    if value.translation.height > 0 {
+                        dragOffset = value.translation.height
+                    }
+                }
+                .onEnded { value in
+                    if value.translation.height > 100 {
+                        withAnimation {
+                            viewModel.showCalendar = false
+                            dragOffset = 0
+                        }
+                    } else {
+                        withAnimation {
+                            dragOffset = 0
+                        }
+                    }
+                }
+        )
         }
         .onAppear {
             selectedDate = viewModel.selectedDate
@@ -452,18 +472,29 @@ struct CalendarTodoItemCard: View {
             VStack(alignment: .leading, spacing: 2) {
                 Button(action: onEditClick) {
                     Text(item.todo_name)
-                        .font(.system(size: 15, weight: .medium)) // [SPEC] 15pt Medium
+                        .font(.system(size: 17, weight: .medium)) // [SPEC] 17pt Medium (+2pt)
                         .lineLimit(1)
                         .foregroundColor(textColor)
                 }
                 .buttonStyle(.plain)
                 
                 Text(timeString)
-                    .font(.system(size: 13, weight: .bold)) // [SPEC] 13pt Bold
+                    .font(.system(size: 15, weight: .bold)) // [SPEC] 15pt Bold (+2pt)
                     .foregroundColor(textColor.opacity(0.7))
             }
             
             Spacer()
+
+            // Person Icon - [NEW] 임시 "99" 표시
+            HStack(spacing: 2) {
+                Image(systemName: "person.fill")
+                    .resizable()
+                    .frame(width: 14, height: 14)
+                Text("99")
+                    .font(.system(size: 13, weight: .bold))
+            }
+            .foregroundColor(textColor.opacity(0.8))
+            .padding(.trailing, 8)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
