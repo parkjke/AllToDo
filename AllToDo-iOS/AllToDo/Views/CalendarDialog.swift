@@ -214,7 +214,7 @@ struct CalendarGrid: View {
     private func getStats(for date: Date) -> (Int, Int, Int) {
         let dayItems = allItems.filter { item in
             let itemDate = item.date_time ?? Date(timeIntervalSince1970: Double(item.created_at)/1000.0)
-            return calendar.isDate(itemDate, inSameDayAs: date) && item.todo_id != 0
+            return calendar.isDate(itemDate, inSameDayAs: date)
         }
         
         // Android 규준: Blue(Server), Green(Local), Red(History)
@@ -299,7 +299,7 @@ struct TodoSummaryArea: View {
             let itemDate = item.date_time ?? Date(timeIntervalSince1970: Double(item.created_at)/1000.0)
             let dateMatch = calendar.isDate(itemDate, inSameDayAs: selectedDate)
             let typeMatch = (item.type == "10" && isTodoFilter) || (item.type == "00" && isHistoryFilter)
-            return dateMatch && typeMatch && item.todo_id != 0
+            return dateMatch && typeMatch
         }.sorted { 
             let d1 = $0.date_time ?? Date(timeIntervalSince1970: Double($0.created_at)/1000.0)
             let d2 = $1.date_time ?? Date(timeIntervalSince1970: Double($1.created_at)/1000.0)
