@@ -24,6 +24,7 @@ import kr.alltodo.ui.components.UserProfileView
 import kr.alltodo.ui.components.KakaoMapContent
 import kr.alltodo.ui.components.NaverMapContent
 import kr.alltodo.ui.components.GoogleMapContent
+import kr.alltodo.ui.components.MainTodoSheet
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
 import com.google.android.gms.location.LocationServices
@@ -81,23 +82,15 @@ fun MainScreen(
     // [NEW] Search VM (Moved up to avoid unresolved references)
     val searchViewModel: kr.alltodo.ui.SearchViewModel = hiltViewModel()
     val isSearchVisible by searchViewModel.isOverlayVisible.collectAsState()
-    val isListVisible by todoViewModel.isListLayerVisible.collectAsState()
+    val isSearching by searchViewModel.isSearching.collectAsState()
 
-    // [NEW] Path Viewer State (Now using TodoItem for ID context)
-    var viewingPathTodo by remember { mutableStateOf<kr.alltodo.data.TodoItem?>(null) }
-
-    // [NEW] Create Todo States
+    // Unified Sheet States (Observed from mapViewModel)
+    val showAllTodoSheet by mapViewModel.showAllTodoSheet.collectAsState()
+    val isMyInfoVisible by mapViewModel.showMyInfo.collectAsState()
     val isCreatingTodo by mapViewModel.isCreatingTodo.collectAsState()
     val creatingLocation by mapViewModel.creatingLocation.collectAsState()
-    val initialTodoName by mapViewModel.initialTodoName.collectAsState()
-    val initialTodoTitle by mapViewModel.initialTodoTitle.collectAsState()
-    
-    // Bridge for legacy LatLng types locally if needed, or use the one from VM
-    // We will update the usages to use `creatingLocation`.
-    
-    // [NEW] Navigation Recovery State
-    var shouldRestoreList by remember { mutableStateOf(false) }
-    var shouldRestoreCalendar by remember { mutableStateOf(false) }
+
+    // [NEW] Navigation Recovery State (Managed internally by mapViewModel now)
 
     // [Item 0] beforeLocation Persistence
     val beforeLocation = remember {
@@ -413,7 +406,7 @@ fun MainScreen(
                         onCameraIdle = { wm, zoom, lat -> 
                              mapViewModel.handleCameraIdle(wm, zoom, lat, MapProvider.Naver) 
                         },
-                        showMyLocation = !isListVisible // [FIX] Hide user on map when list is open
+                        showMyLocation = !showAllTodoSheet // [FIX] Hide user on map when sheet is open
                     )
                 }
                 MapProvider.Kakao -> {
@@ -448,7 +441,7 @@ fun MainScreen(
                         onCameraIdle = { wm, zoom, lat -> 
                              mapViewModel.handleCameraIdle(wm, zoom, lat, MapProvider.Kakao) 
                         },
-                        showMyLocation = !isListVisible // [FIX] Hide user on map when list is open
+                        showMyLocation = !showAllTodoSheet // [FIX] Hide user on map when sheet is open
                     )
                 }
                 MapProvider.Google -> {
@@ -498,7 +491,7 @@ fun MainScreen(
                         onCameraIdle = { wm, zoom, lat -> 
                              mapViewModel.handleCameraIdle(wm, zoom, lat, MapProvider.Google) 
                         },
-                        showMyLocation = !isListVisible // [FIX] Hide user on map when list is open
+                        showMyLocation = !showAllTodoSheet // [FIX] Hide user on map when sheet is open
                     )
                 }
             }
@@ -511,7 +504,10 @@ fun MainScreen(
             localTodoCount = currentTodoItems.count { it.source == "local" && it.type == "10" },
             serverTodoCount = currentTodoItems.count { it.source != "local" && it.type == "10" },
             modifier = Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = 40.dp),
-            onExpandClick = { todoViewModel.toggleListLayer() },
+            onExpandClick = { 
+                mapViewModel.setMainSheetTab(0)
+                mapViewModel.setShowAllTodoSheet(true) 
+            },
             isDark = isOverlayDark
         )
 
@@ -519,7 +515,7 @@ fun MainScreen(
         // State is now at the top of MainScreen
 
         // [Item 2] Right Side Controls (Includes My Info)
-        if (!isListVisible) {
+        if (!showAllTodoSheet) {
             RightSideControls(
                 modifier = Modifier.align(Alignment.TopEnd).padding(top = 40.dp),
                 compassRotation = compassRotation,
@@ -537,7 +533,6 @@ fun MainScreen(
         
         // --- Overlay Visibility States (Lifted Scope) ---
         val isOverlayVisible by gpsAuthViewModel.isOverlayVisible.collectAsState()
-        val showCalendar by todoViewModel.showCalendar.collectAsState()
 
 
 
@@ -555,7 +550,8 @@ fun MainScreen(
                         onDeleteLog = { todoViewModel.deleteTodo(it.item) },
                         onSelectLog = { 
                             mapViewModel.clearSelection()
-                            viewingPathTodo = it
+                            mapViewModel.setViewingPathTodo(it)
+                            mapViewModel.setShowAllTodoSheet(true)
                             todoViewModel.fetchPathForHistory(it)
                         },
                         onCreateTodo = { 
@@ -573,209 +569,38 @@ fun MainScreen(
             }
         }
 
-        // [NEW] Path Viewer Layer
-        val selectedHistoryPath by todoViewModel.selectedHistoryPath.collectAsState()
-        viewingPathTodo?.let { todo ->
-            AllToDoTheme(darkTheme = isOverlayDark) {
-                kr.alltodo.ui.components.PathViewer(
-                    todo = todo,
-                    pathData = selectedHistoryPath,
-                    mapProvider = mapProvider,
-                    onClose = { 
-                        viewingPathTodo = null
-                        // [FIX] Use restoration logic
-                        if (shouldRestoreList) {
-                            todoViewModel.toggleListLayer()
-                            shouldRestoreList = false
-                        }
-                        if (shouldRestoreCalendar) {
-                            todoViewModel.toggleCalendar()
-                            shouldRestoreCalendar = false
-                        }
-                    }
-                )
-            }
-        }
 
-        // [NEW] Create Todo Layer
-        if (isCreatingTodo) {
-            val recentNames by todoViewModel.recentNames.collectAsState()
-            val recentMemos by todoViewModel.recentMemos.collectAsState()
 
-            // [Item 6] Reverse Geocode for Default Name (Eup/Myeon/Dong)
-            var defaultTodoName by remember { mutableStateOf("요기") }
-            val geocoder = android.location.Geocoder(context, java.util.Locale.KOREA)
-            LaunchedEffect(creatingLocation) {
-                creatingLocation?.let { loc ->
-                    try {
-                        val addresses = geocoder.getFromLocation(loc.latitude, loc.longitude, 1)
-                        if (!addresses.isNullOrEmpty()) {
-                            val addr = addresses[0]
-                            // Thoroughfare is Dong/Eup/Myeon in Korea
-                            val dong = addr.thoroughfare ?: addr.subLocality ?: addr.locality ?: addr.subAdminArea
-                            if (!dong.isNullOrBlank()) {
-                                defaultTodoName = dong
-                            }
-                        }
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-                }
-            }
+        // [NEW] Overlay Coordination: Hide Info/Search when Sheet is shown, Restore when closed
+        var wasInfoVisibleBeforeSheet by remember { mutableStateOf(false) }
+        var wasSearchVisibleBeforeSheet by remember { mutableStateOf(false) }
 
-            fun centerMapOn(lat: Double, lon: Double) {
-                when (mapProvider) {
-                    MapProvider.Naver -> {
-                        naverMapInstance?.moveCamera(com.naver.maps.map.CameraUpdate.scrollTo(com.naver.maps.geometry.LatLng(lat, lon)).animate(com.naver.maps.map.CameraAnimation.Easing))
-                    }
-                    MapProvider.Kakao -> {
-                        kakaoMapInstance?.moveCamera(com.kakao.vectormap.camera.CameraUpdateFactory.newCenterPosition(com.kakao.vectormap.LatLng.from(lat, lon)), com.kakao.vectormap.camera.CameraAnimation.from(300, true, true))
-                    }
-                    MapProvider.Google -> {
-                        scope.launch {
-                            googleCameraPositionState.animate(com.google.android.gms.maps.CameraUpdateFactory.newLatLng(com.google.android.gms.maps.model.LatLng(lat, lon)))
-                        }
-                    }
-                }
-            }
-
-            AllToDoTheme(darkTheme = isOverlayDark) {
-                kr.alltodo.ui.components.CreateTodoLayer(
-                    modifier = Modifier.align(Alignment.BottomCenter),
-                    recentNames = recentNames,
-                    recentMemos = recentMemos,
-                    defaultName = defaultTodoName,
-                    initialName = initialTodoName,
-                    title = initialTodoTitle,
-                    isDark = isOverlayDark,
-                    onRegister = { name, person, date, time, memo ->
-                        creatingLocation?.let { loc ->
-                            todoViewModel.addTodo(name, loc.latitude, loc.longitude, person, date, time, memo)
-                            scope.launch {
-                                delay(300) // Wait for padding removal animation
-                                centerMapOn(loc.latitude, loc.longitude)
-                            }
-                        }
-                        mapViewModel.cancelCreatingTodo()
-                        // [FIX] Restore list if needed
-                        if (shouldRestoreList) {
-                            todoViewModel.toggleListLayer()
-                            shouldRestoreList = false
-                        }
-                    },
-                    onCancel = {
-                        creatingLocation?.let { loc ->
-                            scope.launch {
-                                delay(300) // Wait for padding removal animation
-                                centerMapOn(loc.latitude, loc.longitude)
-                            }
-                        }
-                        mapViewModel.cancelCreatingTodo()
-                        // [FIX] Restore list if needed
-                        if (shouldRestoreList) {
-                            todoViewModel.toggleListLayer()
-                            shouldRestoreList = false
-                        }
-                        if (shouldRestoreCalendar) {
-                            todoViewModel.toggleCalendar()
-                            shouldRestoreCalendar = false
-                        }
-                    }
-                )
-            }
-        }
-
-        // [NEW] Overlay Coordination: Hide Info/Search when List is shown, Restore when closed
-        var wasInfoVisibleBeforeList by remember { mutableStateOf(false) }
-        var wasSearchVisibleBeforeList by remember { mutableStateOf(false) }
-
-        LaunchedEffect(isListVisible) {
-            if (isListVisible) {
+        LaunchedEffect(showAllTodoSheet) {
+            if (showAllTodoSheet) {
                 // Store previous states correctly if they were visible
                 if (mapViewModel.showMyInfo.value) {
-                    wasInfoVisibleBeforeList = true
+                    wasInfoVisibleBeforeSheet = true
                     mapViewModel.toggleMyInfo(false)
                 }
                 if (searchViewModel.isOverlayVisible.value) {
-                    wasSearchVisibleBeforeList = true
+                    wasSearchVisibleBeforeSheet = true
                     searchViewModel.toggleOverlay()
                 }
             } else {
-                // Restore if needed when list is closed (excluding when path viewer is active)
-                if (viewingPathTodo == null) {
-                    if (wasInfoVisibleBeforeList) {
+                // Restore if needed when sheet is closed
+                if (mapViewModel.viewingPathTodo.value == null) {
+                    if (wasInfoVisibleBeforeSheet) {
                         mapViewModel.toggleMyInfo(true)
-                        wasInfoVisibleBeforeList = false
+                        wasInfoVisibleBeforeSheet = false
                     }
-                    if (wasSearchVisibleBeforeList) {
+                    if (wasSearchVisibleBeforeSheet) {
                         searchViewModel.toggleOverlay()
-                        wasSearchVisibleBeforeList = false
+                        wasSearchVisibleBeforeSheet = false
                     }
                 }
             }
         }
 
-        // [NEW] Todo List Layer
-        if (isListVisible) {
-            AllToDoTheme(darkTheme = isOverlayDark) {
-                kr.alltodo.ui.components.TodoListLayer(
-                    viewModel = todoViewModel,
-                    onPathClick = { item ->
-                        todoViewModel.toggleListLayer()
-                        shouldRestoreList = true // [FIX] Store state for return
-                        if (item is kr.alltodo.ui.UnifiedItem.History) {
-                            viewingPathTodo = item.item
-                            todoViewModel.fetchPathForHistory(item.item)
-                        } else if (item is kr.alltodo.ui.UnifiedItem.Todo) {
-                            viewingPathTodo = item.item
-                            todoViewModel.fetchPathForHistory(item.item)
-                        }
-                    },
-                    onEditTodo = { item ->
-                        todoViewModel.toggleListLayer()
-                        shouldRestoreList = true // [FIX] Store state for return
-                        when (item) {
-                            is kr.alltodo.ui.UnifiedItem.Todo -> {
-                                mapViewModel.startCreatingTodo(
-                                    lat = item.latitude,
-                                    lon = item.longitude,
-                                    title = "할 일 수정",
-                                    name = item.item.todo_name
-                                )
-                            }
-                            is kr.alltodo.ui.UnifiedItem.History -> {
-                                mapViewModel.startCreatingTodo(
-                                    lat = item.latitude,
-                                    lon = item.longitude,
-                                    title = "히스토리 수정",
-                                    name = item.item.todo_name
-                                )
-                            }
-                            else -> {}
-                        }
-                    },
-                    onAddClick = {
-                        todoViewModel.toggleListLayer()
-                        shouldRestoreList = true // [FIX] Store state for return
-                        // Use current map center or current location
-                        val center = when (mapProvider) {
-                            MapProvider.Naver -> naverMapInstance?.cameraPosition?.target?.let { LatLng(it.latitude, it.longitude) }
-                            MapProvider.Kakao -> kakaoMapInstance?.cameraPosition?.getPosition()?.let { LatLng(it.latitude, it.longitude) }
-                            MapProvider.Google -> googleCameraPositionState.position.target.let { LatLng(it.latitude, it.longitude) }
-                        } ?: currentLocation.value?.let { LatLng(it.latitude, it.longitude) }
-                        
-                        center?.let {
-                            mapViewModel.startCreatingTodo(it.latitude, it.longitude, "할 일 만들기")
-                        }
-                    },
-                    onDismiss = { todoViewModel.toggleListLayer() },
-                    isDark = isOverlayDark,
-                    modifier = Modifier
-                        .padding(top = 100.dp) // Below TopLeftWidget
-                        .fillMaxSize()
-                )
-            }
-        }
 
 
         // [NEW] Search Button and Overlay
@@ -843,7 +668,8 @@ fun MainScreen(
         }
 
         // Search Button (Bottom Center)
-        if (!isListVisible && !showMyInfo) { // [FIX] Hide search when my info is open
+        val showAllTodoSheet by mapViewModel.showAllTodoSheet.collectAsState()
+        if (!showAllTodoSheet && !showMyInfo) { // [FIX] Hide search when sheet or my info is open
             kr.alltodo.ui.components.SearchButton(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -852,10 +678,18 @@ fun MainScreen(
             )
         }
 
+        // [NEW] Unified Todo Sheet (Replaces TodoListLayer and CalendarDialog)
+        MainTodoSheet(
+            todoViewModel = todoViewModel,
+            mapViewModel = mapViewModel,
+            isDark = isOverlayDark,
+            onDismiss = { mapViewModel.setShowAllTodoSheet(false) }
+        )
+
         // --- Final Layering: Modal Overlays (Always on Top) ---
 
         // [Item 3] My Info (UserProfileView)
-        if (showMyInfo) {
+        if (isMyInfoVisible) {
             val maxPopupItems by todoViewModel.maxPopupItems.collectAsState()
             val popupFontSize by todoViewModel.popupFontSize.collectAsState()
             val isGpsTracking by gpsAuthViewModel.isTracking.collectAsState()
@@ -904,40 +738,6 @@ fun MainScreen(
             }
         }
 
-        // Calendar Overlay
-        if (showCalendar) {
-            AllToDoTheme(darkTheme = isOverlayDark) {
-                kr.alltodo.ui.components.CalendarDialog(
-                    viewModel = todoViewModel,
-                    isDark = isOverlayDark,
-                    onDismissRequest = { todoViewModel.toggleCalendar() },
-                    onPathClick = { item ->
-                        if (isListVisible) {
-                            todoViewModel.toggleListLayer()
-                            shouldRestoreList = true
-                        }
-                        todoViewModel.toggleCalendar()
-                        shouldRestoreCalendar = true
-                        viewingPathTodo = item
-                        todoViewModel.fetchPathForHistory(item)
-                    },
-                    onEditClick = { item ->
-                        if (isListVisible) {
-                            todoViewModel.toggleListLayer()
-                            shouldRestoreList = true
-                        }
-                        todoViewModel.toggleCalendar()
-                        shouldRestoreCalendar = true
-                        mapViewModel.startCreatingTodo(
-                            lat = (item.int_lat ?: 0) / 100_000.0,
-                            lon = (item.int_long ?: 0) / 100_000.0,
-                            title = if (item.type == "00") "히스토리 수정" else "할 일 수정",
-                            name = item.todo_name
-                        )
-                    }
-                )
-            }
-        }
 
         // [NEW] Ripple Effect for Search Results
         if (showRipple) {

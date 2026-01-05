@@ -64,6 +64,39 @@ class MapFeatureViewModel @Inject constructor(
     private val _tapPosition = MutableStateFlow<androidx.compose.ui.geometry.Offset?>(null)
     val tapPosition: StateFlow<androidx.compose.ui.geometry.Offset?> = _tapPosition.asStateFlow()
     
+    // MARK: - Navigation & Sheet State (Consolidated Central Control)
+    private val _showAllTodoSheet = MutableStateFlow(false)
+    val showAllTodoSheet: StateFlow<Boolean> = _showAllTodoSheet.asStateFlow()
+
+    private val _mainSheetTab = MutableStateFlow(0) // 0: List, 1: Calendar
+    val mainSheetTab: StateFlow<Int> = _mainSheetTab.asStateFlow()
+
+    private val _viewingPathTodo = MutableStateFlow<TodoItem?>(null)
+    val viewingPathTodo: StateFlow<TodoItem?> = _viewingPathTodo.asStateFlow()
+
+    private val _selectedItem = MutableStateFlow<TodoItem?>(null)
+    val selectedItem: StateFlow<TodoItem?> = _selectedItem.asStateFlow()
+
+    fun setShowAllTodoSheet(show: Boolean) {
+        _showAllTodoSheet.value = show
+    }
+
+    fun setMainSheetTab(tab: Int) {
+        _mainSheetTab.value = tab
+    }
+
+    fun setViewingPathTodo(item: TodoItem?) {
+        _viewingPathTodo.value = item
+    }
+
+    fun setSelectedItem(item: TodoItem?) {
+        _selectedItem.value = item
+    }
+
+    // Navigation Recovery State (Internal)
+    var shouldRestoreList = false
+    var shouldRestoreCalendar = false
+    
     // MARK: - UI Flags
     private val _showHistoryMode = MutableStateFlow(false)
     val showHistoryMode: StateFlow<Boolean> = _showHistoryMode.asStateFlow()
@@ -84,8 +117,10 @@ class MapFeatureViewModel @Inject constructor(
     private val _currentZoom = MutableStateFlow(15f)
     val currentZoom: StateFlow<Float> = _currentZoom.asStateFlow()
 
+    private val _currentProvider = MutableStateFlow(MapProvider.Naver)
+    val currentProvider: StateFlow<MapProvider> = _currentProvider.asStateFlow()
+
     private val _isClusteringEnabled = MutableStateFlow(false)
-    private var currentProvider = MapProvider.Google
     private var currentLatitude = 37.5759 // Default Seoul
 
     fun updateZoom(zoom: Float, lat: Double? = null, provider: MapProvider? = null) {
@@ -98,8 +133,8 @@ class MapFeatureViewModel @Inject constructor(
             currentLatitude = lat
             changed = true
         }
-        if (provider != null && currentProvider != provider) {
-            currentProvider = provider
+        if (provider != null && _currentProvider.value != provider) {
+            _currentProvider.value = provider
             changed = true
         }
         
@@ -136,8 +171,8 @@ class MapFeatureViewModel @Inject constructor(
             currentLatitude = lat
              changed = true
         }
-        if (currentProvider != provider) {
-            currentProvider = provider
+        if (_currentProvider.value != provider) {
+            _currentProvider.value = provider
              changed = true
         }
 
@@ -312,7 +347,7 @@ class MapFeatureViewModel @Inject constructor(
     private fun calculateCellSizeMeters(zoom: Float): Int {
         val cosLat = Math.cos(Math.toRadians(currentLatitude))
         val sensitivity = 30.0
-        val providerWeight = when(currentProvider) {
+        val providerWeight = when(_currentProvider.value) {
             MapProvider.Google -> 1.0
             MapProvider.Naver, MapProvider.Kakao -> 0.85
             else -> 1.0

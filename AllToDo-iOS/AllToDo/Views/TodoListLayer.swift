@@ -36,7 +36,12 @@ struct TodoListLayer: View {
                 HStack(spacing: 0) {
                     HStack(spacing: 4) {
                         // 추가 버튼
-                        Button(action: { withAnimation { viewModel.isCreatingTodo = true } }) {
+                        Button(action: { 
+                            withAnimation { 
+                                viewModel.shouldRestoreList = true
+                                viewModel.isCreatingTodo = true 
+                            } 
+                        }) {
                             Image(systemName: "plus")
                                 .resizable()
                                 .frame(width: 24, height: 24)
@@ -101,12 +106,10 @@ struct TodoListLayer: View {
                                 onPathClick: {
                                     viewModel.shouldRestoreList = true
                                     viewModel.viewingHistoryItem = item
-                                    viewModel.showTodoList = false
                                 },
                                 onEditClick: {
                                     viewModel.shouldRestoreList = true
                                     viewModel.selectedItem = item
-                                    viewModel.showTodoList = false
                                 },
                                 onDeleteClick: {
                                     // ContentView의 deleteItem 호출을 위해 viewModel에 요청하거나 직접 삭제

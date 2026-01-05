@@ -27,10 +27,6 @@ struct ContentView: View {
             mapLayer.ignoresSafeArea()
             uiLayer
             clusterOverlay
-            todoDetailOverlay
-            // allItemsOverlay removed (Integrated into Calendar)
-            sideMenuLayer
-            createTodoLayer
             searchLayer
             
             // ripple effect
@@ -51,17 +47,10 @@ struct ContentView: View {
         .sheet(item: $viewModel.viewingHistoryItem) { item in
             PathHistoryView(item: item, onClose: { 
                 viewModel.viewingHistoryItem = nil 
-                // [NEW] Dual Restoration Logic (Android Spec) - Consolidated to AllTodoSheet
-                if viewModel.shouldRestoreList || viewModel.shouldRestoreCalendar {
-                    viewModel.mainSheetTab = viewModel.shouldRestoreCalendar ? 1 : 0
-                    withAnimation { viewModel.showAllTodoSheet = true }
-                    viewModel.shouldRestoreList = false
-                    viewModel.shouldRestoreCalendar = false
-                }
             })
-                .presentationDetents([.large]) // [FIX] Force full size to minimize gesture ambiguity
-                .presentationDragIndicator(.hidden) // [FIX] Hide indicator
-                .interactiveDismissDisabled() // [FIX] Essential: Block sheet dismissal gesture
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+                .interactiveDismissDisabled()
         }
         // Legacy DatePicker Sheet Removed
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("MapRotationChanged"))) { notification in
@@ -278,50 +267,6 @@ struct ContentView: View {
         }
     }
     
-    var todoDetailOverlay: some View {
-        Group {
-            if let item = viewModel.selectedItem {
-                ZStack(alignment: .bottom) {
-                    Color.black.opacity(0.3)
-                        .ignoresSafeArea()
-                        .onTapGesture { viewModel.selectedItem = nil }
-                    
-                    CreateTodoLayer(
-                        existingItem: item,
-                        onRegister: { name, person, dateStr, timeStr, memo in
-                            // Update existing item
-                            item.todo_name = name
-                            item.memo = memo
-                            try? modelContext.save()
-                            viewModel.selectedItem = nil
-                            
-                            // [NEW] Dual Restoration Logic - Consolidated
-                            if viewModel.shouldRestoreList || viewModel.shouldRestoreCalendar {
-                                viewModel.mainSheetTab = viewModel.shouldRestoreCalendar ? 1 : 0
-                                withAnimation { viewModel.showAllTodoSheet = true }
-                                viewModel.shouldRestoreList = false
-                                viewModel.shouldRestoreCalendar = false
-                            }
-                        },
-                        onCancel: { 
-                            viewModel.selectedItem = nil
-                            // [NEW] Dual Restoration Logic - Consolidated
-                            if viewModel.shouldRestoreList || viewModel.shouldRestoreCalendar {
-                                viewModel.mainSheetTab = viewModel.shouldRestoreCalendar ? 1 : 0
-                                withAnimation { viewModel.showAllTodoSheet = true }
-                                viewModel.shouldRestoreList = false
-                                viewModel.shouldRestoreCalendar = false
-                            }
-                        }
-                    )
-                }
-                .preferredColorScheme((mapProvider == .apple || mapProvider == .google) ? nil : .light)
-                .transition(.move(edge: .bottom))
-
-                .zIndex(400)
-            }
-        }
-    }
 }
 
 extension ContentView {
@@ -357,41 +302,6 @@ extension ContentView {
         }
     }
 
-    var createTodoLayer: some View {
-        Group {
-            if viewModel.isCreatingTodo {
-                CreateTodoLayer(
-                    title: viewModel.initialTodoTitle,
-                    defaultName: "새 할 일",
-                    initialName: viewModel.initialTodoName,
-                    onRegister: { name, person, dateStr, timeStr, memo in
-                        if let loc = viewModel.creatingTodoLocation {
-                            let formatter = DateFormatter()
-                            formatter.dateFormat = "yyyy.MM.dd HH:mm"
-                            let combinedStr = "\(dateStr) \(timeStr)"
-                            let dateTime = formatter.date(from: combinedStr) ?? Date()
-                            handleLongTap(lat: loc.latitude, lon: loc.longitude, name: name, dateTime: dateTime)
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { centerMapOn(loc) }
-                        }
-                        viewModel.isCreatingTodo = false
-                        viewModel.creatingTodoLocation = nil
-                        viewModel.initialTodoName = ""
-                    },
-                    onCancel: {
-                        if let loc = viewModel.creatingTodoLocation {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { centerMapOn(loc) }
-                        }
-                        viewModel.isCreatingTodo = false
-                        viewModel.creatingTodoLocation = nil
-                        viewModel.initialTodoName = ""
-                    }
-                )
-                .preferredColorScheme((mapProvider == .apple || mapProvider == .google) ? nil : .light)
-                .transition(.move(edge: .bottom))
-                .animation(.spring(), value: viewModel.isCreatingTodo)
-            }
-        }
-    }
 
     var searchLayer: some View {
         ZStack {

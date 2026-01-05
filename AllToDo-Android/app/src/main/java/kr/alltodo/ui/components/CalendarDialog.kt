@@ -48,11 +48,12 @@ import java.time.ZoneId
  * AllToDo 커스텀 캘린더 다이얼로그
  */
 @Composable
-fun CalendarDialog(
+fun CalendarLayer(
     viewModel: kr.alltodo.ui.TodoViewModel,
-    onDismissRequest: () -> Unit,
+    mapViewModel: kr.alltodo.ui.MapFeatureViewModel,
     onPathClick: (TodoItem) -> Unit,
     onEditClick: (TodoItem) -> Unit,
+    onDismiss: () -> Unit,
     isDark: Boolean = isSystemInDarkTheme()
 ) {
     var isLoading by remember { mutableStateOf(true) }
@@ -68,15 +69,11 @@ fun CalendarDialog(
         isLoading = false
     }
 
-    Dialog(
-        onDismissRequest = onDismissRequest,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(AppColors.Calendar.background(isDark))
-                .padding(16.dp),
+                .padding(horizontal = 16.dp),
             contentAlignment = Alignment.Center
         ) {
             if (isLoading) {
@@ -87,7 +84,8 @@ fun CalendarDialog(
                     CalendarHeader(
                         currentMonth = currentMonth,
                         onMonthChange = { currentMonth = it },
-                        onDismiss = onDismissRequest,
+                        mapViewModel = mapViewModel,
+                        onDismiss = onDismiss,
                         isDark = isDark
                     )
 
@@ -121,23 +119,35 @@ fun CalendarDialog(
                 }
             }
         }
-    }
 }
 
 @Composable
 fun CalendarHeader(
     currentMonth: YearMonth,
     onMonthChange: (YearMonth) -> Unit,
+    mapViewModel: kr.alltodo.ui.MapFeatureViewModel,
     onDismiss: () -> Unit,
     isDark: Boolean
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 왼쪽: 연도 및 월 네비게이션 통합 배치
+        // 왼쪽: 목록 전환 아이콘 + 연도/월 네비게이션
         Row(verticalAlignment = Alignment.CenterVertically) {
+            // [NEW] Switch to List Tab
+            IconButton(onClick = { mapViewModel.setMainSheetTab(0) }) {
+                Icon(
+                    imageVector = Icons.Default.Check, // Sharp checkmark or List icon if available
+                    contentDescription = "목록",
+                    tint = AppColors.Calendar.headerText(isDark),
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+            
+            Spacer(modifier = Modifier.width(8.dp))
+
             // 연도 네비게이션
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { onMonthChange(currentMonth.minusYears(1)) }, modifier = Modifier.size(32.dp)) {

@@ -27,6 +27,7 @@ import kr.alltodo.ui.theme.*
 @Composable
 fun TodoListLayer(
     viewModel: TodoViewModel,
+    mapViewModel: kr.alltodo.ui.MapFeatureViewModel,
     onPathClick: (UnifiedItem) -> Unit,
     onEditTodo: (UnifiedItem) -> Unit,
     onAddClick: () -> Unit,
@@ -34,7 +35,7 @@ fun TodoListLayer(
     isDark: Boolean = androidx.compose.foundation.isSystemInDarkTheme(),
     modifier: Modifier = Modifier
 ) {
-    val isVisible by viewModel.isListLayerVisible.collectAsState()
+    val isVisible by mapViewModel.showAllTodoSheet.collectAsState()
     val sortByTime by viewModel.sortByTime.collectAsState()
     val filterServer by viewModel.filterServer.collectAsState()
     val filterTodo by viewModel.filterTodo.collectAsState()
@@ -106,8 +107,8 @@ fun TodoListLayer(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // [FIX] Dynamic Calendar Icon
-                    IconButton(onClick = { viewModel.toggleCalendar() }) {
+                    // [FIX] Dynamic Calendar Icon (Switch Tab)
+                    IconButton(onClick = { mapViewModel.setMainSheetTab(1) }) {
                         TodayCalendarIcon(tint = iconTint)
                     }
 

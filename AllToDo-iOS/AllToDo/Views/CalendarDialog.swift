@@ -112,32 +112,40 @@ struct CalendarHeader: View {
     
     var body: some View {
         HStack(spacing: 0) {
-            // [LEFT] List Tab Icon
+            // [LEFT] List Tab Icon (Custom: Blue-Green-Red Dots + 2 Lines)
             Button(action: { withAnimation { viewModel.mainSheetTab = 0 } }) {
-                Image(systemName: "list.bullet")
-                    .resizable()
-                    .frame(width: 24, height: 24)
-                    .padding(10)
-                    .foregroundColor(Color.Calendar.primaryText(isDark: isDark))
+                VStack(spacing: 4) {
+                    // Top: 3 Color Dots (Server, Todo, History)
+                    HStack(spacing: 4) {
+                        Circle().fill(Color.allToDoBlue).frame(width: 6, height: 6)
+                        Circle().fill(Color.allToDoGreen).frame(width: 6, height: 6)
+                        Circle().fill(Color.allToDoRed).frame(width: 6, height: 6)
+                    }
+                    
+                    // Bottom: 3 Horizontal Lines
+                    VStack(spacing: 2) {
+                        RoundedRectangle(cornerRadius: 1)
+                            .fill(Color.Calendar.primaryText(isDark: isDark))
+                            .frame(width: 22, height: 2)
+                        RoundedRectangle(cornerRadius: 1)
+                            .fill(Color.Calendar.primaryText(isDark: isDark))
+                            .frame(width: 22, height: 2)
+                        RoundedRectangle(cornerRadius: 1)
+                            .fill(Color.Calendar.primaryText(isDark: isDark))
+                            .frame(width: 22, height: 2)
+                    }
+                }
+                .frame(width: 24, height: 24)
+                .padding(10)
             }
             .frame(width: 44, height: 44)
             .buttonStyle(.plain)
             
             Spacer()
             
-            // [RIGHT] Year & Month Nav
+            // [RIGHT] Month & Year Nav
             HStack(spacing: 8) {
-                // 1. Year Nav - [SPEC] 16pt Medium
-                HStack(spacing: 0) {
-                    navButton(icon: "chevron.left", action: { onMonthChange(-1, 0) }, size: 32, iconSize: 18)
-                    Text(yearStr)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(Color.Calendar.primaryText(isDark: isDark))
-                        .frame(minWidth: 40)
-                    navButton(icon: "chevron.right", action: { onMonthChange(1, 0) }, size: 32, iconSize: 18)
-                }
-                
-                // 2. Month Nav - [SPEC] 28pt Bold, Large Buttons
+                // 1. Month Nav - [SPEC] 28pt Bold, Large Buttons
                 HStack(spacing: 0) {
                     navButton(icon: "chevron.left", action: { onMonthChange(0, -1) }, size: 44, iconSize: 28)
                     Text(monthStr)
@@ -145,6 +153,16 @@ struct CalendarHeader: View {
                         .foregroundColor(Color.Calendar.primaryText(isDark: isDark))
                         .frame(minWidth: 65)
                     navButton(icon: "chevron.right", action: { onMonthChange(0, 1) }, size: 44, iconSize: 28)
+                }
+                
+                // 2. Year Nav - [SPEC] 16pt Medium
+                HStack(spacing: 0) {
+                    navButton(icon: "chevron.left", action: { onMonthChange(-1, 0) }, size: 32, iconSize: 18)
+                    Text(yearStr)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(Color.Calendar.primaryText(isDark: isDark))
+                        .frame(minWidth: 40)
+                    navButton(icon: "chevron.right", action: { onMonthChange(1, 0) }, size: 32, iconSize: 18)
                 }
             }
         }
@@ -359,12 +377,10 @@ struct TodoSummaryArea: View {
                                 onPathClick: {
                                     viewModel.shouldRestoreCalendar = true
                                     viewModel.viewingHistoryItem = item
-                                    viewModel.showCalendar = false
                                 },
                                 onEditClick: {
                                     viewModel.shouldRestoreCalendar = true
                                     viewModel.selectedItem = item
-                                    viewModel.showCalendar = false
                                 },
                                 onDeleteClick: {
                                     // TodoListLayer와 동일하게 뷰모델의 삭제 로직 연결 대기 (현재는 프레임워크만)

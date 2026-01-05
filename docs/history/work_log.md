@@ -1,3 +1,11 @@
+## 2026-01-06
+### 🤖 Agent Process & Environment Optimization
+- **Agent Work Rules Integration**:
+    - `docs/AGENT_WORK_RULES.md` 내용을 숙지하고 협업 프로세스에 반영 완료.
+    - 한국어 소통, `Implementation Plan` 기반 승인 절차, 개별 지도 엔진 보호 정책 등을 최상위 수칙으로 준수.
+- **Development Environment Polish**:
+    - 안드로이드 스튜디오와 macOS 간의 단축키 충돌(Shortcut Conflict) 이슈 원인 규명 및 해결 가이드(System Settings 및 Keymap 조정) 제공.
+
 ## 2026-01-05
 ### 🎨 UI/UX Detail Refinement & Layout Optimization (iOS/Android)
 - **iOS Persistent UI Refinement**:
