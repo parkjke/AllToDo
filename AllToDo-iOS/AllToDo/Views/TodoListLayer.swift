@@ -30,16 +30,8 @@ struct TodoListLayer: View {
         }
     }
     
-    @State private var dragOffset: CGFloat = 0
-
     var body: some View {
-        ZStack {
-            // 안드로이드 스타일: 불투명 배경 (접근성 및 집중도 향상)
-            Color.TodoList.background(isDark: isDark)
-                .ignoresSafeArea()
-                .offset(y: dragOffset > 0 ? dragOffset : 0)
-            
-            VStack(spacing: 0) {
+        VStack(spacing: 0) {
                 // 1. Header Row (안드로이드 TodoListLayer.kt 57행 규격)
                 HStack(spacing: 0) {
                     HStack(spacing: 4) {
@@ -79,7 +71,7 @@ struct TodoListLayer: View {
                     
                     HStack(spacing: 4) {
                         // 캘린더 아이콘 (안드로이드 Dynamic Calendar Icon 규격)
-                        Button(action: { withAnimation { viewModel.showCalendar = true } }) {
+                        Button(action: { withAnimation { viewModel.mainSheetTab = 1 } }) {
                             ZStack {
                                 Image(systemName: "calendar")
                                     .resizable()
@@ -93,21 +85,10 @@ struct TodoListLayer: View {
                         }
                         .frame(width: 44, height: 44)
                         .buttonStyle(.plain)
-                        
-                        // 닫기 버튼
-                        Button(action: { withAnimation { viewModel.showTodoList = false } }) {
-                            Image(systemName: "xmark")
-                                .resizable()
-                                .frame(width: 22, height: 22)
-                                .padding(11)
-                                .foregroundColor(Color.TodoList.iconTint(isDark: isDark))
-                        }
-                        .frame(width: 44, height: 44)
-                        .buttonStyle(.plain) // [FIX] 박멸
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 50) // TopLeftWidget 영역 배려
+                .padding(.top, 16)
                 .padding(.bottom, 16)
                 
                 // 2. List Content
@@ -138,28 +119,7 @@ struct TodoListLayer: View {
                     .padding(.bottom, 80)
                 }
             }
-            .offset(y: dragOffset > 0 ? dragOffset : 0)
         }
-        .gesture(
-            DragGesture()
-                .onChanged { value in
-                    if value.translation.height > 0 {
-                        dragOffset = value.translation.height
-                    }
-                }
-                .onEnded { value in
-                    if value.translation.height > 100 {
-                        withAnimation {
-                            viewModel.showTodoList = false
-                            dragOffset = 0
-                        }
-                    } else {
-                        withAnimation {
-                            dragOffset = 0
-                        }
-                    }
-                }
-        )
     }
 }
 

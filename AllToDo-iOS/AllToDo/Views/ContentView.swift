@@ -33,19 +33,7 @@ struct ContentView: View {
             createTodoLayer
             searchLayer
             
-            // 1. Todo List Layer (Android OriginSpec)
-            if viewModel.showTodoList {
-                TodoListLayer(viewModel: viewModel)
-                    .zIndex(500)
-                    .transition(.move(edge: .bottom))
-            }
-            
-            // 2. Calendar Overlay (Integrated with Restoration Logic)
-            if viewModel.showCalendar {
-                CalendarDialog(viewModel: viewModel)
-                    .zIndex(600)
-                    .transition(.opacity)
-            }
+            // ripple effect
             
             // Ripple Effect (Centered for Search Result)
             if viewModel.showRipple {
@@ -55,16 +43,19 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme((mapProvider == .apple || mapProvider == .google) ? nil : .light)
+        .sheet(isPresented: $viewModel.showAllTodoSheet) {
+            MainTodoSheet(viewModel: viewModel)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
         .sheet(item: $viewModel.viewingHistoryItem) { item in
             PathHistoryView(item: item, onClose: { 
                 viewModel.viewingHistoryItem = nil 
-                // [NEW] Dual Restoration Logic (Android Spec)
-                if viewModel.shouldRestoreList {
-                    withAnimation { viewModel.showTodoList = true }
+                // [NEW] Dual Restoration Logic (Android Spec) - Consolidated to AllTodoSheet
+                if viewModel.shouldRestoreList || viewModel.shouldRestoreCalendar {
+                    viewModel.mainSheetTab = viewModel.shouldRestoreCalendar ? 1 : 0
+                    withAnimation { viewModel.showAllTodoSheet = true }
                     viewModel.shouldRestoreList = false
-                }
-                if viewModel.shouldRestoreCalendar {
-                    withAnimation { viewModel.showCalendar = true }
                     viewModel.shouldRestoreCalendar = false
                 }
             })
@@ -162,7 +153,10 @@ struct ContentView: View {
             serverTodoCount: allItems.filter { $0.source != "local" && $0.type == "10" }.count,
             compassRotation: viewModel.compassRotation,
             onCompassClick: { viewModel.mapAction = .rotateNorth },
-            onExpandClick: { withAnimation { viewModel.showTodoList = true } }
+            onExpandClick: { 
+                viewModel.mainSheetTab = 0
+                withAnimation { viewModel.showAllTodoSheet = true } 
+            }
         )
     }
     
@@ -301,25 +295,21 @@ struct ContentView: View {
                             try? modelContext.save()
                             viewModel.selectedItem = nil
                             
-                            // [NEW] Dual Restoration Logic
-                            if viewModel.shouldRestoreList {
-                                withAnimation { viewModel.showTodoList = true }
+                            // [NEW] Dual Restoration Logic - Consolidated
+                            if viewModel.shouldRestoreList || viewModel.shouldRestoreCalendar {
+                                viewModel.mainSheetTab = viewModel.shouldRestoreCalendar ? 1 : 0
+                                withAnimation { viewModel.showAllTodoSheet = true }
                                 viewModel.shouldRestoreList = false
-                            }
-                            if viewModel.shouldRestoreCalendar {
-                                withAnimation { viewModel.showCalendar = true }
                                 viewModel.shouldRestoreCalendar = false
                             }
                         },
                         onCancel: { 
                             viewModel.selectedItem = nil
-                            // [NEW] Dual Restoration Logic
-                            if viewModel.shouldRestoreList {
-                                withAnimation { viewModel.showTodoList = true }
+                            // [NEW] Dual Restoration Logic - Consolidated
+                            if viewModel.shouldRestoreList || viewModel.shouldRestoreCalendar {
+                                viewModel.mainSheetTab = viewModel.shouldRestoreCalendar ? 1 : 0
+                                withAnimation { viewModel.showAllTodoSheet = true }
                                 viewModel.shouldRestoreList = false
-                            }
-                            if viewModel.shouldRestoreCalendar {
-                                withAnimation { viewModel.showCalendar = true }
                                 viewModel.shouldRestoreCalendar = false
                             }
                         }

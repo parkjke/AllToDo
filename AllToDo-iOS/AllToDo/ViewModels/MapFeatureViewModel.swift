@@ -27,6 +27,10 @@ class MapFeatureViewModel: ObservableObject {
     @Published var shouldRestoreCalendar: Bool = false 
     @Published var shouldRestoreList: Bool = false // [NEW] Dual restoration
     
+    // [NEW] 통합 할 일 시트 (iOS Sheet 스타일)
+    @Published var showAllTodoSheet: Bool = false
+    @Published var mainSheetTab: Int = 0 // 0: 목록, 1: 캘린더
+    
     // MARK: - Dynamic Clustering & Filtering
     @Published var clusterRadius: Double? = 100.0
     @Published var cachedMapItems: [UnifiedMapItem] = []

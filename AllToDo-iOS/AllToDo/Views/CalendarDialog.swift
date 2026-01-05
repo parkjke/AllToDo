@@ -23,23 +23,19 @@ struct CalendarDialog: View {
     @State private var dragOffset: CGFloat = 0
     
     var body: some View {
-        ZStack {
-            // 배경: 불투명 솔리드 배경 [SPEC]
-            Color.Calendar.background(isDark: isDark)
-                .ignoresSafeArea()
-                .offset(y: dragOffset > 0 ? dragOffset : 0)
+        VStack(spacing: 0) {
             
             VStack(spacing: 0) {
                 // Header (연/월 & 닫기)
-                CalendarHeader(
-                    currentMonth: currentMonth,
-                    onMonthChange: { year, month in 
-                        if year != 0 { moveYear(by: year) }
-                        if month != 0 { moveMonth(by: month) }
-                    },
-                    onClose: { withAnimation { viewModel.showCalendar = false } },
-                    isDark: isDark
-                )
+            CalendarHeader(
+                viewModel: viewModel,
+                currentMonth: currentMonth,
+                onMonthChange: { year, month in 
+                    if year != 0 { moveYear(by: year) }
+                    if month != 0 { moveMonth(by: month) }
+                },
+                isDark: isDark
+            )
                 
                 // Content (Grid + Summary)
                 VStack(spacing: 0) {
@@ -69,29 +65,7 @@ struct CalendarDialog: View {
                     )
                 }
             }
-            .padding(.top, 40) // Status bar 배려
-            .offset(y: dragOffset > 0 ? dragOffset : 0)
         }
-        .gesture(
-            DragGesture()
-                .onChanged { value in
-                    if value.translation.height > 0 {
-                        dragOffset = value.translation.height
-                    }
-                }
-                .onEnded { value in
-                    if value.translation.height > 100 {
-                        withAnimation {
-                            viewModel.showCalendar = false
-                            dragOffset = 0
-                        }
-                    } else {
-                        withAnimation {
-                            dragOffset = 0
-                        }
-                    }
-                }
-        )
         .onAppear {
             selectedDate = viewModel.selectedDate
             currentMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: selectedDate)) ?? Date()
@@ -117,9 +91,9 @@ struct CalendarDialog: View {
 // MARK: - SubViews
 
 struct CalendarHeader: View {
+    @ObservedObject var viewModel: MapFeatureViewModel
     let currentMonth: Date
     let onMonthChange: (Int, Int) -> Void // (YearOffset, MonthOffset)
-    let onClose: () -> Void
     let isDark: Bool
     
     private let calendar = Calendar.current
@@ -138,46 +112,44 @@ struct CalendarHeader: View {
     
     var body: some View {
         HStack(spacing: 0) {
-            // [LEFT] Year & Month Nav
-            HStack(spacing: 0) {
-                // 1. Year Nav - [SPEC] 16pt Medium
-                HStack(spacing: 0) {
-                    navButton(icon: "chevron.left", action: { onMonthChange(-1, 0) }, size: 32, iconSize: 20)
-                    Text(yearStr)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(Color.Calendar.primaryText(isDark: isDark))
-                        .frame(minWidth: 45)
-                    navButton(icon: "chevron.right", action: { onMonthChange(1, 0) }, size: 32, iconSize: 20)
-                }
-                
-                Spacer().frame(width: 16)
-                
-                // 2. Month Nav - [SPEC] 28pt Bold, Large Buttons
-                HStack(spacing: 0) {
-                    navButton(icon: "chevron.left", action: { onMonthChange(0, -1) }, size: 48, iconSize: 32)
-                    Text(monthStr)
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundColor(Color.Calendar.primaryText(isDark: isDark))
-                        .frame(minWidth: 70)
-                    navButton(icon: "chevron.right", action: { onMonthChange(0, 1) }, size: 48, iconSize: 32)
-                }
-            }
-            
-            Spacer()
-            
-            // [RIGHT] Close Button - [SPEC] 32pt Icon
-            Button(action: onClose) {
-                Image(systemName: "xmark")
+            // [LEFT] List Tab Icon
+            Button(action: { withAnimation { viewModel.mainSheetTab = 0 } }) {
+                Image(systemName: "list.bullet")
                     .resizable()
                     .frame(width: 24, height: 24)
-                    .padding(8)
+                    .padding(10)
                     .foregroundColor(Color.Calendar.primaryText(isDark: isDark))
             }
             .frame(width: 44, height: 44)
-            .buttonStyle(.plain) // [FIX] No Shadow
+            .buttonStyle(.plain)
+            
+            Spacer()
+            
+            // [RIGHT] Year & Month Nav
+            HStack(spacing: 8) {
+                // 1. Year Nav - [SPEC] 16pt Medium
+                HStack(spacing: 0) {
+                    navButton(icon: "chevron.left", action: { onMonthChange(-1, 0) }, size: 32, iconSize: 18)
+                    Text(yearStr)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(Color.Calendar.primaryText(isDark: isDark))
+                        .frame(minWidth: 40)
+                    navButton(icon: "chevron.right", action: { onMonthChange(1, 0) }, size: 32, iconSize: 18)
+                }
+                
+                // 2. Month Nav - [SPEC] 28pt Bold, Large Buttons
+                HStack(spacing: 0) {
+                    navButton(icon: "chevron.left", action: { onMonthChange(0, -1) }, size: 44, iconSize: 28)
+                    Text(monthStr)
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundColor(Color.Calendar.primaryText(isDark: isDark))
+                        .frame(minWidth: 65)
+                    navButton(icon: "chevron.right", action: { onMonthChange(0, 1) }, size: 44, iconSize: 28)
+                }
+            }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 8)
+        .padding(.top, 12)
         .padding(.bottom, 8)
     }
     
