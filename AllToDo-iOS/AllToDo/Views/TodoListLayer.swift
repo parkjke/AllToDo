@@ -41,7 +41,7 @@ struct TodoListLayer: View {
                 HStack(spacing: 0) {
                     HStack(spacing: 4) {
                         // 추가 버튼
-                        Button(action: { viewModel.isCreatingTodo = true }) {
+                        Button(action: { withAnimation { viewModel.isCreatingTodo = true } }) {
                             Image(systemName: "plus")
                                 .resizable()
                                 .frame(width: 24, height: 24)
@@ -49,6 +49,7 @@ struct TodoListLayer: View {
                                 .foregroundColor(Color.TodoList.iconTint(isDark: isDark))
                         }
                         .frame(width: 44, height: 44)
+                        .buttonStyle(.plain)
                         
                         // 정렬 버튼
                         Button(action: { sortByTime.toggle() }) {
@@ -59,6 +60,7 @@ struct TodoListLayer: View {
                                 .foregroundColor(Color.TodoList.iconTint(isDark: isDark))
                         }
                         .frame(width: 44, height: 44)
+                        .buttonStyle(.plain)
                         
                         Spacer().frame(width: 12)
                         
@@ -87,6 +89,7 @@ struct TodoListLayer: View {
                             .foregroundColor(Color.TodoList.iconTint(isDark: isDark))
                         }
                         .frame(width: 44, height: 44)
+                        .buttonStyle(.plain)
                         
                         // 닫기 버튼
                         Button(action: { withAnimation { viewModel.showTodoList = false } }) {
@@ -97,6 +100,7 @@ struct TodoListLayer: View {
                                 .foregroundColor(Color.TodoList.iconTint(isDark: isDark))
                         }
                         .frame(width: 44, height: 44)
+                        .buttonStyle(.plain) // [FIX] 박멸
                     }
                 }
                 .padding(.horizontal, 16)
@@ -181,6 +185,7 @@ struct TodoItemCard: View {
                         .foregroundColor(item.no_of_path > 1 ? typeColor : .gray.opacity(0.5))
                 }
                 .frame(width: 42, height: 42)
+                .buttonStyle(.plain) // [FIX] 박멸
                 .disabled(item.no_of_path <= 1)
             } else {
                 Spacer().frame(width: 42)
@@ -209,6 +214,7 @@ struct TodoItemCard: View {
                     .lineLimit(1)
                     .foregroundColor(textColor)
             }
+            .buttonStyle(.plain) // [FIX] 박멸
             
             Spacer()
             
@@ -222,6 +228,7 @@ struct TodoItemCard: View {
                     .foregroundColor(.allToDoRed)
             }
             .frame(width: 42, height: 42)
+            .buttonStyle(.plain) // [FIX] 박멸
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

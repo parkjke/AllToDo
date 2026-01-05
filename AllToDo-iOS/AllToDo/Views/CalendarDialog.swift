@@ -31,9 +31,11 @@ struct CalendarDialog: View {
                 // Header (연/월 & 닫기)
                 CalendarHeader(
                     currentMonth: currentMonth,
-                    onPrev: { moveMonth(by: -1) },
-                    onNext: { moveMonth(by: 1) },
-                    onClose: { viewModel.showCalendar = false },
+                    onMonthChange: { year, month in 
+                        if year != 0 { moveYear(by: year) }
+                        if month != 0 { moveMonth(by: month) }
+                    },
+                    onClose: { withAnimation { viewModel.showCalendar = false } },
                     isDark: isDark
                 )
                 
@@ -50,7 +52,7 @@ struct CalendarDialog: View {
                     .padding(.top, 8)
                     
                     Divider()
-                        .background(Color.Calendar.secondaryText(isDark: isDark).opacity(0.2))
+                        .background(Color.Calendar.divider(isDark: isDark))
                         .padding(.top, 16)
                     
                     // Summary Area (Bottom List)
@@ -64,13 +66,12 @@ struct CalendarDialog: View {
                         isDark: isDark
                     )
                 }
-                .background(Color.Calendar.background(isDark: isDark))
             }
-            .frame(maxWidth: 500) // 최대 너비 제한 (iPad 등 대응)
+            .background(Color.Calendar.background(isDark: isDark))
             .cornerRadius(24)
             .padding(.horizontal, 20)
             .padding(.vertical, 40)
-            .shadow(color: .black.opacity(0.2), radius: 20)
+            // Shadow removed as per user instruction [FIX]
         }
         .onAppear {
             selectedDate = viewModel.selectedDate
@@ -86,22 +87,23 @@ struct CalendarDialog: View {
             currentMonth = next
         }
     }
+    
+    private func moveYear(by value: Int) {
+        if let next = calendar.date(byAdding: .year, value: value, to: currentMonth) {
+            currentMonth = next
+        }
+    }
 }
 
 // MARK: - SubViews
 
 struct CalendarHeader: View {
     let currentMonth: Date
-    let onPrev: () -> Void
-    let onNext: () -> Void
+    let onMonthChange: (Int, Int) -> Void // (YearOffset, MonthOffset)
     let onClose: () -> Void
     let isDark: Bool
     
-    var monthStr: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MM"
-        return formatter.string(from: currentMonth)
-    }
+    private let calendar = Calendar.current
     
     var yearStr: String {
         let formatter = DateFormatter()
@@ -109,47 +111,67 @@ struct CalendarHeader: View {
         return formatter.string(from: currentMonth)
     }
     
+    var monthStr: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "M월"
+        return formatter.string(from: currentMonth)
+    }
+    
     var body: some View {
-        HStack {
-            HStack(alignment: .bottom, spacing: 12) {
-                Text(monthStr)
-                    .font(.system(size: 34, weight: .bold))
-                
-                Text(yearStr)
-                    .font(.system(size: 18, weight: .medium))
-                    .padding(.bottom, 6)
-            }
-            .foregroundColor(Color.Calendar.primaryText(isDark: isDark))
-            
-            HStack(spacing: 4) {
-                Button(action: onPrev) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 20, weight: .bold))
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
+        HStack(spacing: 0) {
+            // [LEFT] Year & Month Nav
+            HStack(spacing: 0) {
+                // 1. Year Nav - [SPEC] 16pt Medium
+                HStack(spacing: 0) {
+                    navButton(icon: "chevron.left", action: { onMonthChange(-1, 0) }, size: 32, iconSize: 20)
+                    Text(yearStr)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(Color.Calendar.primaryText(isDark: isDark))
+                        .frame(minWidth: 45)
+                    navButton(icon: "chevron.right", action: { onMonthChange(1, 0) }, size: 32, iconSize: 20)
                 }
                 
-                Button(action: onNext) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 20, weight: .bold))
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
+                Spacer().frame(width: 16)
+                
+                // 2. Month Nav - [SPEC] 28pt Bold, Large Buttons
+                HStack(spacing: 0) {
+                    navButton(icon: "chevron.left", action: { onMonthChange(0, -1) }, size: 48, iconSize: 32)
+                    Text(monthStr)
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundColor(Color.Calendar.primaryText(isDark: isDark))
+                        .frame(minWidth: 70)
+                    navButton(icon: "chevron.right", action: { onMonthChange(0, 1) }, size: 48, iconSize: 32)
                 }
             }
-            .foregroundColor(Color.Calendar.primaryText(isDark: isDark))
             
             Spacer()
             
+            // [RIGHT] Close Button - [SPEC] 32pt Icon
             Button(action: onClose) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 20, weight: .bold))
-                    .frame(width: 48, height: 48)
+                    .resizable()
+                    .frame(width: 24, height: 24)
+                    .padding(8)
                     .foregroundColor(Color.Calendar.primaryText(isDark: isDark))
             }
+            .frame(width: 44, height: 44)
+            .buttonStyle(.plain) // [FIX] No Shadow
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 16)
-        .background(Color.Calendar.background(isDark: isDark))
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 8)
+    }
+    
+    private func navButton(icon: String, action: @escaping () -> Void, size: CGFloat, iconSize: CGFloat) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: iconSize, height: iconSize)
+                .foregroundColor(Color.Calendar.primaryText(isDark: isDark))
+        }
+        .frame(width: size, height: size)
+        .buttonStyle(.plain) // [FIX] No Shadow
     }
 }
 
@@ -240,7 +262,7 @@ struct DayCell: View {
         Button(action: onClick) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("\(calendar.component(.day, from: date))")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 14, weight: (isSelected || isToday) ? .bold : .normal)) // [SPEC] Conditional Bold
                     .foregroundColor(Color.Calendar.primaryText(isDark: isDark))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 
@@ -261,7 +283,7 @@ struct DayCell: View {
             .background(isSelected ? Color.Calendar.selectedBackground(isDark: isDark) : Color.clear)
             .border(isToday ? Color.Calendar.todayBorder(isDark: isDark) : Color.clear, width: 2)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.plain) // [FIX] Shadow free
     }
 }
 
@@ -312,10 +334,8 @@ struct TodoSummaryArea: View {
             // Summary Header & Filter
             HStack {
                 HStack(spacing: 4) {
-                    Text(dateString)
-                        .font(.system(size: 16, weight: .bold))
-                    Text(dayOfWeek)
-                        .font(.system(size: 14))
+                    Text("\(dateString) 할 일") // [SPEC] Match Android "M월 d일 할 일"
+                        .font(.system(size: 18, weight: .bold)) // [SPEC] 18pt
                 }
                 .foregroundColor(Color.Calendar.primaryText(isDark: isDark))
                 
@@ -409,35 +429,45 @@ struct CalendarTodoItemCard: View {
     let onEditClick: () -> Void
     
     var body: some View {
+        let typeColor = item.type == "00" ? Color.allToDoRed : (item.source != "local" ? Color.allToDoBlue : Color.allToDoGreen)
+        let backgroundColor = isDark ? typeColor.opacity(0.2) : typeColor.opacity(0.1)
+        let textColor = isDark ? Color.white : Color.black
+        
         HStack(spacing: 8) {
             // [SPEC] 30pt Map Icon
-            Button(action: onPathClick) {
-                Image(systemName: "map.fill")
-                    .resizable()
-                    .frame(width: 30, height: 30) // [FIX] Enlarge to 30pt
-                    .foregroundColor(item.no_of_path > 1 ? (item.type == "00" ? .allToDoRed : .allToDoGreen) : .gray.opacity(0.5))
+            if item.no_of_path > 0 {
+                Button(action: onPathClick) {
+                    Image(systemName: "map.fill")
+                        .resizable()
+                        .frame(width: 30, height: 30)
+                        .foregroundColor(item.no_of_path > 1 ? typeColor : .gray.opacity(0.5))
+                }
+                .frame(width: 42, height: 42)
+                .buttonStyle(.plain)
+                .disabled(item.no_of_path <= 1)
+            } else {
+                Spacer().frame(width: 42)
             }
-            .frame(width: 42, height: 42)
-            .disabled(item.no_of_path <= 1)
             
             VStack(alignment: .leading, spacing: 2) {
                 Button(action: onEditClick) {
                     Text(item.todo_name)
-                        .font(.system(size: 15, weight: .medium)) // [FIX] 15pt Medium
+                        .font(.system(size: 15, weight: .medium)) // [SPEC] 15pt Medium
                         .lineLimit(1)
-                        .foregroundColor(Color.Calendar.primaryText(isDark: isDark))
+                        .foregroundColor(textColor)
                 }
+                .buttonStyle(.plain)
                 
                 Text(timeString)
-                    .font(.system(size: 13, weight: .bold)) // [FIX] 13pt Bold
-                    .foregroundColor(Color.Calendar.secondaryText(isDark: isDark))
+                    .font(.system(size: 13, weight: .bold)) // [SPEC] 13pt Bold
+                    .foregroundColor(textColor.opacity(0.7))
             }
             
             Spacer()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Color.Calendar.dayCellBackground(isDark: isDark))
+        .background(backgroundColor)
         .cornerRadius(8)
     }
     
