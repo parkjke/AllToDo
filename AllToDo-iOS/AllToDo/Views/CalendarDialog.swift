@@ -262,7 +262,7 @@ struct DayCell: View {
         Button(action: onClick) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("\(calendar.component(.day, from: date))")
-                    .font(.system(size: 14, weight: (isSelected || isToday) ? .bold : .normal)) // [SPEC] Conditional Bold
+                    .font(.system(size: 14, weight: (isSelected || isToday) ? .bold : .regular)) // [SPEC] Conditional Bold
                     .foregroundColor(Color.Calendar.primaryText(isDark: isDark))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 

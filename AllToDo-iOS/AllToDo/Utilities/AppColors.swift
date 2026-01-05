@@ -161,6 +161,10 @@ extension Color {
         static func selectedBackground(isDark: Bool) -> Color {
             .allToDoGreen.opacity(0.2)
         }
+        
+        static func divider(isDark: Bool) -> Color {
+            isDark ? Color.white.opacity(0.1) : Color.black.opacity(0.1)
+        }
     }
 }
 
