@@ -61,10 +61,7 @@ struct ContentView: View {
                 .presentationDragIndicator(.hidden) // [FIX] Hide indicator
                 .interactiveDismissDisabled() // [FIX] Essential: Block sheet dismissal gesture
         }
-
-        }
         // Legacy DatePicker Sheet Removed
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("MapRotationChanged"))) { notification in
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("MapRotationChanged"))) { notification in
             if let rotation = notification.userInfo?["rotation"] as? Double {
                 viewModel.compassRotation = rotation
