@@ -34,8 +34,13 @@ fun TodoItemCard(
     val textColor = AppColors.TodoList.primaryText(isDark)
     
     val backgroundColor = when (item) {
-        is kr.alltodo.ui.UnifiedItem.Todo -> if (item.item.source != "local") AllToDoBlue.copy(alpha = 0.1f) else AllToDoGreen.copy(alpha = 0.1f)
-        is kr.alltodo.ui.UnifiedItem.History -> AllToDoRed.copy(alpha = 0.1f)
+        is kr.alltodo.ui.UnifiedItem.Todo -> {
+            val baseColor = if (item.item.source != "local") AllToDoBlue else AllToDoGreen
+            if (isDark) baseColor.copy(alpha = 0.2f) else baseColor.copy(alpha = 0.1f)
+        }
+        is kr.alltodo.ui.UnifiedItem.History -> {
+            if (isDark) AllToDoRed.copy(alpha = 0.2f) else AllToDoRed.copy(alpha = 0.1f)
+        }
         else -> AppColors.TodoList.background(isDark)
     }
 
@@ -130,7 +135,7 @@ fun TodoItemCard(
 
             // 5. Person Icon & Count (FORCED FOR TESTING)
             val personCount = when (item) {
-                is kr.alltodo.ui.UnifiedItem.Todo -> item.item.person?.toIntOrNull() ?: 0
+                is kr.alltodo.ui.UnifiedItem.Todo -> item.item.person?.split(",")?.filter { it.isNotBlank() }?.size ?: 0
                 else -> 0
             }
 
@@ -145,7 +150,6 @@ fun TodoItemCard(
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(Modifier.width(2.dp))
-                val personCount = item.person?.split(",")?.filter { it.isNotBlank() }?.size ?: 0
                 Text(
                     text = personCount.toString(),
                     fontSize = 13.sp,

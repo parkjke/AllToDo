@@ -150,6 +150,38 @@ object AppColors {
         /// 칩 내부의 레이블 텍스트 및 아이콘 색상
         fun chipText(isDark: Boolean): Color = if (isDark) White else Gray8
     }
+
+    // MARK: - 캘린더 창 시맨틱 (Calendar)
+    object Calendar {
+        /// 창 전체 배경색
+        @Composable
+        fun background(isDark: Boolean): Color = TodoLayer.background(isDark)
+
+        /// 헤더(연/월) 텍스트 색상
+        fun headerText(isDark: Boolean): Color = if (isDark) White else Gray8
+
+        /// 요일 및 날짜 기본 텍스트 색상
+        fun primaryText(isDark: Boolean): Color = if (isDark) White else Gray8
+
+        /// 보조 텍스트 (다른 달의 날짜 등)
+        fun secondaryText(isDark: Boolean): Color = Gray6
+
+        /// 구분선 색상
+        fun divider(isDark: Boolean): Color = 
+            if (isDark) White.copy(alpha = 0.2f) else Black.copy(alpha = 0.1f)
+
+        /// 오늘 날짜 강조 테두리 색상
+        fun todayBorder(isDark: Boolean): Color = AllToDoGreen
+
+        /// 선택된 날짜 배경/강조 색상
+        fun selectedBackground(isDark: Boolean): Color = 
+            if (isDark) AllToDoDarkGreen.copy(alpha = 0.3f) else AllToDoLightGreen.copy(alpha = 0.3f)
+            
+        // 핀 컬러 (기존 브랜드 컬러 활용)
+        val pinBlue = AllToDoBlue
+        val pinGreen = AllToDoGreen
+        val pinRed = AllToDoRed
+    }
 }
 
 // 명칭 단축을 위한 별칭 (Optional)

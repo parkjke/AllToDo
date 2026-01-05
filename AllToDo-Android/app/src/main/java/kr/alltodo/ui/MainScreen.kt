@@ -97,6 +97,7 @@ fun MainScreen(
     
     // [NEW] Navigation Recovery State
     var shouldRestoreList by remember { mutableStateOf(false) }
+    var shouldRestoreCalendar by remember { mutableStateOf(false) }
 
     // [Item 0] beforeLocation Persistence
     val beforeLocation = remember {
@@ -587,6 +588,10 @@ fun MainScreen(
                             todoViewModel.toggleListLayer()
                             shouldRestoreList = false
                         }
+                        if (shouldRestoreCalendar) {
+                            todoViewModel.toggleCalendar()
+                            shouldRestoreCalendar = false
+                        }
                     }
                 )
             }
@@ -670,6 +675,10 @@ fun MainScreen(
                         if (shouldRestoreList) {
                             todoViewModel.toggleListLayer()
                             shouldRestoreList = false
+                        }
+                        if (shouldRestoreCalendar) {
+                            todoViewModel.toggleCalendar()
+                            shouldRestoreCalendar = false
                         }
                     }
                 )
@@ -898,9 +907,34 @@ fun MainScreen(
         // Calendar Overlay
         if (showCalendar) {
             AllToDoTheme(darkTheme = isOverlayDark) {
-                kr.alltodo.ui.components.CalendarOverlay(
+                kr.alltodo.ui.components.CalendarDialog(
+                    viewModel = todoViewModel,
                     isDark = isOverlayDark,
-                    onDismiss = { todoViewModel.toggleCalendar() }
+                    onDismissRequest = { todoViewModel.toggleCalendar() },
+                    onPathClick = { item ->
+                        if (isListVisible) {
+                            todoViewModel.toggleListLayer()
+                            shouldRestoreList = true
+                        }
+                        todoViewModel.toggleCalendar()
+                        shouldRestoreCalendar = true
+                        viewingPathTodo = item
+                        todoViewModel.fetchPathForHistory(item)
+                    },
+                    onEditClick = { item ->
+                        if (isListVisible) {
+                            todoViewModel.toggleListLayer()
+                            shouldRestoreList = true
+                        }
+                        todoViewModel.toggleCalendar()
+                        shouldRestoreCalendar = true
+                        mapViewModel.startCreatingTodo(
+                            lat = (item.int_lat ?: 0) / 100_000.0,
+                            lon = (item.int_long ?: 0) / 100_000.0,
+                            title = if (item.type == "00") "히스토리 수정" else "할 일 수정",
+                            name = item.todo_name
+                        )
+                    }
                 )
             }
         }
