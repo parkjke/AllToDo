@@ -22,8 +22,10 @@ class MapFeatureViewModel: ObservableObject {
     @Published var showListView: Bool = false
     @Published var showHistoryMode: Bool = false
     @Published var showCalendar: Bool = false
+    @Published var showTodoList: Bool = false // [NEW] Separate List Layer
     @Published var selectedDate: Date = Date()
-    @Published var shouldRestoreCalendar: Bool = false // [NEW] Restoration flag
+    @Published var shouldRestoreCalendar: Bool = false 
+    @Published var shouldRestoreList: Bool = false // [NEW] Dual restoration
     
     // MARK: - Dynamic Clustering & Filtering
     @Published var clusterRadius: Double? = 100.0

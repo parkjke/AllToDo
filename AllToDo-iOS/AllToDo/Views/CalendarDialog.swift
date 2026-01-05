@@ -387,13 +387,13 @@ struct FilterButton: View {
     var body: some View {
         Button(action: { isOn.toggle() }) {
             ZStack {
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(isOn ? color : Color.gray.opacity(0.1))
-                    .frame(width: 24, height: 24)
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isOn ? color : color.opacity(0.2))
+                    .frame(width: 36, height: 36) // [FIX] Enlarge to 36pt (Match TodoList)
                 
                 if isOn {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.system(size: 16, weight: .bold)) // [FIX] Enlarge
                         .foregroundColor(.white)
                 }
             }
@@ -409,38 +409,36 @@ struct CalendarTodoItemCard: View {
     let onEditClick: () -> Void
     
     var body: some View {
-        HStack(spacing: 12) {
-            // Type Bar
-            RoundedRectangle(cornerRadius: 2)
-                .fill(item.type == "10" ? Color.allToDoGreen : Color.allToDoRed)
-                .frame(width: 4, height: 32)
+        HStack(spacing: 8) {
+            // [SPEC] 30pt Map Icon
+            Button(action: onPathClick) {
+                Image(systemName: "map.fill")
+                    .resizable()
+                    .frame(width: 30, height: 30) // [FIX] Enlarge to 30pt
+                    .foregroundColor(item.no_of_path > 1 ? (item.type == "00" ? .allToDoRed : .allToDoGreen) : .gray.opacity(0.5))
+            }
+            .frame(width: 42, height: 42)
+            .disabled(item.no_of_path <= 1)
             
             VStack(alignment: .leading, spacing: 2) {
                 Button(action: onEditClick) {
                     Text(item.todo_name)
-                        .font(.system(size: 15, weight: .bold))
+                        .font(.system(size: 15, weight: .medium)) // [FIX] 15pt Medium
                         .lineLimit(1)
                         .foregroundColor(Color.Calendar.primaryText(isDark: isDark))
                 }
                 
                 Text(timeString)
-                    .font(.system(size: 12))
+                    .font(.system(size: 13, weight: .bold)) // [FIX] 13pt Bold
                     .foregroundColor(Color.Calendar.secondaryText(isDark: isDark))
             }
             
             Spacer()
-            
-            Button(action: onPathClick) {
-                Image(systemName: "map.fill")
-                    .foregroundColor(Color.Calendar.secondaryText(isDark: isDark))
-                    .padding(8)
-                    .background(Circle().fill(Color.Calendar.secondaryText(isDark: isDark).opacity(0.1)))
-            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(Color.Calendar.dayCellBackground(isDark: isDark))
-        .cornerRadius(12)
+        .cornerRadius(8)
     }
     
     var timeString: String {

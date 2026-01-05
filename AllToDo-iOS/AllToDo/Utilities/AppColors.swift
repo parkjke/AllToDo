@@ -60,6 +60,29 @@ extension Color {
         }
     }
     
+    // MARK: - 할 일 목록 레이어 시맨틱 컬러 (TodoList)
+    struct TodoList {
+        static func background(isDark: Bool) -> Color {
+            isDark ? Color.black : Color.white // Non-Transparent as per Android [FIX]
+        }
+        
+        static func primaryText(isDark: Bool) -> Color {
+            isDark ? .white : .black
+        }
+        
+        static func secondaryText(isDark: Bool) -> Color {
+            isDark ? .gray6 : .gray7
+        }
+        
+        static func iconTint(isDark: Bool) -> Color {
+            isDark ? .gray4 : .gray8
+        }
+        
+        static func itemBackground(color: Color, isDark: Bool) -> Color {
+            isDark ? color.opacity(0.2) : color.opacity(0.1)
+        }
+    }
+    
     // MARK: - 장소 검색 오버레이 시맨틱 컬러 (Search)
     /// 장소 검색창(SearchOverlay) 및 결과 리스트에서 사용하는 전용 색상 규격입니다.
     struct Search {

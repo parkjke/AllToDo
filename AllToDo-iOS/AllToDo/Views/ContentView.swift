@@ -33,7 +33,14 @@ struct ContentView: View {
             createTodoLayer
             searchLayer
             
-            // New Calendar Overlay (integrated with Restoration Logic)
+            // 1. Todo List Layer (Android OriginSpec)
+            if viewModel.showTodoList {
+                TodoListLayer(viewModel: viewModel)
+                    .zIndex(500)
+                    .transition(.move(edge: .bottom))
+            }
+            
+            // 2. Calendar Overlay (Integrated with Restoration Logic)
             if viewModel.showCalendar {
                 CalendarDialog(viewModel: viewModel)
                     .zIndex(600)
@@ -50,7 +57,11 @@ struct ContentView: View {
         .sheet(item: $viewModel.viewingHistoryItem) { item in
             PathHistoryView(item: item, onClose: { 
                 viewModel.viewingHistoryItem = nil 
-                // [NEW] Restoration Logic
+                // [NEW] Dual Restoration Logic (Android Spec)
+                if viewModel.shouldRestoreList {
+                    withAnimation { viewModel.showTodoList = true }
+                    viewModel.shouldRestoreList = false
+                }
                 if viewModel.shouldRestoreCalendar {
                     withAnimation { viewModel.showCalendar = true }
                     viewModel.shouldRestoreCalendar = false
@@ -147,11 +158,11 @@ struct ContentView: View {
     var statusWidget: some View {
         TopLeftWidget(
             historyCount: allItems.filter { $0.type == "00" }.count,
-            localTodoCount: allItems.filter { $0.type == "10" && $0.int_lat != 0 }.count, 
-            serverTodoCount: 0,
+            localTodoCount: allItems.filter { $0.source == "local" && $0.type == "10" }.count, 
+            serverTodoCount: allItems.filter { $0.source != "local" && $0.type == "10" }.count,
             compassRotation: viewModel.compassRotation,
             onCompassClick: { viewModel.mapAction = .rotateNorth },
-            onExpandClick: { withAnimation { viewModel.showCalendar = true } }
+            onExpandClick: { withAnimation { viewModel.showTodoList = true } }
         )
     }
     
@@ -290,7 +301,11 @@ struct ContentView: View {
                             try? modelContext.save()
                             viewModel.selectedItem = nil
                             
-                            // [NEW] Restoration Logic
+                            // [NEW] Dual Restoration Logic
+                            if viewModel.shouldRestoreList {
+                                withAnimation { viewModel.showTodoList = true }
+                                viewModel.shouldRestoreList = false
+                            }
                             if viewModel.shouldRestoreCalendar {
                                 withAnimation { viewModel.showCalendar = true }
                                 viewModel.shouldRestoreCalendar = false
@@ -298,7 +313,11 @@ struct ContentView: View {
                         },
                         onCancel: { 
                             viewModel.selectedItem = nil
-                            // [NEW] Restoration Logic
+                            // [NEW] Dual Restoration Logic
+                            if viewModel.shouldRestoreList {
+                                withAnimation { viewModel.showTodoList = true }
+                                viewModel.shouldRestoreList = false
+                            }
                             if viewModel.shouldRestoreCalendar {
                                 withAnimation { viewModel.showCalendar = true }
                                 viewModel.shouldRestoreCalendar = false
