@@ -393,6 +393,9 @@ struct TodoSummaryArea: View {
                                     viewModel.shouldRestoreCalendar = true
                                     viewModel.selectedItem = item
                                     viewModel.showCalendar = false
+                                },
+                                onDeleteClick: {
+                                    // TodoListLayer와 동일하게 뷰모델의 삭제 로직 연결 대기 (현재는 프레임워크만)
                                 }
                             )
                         }
@@ -446,14 +449,15 @@ struct CalendarTodoItemCard: View {
     let isDark: Bool
     let onPathClick: () -> Void
     let onEditClick: () -> Void
+    let onDeleteClick: () -> Void
     
     var body: some View {
         let typeColor = item.type == "00" ? Color.allToDoRed : (item.source != "local" ? Color.allToDoBlue : Color.allToDoGreen)
         let backgroundColor = isDark ? typeColor.opacity(0.2) : typeColor.opacity(0.1)
         let textColor = isDark ? Color.white : Color.black
         
-        HStack(spacing: 8) {
-            // [SPEC] 30pt Map Icon
+        HStack(spacing: 0) {
+            // 1. Map Icon [지] - [SPEC] 30pt Icon, 42pt Button
             if item.no_of_path > 0 {
                 Button(action: onPathClick) {
                     Image(systemName: "map.fill")
@@ -468,23 +472,34 @@ struct CalendarTodoItemCard: View {
                 Spacer().frame(width: 42)
             }
             
-            VStack(alignment: .leading, spacing: 2) {
-                Button(action: onEditClick) {
-                    Text(item.todo_name)
-                        .font(.system(size: 17, weight: .medium)) // [SPEC] 17pt Medium (+2pt)
-                        .lineLimit(1)
-                        .foregroundColor(textColor)
+            Spacer().frame(width: 4)
+            
+            // 2 & 3. Date & Time - [SPEC] 15pt (+2pt)
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 4) {
+                    Text(dateString)
+                        .font(.system(size: 15))
+                    Text(timeString)
+                        .font(.system(size: 15, weight: .bold))
                 }
-                .buttonStyle(.plain)
-                
-                Text(timeString)
-                    .font(.system(size: 15, weight: .bold)) // [SPEC] 15pt Bold (+2pt)
-                    .foregroundColor(textColor.opacity(0.7))
+                .foregroundColor(textColor)
             }
+            .frame(width: 95, alignment: .leading)
+            
+            Spacer().frame(width: 8)
+            
+            // 4. Name - [SPEC] 17pt Medium (+2pt)
+            Button(action: onEditClick) {
+                Text(item.todo_name)
+                    .font(.system(size: 17, weight: .medium))
+                    .lineLimit(1)
+                    .foregroundColor(textColor)
+            }
+            .buttonStyle(.plain)
             
             Spacer()
 
-            // Person Icon - [NEW] 임시 "99" 표시
+            // 5. Person Icon - [NEW] 임시 "99" 표시
             HStack(spacing: 2) {
                 Image(systemName: "person.fill")
                     .resizable()
@@ -494,11 +509,28 @@ struct CalendarTodoItemCard: View {
             }
             .foregroundColor(textColor.opacity(0.8))
             .padding(.trailing, 8)
+            
+            // 6. Delete Icon [휴] - [SPEC] 30pt Icon, 42pt Button
+            Button(action: onDeleteClick) {
+                Image(systemName: "trash.fill")
+                    .resizable()
+                    .frame(width: 30, height: 30)
+                    .foregroundColor(.allToDoRed)
+            }
+            .frame(width: 42, height: 42)
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(backgroundColor)
         .cornerRadius(8)
+    }
+    
+    var dateString: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "M/d"
+        let date = item.date_time ?? Date(timeIntervalSince1970: Double(item.created_at)/1000.0)
+        return formatter.string(from: date)
     }
     
     var timeString: String {
