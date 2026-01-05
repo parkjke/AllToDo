@@ -92,7 +92,6 @@ struct CalendarDialog: View {
                     }
                 }
         )
-        }
         .onAppear {
             selectedDate = viewModel.selectedDate
             currentMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: selectedDate)) ?? Date()
