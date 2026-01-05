@@ -151,7 +151,7 @@ struct ContentView: View {
             serverTodoCount: 0,
             compassRotation: viewModel.compassRotation,
             onCompassClick: { viewModel.mapAction = .rotateNorth },
-            onExpandClick: { withAnimation { viewModel.showListView = true } }
+            onExpandClick: { withAnimation { viewModel.showCalendar = true } }
         )
     }
     
