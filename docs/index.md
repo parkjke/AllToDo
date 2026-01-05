@@ -35,6 +35,8 @@
     *   WASM 하이브리드 아키텍처, 좌표 정수화 전략, RDP 경로 압축.
 *   [**데이터베이스 구조 명세서 (DB Schema)**](logic/database_schema.md)
     *   DB 테이블 상세 구조 및 [**개체 관계도 (ERD)**](logic/erd.md).
+*   [**할 일 목록 및 캘린더 (Todo List & Calendar)**](logic/db_list_calendar.md)
+    *   ViewModel 연동, 날짜 필터링 및 화면 복원 로직 명세.
 
 ### ✨ 기능 및 사용자 경험 (Features & UX)
 *   [**할 일 만들기 디자인 및 로직 (Create Todo)**](logic/create_todo.md)
