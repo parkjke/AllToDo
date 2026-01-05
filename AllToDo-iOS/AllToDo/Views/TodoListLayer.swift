@@ -116,10 +116,8 @@ struct TodoListLayer: View {
                         }
                     }
                     .padding(.horizontal, 4)
-                    .padding(.bottom, 80)
                 }
             }
-        }
     }
 }
 
