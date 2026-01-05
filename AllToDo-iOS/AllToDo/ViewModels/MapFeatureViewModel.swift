@@ -23,6 +23,7 @@ class MapFeatureViewModel: ObservableObject {
     @Published var showHistoryMode: Bool = false
     @Published var showCalendar: Bool = false
     @Published var selectedDate: Date = Date()
+    @Published var shouldRestoreCalendar: Bool = false // [NEW] Restoration flag
     
     // MARK: - Dynamic Clustering & Filtering
     @Published var clusterRadius: Double? = 100.0

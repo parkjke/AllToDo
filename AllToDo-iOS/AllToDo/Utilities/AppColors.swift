@@ -108,6 +108,37 @@ extension Color {
             isDark ? .allToDoLightGreen : .allToDoDarkGreen
         }
     }
+    
+    // MARK: - 캘린더 시맨틱 컬러 (Calendar)
+    struct Calendar {
+        static func background(isDark: Bool) -> Color {
+            isDark ? Color.black.opacity(0.9) : Color.white.opacity(0.9)
+        }
+        
+        static func primaryText(isDark: Bool) -> Color {
+            isDark ? .white : .black
+        }
+        
+        static func secondaryText(isDark: Bool) -> Color {
+            isDark ? .gray6 : .gray7
+        }
+        
+        static let pinBlue = Color.allToDoBlue
+        static let pinGreen = Color.allToDoGreen
+        static let pinRed = Color.allToDoRed
+        
+        static func dayCellBackground(isDark: Bool) -> Color {
+            isDark ? Color.white.opacity(0.05) : Color.black.opacity(0.02)
+        }
+        
+        static func todayBorder(isDark: Bool) -> Color {
+            .allToDoGreen
+        }
+        
+        static func selectedBackground(isDark: Bool) -> Color {
+            .allToDoGreen.opacity(0.2)
+        }
+    }
 }
 
 // MARK: - UIKit 호환성 확장

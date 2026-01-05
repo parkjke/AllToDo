@@ -28,10 +28,17 @@ struct ContentView: View {
             uiLayer
             clusterOverlay
             todoDetailOverlay
-            allItemsOverlay
+            // allItemsOverlay removed (Integrated into Calendar)
             sideMenuLayer
             createTodoLayer
             searchLayer
+            
+            // New Calendar Overlay (integrated with Restoration Logic)
+            if viewModel.showCalendar {
+                CalendarDialog(viewModel: viewModel)
+                    .zIndex(600)
+                    .transition(.opacity)
+            }
             
             // Ripple Effect (Centered for Search Result)
             if viewModel.showRipple {
@@ -41,57 +48,23 @@ struct ContentView: View {
             }
         }
         .sheet(item: $viewModel.viewingHistoryItem) { item in
-            PathHistoryView(item: item, onClose: { viewModel.viewingHistoryItem = nil })
+            PathHistoryView(item: item, onClose: { 
+                viewModel.viewingHistoryItem = nil 
+                // [NEW] Restoration Logic
+                if viewModel.shouldRestoreCalendar {
+                    withAnimation { viewModel.showCalendar = true }
+                    viewModel.shouldRestoreCalendar = false
+                }
+            })
                 .preferredColorScheme((mapProvider == .apple || mapProvider == .google) ? nil : .light)
                 .presentationDetents([.large]) // [FIX] Force full size to minimize gesture ambiguity
                 .presentationDragIndicator(.hidden) // [FIX] Hide indicator
                 .interactiveDismissDisabled() // [FIX] Essential: Block sheet dismissal gesture
         }
 
-        .sheet(isPresented: $viewModel.showCalendar) {
-             VStack {
-                 Text("Time Travel")
-                     .font(.headline)
-                     .padding(.top)
-                 
-                 DatePicker("Select Date", selection: $viewModel.selectedDate, displayedComponents: [.date, .hourAndMinute])
-                     .datePickerStyle(.graphical)
-                     .padding()
-                 
-                 HStack {
-                     Button(action: {
-                         viewModel.showCalendar = false
-                         viewModel.showHistoryMode = false
-                         viewModel.selectedDate = Date()
-                         viewModel.mapAction = .zoomToFit
-                         DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                             viewModel.mapAction = .currentLocation
-                         }
-                     }) {
-                         HStack {
-                             Image(systemName: "arrow.counterclockwise")
-                             Text("Comeback to Now")
-                         }
-                         .foregroundColor(.white)
-                         .padding()
-                         .background(Color.red)
-                         .cornerRadius(8)
-                     }
-                     
-                     Spacer()
-                     
-                     Button("Go") {
-                         viewModel.showCalendar = false
-                         viewModel.mapAction = .zoomToFit
-                     }
-                     .padding()
-                 }
-                 .padding()
-             }
-             .presentationDetents([.medium, .large])
-             .preferredColorScheme((mapProvider == .apple || mapProvider == .google) ? nil : .light)
-
         }
+        // Legacy DatePicker Sheet Removed
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("MapRotationChanged"))) { notification in
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("MapRotationChanged"))) { notification in
             if let rotation = notification.userInfo?["rotation"] as? Double {
                 viewModel.compassRotation = rotation
@@ -319,8 +292,21 @@ struct ContentView: View {
                             item.memo = memo
                             try? modelContext.save()
                             viewModel.selectedItem = nil
+                            
+                            // [NEW] Restoration Logic
+                            if viewModel.shouldRestoreCalendar {
+                                withAnimation { viewModel.showCalendar = true }
+                                viewModel.shouldRestoreCalendar = false
+                            }
                         },
-                        onCancel: { viewModel.selectedItem = nil }
+                        onCancel: { 
+                            viewModel.selectedItem = nil
+                            // [NEW] Restoration Logic
+                            if viewModel.shouldRestoreCalendar {
+                                withAnimation { viewModel.showCalendar = true }
+                                viewModel.shouldRestoreCalendar = false
+                            }
+                        }
                     )
                 }
                 .preferredColorScheme((mapProvider == .apple || mapProvider == .google) ? nil : .light)
@@ -445,65 +431,7 @@ extension ContentView {
         }
     }
 
-    var allItemsOverlay: some View {
-        Group {
-            if viewModel.showListView {
-                ZStack(alignment: .bottom) {
-                    Color.black.opacity(0.3)
-                        .ignoresSafeArea()
-                        .onTapGesture { withAnimation { viewModel.showListView = false } }
-                    
-                    VStack(spacing: 0) {
-                        HStack {
-                            Text("모든 항목 (\(viewModel.cachedMapItems.count))")
-                                .font(.headline)
-                            Spacer()
-                            Button(action: { withAnimation { viewModel.showListView = false } }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.gray)
-                                    .font(.title2)
-                             }
-                        }
-                        .padding()
-                        .background(Color(.systemGroupedBackground))
-                        
-                        let allItemsList = sortedAllItems
-                        
-                        if allItemsList.isEmpty {
-                            Text("표시할 항목이 없습니다.")
-                                .foregroundColor(.gray)
-                                .frame(height: 200)
-                                .frame(maxWidth: .infinity)
-                        } else {
-                            ClusterListCallout(
-                                items: allItemsList,
-                                isCluster: true,
-                                onClose: { withAnimation { viewModel.showListView = false } },
-                                onDeleteToDo: { deleteItem($0) },
-                                onDeleteLog: { deleteItem($0) },
-                                onSelectLog: { log in
-                                    withAnimation { viewModel.showListView = false }
-                                    viewModel.viewingHistoryItem = log
-                                },
-                                onSelectItem: { item in
-                                    withAnimation { viewModel.showListView = false }
-                                    viewModel.selectedItem = item
-                                }
-                            )
-                            .frame(maxHeight: 400)
-                        }
-                    }
-                    .background(Color(.systemBackground))
-                    .cornerRadius(16)
-
-                    .preferredColorScheme((mapProvider == .apple || mapProvider == .google) ? nil : .light)
-                    .transition(.move(edge: .bottom))
-
-                }
-                .zIndex(500)
-            }
-        }
-    }
+    // allItemsOverlay removed. See CalendarDialog.swift for integrated list.
 
     // MARK: - Actions
     private func handleHistoryClick() {
