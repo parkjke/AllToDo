@@ -1,0 +1,80 @@
+<svg width="393" height="852" viewBox="0 0 393 852" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 1. Background (Dimmed Map) -->
+  <rect width="393" height="852" fill="black" fill-opacity="0.3"/>
+  
+  <!-- Stylized Map Background (Blurred/Dimmed) -->
+  <g opacity="0.4">
+    <rect width="393" height="852" fill="#E5E4E0"/>
+    <path d="M0 400 L 400 400" stroke="white" stroke-width="25"/>
+    <path d="M196 0 L 196 852" stroke="white" stroke-width="25"/>
+    <circle cx="196" cy="400" r="12" fill="white"/>
+    <circle cx="196" cy="400" r="10" fill="#007AFF"/>
+  </g>
+
+  <!-- 2. Bottom Sheet (MainTodoSheet) -->
+  <g transform="translate(0, 150)">
+    <!-- Sheet Background -->
+    <path d="M0 30 C 0 13.4 13.4 0 30 0 H 363 C 379.6 0 393 13.4 393 30 V 702 H 0 V 30 Z" fill="white"/>
+    
+    <!-- Drag Handle -->
+    <rect x="176" y="10" width="40" height="5" rx="2.5" fill="#E5E5EA"/>
+    
+    <!-- Title Area -->
+    <text x="20" y="55" fill="black" font-family="SF Pro Display, Helvetica" font-size="28" font-weight="bold">할 일 상세</text>
+    
+    <!-- Close Button (Top Right) -->
+    <circle cx="360" cy="48" r="15" fill="#F2F2F7"/>
+    <path d="M355 43 L 365 53 M 365 43 L 355 53" stroke="#8E8E93" stroke-width="2" stroke-linecap="round"/>
+
+    <!-- Form Sections -->
+    <g transform="translate(20, 100)">
+      <!-- Name Input -->
+      <text x="0" y="0" fill="#8E8E93" font-family="SF Pro Text" font-size="13" font-weight="600">내용</text>
+      <rect y="10" width="353" height="44" rx="10" fill="#F2F2F7"/>
+      <text x="12" y="38" fill="black" font-family="SF Pro Text" font-size="17">강남역 2번 출구에서 만나기</text>
+      
+      <!-- Location Info Box -->
+      <g transform="translate(0, 80)">
+        <text x="0" y="0" fill="#8E8E93" font-family="SF Pro Text" font-size="13" font-weight="600">장소 정보</text>
+        <rect y="10" width="353" height="100" rx="12" stroke="#E5E5EA" stroke-width="1"/>
+        
+        <!-- Pin Icon in Box -->
+        <g transform="translate(15, 25) scale(0.4)">
+           <path d="M50,115 C50,115 15,75 15,45 C15,25 30,10 50,10 C70,10 85,25 85,45 C85,75 50,115 50,115 Z" fill="#007AFF"/>
+           <circle cx="50" cy="45" r="15" fill="white"/>
+        </g>
+        
+        <text x="50" y="42" fill="black" font-family="SF Pro Text" font-size="17" font-weight="600">강남역 2호선</text>
+        <text x="50" y="65" fill="#8E8E93" font-family="SF Pro Text" font-size="14">서울 도심의 주요 환승역...</text>
+        <text x="50" y="90" fill="#007AFF" font-family="SF Pro Text" font-size="14">서울특별시 강남구 강남대로 396</text>
+      </g>
+      
+      <!-- Date/Time Picker Placeholder -->
+      <g transform="translate(0, 210)">
+        <text x="0" y="0" fill="#8E8E93" font-family="SF Pro Text" font-size="13" font-weight="600">알림 설정</text>
+        <rect y="10" width="353" height="44" rx="10" fill="#F2F2F7"/>
+        <text x="12" y="38" fill="black" font-family="SF Pro Text" font-size="17">내일 오전 10:00</text>
+        <!-- Toggle Switch -->
+        <rect x="290" y="16" width="51" height="31" rx="15.5" fill="#34C759"/>
+        <circle cx="325" cy="31.5" r="13.5" fill="white" filter="drop-shadow(0 3px 1px rgba(0,0,0,0.1))"/>
+      </g>
+    </g>
+
+    <!-- Bottom Action Buttons -->
+    <g transform="translate(20, 600)">
+      <!-- Cancel Button -->
+      <rect width="170" height="50" rx="14" fill="#F2F2F7"/>
+      <text x="85" y="31" text-anchor="middle" fill="#FF3B30" font-family="SF Pro Text" font-size="17" font-weight="600">취소</text>
+      
+      <!-- Register/Save Button -->
+      <rect x="183" width="170" height="50" rx="14" fill="#007AFF"/>
+      <text x="268" y="31" text-anchor="middle" fill="white" font-family="SF Pro Text" font-size="17" font-weight="600">저장하기</text>
+    </g>
+  </g>
+
+  <!-- 3. Top Status Bar -->
+  <text x="45" y="45" fill="white" font-family="SF Pro Text" font-size="16" font-weight="600">9:41</text>
+
+  <!-- 4. Home Indicator -->
+  <rect x="126" y="838" width="140" height="5" rx="2.5" fill="black"/>
+</svg>

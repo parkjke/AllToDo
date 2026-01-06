@@ -33,6 +33,8 @@
 	<string>We need your location to track your daily path even when the app is in the background.</string>
 	<key>NSMotionUsageDescription</key>
 	<string>We use motion detection to save battery by pausing location tracking when you are stationary.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>알릴 사람을 검색하고 등록하기 위해 연락처 접근 권한이 필요합니다.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>

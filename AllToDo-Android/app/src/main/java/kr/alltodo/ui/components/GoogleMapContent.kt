@@ -214,26 +214,30 @@ fun GoogleMapContent(
 
         }
         
-        // [NEW] Camera Idle Detection & Reporting
+        // [NEW] Camera Idle Detection & Reporting (Standardized metersPerPixel sampling)
         LaunchedEffect(cameraPositionState.isMoving) {
             if (!cameraPositionState.isMoving) {
-                // Map stopped moving -> Idle
-                val map = googleMapInstance
-                if (map != null) {
-                    val bounds = map.projection.visibleRegion.latLngBounds
-                    val centerLat = bounds.center.latitude
-                    
-                    val results = FloatArray(1)
-                    android.location.Location.distanceBetween(
-                        centerLat, bounds.southwest.longitude,
-                        centerLat, bounds.northeast.longitude,
-                        results
-                    )
-                    val widthMeters = results[0].toDouble()
-                    
-                    // Trigger Logic
-                    onCameraIdle(widthMeters, cameraPositionState.position.zoom, centerLat)
-                }
+                val map = googleMapInstance ?: return@LaunchedEffect
+                val proj = map.projection ?: return@LaunchedEffect
+                
+                // Sample left and right center points using Projection
+                // Google Maps Compose doesn't expose view size directly in projection often, 
+                // but we have BoxWithConstraints providing viewWidthPx/viewHeightPx.
+                
+                val leftCoord = proj.fromScreenLocation(android.graphics.Point(0, viewHeightPx / 2))
+                val rightCoord = proj.fromScreenLocation(android.graphics.Point(viewWidthPx, viewHeightPx / 2))
+                
+                val results = FloatArray(1)
+                android.location.Location.distanceBetween(
+                    leftCoord.latitude, leftCoord.longitude,
+                    rightCoord.latitude, rightCoord.longitude,
+                    results
+                )
+                val distanceMeters = results[0].toDouble()
+                val mpp = distanceMeters / viewWidthPx.toDouble()
+                
+                // Trigger Logic
+                onCameraIdle(distanceMeters, cameraPositionState.position.zoom, cameraPositionState.position.target.latitude)
             }
         }
         

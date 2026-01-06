@@ -145,7 +145,83 @@ final class PathItem {
 
 
 
-// MARK: - 3. AddressBookItem Table
+// MARK: - 3. Contact Table (Normalized)
+@Model
+final class Contact {
+    @Attribute(.unique) var id: UUID
+    var name: String
+    var name_consonants: String
+    var primary_phone: String
+    var primary_email: String
+    
+    init(id: UUID = UUID(), name: String, name_consonants: String = "", primary_phone: String = "", primary_email: String = "") {
+        self.id = id
+        self.name = name
+        self.name_consonants = name_consonants
+        self.primary_phone = primary_phone
+        self.primary_email = primary_email
+    }
+}
+
+// MARK: - 4. ContactPhone Table
+@Model
+final class ContactPhone {
+    @Attribute(.unique) var id: UUID
+    var contact_id: UUID
+    var type: String // mobile, home, fax
+    var number: String
+    var is_primary: Bool
+    
+    init(id: UUID = UUID(), contact_id: UUID, type: String = "mobile", number: String, is_primary: Bool = false) {
+        self.id = id
+        self.contact_id = contact_id
+        self.type = type
+        self.number = number
+        self.is_primary = is_primary
+    }
+}
+
+// MARK: - 5. ContactAddress Table
+@Model
+final class ContactAddress {
+    @Attribute(.unique) var id: UUID
+    var contact_id: UUID
+    var type: String // home, work, etc
+    var address_text: String
+    var lat_int: Int
+    var lng_int: Int
+    
+    init(id: UUID = UUID(), contact_id: UUID, type: String = "home", address_text: String = "", lat_int: Int = 0, lng_int: Int = 0) {
+        self.id = id
+        self.contact_id = contact_id
+        self.type = type
+        self.address_text = address_text
+        self.lat_int = lat_int
+        self.lng_int = lng_int
+    }
+}
+
+// MARK: - 6. TodoContact Table (Bridge)
+@Model
+final class TodoContact {
+    @Attribute(.unique) var id: UUID
+    var todo_id: UUID
+    var contact_id: UUID
+    var role: String // owner, participant, watcher
+    var status: String // accepted, pending
+    var created_at: Int64
+    
+    init(id: UUID = UUID(), todo_id: UUID, contact_id: UUID, role: String = "participant", status: String = "pending") {
+        self.id = id
+        self.todo_id = todo_id
+        self.contact_id = contact_id
+        self.role = role
+        self.status = status
+        self.created_at = Int64(Date().timeIntervalSince1970 * 1000)
+    }
+}
+
+// MARK: - Deprecated Models (To be removed after migration)
 @Model
 final class AddressBookItem {
     @Attribute(.unique) var address_id: UUID
@@ -153,44 +229,22 @@ final class AddressBookItem {
     var first_name: String
     var name: String
     var name_consonants: String
-    
     var phone_name1: String?
     var phone_name2: String?
     var phone_name3: String?
     var phone_name4: String?
     var phone_name5: String?
-    
     var home_address: String
     var int_long_home: Int
     var int_lat_home: Int
-    
     var company_address: String
     var company_int_long: Int
     var company_int_lat: Int
-    
-    init(
-        name: String,
-        lastName: String = "",
-        firstName: String = "",
-        consonants: String = "",
-        homeAddress: String = "",
-        companyAddress: String = ""
-    ) {
-        self.address_id = UUID()
-        self.name = name
-        self.last_name = lastName
-        self.first_name = firstName
-        self.name_consonants = consonants
-        self.home_address = homeAddress
-        self.int_long_home = 0
-        self.int_lat_home = 0
-        self.company_address = companyAddress
-        self.company_int_long = 0
-        self.company_int_lat = 0
+    init(name: String, lastName: String = "", firstName: String = "", consonants: String = "", homeAddress: String = "", companyAddress: String = "") {
+        self.address_id = UUID(); self.name = name; self.last_name = lastName; self.first_name = firstName; self.name_consonants = consonants; self.home_address = homeAddress; self.int_long_home = 0; self.int_lat_home = 0; self.company_address = companyAddress; self.company_int_long = 0; self.company_int_lat = 0
     }
 }
 
-// MARK: - 4. ContactItem Table
 @Model
 final class ContactItem {
     var todo_id: UUID
@@ -199,11 +253,7 @@ final class ContactItem {
     var p_name: String
     var int_long: Int?
     var int_lat: Int?
-    
     init(todo_id: UUID, address_id: UUID? = nil, name: String, phoneNumber: String) {
-        self.todo_id = todo_id
-        self.address_id = address_id
-        self.name = name
-        self.p_name = phoneNumber
+        self.todo_id = todo_id; self.address_id = address_id; self.name = name; self.p_name = phoneNumber
     }
 }

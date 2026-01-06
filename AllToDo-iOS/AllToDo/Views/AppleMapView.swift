@@ -448,11 +448,18 @@ struct AppleMapView: UIViewRepresentable {
             }
             
             // 2. WASM Clustering
-            let region = mapView.region
-            let cosLat = cos(region.center.latitude * .pi / 180.0)
-            let widthMeters = region.span.longitudeDelta * 111320.0 * cosLat
-            let metersPerPixel = widthMeters / widthPixels
-            let wasmCellSize = metersPerPixel * 100.0 
+            // 2. WASM Clustering
+            // [NEW] Standardized metersPerPixel calculation (Pixel Sampling)
+            let midY = mapView.bounds.height / 2
+            let leftCoord = mapView.convert(CGPoint(x: 0, y: midY), toCoordinateFrom: mapView)
+            let rightCoord = mapView.convert(CGPoint(x: mapView.bounds.width, y: midY), toCoordinateFrom: mapView)
+            
+            let leftLoc = CLLocation(latitude: leftCoord.latitude, longitude: leftCoord.longitude)
+            let rightLoc = CLLocation(latitude: rightCoord.latitude, longitude: rightCoord.longitude)
+            let distance = leftLoc.distance(from: rightLoc)
+            
+            let metersPerPixel = distance / Double(mapView.bounds.width)
+            let wasmCellSize = metersPerPixel * 30.0 
             
             // [FIX] Invalid Region Guard
             guard region.span.latitudeDelta < 150 && region.span.latitudeDelta > 0 else {
@@ -462,12 +469,13 @@ struct AppleMapView: UIViewRepresentable {
             // [NEW] NaN Guard for Region
             if region.center.latitude.isNaN || region.center.longitude.isNaN { return }
             
-            // [NEW] 1.5x Threshold Check
+            // [NEW] 1.5x Threshold Check (Restored to requested Integer-style logic)
             let currentWm = metersPerPixel * mapView.bounds.width
-            if !force && !isLaunchPhase && lastClusteredWm > 0 && isWasmCluster { // Only check if clustering enabled
-                let ratio = currentWm / lastClusteredWm
-                 // If change is within 0.66 ~ 1.5, SKIP clustering
-                 if ratio > 0.6666 && ratio < 1.5 {
+            if !force && !isLaunchPhase && lastClusteredWm > 0 && isWasmCluster { 
+                 let zoomInTriggered  = 3.0 * currentWm <= 2.0 * lastClusteredWm
+                 let zoomOutTriggered = 2.0 * currentWm >= 3.0 * lastClusteredWm
+                 
+                 if !zoomInTriggered && !zoomOutTriggered {
                       return
                  }
             }

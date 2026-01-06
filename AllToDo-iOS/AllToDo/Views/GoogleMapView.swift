@@ -105,10 +105,20 @@ struct GoogleMapView: UIViewRepresentable {
         
         // 2. Refresh WASM Clusters (if needed) - Logic inside
         let currentSummary = "\(allItems.count)-\(allItems.first?.id.uuidString ?? "")"
-        if context.coordinator.lastDataSummary != currentSummary {
+        let userLoc = parent.locationManager.currentLocation
+        let lastLoc = context.coordinator.lastIntLocation
+        let moved = SmartLocationManager.shared.shouldUpdate(lastLoc: lastLoc, newLoc: userLoc ?? CLLocation(), currentSpan: 0.005)
+        
+        if context.coordinator.lastDataSummary != currentSummary || moved {
             context.coordinator.lastDataSummary = currentSummary
             context.coordinator.creatingTodoLocationBinding = $creatingTodoLocation // [NEW]
-            context.coordinator.refreshWasmClusters(mapView: uiView)
+            
+            if moved {
+                context.coordinator.lastIntLocation = SmartLocationManager.shared.toIntLocation(userLoc ?? CLLocation())
+                context.coordinator.refreshWasmClusters(mapView: uiView, force: true)
+            } else {
+                context.coordinator.refreshWasmClusters(mapView: uiView, force: false)
+            }
         }
         
         // [NEW] Check Tethering (Conditional)
@@ -138,6 +148,7 @@ struct GoogleMapView: UIViewRepresentable {
         var parent: GoogleMapView
         var firstRender = true
         var isLaunchAnimating = false
+        var lastIntLocation: IntLocation?
         var creatingTodoLocationBinding: Binding<CLLocationCoordinate2D?>? // [NEW]
         
         var pathOverlay: GMSPolyline?
@@ -391,7 +402,7 @@ struct GoogleMapView: UIViewRepresentable {
         var lastClusteredWm: Double = -1.0 // [NEW] 1.5x Threshold Tracking
 
         // MARK: - WASM Clustering
-        func refreshWasmClusters(mapView: GMSMapView) {
+        func refreshWasmClusters(mapView: GMSMapView, force: Bool = false) {
             // Avoid calc if not ready
             if firstRender && isLaunchAnimating { return } 
             
@@ -428,18 +439,25 @@ struct GoogleMapView: UIViewRepresentable {
                 return
             }
             
-            let center = mapView.camera.target
-            let zoom = mapView.camera.zoom
-            // Meters per pixel ~ 156543.03392 * cos(lat) / 2^zoom
-            let metersPerPixel = 156543.03392 * cos(center.latitude * .pi / 180.0) / pow(2, Double(zoom))
-            let wasmCellSize = metersPerPixel * 30.0 // [MODIFIED] Reduced to 30.0
+            // [NEW] Standardized metersPerPixel calculation (Pixel Sampling)
+            let midY = mapView.bounds.height / 2
+            let leftCoord = mapView.projection.coordinate(for: CGPoint(x: 0, y: midY))
+            let rightCoord = mapView.projection.coordinate(for: CGPoint(x: widthPixels, y: midY))
             
-            // [NEW] 1.5x Threshold Check
+            let leftLoc = CLLocation(latitude: leftCoord.latitude, longitude: leftCoord.longitude)
+            let rightLoc = CLLocation(latitude: rightCoord.latitude, longitude: rightCoord.longitude)
+            let distance = leftLoc.distance(from: rightLoc)
+            
+            let metersPerPixel = distance / Double(widthPixels)
+            let wasmCellSize = metersPerPixel * 30.0 
+            
+            // [NEW] 1.5x Threshold Check (Restored to requested Integer-style logic)
             let currentWm = metersPerPixel * widthPixels
-            if !isLaunchPhase && lastClusteredWm > 0 {
-                let ratio = currentWm / lastClusteredWm
-                // If change is within 0.66 ~ 1.5, SKIP clustering
-                if ratio > 0.6666 && ratio < 1.5 {
+            if !force && !isLaunchPhase && lastClusteredWm > 0 { 
+                let zoomInTriggered  = 3.0 * currentWm <= 2.0 * lastClusteredWm
+                let zoomOutTriggered = 2.0 * currentWm >= 3.0 * lastClusteredWm
+                
+                if !zoomInTriggered && !zoomOutTriggered {
                     return
                 }
             }

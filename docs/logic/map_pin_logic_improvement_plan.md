@@ -46,7 +46,7 @@ DB의 `type` 필드(2자리 문자열)가 핀의 정체성(Master Key)을 결정
 *   **십의 자리 (1x)**: **배경색 (Background)** 결정.
     *   `0` -> Red, `1` -> Green, `2` -> Blue
 *   **일의 자리 (x1)**: **마크 아이콘 (Icon)** 결정.
-    *   `0`: Plan (기본), `1`: Missed/No-Path, `2`: Done/Exist-Path 등.
+    *   `0`: Plan (기본), `1`: Missed/No-Path, `2`: Done/Exist-Path, `3`: Bookmark (Blue Star).
 
 ### 3.2. DB 스키마 연동 (Schema Integration)
 *   **Todo Table**: `int_long`, `int_lat` (Integer, x100,000) 필드를 통해 위치 정보 확보.

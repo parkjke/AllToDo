@@ -35,6 +35,9 @@ struct AllToDoApp: App {
                 .onChange(of: scenePhase) { _, newPhase in
                     if newPhase == .active {
                         logUsage()
+                        Task { @MainActor in
+                            await ContactSyncManager.shared.syncContacts(context: AllToDoApp.sharedModelContainer.mainContext)
+                        }
                     }
                 }
         }
@@ -65,6 +68,10 @@ struct AllToDoApp: App {
         let schema = Schema([
             ToDoItem.self,
             PathItem.self,
+            Contact.self,
+            ContactPhone.self,
+            ContactAddress.self,
+            TodoContact.self,
             AddressBookItem.self,
             ContactItem.self
         ])

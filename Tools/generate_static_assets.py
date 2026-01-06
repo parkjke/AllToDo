@@ -9,7 +9,7 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "Pins")
 
 # List of marks to process
 MARKS = [
-    "00", "01", "02",
+    "00", "01", "02", "03",
     "10", "11", "12", "13", "14",
     "20", "21", "22", "23", "24",
     "25"

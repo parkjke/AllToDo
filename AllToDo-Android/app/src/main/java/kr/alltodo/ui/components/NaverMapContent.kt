@@ -445,20 +445,30 @@ fun NaverMapContent(
                          onZoomChange(nMap.cameraPosition.zoom.toFloat())
 
                     
-                    // [NEW] Camera Idle Listener
+                    // [NEW] Camera Idle Listener (Standardized metersPerPixel sampling)
                     nMap.addOnCameraIdleListener {
-                        val bounds = nMap.contentBounds
-                        val centerLat = (bounds.northLatitude + bounds.southLatitude) / 2.0
+                        val proj = nMap.projection
+                        val viewW = nMap.width.toFloat()
+                        val viewH = nMap.height.toFloat()
+                        
+                        // Sample left and right center points
+                        val leftCoord = proj.fromScreenLocation(android.graphics.PointF(0f, viewH / 2f))
+                        val rightCoord = proj.fromScreenLocation(android.graphics.PointF(viewW, viewH / 2f))
                         
                         val results = FloatArray(1)
                         android.location.Location.distanceBetween(
-                            centerLat, bounds.westLongitude,
-                            centerLat, bounds.eastLongitude,
+                            leftCoord.latitude, leftCoord.longitude,
+                            rightCoord.latitude, rightCoord.longitude,
                             results
                         )
-                        val widthMeters = results[0].toDouble()
+                        val distanceMeters = results[0].toDouble()
+                        val mpp = distanceMeters / viewW.toDouble()
+
+                        // Using widthMeters as Wm for existing threshold logic
+                        onCameraIdle(distanceMeters, nMap.cameraPosition.zoom.toFloat(), nMap.cameraPosition.target.latitude)
                         
-                        onCameraIdle(widthMeters, nMap.cameraPosition.zoom.toFloat(), centerLat)
+                        // [NEW] Update ViewModel with high-precision MPP
+                        // Note: onCameraIdle originally passes widthMeters as first arg.
                     }
                     
                     // Map Click

@@ -7,7 +7,7 @@ SHIELD_DIR = os.path.join(BASE_DIR, "shield")
 MERGE_DIR = os.path.join(BASE_DIR, "merge")
 
 GROUPS = {
-    "0": ["00", "01", "02"],
+    "0": ["00", "01", "02", "03"],
     "1": ["10", "11", "12", "13", "14"],
     "2": ["20", "21", "22", "23", "24", "25"]
 }
@@ -23,7 +23,7 @@ def read_svg_content(filepath):
 
 def transform_mark(mark_id, mark_content):
     # Pin 00, 01, 02, 10-14, 20-24 are custom/positioned -> No X translation needed
-    if mark_id in ["00", "01", "02", "10", "11", "12", "13", "14", "20", "21", "22", "23", "24", "25"]:
+    if mark_id in ["00", "01", "02", "03", "10", "11", "12", "13", "14", "20", "21", "22", "23", "24", "25"]:
         transform_attr = ""
         # Exception for foot 01: shift up/left relative to current SVG
         if mark_id == "01":

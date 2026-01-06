@@ -1,0 +1,30 @@
+<svg width="200" height="250" viewBox="0 0 100 125" xmlns="http://www.w3.org/2000/svg">
+<defs>
+    <linearGradient id="mainGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF3B30;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#B00020;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadowBottom" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="3" stdDeviation="2" flood-color="#000000" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+  <path d="M10,15 Q50,5 90,15 Q100,40 95,65 Q75,80 50,120 Q25,80 5,65 Q0,40 10,15 Z" 
+        fill="url(#mainGradient)" filter="url(#shadowBottom)"/>
+  <!-- Mark 03 -->
+  <g id="mark_03">
+<!-- 03 Mark: Green Star with Gray 3 Border -->
+  <!-- Centered at Y=35 to match arrow theme verticality -->
+  <g transform="translate(50, 45) scale(0.9)">
+    <path d="M 0,-30 
+             L 9,-12 L 28,-9 
+             L 14,3 L 18,22 
+             L 0,13 
+             L -18,22 L -14,3 
+             L -28,-9 L -9,-12 Z" 
+          fill="#007AFF" 
+          stroke="white" 
+          stroke-width="3.34" 
+          stroke-linejoin="round" />
+  </g>
+  </g>
+</svg>

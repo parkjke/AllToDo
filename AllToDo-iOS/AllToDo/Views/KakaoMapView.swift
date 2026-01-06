@@ -64,9 +64,18 @@ struct KakaoMapView: UIViewRepresentable {
         
         // [STEP 5] Smart Pins & Tethering
         let currentSummary = "\(allItems.count)-\(allItems.first?.id.uuidString ?? "")"
-        if context.coordinator.lastDataSummary != currentSummary {
+        let userLoc = locationManager.currentLocation
+        let lastLoc = context.coordinator.lastIntLocation
+        let moved = SmartLocationManager.shared.shouldUpdate(lastLoc: lastLoc, newLoc: userLoc ?? CLLocation(), currentSpan: 0.005)
+        
+        if context.coordinator.lastDataSummary != currentSummary || moved {
             context.coordinator.lastDataSummary = currentSummary
-            context.coordinator.forceUpdatePins()
+            if moved {
+                context.coordinator.lastIntLocation = SmartLocationManager.shared.toIntLocation(userLoc ?? CLLocation())
+                context.coordinator.forceUpdatePins()
+            } else {
+                context.coordinator.refreshWasmClusters(force: false)
+            }
         }
         if let mapView = context.coordinator.controller?.getView("mapview") as? KakaoMap,
            let loc = locationManager.currentLocation {
@@ -98,6 +107,7 @@ struct KakaoMapView: UIViewRepresentable {
     class Coordinator: NSObject, MapControllerDelegate, KakaoMapEventDelegate {
         var parent: KakaoMapView
         var controller: KMController?
+        var lastIntLocation: IntLocation?
         
         // Data State
         var lastDataSummary: String = ""
@@ -300,17 +310,25 @@ struct KakaoMapView: UIViewRepresentable {
             guard let mapView = controller.getView("mapview") as? KakaoMap else { return }
             
             // 1. Calculate Radius & Metrics
-            let zoom = Double(mapView.zoomLevel)
-            let centerLat = mapView.getPosition(CGPoint(x: mapView.viewRect.width/2, y: mapView.viewRect.height/2)).wgsCoord.latitude
-            let metersPerPixel = 156543.03392 * cos(centerLat * .pi / 180.0) / pow(2, zoom)
-            let wasmCellSize = metersPerPixel * 30.0 // [MODIFIED] Reduced to 30.0
+            // [NEW] Standardized metersPerPixel calculation (Pixel Sampling)
+            let midY = mapView.viewRect.height / 2
+            let leftCoord = mapView.getPosition(CGPoint(x: 0, y: midY)).wgsCoord
+            let rightCoord = mapView.getPosition(CGPoint(x: mapView.viewRect.width, y: midY)).wgsCoord
             
-            // [NEW] 1.5x Threshold Check
+            let leftLoc = CLLocation(latitude: leftCoord.latitude, longitude: leftCoord.longitude)
+            let rightLoc = CLLocation(latitude: rightCoord.latitude, longitude: rightCoord.longitude)
+            let distance = leftLoc.distance(from: rightLoc)
+            
+            let metersPerPixel = distance / Double(mapView.viewRect.width)
+            let wasmCellSize = metersPerPixel * 30.0 
+            
+            // [NEW] 1.5x Threshold Check (Restored to requested Integer-style logic)
             let currentWm = metersPerPixel * mapView.viewRect.width
-            if !force && !isInitialPhase && lastClusteredWm > 0 {
-                let ratio = currentWm / lastClusteredWm
-                // If change is within 0.66 ~ 1.5, SKIP clustering
-                if ratio > 0.6666 && ratio < 1.5 {
+            if !force && !isInitialPhase && lastClusteredWm > 0 { 
+                let zoomInTriggered  = 3.0 * currentWm <= 2.0 * lastClusteredWm
+                let zoomOutTriggered = 2.0 * currentWm >= 3.0 * lastClusteredWm
+                
+                if !zoomInTriggered && !zoomOutTriggered {
                     return
                 }
             }

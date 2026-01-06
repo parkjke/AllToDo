@@ -29,6 +29,8 @@
     *   인터랙티브 프리미엄 오버레이 및 중앙 정렬 로직.
 *   [**지도 검색 기능 (Map Search)**](logic/Map_Search.md)
     *   검색 버튼 위치, 거리 단위 변환, 테마 정책 및 POI 로직.
+*   [**인터랙션 플로우 상태 다이어그램 (Interaction Flows)**](logic/interaction_flows.md)
+    *   핀 터치, 롱터치 및 화면 전이(물풍선, 상세창)의 핵심 상태 전이 규격.
 
 ### ⚙️ 시스템 아키텍처 (System Architecture)
 *   [**핵심 기술 및 IP (CORE_TECHNOLOGY_IP)**](logic/CORE_TECHNOLOGY_IP.md)
@@ -47,6 +49,8 @@
 ## 🎨 디자인 및 리소스 (Design & Resources)
 *   [**맵 핀 디자인 명세서 (MAP_PIN_DESIGN)**](logic/MAP_PIN_DESIGN.md)
     *   **[최신]** V7 캐시, 뱃지 3pt 하향 조정, 엔진별 뱃지 크기 동기화.
+*   [**맵 핀 번호 통합 명세서 (PIN_INDEX)**](logic/PIN_INDEX.md)
+    -   00~25번까지 모든 핀 ID의 의미와 마크 디자인 정의.
 *   [**지도 핀 로직 개선 계획 (MAP_PIN_LOGIC_IMPROVEMENT)**](logic/map_pin_logic_improvement_plan.md)
     *   Snake Case 기반 통합 에셋 키 및 타입 치환 테이블.
 *   [**기능 적용 현황표 (Feature Status)**](logic/FeatureStatus.md)

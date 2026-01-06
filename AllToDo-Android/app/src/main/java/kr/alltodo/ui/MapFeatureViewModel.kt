@@ -121,6 +121,15 @@ class MapFeatureViewModel @Inject constructor(
     val currentProvider: StateFlow<MapProvider> = _currentProvider.asStateFlow()
 
     private val _isClusteringEnabled = MutableStateFlow(false)
+
+    // [NEW] Standardized metersPerPixel injected from UI layer (Projection sampling)
+    private val _metersPerPixel = MutableStateFlow(0.0)
+    val metersPerPixel: StateFlow<Double> = _metersPerPixel.asStateFlow()
+
+    fun updateMetersPerPixel(value: Double) {
+        _metersPerPixel.value = value
+    }
+
     private var currentLatitude = 37.5759 // Default Seoul
 
     fun updateZoom(zoom: Float, lat: Double? = null, provider: MapProvider? = null) {
@@ -161,47 +170,32 @@ class MapFeatureViewModel @Inject constructor(
         val wm1 = screenWidthMeters
         val wm0 = lastClusteredScreenWidthMeters
         
-        // Update State
-        var changed = false
-        if (Math.abs(_currentZoom.value - zoom) > 0.01f) {
-            _currentZoom.value = zoom
-             changed = true
-        }
-        if (currentLatitude != lat) {
-            currentLatitude = lat
-             changed = true
-        }
-        if (_currentProvider.value != provider) {
-            _currentProvider.value = provider
-             changed = true
-        }
-
         // 1. Initial Launch Guard (Raw Phase)
         if (isInitialLaunch) return
 
         // 2. Threshold Check (1.5x Rule)
-        // Zoom In: wm1 <= (2/3) * wm0
-        // Zoom Out: wm1 >= (3/2) * wm0
-        // Or if uninitialized (wm0 < 0)
         var shouldRecluster = false
         
         if (wm0 < 0) {
             shouldRecluster = true
         } else {
-            val ratio = wm1 / wm0
-            if (ratio <= 0.6666 || ratio >= 1.5) {
+            val zoomInTriggered  = 3.0 * wm1 <= 2.0 * wm0
+            val zoomOutTriggered = 2.0 * wm1 >= 3.0 * wm0
+            if (zoomInTriggered || zoomOutTriggered) {
                 shouldRecluster = true
             }
         }
         
-        // Also recluster if provider changed (different projection)
-        // or significant data change triggers call directly
-        
-        if (shouldRecluster) {
+        if (shouldRecluster || _currentProvider.value != provider) {
+            _currentProvider.value = provider
+            currentLatitude = lat
+            _currentZoom.value = zoom
             lastClusteredScreenWidthMeters = wm1
-            recalculateClusters()
-        } else if (changed) {
-            // Just update state, no cluster (Optimization)
+            
+            // Re-trigger clustering logic with latest MPP (MPP is updated by MainScreen call)
+            viewModelScope.launch {
+                performClusteringLogic()
+            }
         }
     }
     
@@ -345,14 +339,22 @@ class MapFeatureViewModel @Inject constructor(
     }
 
     private fun calculateCellSizeMeters(zoom: Float): Int {
-        val cosLat = Math.cos(Math.toRadians(currentLatitude))
+        val mpp = _metersPerPixel.value
         val sensitivity = 30.0
         val providerWeight = when(_currentProvider.value) {
             MapProvider.Google -> 1.0
             MapProvider.Naver, MapProvider.Kakao -> 0.85
             else -> 1.0
         }
-        val resolution = (156543.03392 * cosLat * sensitivity * providerWeight) / Math.pow(2.0, zoom.toDouble())
+        
+        val resolution = if (mpp > 0) {
+            mpp * sensitivity * providerWeight
+        } else {
+            // Fallback to legacy math if MPP not injected yet
+            val cosLat = Math.cos(Math.toRadians(currentLatitude))
+            (156543.03392 * cosLat * sensitivity * providerWeight) / Math.pow(2.0, zoom.toDouble())
+        }
+        
         return resolution.toInt().coerceAtLeast(2) 
     }
 

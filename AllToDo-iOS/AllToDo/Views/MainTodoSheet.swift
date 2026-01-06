@@ -34,13 +34,35 @@ struct MainTodoSheet: View {
                         Spacer()
                         CreateTodoLayer(
                             existingItem: item,
-                            onRegister: { name, person, dateStr, timeStr, memo in
+                            onRegister: { name, selectedContacts, dateStr, timeStr, memo in
                                 item.todo_name = name
                                 item.memo = memo
+                                item.is_exist_person = !selectedContacts.isEmpty
+                                
+                                // Update relationships (For simplicity in this sync phase, we'll replace them)
+                                let todoId = item.todo_id
+                                try? modelContext.delete(model: TodoContact.self, where: #Predicate { $0.todo_id == todoId })
+                                
+                                for contact in selectedContacts {
+                                    let bridge = TodoContact(todo_id: todoId, contact_id: contact.id)
+                                    modelContext.insert(bridge)
+                                }
+                                
                                 try? modelContext.save()
+                                
+                                if viewModel.todoEntrySource == .callout {
+                                    viewModel.showAllTodoSheet = false
+                                }
                                 viewModel.selectedItem = nil
+                                viewModel.todoEntrySource = .none
                             },
-                            onCancel: { viewModel.selectedItem = nil }
+                            onCancel: { 
+                                if viewModel.todoEntrySource == .callout {
+                                    viewModel.showAllTodoSheet = false
+                                }
+                                viewModel.selectedItem = nil
+                                viewModel.todoEntrySource = .none
+                            }
                         )
                         .transition(.move(edge: .bottom))
                     }
@@ -61,7 +83,7 @@ struct MainTodoSheet: View {
                             title: viewModel.initialTodoTitle,
                             defaultName: "새 할 일",
                             initialName: viewModel.initialTodoName,
-                            onRegister: { name, person, dateStr, timeStr, memo in
+                            onRegister: { name, selectedContacts, dateStr, timeStr, memo in
                                 if let loc = viewModel.creatingTodoLocation {
                                     let formatter = DateFormatter()
                                     formatter.dateFormat = "yyyy.MM.dd HH:mm"
@@ -79,19 +101,37 @@ struct MainTodoSheet: View {
                                     newItem.memo = memo
                                     
                                     modelContext.insert(newItem)
+                                    newItem.is_exist_person = !selectedContacts.isEmpty
+                                    
+                                    for contact in selectedContacts {
+                                        let bridge = TodoContact(todo_id: newItem.todo_id, contact_id: contact.id)
+                                        modelContext.insert(bridge)
+                                    }
+                                    
                                     try? modelContext.save()
                                     
                                     let generator = UINotificationFeedbackGenerator()
                                     generator.notificationOccurred(.success)
                                 }
+                                
+                                // [MODIFIED] State Diagram: Long-tap entry should return to IdleMap (close entire sheet)
+                                if viewModel.todoEntrySource == .longTap {
+                                    viewModel.showAllTodoSheet = false
+                                }
+                                
                                 viewModel.isCreatingTodo = false
                                 viewModel.creatingTodoLocation = nil
                                 viewModel.initialTodoName = ""
+                                viewModel.todoEntrySource = .none
                             },
                             onCancel: { 
+                                if viewModel.todoEntrySource == .longTap {
+                                    viewModel.showAllTodoSheet = false
+                                }
                                 viewModel.isCreatingTodo = false
                                 viewModel.creatingTodoLocation = nil
                                 viewModel.initialTodoName = ""
+                                viewModel.todoEntrySource = .none
                             }
                         )
                         .transition(.move(edge: .bottom))

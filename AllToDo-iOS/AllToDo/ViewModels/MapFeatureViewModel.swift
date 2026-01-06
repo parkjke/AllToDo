@@ -18,6 +18,15 @@ class MapFeatureViewModel: ObservableObject {
     @Published var viewingHistoryItem: ToDoItem?
     @Published var tapPosition: CGPoint?
     
+    // [NEW] Entry source for Todo Detail to handle correct dismissal flow per State Diagram
+    enum TodoEntrySource {
+        case none
+        case callout
+        case longTap
+        case list
+    }
+    @Published var todoEntrySource: TodoEntrySource = .none
+    
     // MARK: - UI Flags
     @Published var showListView: Bool = false
     @Published var showHistoryMode: Bool = false

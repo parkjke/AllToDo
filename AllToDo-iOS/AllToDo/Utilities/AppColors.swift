@@ -166,6 +166,45 @@ extension Color {
             isDark ? Color.white.opacity(0.1) : Color.black.opacity(0.1)
         }
     }
+
+    // MARK: - 연락처 검색 시맨틱 컬러 (Contact)
+    /// 연락처 검색 및 참여자 선택 UI에서 사용하는 전용 색상 규격입니다.
+    struct Contact {
+        /// 검색바 내부의 배경색
+        static func searchBarBackground(isDark: Bool) -> Color {
+            isDark ? Color.gray9 : Color.allToDoGreen.opacity(0.1)
+        }
+        
+        /// 검색바 외곽 테두리 색상
+        static func searchBarBorder(isDark: Bool) -> Color {
+            isDark ? Color.gray7 : Color.allToDoBlue
+        }
+        
+        /// 선택된 참여자 칩(Chip)의 배경색
+        static func chipBackground(isDark: Bool) -> Color {
+            isDark ? Color.gray5 : Color.allToDoBlue.opacity(0.15)
+        }
+        
+        /// 선택된 참여자 칩의 테두리 색상
+        static func chipBorder(isDark: Bool) -> Color {
+            isDark ? Color.gray7 : Color.allToDoBlue
+        }
+        
+        /// 검색 결과 리스트 전체 영역의 배경색
+        static func resultBackground(isDark: Bool) -> Color {
+            isDark ? Color.gray7 : Color.allToDoRed.opacity(0.05)
+        }
+        
+        /// 검색 결과 리스트 영역의 외곽 테두리 색상
+        static func resultBorder(isDark: Bool) -> Color {
+            isDark ? Color.gray5 : Color.allToDoRed.opacity(0.2)
+        }
+        
+        /// 개별 검색 결과 항목(이름 부분)의 강조 버블 배경색
+        static func resultBubble(isDark: Bool) -> Color {
+            isDark ? Color.gray3 : Color.allToDoRed.opacity(0.1)
+        }
+    }
 }
 
 // MARK: - UIKit 호환성 확장

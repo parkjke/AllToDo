@@ -118,9 +118,19 @@ struct NaverMapView: UIViewRepresentable {
         // 2. Trigger Clustering (Only if not in first render sequence)
         if !context.coordinator.firstRender {
             let currentSummary = "\(allItems.count)-\(allItems.first?.id.uuidString ?? "")"
-            if context.coordinator.lastDataSummary != currentSummary {
+            let userLoc = parent.locationManager.currentLocation
+            let lastLoc = context.coordinator.lastIntLocation
+            let moved = SmartLocationManager.shared.shouldUpdate(lastLoc: lastLoc, newLoc: userLoc ?? CLLocation(), currentSpan: uiView.mapView.contentSpan.longitudeDelta)
+
+            if context.coordinator.lastDataSummary != currentSummary || moved {
                 context.coordinator.lastDataSummary = currentSummary
-                context.coordinator.refreshWasmClusters(force: true)
+                
+                if moved {
+                    context.coordinator.lastIntLocation = SmartLocationManager.shared.toIntLocation(userLoc ?? CLLocation())
+                    context.coordinator.refreshWasmClusters(force: true)
+                } else {
+                    context.coordinator.refreshWasmClusters(force: false)
+                }
             }
             
             // [NEW] Check Tethering (Conditional)
@@ -150,6 +160,7 @@ struct NaverMapView: UIViewRepresentable {
         var parent: NaverMapView
         var mapView: NMFMapView?
         var firstRender = true
+        var lastIntLocation: IntLocation?
 
         var lastDataSummary: String = "" // For Smart Refresh
         var lastClusteredWm: Double = -1.0 // [NEW] 1.5x Threshold Tracking
@@ -351,21 +362,28 @@ struct NaverMapView: UIViewRepresentable {
                   return
              }
             
-            let zoom = map.zoomLevel
-            let centerLat = map.cameraPosition.target.lat
+            // [NEW] Standardized metersPerPixel calculation (Pixel Sampling)
+            let midY = map.frame.height / 2
+            let leftCoord = map.projection.latlng(from: CGPoint(x: 0, y: midY))
+            let rightCoord = map.projection.latlng(from: CGPoint(x: map.frame.width, y: midY))
             
-            let metersPerPixel = 156543.03392 * cos(centerLat * .pi / 180.0) / pow(2, zoom)
-            let wasmCellSize = metersPerPixel * 30.0 // [MODIFIED] Reduced to 30.0
+            let leftLoc = CLLocation(latitude: leftCoord.lat, longitude: leftCoord.lng)
+            let rightLoc = CLLocation(latitude: rightCoord.lat, longitude: rightCoord.lng)
+            let distance = leftLoc.distance(from: rightLoc)
             
-            // [NEW] 1.5x Threshold Check
+            let metersPerPixel = distance / Double(map.frame.width)
+            let wasmCellSize = metersPerPixel * 30.0 
+            
+            // [NEW] 1.5x Threshold Check (Restored to requested Integer-style logic)
             let isLaunchPhase = parent.action == .launchSequence || firstRender
             let currentWm = metersPerPixel * map.frame.width // Using logical width
             
-            if !force && !isLaunchPhase && lastClusteredWm > 0 {
-                let ratio = currentWm / lastClusteredWm
-                // If change is within 0.66 ~ 1.5, SKIP clustering
-                if ratio > 0.6666 && ratio < 1.5 {
-                     return
+            if !force && !isLaunchPhase && lastClusteredWm > 0 && isWasmCluster { 
+                let zoomInTriggered  = 3.0 * currentWm <= 2.0 * lastClusteredWm
+                let zoomOutTriggered = 2.0 * currentWm >= 3.0 * lastClusteredWm
+                
+                if !zoomInTriggered && !zoomOutTriggered {
+                    return
                 }
             }
             lastClusteredWm = currentWm

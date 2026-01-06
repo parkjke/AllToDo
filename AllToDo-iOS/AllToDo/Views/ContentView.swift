@@ -28,6 +28,7 @@ struct ContentView: View {
             uiLayer
             clusterOverlay
             searchLayer
+            sideMenuLayer
             
             // ripple effect
             
@@ -162,7 +163,12 @@ struct ContentView: View {
             onCompassClick: { viewModel.mapAction = .rotateNorth },
             onExpandClick: { withAnimation { viewModel.showListView = true } },
             showActivePath: locationManager.showActivePath,
-            onRecordClick: handleRecordClick
+            onRecordClick: handleRecordClick,
+            onListClick: {
+                viewModel.todoEntrySource = .list
+                viewModel.mainSheetTab = 0
+                viewModel.showAllTodoSheet = true
+            }
         )
     }
 
@@ -184,11 +190,13 @@ struct ContentView: View {
                                 onDeleteLog: { item in deleteItem(item) },
                                 onSelectLog: { item in
                                     viewModel.viewingHistoryItem = item
-                                    viewModel.selectedClusterItems = nil
+                                    // [MODIFIED] Do NOT nil selectedClusterItems to return to callout on close
                                 },
                                 onSelectItem: { item in
+                                    viewModel.todoEntrySource = .callout
                                     viewModel.selectedItem = item
-                                    viewModel.selectedClusterItems = nil
+                                    viewModel.showAllTodoSheet = true
+                                    // [MODIFIED] Do NOT nil selectedClusterItems to return to callout on close
                                 }
                             )
                         }
@@ -452,9 +460,11 @@ extension ContentView {
             creatingTodoLocation: $viewModel.creatingTodoLocation,
             targetLocation: $viewModel.targetLocation, // [NEW]
             onLongTap: { coord in
+                viewModel.todoEntrySource = .longTap
                 viewModel.creatingTodoLocation = coord
                 viewModel.initialTodoName = ""
                 viewModel.initialTodoTitle = "할 일 만들기"
+                viewModel.showAllTodoSheet = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     viewModel.isCreatingTodo = true
                 }
@@ -485,9 +495,11 @@ extension ContentView {
              creatingTodoLocation: $viewModel.creatingTodoLocation,
              targetLocation: $viewModel.targetLocation, // [NEW]
              onLongTap: { coord in
+                viewModel.todoEntrySource = .longTap
                 viewModel.creatingTodoLocation = coord
                 viewModel.initialTodoName = ""
                 viewModel.initialTodoTitle = "할 일 만들기"
+                viewModel.showAllTodoSheet = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     viewModel.isCreatingTodo = true
                 }
@@ -520,9 +532,11 @@ extension ContentView {
             creatingTodoLocation: $viewModel.creatingTodoLocation,
             targetLocation: $viewModel.targetLocation, // [NEW]
             onLongTap: { coord in
+                viewModel.todoEntrySource = .longTap
                 viewModel.creatingTodoLocation = coord
                 viewModel.initialTodoName = ""
                 viewModel.initialTodoTitle = "할 일 만들기"
+                viewModel.showAllTodoSheet = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     viewModel.isCreatingTodo = true
                 }
@@ -557,9 +571,11 @@ extension ContentView {
             targetLocation: $viewModel.targetLocation, // [NEW]
             hasItems: !viewModel.cachedMapItems.isEmpty,
             onLongTap: { coord in
+                viewModel.todoEntrySource = .longTap
                 viewModel.creatingTodoLocation = coord
                 viewModel.initialTodoName = ""
                 viewModel.initialTodoTitle = "할 일 만들기"
+                viewModel.showAllTodoSheet = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     viewModel.isCreatingTodo = true
                 }

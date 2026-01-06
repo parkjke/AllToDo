@@ -20,35 +20,48 @@ AllToDo 시스템의 데이터 영속성을 위한 테이블 구조와 관계를
 | `type` | String | 항목 형태 (00: 히스토리, 10: 할일, 20: 서버 지시) |
 | `created_at` | Long | 생성 시각 (타임스탬프) |
 
-## 2. 연락처 테이블 (Contact Table)
-할일과 연결된 연락처(대상자) 정보를 저장합니다. 주소록과 연동될 수 있습니다.
+## 2. 연락처 관련 테이블 (Contact Related Tables)
+할일과 연결되거나 주소록에서 가져온 인맥 정보를 관리합니다.
 
+### 2.1. 연락처 기본 테이블 (`contact`)
 | 필드명 | 타입 | 설명 |
 | :--- | :--- | :--- |
-| `todo_id` | UUID (FK) | 할일 테이블 참조 |
-| `address_id` | UUID (FK) | 주소록 테이블 참조 (Nullable) |
-| `name` | String | 연락처 이름 |
-| `p_name` | String | 연락처 전화번호 |
-| `int_long` | Integer | 경도 (x100,000 정수화, Nullable) |
-| `int_lat` | Integer | 위도 (x100,000 정수화, Nullable) |
-
-## 3. 주소록 테이블 (Address Book Table)
-모바일 기기의 주소록 데이터 및 상세 개인 정보를 저장합니다.
-
-| 필드명 | 타입 | 설명 |
-| :--- | :--- | :--- |
-| `address_id` | UUID (PK) | 고유 식별자 |
-| `last_name` | String | 이름 (성) |
-| `first_name` | String | 이름 (이름) |
-| `name` | String | 한국식 전체 성명 |
+| `id` | UUID (PK) | 고유 식별자 |
+| `name` | String | 이름 |
 | `name_consonants` | String | 이름의 자음 (검색용) |
-| `phone_name1..5` | String | 연락처 (최대 5개, Nullable) |
-| `home_address` | String | 집 주소 |
-| `int_long_home` | Integer | 집 위치 경도 (x100,000 정수화) |
-| `int_lat_home` | Integer | 집 위치 위도 (x100,000 정수화) |
-| `company_address` | String | 회사 주소 |
-| `company_int_long` | Integer | 회사 위치 경도 (x100,000 정수화) |
-| `company_int_lat` | Integer | 회사 위치 위도 (x100,000 정수화) |
+| `primary_phone` | String | 대표 전화번호 |
+| `primary_email` | String | 대표 이메일 |
+
+### 2.2. 전화번호 상세 테이블 (`contact_phones`)
+| 필드명 | 타입 | 설명 |
+| :--- | :--- | :--- |
+| `id` | UUID (PK) | 고유 식별자 |
+| `contact_id` | UUID (FK) | 연락처 테이블 참조 |
+| `type` | String | mobile, home, fax 등 |
+| `number` | String | 전화번호 |
+| `is_primary` | Boolean | 대표 번호 여부 |
+
+### 2.3. 주소 상세 테이블 (`contact_addresses`)
+| 필드명 | 타입 | 설명 |
+| :--- | :--- | :--- |
+| `id` | UUID (PK) | 고유 식별자 |
+| `contact_id` | UUID (FK) | 연락처 테이블 참조 |
+| `type` | String | home, work, etc 등 |
+| `address_text` | String | 전체 주소 텍스트 |
+| `lat_int` | Integer | 위도 (x100,000 정수화) |
+| `lng_int` | Integer | 경도 (x100,000 정수화) |
+
+## 3. 할일-연락처 매핑 테이블 (Todo-Contact Mapping)
+
+### 3.1. 할일-연락처 테이블 (`todo_contacts`)
+| 필드명 | 타입 | 설명 |
+| :--- | :--- | :--- |
+| `id` | UUID (PK) | 고유 식별자 |
+| `todo_id` | UUID (FK) | 할일 테이블 참조 |
+| `contact_id` | UUID (FK) | 연락처 테이블 참조 |
+| `role` | String | 역할 (owner, participant, watcher) |
+| `status` | String | 상태 (accepted, pending) |
+| `created_at` | Long | 연결 시각 (타임스탬프) |
 
 ## 4. 경로 테이블 (Path Table)
 할일(특히 히스토리 형태)에 포함된 상세 이동 경로 좌표를 저장합니다.
