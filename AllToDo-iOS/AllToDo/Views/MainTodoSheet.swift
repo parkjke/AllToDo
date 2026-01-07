@@ -143,7 +143,11 @@ struct MainTodoSheet: View {
         .sheet(item: $viewModel.viewingHistoryItem) { item in
             PathHistoryView(item: item, onClose: {
                 viewModel.viewingHistoryItem = nil
+                viewModel.todoEntrySource = .none
             })
+            .presentationDetents([.large])
+            .presentationDragIndicator(.hidden)
+            .interactiveDismissDisabled()
         }
     }
 }

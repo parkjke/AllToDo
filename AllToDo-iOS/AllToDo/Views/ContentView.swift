@@ -45,14 +45,6 @@ struct ContentView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
-        .sheet(item: $viewModel.viewingHistoryItem) { item in
-            PathHistoryView(item: item, onClose: { 
-                viewModel.viewingHistoryItem = nil 
-            })
-                .presentationDetents([.large])
-                .presentationDragIndicator(.hidden)
-                .interactiveDismissDisabled()
-        }
         // Legacy DatePicker Sheet Removed
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("MapRotationChanged"))) { notification in
             if let rotation = notification.userInfo?["rotation"] as? Double {
@@ -144,6 +136,7 @@ struct ContentView: View {
             compassRotation: viewModel.compassRotation,
             onCompassClick: { viewModel.mapAction = .rotateNorth },
             onExpandClick: { 
+                viewModel.todoEntrySource = .list // [ADD] 진입 경로 명시
                 viewModel.mainSheetTab = 0
                 withAnimation { viewModel.showAllTodoSheet = true } 
             }
@@ -154,21 +147,13 @@ struct ContentView: View {
         RightSideControls(
             compassRotation: viewModel.compassRotation,
             showHistoryMode: viewModel.showHistoryMode,
-            onHistoryClick: handleHistoryClick,
-            onNotificationClick: {},
             onLoginClick: { showProfile = true },
             onLocationClick: { viewModel.mapAction = .currentLocation },
             onZoomInClick: { viewModel.mapAction = .zoomIn },
             onZoomOutClick: { viewModel.mapAction = .zoomOut },
             onCompassClick: { viewModel.mapAction = .rotateNorth },
-            onExpandClick: { withAnimation { viewModel.showListView = true } },
             showActivePath: locationManager.showActivePath,
-            onRecordClick: handleRecordClick,
-            onListClick: {
-                viewModel.todoEntrySource = .list
-                viewModel.mainSheetTab = 0
-                viewModel.showAllTodoSheet = true
-            }
+            onRecordClick: handleRecordClick
         )
     }
 
@@ -188,9 +173,10 @@ struct ContentView: View {
                                 onClose: { viewModel.selectedClusterItems = nil },
                                 onDeleteToDo: { item in deleteItem(item) },
                                 onDeleteLog: { item in deleteItem(item) },
-                                onSelectLog: { item in
+                                 onSelectLog: { item in
+                                    viewModel.todoEntrySource = .callout
                                     viewModel.viewingHistoryItem = item
-                                    // [MODIFIED] Do NOT nil selectedClusterItems to return to callout on close
+                                    viewModel.showAllTodoSheet = true
                                 },
                                 onSelectItem: { item in
                                     viewModel.todoEntrySource = .callout
@@ -358,10 +344,6 @@ extension ContentView {
     // allItemsOverlay removed. See CalendarDialog.swift for integrated list.
 
     // MARK: - Actions
-    private func handleHistoryClick() {
-        viewModel.handleHistoryClick()
-    }
-
     private func handleRecordClick() {
         // [MODIFIED] Now used as a debugging toggle for path visualization
         locationManager.showActivePath.toggle()

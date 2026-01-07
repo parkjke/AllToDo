@@ -221,6 +221,9 @@ fun KakaoMapContent(
         // [New Algorithm] 4-Step Incremental Clustering
         // We use stable keys based on item IDs to track identity across re-clustering.
         fun generateKey(cluster: kr.alltodo.ui.PinClusterItem): String {
+            val hasUser = cluster.items.any { it is kr.alltodo.ui.UnifiedItem.CurrentLocation }
+            if (hasUser) return "UserPoi"
+
             val itemIds = cluster.items.map { 
                 when(it) {
                     is kr.alltodo.ui.UnifiedItem.Todo -> "T_${it.item.todo_id}"

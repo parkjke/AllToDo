@@ -462,12 +462,12 @@ struct AppleMapView: UIViewRepresentable {
             let wasmCellSize = metersPerPixel * 30.0 
             
             // [FIX] Invalid Region Guard
-            guard region.span.latitudeDelta < 150 && region.span.latitudeDelta > 0 else {
+            guard mapView.region.span.latitudeDelta < 150 && mapView.region.span.latitudeDelta > 0 else {
                 return
             }
             
             // [NEW] NaN Guard for Region
-            if region.center.latitude.isNaN || region.center.longitude.isNaN { return }
+            if mapView.region.center.latitude.isNaN || mapView.region.center.longitude.isNaN { return }
             
             // [NEW] 1.5x Threshold Check (Restored to requested Integer-style logic)
             let currentWm = metersPerPixel * mapView.bounds.width
@@ -536,53 +536,95 @@ struct AppleMapView: UIViewRepresentable {
             var newSingles: [UnifiedAnnotation] = []
             var newClusters: [WasmClusterAnnotation] = []
             
+            let userLocationID = UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
+            let userAnnotation = oldAnnotations.first(where: { ($0 as? UnifiedAnnotation)?.item?.id == userLocationID }) as? UnifiedAnnotation
+            
             for (idx, items) in clusters.enumerated() {
                 if items.isEmpty { continue }
                 let centroid = centroids[idx]
                 var finalCoordinate = CLLocationCoordinate2D(latitude: centroid.lat, longitude: centroid.lon)
                 
                 if items.count == 1 {
-                    let ann = UnifiedAnnotation()
-                    ann.item = items[0]
-                    ann.coordinate = items[0].location ?? finalCoordinate
-                    newSingles.append(ann)
+                    let item = items[0]
+                    if item.id == userLocationID, let existing = userAnnotation {
+                        // REUSE User Annotation for Single
+                        existing.isClusteredUser = false
+                        existing.clusterItems = []
+                        UIView.animate(withDuration: 0.3) {
+                            existing.coordinate = item.location ?? finalCoordinate
+                        }
+                        // Ensure it's not removed
+                        newSingles.append(existing)
+                    } else {
+                        let ann = UnifiedAnnotation()
+                        ann.item = item
+                        ann.coordinate = item.location ?? finalCoordinate
+                        newSingles.append(ann)
+                    }
                 } else {
-                    let clusterAnn = WasmClusterAnnotation()
-                    // [FIX] Anchor to user location if present
-                    if let userItem = items.first(where: { if case .userLocation = $0 { return true }; return false }),
+                    // It's a cluster.
+                    var containsUser = false
+                    if let userItem = items.first(where: { $0.id == userLocationID }),
                        let userCoord = userItem.location {
                         finalCoordinate = userCoord
+                        containsUser = true
                     }
-                    clusterAnn.coordinate = finalCoordinate
-                    clusterAnn.items = items
-                    newClusters.append(clusterAnn)
+
+                    if containsUser, let existing = userAnnotation {
+                        // REUSE User Annotation as a "Cluster"
+                        // Since UnifiedAnnotation view delegate handles icons based on item,
+                        // we need to tell it this is now a cluster.
+                        // For Apple Maps specifically, it might be cleaner to keep it as UnifiedAnnotation 
+                        // but with special cluster data, or swap.
+                        // Let's keep it consistent: User Annotation is PERSISTENT.
+                        
+                        // We update the item to a 'synthetic' cluster item if needed, 
+                        // but better to just update its coordinate for now.
+                        // Actually, AppleMapView.Coordinator.mapView(_:viewFor:) uses ann.item.Type.
+                        // We should probably update the underlying item or a flag.
+                        existing.isClusteredUser = true
+                        existing.clusterItems = items
+                        
+                        UIView.animate(withDuration: 0.3) {
+                             existing.coordinate = finalCoordinate
+                        }
+                        newSingles.append(existing)
+                    } else {
+                        let clusterAnn = WasmClusterAnnotation()
+                        clusterAnn.coordinate = finalCoordinate
+                        clusterAnn.items = items
+                        newClusters.append(clusterAnn)
+                    }
                 }
             }
             
             // Step 1: New Entry (Single pins that weren't there)
             for newSingle in newSingles {
-                if let item = newSingle.item, !oldAnnotations.contains(where: { ($0 as? UnifiedAnnotation)?.item?.id == item.id }) {
-                    toAdd.append(newSingle)
+                if !oldAnnotations.contains(where: { $0 === newSingle }) {
+                    // Check by ID if not identical object (for new non-user pins)
+                    if let item = newSingle.item, !oldAnnotations.contains(where: { ($0 as? UnifiedAnnotation)?.item?.id == item.id }) {
+                        toAdd.append(newSingle)
+                    }
                 }
             }
             
             // Step 2: Merge Cleanup (Remove singles that are now in clusters)
             for oldAnn in oldAnnotations {
                 if let oldSingle = oldAnn as? UnifiedAnnotation, let item = oldSingle.item {
+                    // If it's the persistent user, never 'remove' it here, it's in newSingles
+                    if item.id == userLocationID { continue }
+                    
                     if newClusters.contains(where: { $0.items.contains(where: { $0.id == item.id }) }) {
                         toRemove.append(oldAnn)
-                    } else if !newSingles.contains(where: { $0.item?.id == item.id }) {
-                        // Also remove if not in new singles at all
+                    } else if !newSingles.contains(where: { ($0 as? UnifiedAnnotation)?.item?.id == item.id }) {
                         toRemove.append(oldAnn)
                     }
                 }
             }
             
-            // Step 3: Old Cluster Cleanup (Remove invalid clusters)
+            // Step 3: Old Cluster Cleanup (Remove all old clusters)
             for oldAnn in oldAnnotations {
                 if oldAnn is WasmClusterAnnotation {
-                    // For simplicity, we refresh clusters every time, but we could diff items.
-                    // Given the nature of WASM clustering, centroids shift easily.
                     toRemove.append(oldAnn)
                 }
             }
@@ -590,8 +632,10 @@ struct AppleMapView: UIViewRepresentable {
             // Step 4: New Cluster Entry
             toAdd.append(contentsOf: newClusters)
             
-            // Keep existing singles that are still singles (Visual Stability)
-            // (They were not added to toAdd or toRemove in Steps 1-2)
+            // Final Removal Handling (Including User if gone - rare)
+            if let user = userAnnotation, !newSingles.contains(where: { $0 === user }) {
+                 toRemove.append(user)
+            }
             
             if !toRemove.isEmpty { mapView.removeAnnotations(toRemove) }
             if !toAdd.isEmpty { mapView.addAnnotations(toAdd) }
@@ -818,13 +862,28 @@ struct AppleMapView: UIViewRepresentable {
                     view.centerOffset = CGPoint(x: offsetX, y: -(finalImage.size.height / 2))
                 }
             } else if let unified = annotation as? UnifiedAnnotation, let item = unified.item {
-                btn.items = [item]
-                // [FIX] Use fetchPin
-                if let img = PinImageHelper.shared.fetchPin(type: item.type) {
-                    imageView.image = img
-                    view.frame = CGRect(origin: .zero, size: img.size)
-                    // [FIX] Anchor Point: (0.5, 1.0)
-                    view.centerOffset = CGPoint(x: 0, y: -(img.size.height / 2))
+                if unified.isClusteredUser {
+                    let items = unified.clusterItems
+                    btn.items = items
+                    let (pinType, color, count) = MapLogicHelper.resolveClusterStyle(items: items)
+                    
+                    if let baseImage = PinImageHelper.shared.fetchPin(type: pinType) {
+                        let finalImage = PinImageHelper.shared.applyBadge(to: baseImage, count: count, badgeColor: color, badgeSize: 20)
+                        imageView.image = finalImage
+                        view.frame = CGRect(origin: .zero, size: finalImage.size)
+                        // [FIX] Anchor Point: (0.4, 1.0) -> centerOffset (5, -H/2)
+                        let offsetX: CGFloat = 5
+                        view.centerOffset = CGPoint(x: offsetX, y: -(finalImage.size.height / 2))
+                    }
+                } else {
+                    btn.items = [item]
+                    // [FIX] Use fetchPin
+                    if let img = PinImageHelper.shared.fetchPin(type: item.type) {
+                        imageView.image = img
+                        view.frame = CGRect(origin: .zero, size: img.size)
+                        // [FIX] Anchor Point: (0.5, 1.0)
+                        view.centerOffset = CGPoint(x: 0, y: -(img.size.height / 2))
+                    }
                 }
             }
             

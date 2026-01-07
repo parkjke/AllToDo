@@ -3,14 +3,11 @@ import SwiftUI
 struct RightSideControls: View {
     var compassRotation: Double
     var showHistoryMode: Bool
-    var onHistoryClick: () -> Void
-    var onNotificationClick: () -> Void
     var onLoginClick: () -> Void
     var onLocationClick: () -> Void
     var onZoomInClick: () -> Void
     var onZoomOutClick: () -> Void
     var onCompassClick: () -> Void
-    var onExpandClick: () -> Void
     
     // [MODIFIED] Path Visualization Toggle
     var showActivePath: Bool
@@ -18,13 +15,8 @@ struct RightSideControls: View {
     
     var body: some View {
         Column(horizontalAlignment: .trailing) {
-            // Top Group: Notification & Login
+            // Top Group: Login (History removed)
             HStack(spacing: 16) {
-                ControlIcon(
-                    iconName: showHistoryMode ? "calendar" : "clock.arrow.circlepath", 
-                    onClick: onHistoryClick
-                )
-                
                 ControlIcon(
                     iconName: "person.fill",
                     onClick: onLoginClick
@@ -116,6 +108,9 @@ struct RightSideControls: View {
                 }
                 .buttonStyle(.plain)
                 .opacity(showActivePath ? 1.0 : 0.8)
+                
+                // List Group Removed
+                .padding(.top, 16)
             }
         }
     }

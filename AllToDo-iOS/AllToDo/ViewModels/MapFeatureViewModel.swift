@@ -28,7 +28,6 @@ class MapFeatureViewModel: ObservableObject {
     @Published var todoEntrySource: TodoEntrySource = .none
     
     // MARK: - UI Flags
-    @Published var showListView: Bool = false
     @Published var showHistoryMode: Bool = false
     @Published var showCalendar: Bool = false
     @Published var showTodoList: Bool = false // [NEW] Separate List Layer
@@ -95,16 +94,6 @@ class MapFeatureViewModel: ObservableObject {
         // Keep visible for enough time to complete "팅팅팅" (approx 2.5s)
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
             self.showRipple = false
-        }
-    }
-    
-    func handleHistoryClick() {
-        if !showHistoryMode {
-            showHistoryMode = true
-            selectedDate = Date()
-            mapAction = .zoomToFit
-        } else {
-            showCalendar = true
         }
     }
     

@@ -214,15 +214,6 @@ class MapFeatureViewModel @Inject constructor(
     fun handleLocationClick() { _mapAction.value = MapAction.CURRENT_LOCATION }
     fun handleCompassClick() { _mapAction.value = MapAction.ROTATE_NORTH }
     
-    fun handleHistoryClick() {
-        if (!_showHistoryMode.value) {
-            _showHistoryMode.value = true
-            _selectedDate.value = Date()
-            _mapAction.value = MapAction.ZOOM_TO_FIT
-        } else {
-            // Show Calendar logic (View responsibility or another state)
-        }
-    }
     
     fun showFarItems() {
         _ignoreDistanceFilter.value = true
@@ -456,6 +447,7 @@ class MapFeatureViewModel @Inject constructor(
         _creatingLocation.value = UnifiedItem.CurrentLocation(lat, lon)
         _initialTodoTitle.value = title
         _initialTodoName.value = name
+        _showAllTodoSheet.value = true // [FIX] 롱터치 시 시트가 자동으로 올라오도록 추가
         _isCreatingTodo.value = true
     }
     

@@ -104,7 +104,8 @@ struct TodoListLayer: View {
                                 item: item,
                                 isDark: isDark,
                                 onPathClick: {
-                                    viewModel.shouldRestoreList = true
+                                    viewModel.todoEntrySource = .list // [ADD] 진입 소스 명시
+                                    viewModel.shouldRestoreCalendar = true
                                     viewModel.viewingHistoryItem = item
                                 },
                                 onEditClick: {

@@ -275,6 +275,9 @@ fun GoogleMapContent(
         
         // [New Algorithm] 4-Step Incremental Clustering (Google Parity)
         fun generateKey(cluster: PinClusterItem): String {
+            val hasUser = cluster.items.any { it is UnifiedItem.CurrentLocation }
+            if (hasUser) return "UserPoi"
+
             val itemIds = cluster.items.map { 
                 when(it) {
                     is UnifiedItem.Todo -> "T_${it.item.todo_id}"

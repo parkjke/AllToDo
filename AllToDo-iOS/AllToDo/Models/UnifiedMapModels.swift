@@ -14,7 +14,7 @@ enum UnifiedMapItem: Identifiable {
         case .todo(let item): return item.todo_id
         case .history(let item): return item.todo_id
         case .serverMessage: return UUID()
-        case .userLocation: return UUID()
+        case .userLocation: return UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
 
         }
     }
@@ -123,6 +123,8 @@ enum MapAction {
 // Custom Annotation Class
 class UnifiedAnnotation: MKPointAnnotation {
     var item: UnifiedMapItem?
+    var isClusteredUser: Bool = false
+    var clusterItems: [UnifiedMapItem] = []
 }
 
 // [NEW] Map Provider Setting Enum

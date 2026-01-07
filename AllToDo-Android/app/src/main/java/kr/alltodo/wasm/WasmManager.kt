@@ -97,10 +97,10 @@ class WasmManager @Inject constructor(
     }
     
     // [NEW] Exposed method to replace Native Code
-    suspend fun compress(points: List<Int>): List<Int> {
+    suspend fun compress(points: List<Int>, minDist: Int = 3): List<Int> {
         val start = System.currentTimeMillis()
         
-        val result = runtime.compressTrajectory(points, 3, 10)
+        val result = runtime.compressTrajectory(points, minDist, 10)
         
         val duration = System.currentTimeMillis() - start
         val msg = "WASM Success: ${points.size/2} -> ${result.size/2} pts (${duration}ms)"

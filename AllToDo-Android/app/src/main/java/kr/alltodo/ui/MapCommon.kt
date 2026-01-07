@@ -14,6 +14,9 @@ sealed class UnifiedItem {
     val latitude: Double get() = intLat / 100_000.0
     val longitude: Double get() = intLng / 100_000.0
     
+    // [NEW] Fixed ID for smoothing & persistence
+    abstract val id: String
+
     // [NEW] Static Bitmap PIN ID
     open val pinId: String get() = "10"
 
@@ -21,6 +24,7 @@ sealed class UnifiedItem {
         override val intLat get() = item.int_lat ?: 0
         override val intLng get() = item.int_long ?: 0
         override val timestamp get() = item.created_at
+        override val id get() = item.todo_id
         
         override val pinId: String
             get() {
@@ -36,6 +40,7 @@ sealed class UnifiedItem {
         override val intLat get() = item.int_lat ?: 0
         override val intLng get() = item.int_long ?: 0
         override val timestamp get() = item.begin_time ?: item.created_at
+        override val id get() = item.todo_id
         
         override val pinId get() = "01"
     }
@@ -44,6 +49,7 @@ sealed class UnifiedItem {
         override val intLat get() = (lat * 100_000).toInt()
         override val intLng get() = (lon * 100_000).toInt()
         override val timestamp get() = System.currentTimeMillis()
+        override val id get() = "UserPoi"
         
         override val pinId get() = "00"
     }

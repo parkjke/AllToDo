@@ -1,6 +1,7 @@
 package kr.alltodo.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -19,6 +20,7 @@ import java.util.Date
 import java.util.Locale
 import kr.alltodo.ui.GpsAuthViewModel
 import kr.alltodo.ui.MapProvider
+import kr.alltodo.data.GpsAuthPoint
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.BorderStroke
@@ -41,6 +43,7 @@ import com.naver.maps.geometry.LatLng as NaverLatLng
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalDensity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.delay
@@ -56,34 +59,120 @@ fun GpsAuthOverlay(
     viewModel: GpsAuthViewModel,
     currentLocation: android.location.Location?,
     mapProvider: MapProvider,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onStartTracking: () -> Unit = {}
 ) {
-    val points by viewModel.points.collectAsState()
-    val pointSize by viewModel.pointSize.collectAsState()
-    val speed by viewModel.timeMachineSpeed.collectAsState()
-    val tmIndex by viewModel.timeMachineIndex.collectAsState()
-    val isPlaying by viewModel.isTimeMachinePlaying.collectAsState()
+    // --- Local Test Logic States ---
+    var localSelectedTrack by remember { mutableStateOf<kr.alltodo.data.GpsAuthTrack?>(null) }
+    var localPoints by remember { mutableStateOf<List<kr.alltodo.data.GpsAuthPoint>>(emptyList()) }
+    var tmIndex by remember { mutableStateOf(-1) }
+    var isPlaying by remember { mutableStateOf(false) }
+    var tmSpeed by remember { mutableStateOf(1) }
+    var useFixedInterval by remember { mutableStateOf(false) }
     
+    var isOriginalVisible by remember { mutableStateOf(true) }
+    var isStage1Visible by remember { mutableStateOf(false) }
+    var isStage2Visible by remember { mutableStateOf(false) }
+    var stage1Points by remember { mutableStateOf<List<List<kr.alltodo.data.GpsAuthPoint>>>(emptyList()) }
+    var stage2Points by remember { mutableStateOf<List<List<kr.alltodo.data.GpsAuthPoint>>>(emptyList()) }
+    var isSimplifying by remember { mutableStateOf(false) }
+
+    val pointsData by viewModel.points.collectAsState() // For live tracking
     val isTracking by viewModel.isTracking.collectAsState()
     val savedTracks by viewModel.savedTracks.collectAsState()
-    val selectedTrack by viewModel.selectedTrack.collectAsState()
-    val simplifiedPoints by viewModel.simplifiedPoints.collectAsState()
-    val isSimplifying by viewModel.isSimplifying.collectAsState()
-    
+    val pointSize by viewModel.pointSize.collectAsState()
+
+    // Resolve which points to show
+    val points = if (isTracking) pointsData else localPoints
+    val selectedTrack = localSelectedTrack
+
     val scope = rememberCoroutineScope()
-    
-    // [FIX] Incremental Path Logic: Grow path as playback moves
-    val displayPath = remember(simplifiedPoints, tmIndex, points) {
-        if (tmIndex >= 0 && points.isNotEmpty()) {
-            val head = if (tmIndex < points.size) points[tmIndex] else points.last()
-            val list = simplifiedPoints.filter { it.timestamp <= head.timestamp }.toMutableList()
-            // Always append current head to close the gap between simplified segments
+
+    // Helper: Map WASM result back to points
+    fun mapWasmResult(wasmResult: List<Int>, ref: List<kr.alltodo.data.GpsAuthPoint>): List<kr.alltodo.data.GpsAuthPoint> {
+        val res = mutableListOf<kr.alltodo.data.GpsAuthPoint>()
+        for (i in 0 until wasmResult.size step 2) {
+            val lat = wasmResult[i]
+            val lng = wasmResult[i+1]
+            res.add(ref.find { it.intLat == lat && it.intLng == lng } ?: kr.alltodo.data.GpsAuthPoint(lat, lng, 0, 0))
+        }
+        return res
+    }
+
+    // Pruning Logic
+    fun prune1(targetPoints: List<GpsAuthPoint>) {
+        if (targetPoints.size < 3) return
+        scope.launch {
+            isSimplifying = true
+            try {
+                val input = targetPoints.flatMap { listOf(it.intLat, it.intLng) }
+                val simplified = viewModel.wasmManager.compress(input, minDist = 3)
+                val result = mapWasmResult(simplified, targetPoints)
+                stage1Points = stage1Points + listOf(result)
+            } finally { isSimplifying = false }
+        }
+    }
+
+    fun prune2(targetPoints: List<GpsAuthPoint>) {
+        if (targetPoints.size < 3) return
+        scope.launch {
+            isSimplifying = true
+            try {
+                val input = targetPoints.flatMap { listOf(it.intLat, it.intLng) }
+                val simplified = viewModel.wasmManager.compress(input, minDist = 3)
+                val result = mapWasmResult(simplified, targetPoints)
+                stage2Points = stage2Points + listOf(result)
+            } finally { isSimplifying = false }
+        }
+    }
+
+    // [V3] Filtering for sequential rendering
+    val filterTimestamp = remember(selectedTrack, tmIndex, points) {
+        if (selectedTrack != null && tmIndex >= 0 && points.isNotEmpty()) {
+            points[tmIndex.coerceAtMost(points.size - 1)].timestamp
+        } else {
+            Long.MAX_VALUE
+        }
+    }
+
+    // [FIX] Incremental Path Logic
+    val displayPath = remember(stage1Points, tmIndex, points, selectedTrack) {
+        val latestS1 = stage1Points.lastOrNull() ?: emptyList()
+        if (selectedTrack != null && tmIndex >= 0 && points.isNotEmpty()) {
+            val head = points[tmIndex.coerceAtMost(points.size - 1)]
+            val list = latestS1.filter { it.timestamp <= head.timestamp }.toMutableList()
             if (list.isEmpty() || list.last().timestamp < head.timestamp) {
                 list.add(head)
             }
             list
         } else {
-            simplifiedPoints
+            latestS1
+        }
+    }
+    
+    // Time Machine Replay
+    LaunchedEffect(isPlaying, tmIndex, tmSpeed, useFixedInterval) {
+        if (isPlaying && selectedTrack != null) {
+            val nextIdx = tmIndex + 1
+            if (nextIdx < points.size) {
+                val currentP = points[tmIndex.coerceAtLeast(0)]
+                val nextP = points[nextIdx]
+                val realDiff = (nextP.timestamp - currentP.timestamp).coerceAtLeast(0L)
+                
+                val delayMs = if (useFixedInterval) 100L else {
+                    val multi = when(tmSpeed) { 1->2.0; 2->10.0; 3->40.0; else->2.0 }
+                    (realDiff / multi).toLong().coerceIn(10L, 1000L)
+                }
+                delay(delayMs)
+                tmIndex = nextIdx
+            } else {
+                if (useFixedInterval && stage2Points.isEmpty()) {
+                    prune2(stage1Points.lastOrNull() ?: emptyList())
+                }
+                isPlaying = false
+                tmIndex = -1
+                useFixedInterval = false
+            }
         }
     }
     
@@ -94,14 +183,15 @@ fun GpsAuthOverlay(
         }
     }
     
-    // 2. Kakao Map State
+    // 2. Google Map Instance
+    var googleMapInstance by remember { mutableStateOf<com.google.android.gms.maps.GoogleMap?>(null) }
+
+    // 3. Kakao Map State
     var kakaoMapInstance by remember { mutableStateOf<KakaoMap?>(null) }
     
     // 3. Naver Map State
     var naverMapInstance by remember { mutableStateOf<NaverMap?>(null) }
 
-    val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
 
     // Auto-follow Time Machine
     LaunchedEffect(tmIndex) {
@@ -127,7 +217,10 @@ fun GpsAuthOverlay(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(Color.White)) {
+        val viewWidthPx = with(androidx.compose.ui.platform.LocalDensity.current) { constraints.maxWidth }
+        val viewHeightPx = with(androidx.compose.ui.platform.LocalDensity.current) { constraints.maxHeight }
+
         // Map Engine Selection
         when (mapProvider) {
             MapProvider.Google -> {
@@ -136,21 +229,55 @@ fun GpsAuthOverlay(
                     cameraPositionState = googleCameraState,
                     uiSettings = MapUiSettings(zoomControlsEnabled = false, compassEnabled = false)
                 ) {
-                    // [OPTIMIZATION] Past Points (Sparse)
-                    val displayPoints = if (tmIndex >= 0) points.take(tmIndex + 1) else points
-                    // To prevent engine lag, only draw dots every 5th point if we have too many
-                    val step = (displayPoints.size / 500).coerceAtLeast(1)
-                    displayPoints.forEachIndexed { idx, p ->
-                        if (idx % step == 0 || idx == displayPoints.size - 1) {
-                            val color = getPointColor(p.status)
-                            val radius = getPointRadius(pointSize)
-                            Circle(
-                                center = GoogleLatLng(p.latitude, p.longitude),
-                                radius = radius,
-                                fillColor = color.copy(alpha = 0.8f),
-                                strokeColor = color,
-                                strokeWidth = 1f
-                            )
+                    MapEffect(Unit) { map ->
+                        googleMapInstance = map
+                    }
+                    val map = googleMapInstance ?: return@GoogleMap
+                    val proj = map.projection
+                    
+                    // [NEW] Calculate MPP for fixed pixel size dots
+                    val centerPt = android.graphics.Point(viewWidthPx / 2, viewHeightPx / 2)
+                    val ptR = android.graphics.Point(viewWidthPx / 2 + 100, viewHeightPx / 2)
+                    val latLngL = proj.fromScreenLocation(centerPt)
+                    val latLngR = proj.fromScreenLocation(ptR)
+                    val results = FloatArray(1)
+                    android.location.Location.distanceBetween(latLngL.latitude, latLngL.longitude, latLngR.latitude, latLngR.longitude, results)
+                    val mpp = results[0] / 100.0
+                    
+                    // [V4] Independent Layers
+                    val layers = mutableListOf<Pair<List<kr.alltodo.data.GpsAuthPoint>, Int>>()
+                    if (isOriginalVisible) layers.add(points to 0)
+                    if (isStage1Visible) layers.add((stage1Points.lastOrNull() ?: emptyList()) to 1)
+                    if (isStage2Visible) layers.add((stage2Points.lastOrNull() ?: emptyList()) to 2)
+
+                    layers.forEach { (layerPoints, stage) ->
+                        val color = when (stage) {
+                            1 -> Color(0xFF2E7D32) // Stage 1 (Dark Green)
+                            2 -> Color.Red         // Stage 2 (Red)
+                            else -> if (selectedTrack != null) Color.Blue else getPointColor(layerPoints.firstOrNull()?.status ?: 0)
+                        }
+                        val pixelRadius = when (stage) {
+                            1 -> 4.0
+                            2 -> 5.0
+                            else -> if (selectedTrack != null) 3.0 else getPointRadius(pointSize)
+                        }
+                        
+                        // [V3] Sequential Rendering Filter
+                        layerPoints.forEach { p ->
+                            if (p.timestamp <= filterTimestamp) {
+                                Circle(
+                                    center = GoogleLatLng(p.latitude, p.longitude),
+                                    radius = pixelRadius * mpp, // Fixed pixel size on screen
+                                    fillColor = color.copy(alpha = 0.8f),
+                                    strokeColor = color,
+                                    strokeWidth = 1f,
+                                    zIndex = when(stage) {
+                                        1 -> 60f
+                                        2 -> 70f
+                                        else -> 50f
+                                    }
+                                )
+                            }
                         }
                     }
                     
@@ -208,7 +335,7 @@ fun GpsAuthOverlay(
                 )
                 
                 // Efficient Label Management
-                LaunchedEffect(kakaoMapInstance, points, tmIndex, pointSize, displayPath) {
+                LaunchedEffect(kakaoMapInstance, points, tmIndex, pointSize, displayPath, isOriginalVisible, isStage1Visible, isStage2Visible, stage1Points, stage2Points) {
                     val map = kakaoMapInstance ?: return@LaunchedEffect
                     val layer = map.labelManager?.getLayer("gpsLayer") ?: map.labelManager?.addLayer(com.kakao.vectormap.label.LabelLayerOptions.from("gpsLayer"))
                     val routeLayer = map.routeLineManager?.getLayer("pathLayer") ?: map.routeLineManager?.addLayer("pathLayer", 1000)
@@ -216,24 +343,43 @@ fun GpsAuthOverlay(
                     layer?.removeAll()
                     routeLayer?.removeAll()
                     
-                    val displayPoints = if (tmIndex >= 0) points.take(tmIndex + 1) else points
-                    // [OPTIMIZATION] Sparse dots for Kakao
-                    val step = (displayPoints.size / 500).coerceAtLeast(1)
+                    // [V4] Independent Layers for Kakao
+                    val layers = mutableListOf<Pair<List<kr.alltodo.data.GpsAuthPoint>, Int>>()
+                    if (isOriginalVisible) layers.add(points to 0)
+                    if (isStage1Visible) layers.add((stage1Points.lastOrNull() ?: emptyList()) to 1)
+                    if (isStage2Visible) layers.add((stage2Points.lastOrNull() ?: emptyList()) to 2)
+
                     val dotBitmaps = mutableMapOf<Int, Bitmap>()
-                    
-                    displayPoints.forEachIndexed { idx, p ->
-                         if (idx % step != 0 && idx != displayPoints.size - 1) return@forEachIndexed
-                         
-                         val color = getPointColor(p.status)
-                         val radius = getPointRadius(pointSize)
-                         val sizePx = (radius * 10).toInt().coerceAtLeast(10)
-                         val styleKey = color.toArgb() * 31 + sizePx
-                         
-                         val bitmap = dotBitmaps.getOrPut(styleKey) { createDotBitmap(color, sizePx) }
-                         val style = com.kakao.vectormap.label.LabelStyle.from(bitmap).setAnchorPoint(0.5f, 0.5f)
-                         val styles = map.labelManager?.addLabelStyles(com.kakao.vectormap.label.LabelStyles.from(style))
-                         
-                         layer?.addLabel(com.kakao.vectormap.label.LabelOptions.from(com.kakao.vectormap.LatLng.from(p.latitude, p.longitude)).setStyles(styles))
+                    layers.forEach { (layerPoints, stage) ->
+                        val color = when (stage) {
+                            1 -> Color(0xFF2E7D32) // Dark Green
+                            2 -> Color.Red
+                            else -> if (selectedTrack != null) Color.Blue else getPointColor(layerPoints.firstOrNull()?.status ?: 0)
+                        }
+                        val radiusSize = when (stage) {
+                            1 -> 4.0
+                            2 -> 5.0
+                            else -> if (selectedTrack != null) 3.0 else getPointRadius(pointSize)
+                        }
+                        val sizePx = (radiusSize * 10).toInt().coerceAtLeast(10)
+                        
+                        layerPoints.forEach { p ->
+                            if (p.timestamp <= filterTimestamp) {
+                                val styleKey = color.toArgb() * 31 + sizePx
+                                val bitmap = dotBitmaps.getOrPut(styleKey) { createDotBitmap(color, sizePx) }
+                                val style = com.kakao.vectormap.label.LabelStyle.from(bitmap).setAnchorPoint(0.5f, 0.5f)
+                                val styles = map.labelManager?.addLabelStyles(com.kakao.vectormap.label.LabelStyles.from(style))
+                                if (styles != null) {
+                                    layer?.addLabel(com.kakao.vectormap.label.LabelOptions.from(com.kakao.vectormap.LatLng.from(p.latitude, p.longitude)).setStyles(styles).setRank(
+                                        when(stage) {
+                                            1 -> 60
+                                            2 -> 70
+                                            else -> 50
+                                        }
+                                    ))
+                                }
+                            }
+                        }
                     }
 
                     // [FIX] Incremental Simplified Path for Kakao
@@ -250,9 +396,11 @@ fun GpsAuthOverlay(
                          val bitmap = createDotBitmap(color, 40)
                          val style = com.kakao.vectormap.label.LabelStyle.from(bitmap).setAnchorPoint(0.5f, 0.5f)
                          val styles = map.labelManager?.addLabelStyles(com.kakao.vectormap.label.LabelStyles.from(style))
-                         layer?.addLabel(com.kakao.vectormap.label.LabelOptions.from(com.kakao.vectormap.LatLng.from(loc.latitude, loc.longitude))
-                            .setStyles(styles)
-                            .setTag("current_loc"))
+                         if (styles != null) {
+                             layer?.addLabel(com.kakao.vectormap.label.LabelOptions.from(com.kakao.vectormap.LatLng.from(loc.latitude, loc.longitude))
+                                .setStyles(styles)
+                                .setTag("current_loc"))
+                         }
                     }
                 }
             }
@@ -274,33 +422,52 @@ fun GpsAuthOverlay(
                     modifier = Modifier.fillMaxSize()
                 )
                 
-                LaunchedEffect(naverMapInstance, points, tmIndex, pointSize, currentLocation, displayPath) {
+                LaunchedEffect(naverMapInstance, points, tmIndex, pointSize, currentLocation, displayPath, isOriginalVisible, isStage1Visible, isStage2Visible, stage1Points, stage2Points) {
                     val map = naverMapInstance ?: return@LaunchedEffect
                     naverMarkers.forEach { it.map = null }
                     naverMarkers.clear()
                     naverCircle.value?.map = null
                     naverCircle.value = null
                     
-                    val displayPoints = if (tmIndex >= 0) points.take(tmIndex + 1) else points
-                    val step = (displayPoints.size / 500).coerceAtLeast(1)
+                    // [V4] Independent Layers for Naver
+                    val layers = mutableListOf<Pair<List<kr.alltodo.data.GpsAuthPoint>, Int>>()
+                    if (isOriginalVisible) layers.add(points to 0)
+                    if (isStage1Visible) layers.add((stage1Points.lastOrNull() ?: emptyList()) to 1)
+                    if (isStage2Visible) layers.add((stage2Points.lastOrNull() ?: emptyList()) to 2)
+
                     val dotImages = mutableMapOf<Int, NaverOverlayImage>()
-                    
-                    displayPoints.forEachIndexed { idx, p ->
-                        if (idx % step != 0 && idx != displayPoints.size - 1) return@forEachIndexed
+                    layers.forEach { (layerPoints, stage) ->
+                        val color = when (stage) {
+                            1 -> Color(0xFF2E7D32) // Dark Green
+                            2 -> Color.Red
+                            else -> if (selectedTrack != null) Color.Blue else getPointColor(layerPoints.firstOrNull()?.status ?: 0)
+                        }
+                        val radiusSize = when (stage) {
+                            1 -> 4.0
+                            2 -> 5.0
+                            else -> if (selectedTrack != null) 3.0 else getPointRadius(pointSize)
+                        }
+                        val sizePx = (radiusSize * 10).toInt().coerceAtLeast(10)
                         
-                        val color = getPointColor(p.status)
-                        val radius = getPointRadius(pointSize)
-                        val sizePx = (radius * 16).toInt().coerceAtLeast(16)
-                        val styleKey = color.toArgb() * 31 + sizePx
-                        
-                        val image = dotImages.getOrPut(styleKey) { NaverOverlayImage.fromBitmap(createDotBitmap(color, sizePx)) }
-                        
-                        val marker = NaverMarker()
-                        marker.position = NaverLatLng(p.latitude, p.longitude)
-                        marker.icon = image
-                        marker.anchor = android.graphics.PointF(0.5f, 0.5f)
-                        marker.map = map
-                        naverMarkers.add(marker)
+                        layerPoints.forEach { p ->
+                            if (p.timestamp <= filterTimestamp) {
+                                val styleKey = color.toArgb() * 31 + sizePx
+                                val overlayImage = dotImages.getOrPut(styleKey) { NaverOverlayImage.fromBitmap(createDotBitmap(color, sizePx)) }
+                                
+                                val marker = NaverMarker().apply {
+                                    position = NaverLatLng(p.latitude, p.longitude)
+                                    icon = overlayImage
+                                    anchor = android.graphics.PointF(0.5f, 0.5f)
+                                    zIndex = when(stage) {
+                                        1 -> 60
+                                        2 -> 70
+                                        else -> 50
+                                    }
+                                }
+                                marker.map = map
+                                naverMarkers.add(marker)
+                            }
+                        }
                     }
 
                     // [FIX] Incremental Simplified Path for Naver
@@ -373,11 +540,18 @@ fun GpsAuthOverlay(
                         } else {
                              LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                  items(savedTracks) { track ->
-                                     val sdf = SimpleDateFormat("MM/dd HH:mm:ss", Locale.getDefault())
-                                     val durationStr = String.format("%02d:%02d:%02d", track.durationSeconds / 3600, (track.durationSeconds % 3600) / 60, track.durationSeconds % 60)
-                                     
                                      Card(
-                                         onClick = { viewModel.selectTrack(track) },
+                                         onClick = { 
+                                             localSelectedTrack = track
+                                             localPoints = track.points
+                                             stage1Points = emptyList()
+                                             stage2Points = emptyList()
+                                             tmIndex = 0
+                                             isPlaying = true
+                                             isOriginalVisible = true
+                                             isStage1Visible = false
+                                             isStage2Visible = false
+                                         },
                                          modifier = Modifier.fillMaxWidth(),
                                          colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)),
                                          shape = RoundedCornerShape(4.dp)
@@ -387,8 +561,30 @@ fun GpsAuthOverlay(
                                              verticalAlignment = Alignment.CenterVertically,
                                              horizontalArrangement = Arrangement.spacedBy(10.dp)
                                          ) {
-                                             // Time (Black, Bold)
-                                             Text(SimpleDateFormat("MM/dd HH:mm:ss", Locale.getDefault()).format(Date(track.startTime)), fontSize = 15.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+                                             // Time (Black, Bold) - Clickable for Full Pruning
+                                             Text(
+                                                 SimpleDateFormat("MM/dd HH:mm:ss", Locale.getDefault()).format(Date(track.startTime)), 
+                                                 fontSize = 15.sp, 
+                                                 color = Color.Black, 
+                                                 fontWeight = FontWeight.Bold,
+                                                 modifier = Modifier.clickable { 
+                                                     localSelectedTrack = track
+                                                     localPoints = track.points
+                                                     isOriginalVisible = true
+                                                     isStage1Visible = true
+                                                     isStage2Visible = true
+                                                     useFixedInterval = true
+                                                     tmIndex = 0
+                                                     isPlaying = true
+                                                     
+                                                     scope.launch {
+                                                         if (stage1Points.isEmpty()) {
+                                                             prune1(track.points)
+                                                             while (isSimplifying) { delay(50) }
+                                                         }
+                                                     }
+                                                 }
+                                             )
                                              
                                              Text(">", fontSize = 13.sp, color = Color.Gray)
                                              
@@ -471,7 +667,15 @@ fun GpsAuthOverlay(
                 border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f))
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 4.dp)) {
-                    IconButton(onClick = { viewModel.toggleTimeMachine() }, modifier = Modifier.size(32.dp)) {
+                    IconButton(
+                        onClick = { 
+                            if (localPoints.isNotEmpty()) {
+                                isPlaying = !isPlaying 
+                                if (isPlaying && tmIndex < 0) tmIndex = 0
+                            }
+                        }, 
+                        modifier = Modifier.size(32.dp)
+                    ) {
                         Icon(
                             imageVector = if(isPlaying) Icons.Default.StopCircle else Icons.Default.Timer,
                             contentDescription = null,
@@ -482,15 +686,15 @@ fun GpsAuthOverlay(
                     listOf("N", "F", "S").forEachIndexed { index, label ->
                         val speedIdx = index + 1
                         TextButton(
-                            onClick = { viewModel.setTimeMachineSpeed(speedIdx) },
+                            onClick = { tmSpeed = speedIdx },
                             modifier = Modifier.size(36.dp),
                             contentPadding = PaddingValues(0.dp)
                         ) {
                             Text(
                                 label,
                                 fontSize = 15.sp,
-                                fontWeight = if(speed == speedIdx) FontWeight.ExtraBold else FontWeight.Normal,
-                                color = if(speed == speedIdx) Color(0xFF4CAF50) else Color.Gray
+                                fontWeight = if(tmSpeed == speedIdx) FontWeight.ExtraBold else FontWeight.Normal,
+                                color = if(tmSpeed == speedIdx) Color(0xFF4CAF50) else Color.Gray
                             )
                         }
                     }
@@ -592,59 +796,142 @@ fun GpsAuthOverlay(
             }
         }
         
-        // Start/End Buttons fixed at bottom with high zIndex
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 32.dp)
-                .zIndex(200f) // Priority over List Overlay
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                OutlinedButton(
-                    onClick = { 
-                        if (selectedTrack != null) {
-                            viewModel.simplifyCurrentTrack()
-                        } else {
-                            viewModel.startTracking() 
-                        }
-                    },
-                    enabled = !isTracking,
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = if(!isTracking) (if(selectedTrack != null) Color(0xFF2196F3) else Color(0xFF4CAF50)) else Color.Transparent,
-                        contentColor = if(!isTracking) Color.White else Color.Gray.copy(alpha = 0.5f),
-                        disabledContentColor = Color.Gray.copy(alpha = 0.5f)
-                    ),
-                    border = BorderStroke(2.dp, if(!isTracking) (if(selectedTrack != null) Color(0xFF2196F3) else Color(0xFF4CAF50)) else Color.Gray.copy(alpha = 0.5f)),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.width(130.dp).height(56.dp)
+        // [V3] START Button - Visible ONLY in Record List side (selectedTrack == null AND !isTracking)
+        if (selectedTrack == null && !isTracking) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 48.dp) 
+                    .zIndex(200f)
+            ) {
+                Surface(
+                    onClick = { onStartTracking() },
+                    modifier = Modifier.size(90.dp),
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                    color = Color.Red,
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.5f))
                 ) {
-                    if (isSimplifying) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
-                    } else {
-                        Text(if (selectedTrack != null) "경로보기" else "시작", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(text = "시작", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
-                
-                OutlinedButton(
-                    onClick = { 
-                        if (selectedTrack != null) {
-                            viewModel.selectTrack(null)
-                        } else {
-                            viewModel.stopTrackingAndSave() 
-                        }
-                    },
-                    enabled = isTracking || selectedTrack != null,
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        // [FIX] Background Gray 1, Text Gray 6
-                        containerColor = if(isTracking || selectedTrack != null) Color(0xFFF5F5F5) else Color.Transparent,
-                        contentColor = if(isTracking || selectedTrack != null) Color(0xFF666666) else Color.Gray.copy(alpha = 0.5f),
-                        disabledContentColor = Color.Gray.copy(alpha = 0.5f)
-                    ),
-                    border = BorderStroke(2.dp, if(isTracking || selectedTrack != null) Color(0xFFCCCCCC) else Color.Gray.copy(alpha = 0.5f)),
+            }
+        }
+
+        // [V3] END Button - Visible ONLY when Tracking is active
+        if (isTracking) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 48.dp)
+                    .zIndex(200f)
+            ) {
+                Surface(
+                    onClick = { viewModel.stopTrackingAndSave() },
+                    modifier = Modifier.size(90.dp),
                     shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.width(130.dp).height(56.dp)
+                    color = Color.Red,
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.5f))
                 ) {
-                    Text(if (selectedTrack != null) "목록으로" else "끝", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(text = "끝", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                }
+            }
+        }
+
+        // [NEW] Orbit Pruning Control Bar (Visible when a track is selected)
+        if (selectedTrack != null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 48.dp)
+                    .zIndex(210f)
+            ) {
+                Surface(
+                    color = Color.White.copy(alpha = 0.9f),
+                    shape = RoundedCornerShape(16.dp),
+                    shadowElevation = 8.dp,
+                    modifier = Modifier.fillMaxWidth(0.9f).height(70.dp),
+                    border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f))
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("궤적 가지치기", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                        
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                             // Stage 0 Button [0] - Original
+                             Surface(
+                                 onClick = { isOriginalVisible = !isOriginalVisible },
+                                 color = if (isOriginalVisible) Color.Blue else Color(0xFFF0F0F0),
+                                 shape = RoundedCornerShape(8.dp),
+                                 modifier = Modifier.size(width = 44.dp, height = 40.dp)
+                             ) {
+                                 Box(contentAlignment = Alignment.Center) {
+                                     Text("0", color = if (isOriginalVisible) Color.White else Color.Black, fontWeight = FontWeight.Bold)
+                                 }
+                             }
+
+                             // Stage 1 Button [1]
+                             Surface(
+                                 onClick = { 
+                                     isStage1Visible = !isStage1Visible 
+                                     if (isStage1Visible && stage1Points.isEmpty()) {
+                                         prune1(points)
+                                     }
+                                 },
+                                 color = if (isStage1Visible) Color(0xFF2E7D32) else Color(0xFFF0F0F0),
+                                 shape = RoundedCornerShape(8.dp),
+                                 modifier = Modifier.size(width = 44.dp, height = 40.dp)
+                             ) {
+                                 Box(contentAlignment = Alignment.Center) {
+                                     Text("1", color = if (isStage1Visible) Color.White else Color.Black, fontWeight = FontWeight.Bold)
+                                 }
+                             }
+
+                             // Stage 2 Button [2]
+                             Surface(
+                                 onClick = { 
+                                     isStage2Visible = !isStage2Visible 
+                                     if (isStage2Visible && stage2Points.isEmpty()) {
+                                         scope.launch {
+                                             if (stage1Points.isEmpty()) {
+                                                 prune1(points)
+                                                 while (isSimplifying) { delay(50) }
+                                             }
+                                             prune2(stage1Points.lastOrNull() ?: emptyList())
+                                         }
+                                     }
+                                 },
+                                 color = if (isStage2Visible) Color.Red else Color(0xFFF0F0F0),
+                                 shape = RoundedCornerShape(8.dp),
+                                 modifier = Modifier.size(width = 44.dp, height = 40.dp)
+                             ) {
+                                 Box(contentAlignment = Alignment.Center) {
+                                     Text("2", color = if (isStage2Visible) Color.White else Color.Black, fontWeight = FontWeight.Bold)
+                                 }
+                             }
+
+                             Spacer(modifier = Modifier.width(8.dp))
+
+                             // Close Button [X]
+                             IconButton(
+                                 onClick = { 
+                                     localSelectedTrack = null
+                                     localPoints = emptyList()
+                                     tmIndex = -1
+                                     isPlaying = false
+                                     useFixedInterval = false
+                                 },
+                                 modifier = Modifier.size(40.dp).background(Color(0xFFEEEEEE), RoundedCornerShape(20.dp))
+                             ) {
+                                 Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Black, modifier = Modifier.size(20.dp))
+                             }
+                        }
+                    }
                 }
             }
         }

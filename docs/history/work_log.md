@@ -1,3 +1,17 @@
+## 2026-01-08
+### 🛰️ Android GPS Auth Overlay Encapsulation & Logic Refinement
+- **Experimental Logic Encapsulation (Independent Component Pattern)**:
+    - `GpsAuthViewModel.kt`에 흩어져 있던 시험용 상태(Visibility, Points, Time Machine)와 로직(가지치기, 재생 제어)을 모두 `GpsAuthOverlay.kt` 내부의 로컬 뷰 상태로 이동 및 캡슐화 완료.
+    - 이를 통해 실험적 기능의 독립성을 확보하고, 향후 기능 제거 및 유지보수가 용이한 '독립형 컴포넌트 패턴'을 정립함.
+- **Advanced Trajectory Pruning System 고도화**:
+    - **Parametrized Logic**: `prune1`, `prune2` 함수가 외부에서 경로 데이터를 받아 처리하도록 파라미터화하여 범용성을 높임.
+    - **Multi-Result Storage**: `stage1Points` 및 `stage2Points`를 배열의 배열(`List<List<GpsAuthPoint>>`) 구조로 변경하여 모든 가공 결과물을 누적 저장하고 관리할 수 있도록 개선.
+    - **Sequential Processing Pipeline**: 고속 재생(Fast Replay) 시 전체 경로가 시각적으로 모두 그려진 후에 Stage 2 가지치기가 트리거되도록 실행 시점을 정밀하게 조정하여 시각적 정합성 확보.
+- **Build Integrity & Code Cleanup**:
+    - **ViewModel Restoration**: `NonCancellable` 임포트 누락 및 트래킹 필수 로직 복구 완료.
+    - **MainScreen Sync**: ViewModel에서 제거된 상태 참조를 `setShowActivePath` 등 정규화된 메서드로 교체하여 빌드 에러 해결.
+    - **Overlay Polish**: 미사용 변수 및 레거시 코드를 제거하여 프로젝트 전반의 경고와 에러를 박멸하고 빌드 안정성을 확보함.
+
 ## 2026-01-06
 ### 🤖 Agent Process & Environment Optimization
 - **Agent Work Rules Integration**:

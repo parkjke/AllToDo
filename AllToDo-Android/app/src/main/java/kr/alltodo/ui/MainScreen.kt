@@ -521,7 +521,7 @@ fun MainScreen(
                 compassRotation = compassRotation,
                 isTracking = isTracking,
                 showActivePath = showActivePath,
-                onToggleActivePath = { gpsAuthViewModel.toggleActivePath() },
+                onToggleActivePath = { gpsAuthViewModel.setShowActivePath(!showActivePath) },
                 onLoginClick = { mapViewModel.toggleMyInfo(true) },
                 onZoomInClick = { mapViewModel.handleZoomIn() },
                 onZoomOutClick = { mapViewModel.handleZoomOut() },
@@ -715,8 +715,7 @@ fun MainScreen(
                             gpsAuthViewModel.stopTrackingAndSave() 
                             mapViewModel.toggleMyInfo(false)
                         } else {
-                            todoViewModel.toggleTracking() 
-                            gpsAuthViewModel.startTracking() 
+                            // [FIX] Just open overlay, don't start tracking yet
                             gpsAuthViewModel.setOverlayVisible(true) 
                             mapViewModel.toggleMyInfo(false)
                         }
@@ -733,7 +732,12 @@ fun MainScreen(
                     viewModel = gpsAuthViewModel,
                     currentLocation = currentLocation.value,
                     mapProvider = mapProvider,
-                    onDismiss = { gpsAuthViewModel.setOverlayVisible(false) }
+                    onDismiss = { gpsAuthViewModel.setOverlayVisible(false) },
+                    onStartTracking = {
+                        // [FIX] Unified tracking start
+                        gpsAuthViewModel.startTracking()
+                        todoViewModel.toggleTracking()
+                    }
                 )
             }
         }

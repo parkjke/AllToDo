@@ -107,7 +107,7 @@ struct KakaoMapView: UIViewRepresentable {
     class Coordinator: NSObject, MapControllerDelegate, KakaoMapEventDelegate {
         var parent: KakaoMapView
         var controller: KMController?
-        var lastIntLocation: IntLocation?
+        var lastIntLocation: SmartLocationManager.IntLocation?
         
         // Data State
         var lastDataSummary: String = ""
@@ -527,7 +527,8 @@ struct KakaoMapView: UIViewRepresentable {
                     finalLon = userLoc.longitude
                 }
                 
-                let poiID = isUser ? "UserPoi" : "cluster_\(idx)"
+                let userLocationID = "00000000-0000-0000-0000-000000000000"
+                let poiID = isUser ? userLocationID : "cluster_\(idx)"
                 newPoiIDs.insert(poiID)
                 labelIdToClusterItems[poiID] = items
                 

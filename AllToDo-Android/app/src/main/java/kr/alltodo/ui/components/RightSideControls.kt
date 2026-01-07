@@ -56,9 +56,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 fun RightSideControls(
     modifier: Modifier = Modifier,
     compassRotation: Float = 0f,
-    showHistoryMode: Boolean = false, // [NEW]
-    onHistoryClick: () -> Unit = {}, // [NEW]
-    onNotificationClick: () -> Unit = {},
     onLoginClick: () -> Unit = {},
     onLocationClick: () -> Unit = {},
     onZoomInClick: () -> Unit = {},

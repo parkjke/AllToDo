@@ -118,9 +118,10 @@ struct NaverMapView: UIViewRepresentable {
         // 2. Trigger Clustering (Only if not in first render sequence)
         if !context.coordinator.firstRender {
             let currentSummary = "\(allItems.count)-\(allItems.first?.id.uuidString ?? "")"
-            let userLoc = parent.locationManager.currentLocation
+            let userLoc = locationManager.currentLocation
             let lastLoc = context.coordinator.lastIntLocation
-            let moved = SmartLocationManager.shared.shouldUpdate(lastLoc: lastLoc, newLoc: userLoc ?? CLLocation(), currentSpan: uiView.mapView.contentSpan.longitudeDelta)
+            let lngSpan = abs(uiView.mapView.contentBounds.northEastLng - uiView.mapView.contentBounds.southWestLng)
+            let moved = SmartLocationManager.shared.shouldUpdate(lastLoc: lastLoc, newLoc: userLoc ?? CLLocation(), currentSpan: lngSpan)
 
             if context.coordinator.lastDataSummary != currentSummary || moved {
                 context.coordinator.lastDataSummary = currentSummary
@@ -160,7 +161,8 @@ struct NaverMapView: UIViewRepresentable {
         var parent: NaverMapView
         var mapView: NMFMapView?
         var firstRender = true
-        var lastIntLocation: IntLocation?
+        var isWasmCluster = false
+        var lastIntLocation: SmartLocationManager.IntLocation?
 
         var lastDataSummary: String = "" // For Smart Refresh
         var lastClusteredWm: Double = -1.0 // [NEW] 1.5x Threshold Tracking
@@ -490,16 +492,27 @@ struct NaverMapView: UIViewRepresentable {
                 }
             }
             
-            let userMarker = oldMarkers.first(where: { ($0.userInfo["isUser"] as? Bool) == true })
+            let userLocationID = UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
+            let userMarker = oldMarkers.first(where: { ($0.userInfo["id"] as? UUID) == userLocationID })
             
-            // Step 1: New Entry (Add new single pins)
+            // Step 1: New Entry (Single pins that weren't there)
             for item in singlesToProcess {
-                if let existing = oldMarkers.first(where: { ($0.userInfo["id"] as? UUID) == item.id }) {
+                if item.id == userLocationID, let existing = userMarker {
+                    // REUSE User Marker
+                    existing.position = NMGLatLng(lat: item.location?.latitude ?? 0, lng: item.location?.longitude ?? 0)
+                    let targetSize = CGSize(width: 36, height: 45)
+                    if let img = PinImageHelper.shared.fetchPin(type: item.type) {
+                        let resized = img.resized(to: targetSize)
+                        existing.iconImage = NMFOverlayImage(image: resized ?? img)
+                    }
+                    existing.anchor = CGPoint(x: 0.5, y: 1.0)
+                    newMarkers.append(existing)
+                } else if let existing = oldMarkers.first(where: { ($0.userInfo["id"] as? UUID) == item.id }) {
                     newMarkers.append(existing)
                 } else {
                     let marker = createMarker(for: [item], lat: item.location?.latitude ?? 0, lon: item.location?.longitude ?? 0)
                     marker.userInfo["id"] = item.id
-                    if item.type == "user" { marker.userInfo["isUser"] = true }
+                    if item.id == userLocationID { marker.userInfo["isUser"] = true }
                     marker.mapView = mapView
                     newMarkers.append(marker)
                 }
@@ -507,7 +520,7 @@ struct NaverMapView: UIViewRepresentable {
             
             // Step 2 & 3: Find what to remove
             for marker in oldMarkers {
-                if marker === userMarker { continue } // Handled via clusters/singles logic
+                if marker === userMarker { continue } // Handled via reuse logic
                 
                 if let id = marker.userInfo["id"] as? UUID {
                     // It was a single pin. Is it still a single pin?
@@ -524,22 +537,38 @@ struct NaverMapView: UIViewRepresentable {
             for cluster in clustersToProcess {
                 var finalLat = cluster.centroid.lat
                 var finalLon = cluster.centroid.lon
-                var isUser = false
+                var containsUser = false
                 
-                if let userItem = cluster.items.first(where: { if case .userLocation = $0 { return true }; return false }),
+                if let userItem = cluster.items.first(where: { $0.id == userLocationID }),
                    let userCoord = userItem.location {
                     finalLat = userCoord.latitude
                     finalLon = userCoord.longitude
-                    isUser = true
+                    containsUser = true
                 }
                 
-                let marker = createMarker(for: cluster.items, lat: finalLat, lon: finalLon)
-                if isUser { marker.userInfo["isUser"] = true }
-                marker.mapView = mapView
-                newMarkers.append(marker)
+                if containsUser, let existing = userMarker {
+                    // REUSE User Marker for Cluster
+                    existing.position = NMGLatLng(lat: finalLat, lng: finalLon)
+                    let (pinType, color, count) = MapLogicHelper.resolveClusterStyle(items: cluster.items)
+                    let targetSize = CGSize(width: 36, height: 45)
+                    if let baseImage = PinImageHelper.shared.fetchPin(type: pinType) {
+                        let resized = baseImage.resized(to: targetSize) ?? baseImage
+                        existing.iconImage = NMFOverlayImage(image: PinImageHelper.shared.applyBadge(to: resized, count: count, badgeColor: color, badgeSize: 18))
+                    }
+                    existing.anchor = CGPoint(x: 18.0/46.0, y: 1.0)
+                    newMarkers.append(existing)
+                } else {
+                    let marker = createMarker(for: cluster.items, lat: finalLat, lon: finalLon)
+                    if cluster.items.contains(where: { $0.id == userLocationID }) { 
+                        marker.userInfo["isUser"] = true 
+                        marker.userInfo["id"] = userLocationID
+                    }
+                    marker.mapView = mapView
+                    newMarkers.append(marker)
+                }
             }
             
-            // Clean up old user marker if not reused
+            // Final Cleanup: Old user marker no longer in new set
             if let user = userMarker, !newMarkers.contains(user) {
                 user.mapView = nil
             }
