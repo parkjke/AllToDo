@@ -43,6 +43,7 @@ import com.kakao.vectormap.*
 import com.kakao.vectormap.camera.CameraAnimation
 import com.kakao.vectormap.camera.CameraUpdateFactory
 import com.kakao.vectormap.label.*
+import com.kakao.vectormap.route.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kr.alltodo.tp.data.*
@@ -103,12 +104,19 @@ fun MainScreen(fusedLocationClient: FusedLocationProviderClient) {
 
     // Playback & Dot States
     var isPlaybackMode by remember { mutableStateOf(false) }
-    var playbackSpeed by remember { mutableStateOf(1) }
+    var playbackSpeed by remember { mutableFloatStateOf(1f) } // Changed to Float
     var lastKnownLocation by remember { mutableStateOf<LatLng?>(null) }
     val recordingLabels = remember { mutableStateListOf<Label>() }
     val playbackLabels = remember { mutableStateListOf<Label>() }
+    val recordingRoutes = remember { mutableStateListOf<Route>() } // New: Routes for recording
+    val playbackRoutes = remember { mutableStateListOf<Route>() } // New: Routes for playback
+    
+    var lastRecordingPos by remember { mutableStateOf<LatLng?>(null) } // New: Tracking last pos for lines
+    var lastPlaybackPos by remember { mutableStateOf<LatLng?>(null) } // New: Tracking last pos for lines
+
     var playbackJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var isLocationTrackingActive by remember { mutableStateOf(true) }
+    var showPathLines by remember { mutableStateOf(true) } // New: Path lines toggle
     
     // Customization States
     var selectedColor by remember { mutableStateOf(0xFF007AFF.toInt()) }
@@ -156,6 +164,21 @@ fun MainScreen(fusedLocationClient: FusedLocationProviderClient) {
                                 LabelOptions.from(newPos).setStyles(styles)
                             )
                             if (label != null) recordingLabels.add(label)
+
+                            // Draw path line if showPathLines is true
+                            if (showPathLines && lastRecordingPos != null) {
+                                val routeOptions = RouteOptions.from(
+                                    RouteLineOptions.from(
+                                        RouteLineSegment.from(lastRecordingPos, newPos)
+                                            .setStrokeWidth(selectedThickness.dp)
+                                            .setStrokeColor(Color(selectedColor))
+                                    )
+                                )
+                                map.routeManager?.layer?.addRoute(routeOptions)?.let {
+                                    recordingRoutes.add(it)
+                                }
+                            }
+                            lastRecordingPos = newPos
                         }
                     }
                 }
@@ -203,6 +226,21 @@ fun MainScreen(fusedLocationClient: FusedLocationProviderClient) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                // [Route Toggle] - Added when recording is active
+                if (isRecording) {
+                    MapControlButton(
+                        icon = Icons.Default.Route,
+                        iconTint = if (showPathLines) Color(selectedColor) else Color.Gray,
+                        onClick = {
+                            showPathLines = !showPathLines
+                            if (!showPathLines) {
+                                recordingRoutes.forEach { it.remove() }
+                                recordingRoutes.clear()
+                            }
+                        }
+                    )
+                }
+
                 // [Recording/Stop Icon] - Added to the left of hamburger
                 if (!isPlaybackMode) {
                     MapControlButton(
@@ -216,12 +254,16 @@ fun MainScreen(fusedLocationClient: FusedLocationProviderClient) {
                             if (!isRecording) {
                                 trajectoryManager.startRecording(batteryLevel)
                                 isRecording = true
+                                lastRecordingPos = null // Reset for new recording
                             } else {
                                 trajectoryManager.stopAndSave(batteryLevel) {
                                     isRecording = false
                                     // Clear all recording dots from map
                                     recordingLabels.forEach { it.remove() }
                                     recordingLabels.clear()
+                                    recordingRoutes.forEach { it.remove() }
+                                    recordingRoutes.clear()
+                                    lastRecordingPos = null
                                 }
                             }
                         }
@@ -290,8 +332,12 @@ fun MainScreen(fusedLocationClient: FusedLocationProviderClient) {
                     
                     // 지도 초기화 (현재 위치 핀 포함 모두 삭제)
                     kakaoMap?.labelManager?.layer?.removeAll()
+                    kakaoMap?.routeManager?.layer?.removeAll() // Clear all routes
                     recordingLabels.clear()
                     playbackLabels.clear()
+                    recordingRoutes.clear()
+                    playbackRoutes.clear()
+                    lastPlaybackPos = null // Reset for playback
                     
                     // Start Playback Logic
                     playbackJob?.cancel()
@@ -305,18 +351,34 @@ fun MainScreen(fusedLocationClient: FusedLocationProviderClient) {
                         )
 
                         paths.forEach { path ->
-                            val delayTime = (path.time - lastTime) / playbackSpeed
+                            val currentPos = LatLng.from(
+                                trajectoryManager.decompress(path.int_lat),
+                                trajectoryManager.decompress(path.int_long)
+                            )
+                            val delayTime = ((path.time - lastTime) / playbackSpeed).toLong()
                             if (delayTime > 0) kotlinx.coroutines.delay(delayTime)
                             
                             kakaoMap?.let { map ->
                                 val label = map.labelManager?.layer?.addLabel(
-                                    LabelOptions.from(LatLng.from(
-                                        trajectoryManager.decompress(path.int_lat),
-                                        trajectoryManager.decompress(path.int_long)
-                                    )).setStyles(styles)
+                                    LabelOptions.from(currentPos).setStyles(styles)
                                 )
                                 if (label != null) playbackLabels.add(label)
+
+                                // Draw path line if showPathLines is true
+                                if (showPathLines && lastPlaybackPos != null) {
+                                    val routeOptions = RouteOptions.from(
+                                        RouteLineOptions.from(
+                                            RouteLineSegment.from(lastPlaybackPos, currentPos)
+                                                .setStrokeWidth(selectedThickness.dp)
+                                                .setStrokeColor(Color(selectedColor))
+                                        )
+                                    )
+                                    map.routeManager?.layer?.addRoute(routeOptions)?.let {
+                                        playbackRoutes.add(it)
+                                    }
+                                }
                             }
+                            lastPlaybackPos = currentPos
                             lastTime = path.time
                         }
                     }
@@ -332,31 +394,42 @@ fun MainScreen(fusedLocationClient: FusedLocationProviderClient) {
                     .padding(bottom = 32.dp, start = 16.dp)
             ) {
                 SpeedButtonGroup(
-                    currentSpeed = playbackSpeed,
-                    onSpeedChange = { playbackSpeed = it }
+                    currentSpeed = playbackSpeed.toInt(), // Convert back to Int for display
+                    onSpeedChange = { playbackSpeed = it.toFloat() } // Convert to Float for state
                 )
             }
 
             // Back Button (Bottom-End)
-            Box(
+            Row(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(bottom = 32.dp, end = 16.dp)
+                    .padding(bottom = 32.dp, end = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                // [Route Toggle Button]
+                PlaybackControlButton(
+                    icon = Icons.Default.Route,
+                    iconTint = if (showPathLines) Color(selectedColor) else Color.Gray
+                ) {
+                    showPathLines = !showPathLines
+                    if (!showPathLines) {
+                        playbackRoutes.forEach { it.remove() }
+                        playbackRoutes.clear()
+                    }
+                }
+
                 PlaybackControlButton(Icons.Default.ArrowBack) {
                     // Reset Playback
                     playbackJob?.cancel()
                     kakaoMap?.labelManager?.layer?.removeAll()
+                    kakaoMap?.routeManager?.layer?.removeAll() // Clear all routes
                     recordingLabels.clear()
                     playbackLabels.clear()
-                    
-                    // Restore current location pin
-                    kakaoMap?.let { map ->
-                        myLocationLabel = map.labelManager?.layer?.addLabel(
-                            LabelOptions.from(lastKnownLocation ?: LatLng.from(37.402030, 127.108204))
-                                .setStyles(LabelStyles.from(LabelStyle.from(kr.alltodo.tp.R.drawable.map_pin_00)))
-                        )
-                    }
+                    recordingRoutes.clear()
+                    playbackRoutes.clear()
+                    lastPlaybackPos = null
+                    lastRecordingPos = null
                     
                     isPlaybackMode = false
                     isLocationTrackingActive = true // 다시 시작
@@ -410,7 +483,7 @@ fun SpeedButtonGroup(currentSpeed: Int, onSpeedChange: (Int) -> Unit) {
 }
 
 @Composable
-fun PlaybackControlButton(icon: ImageVector, onClick: () -> Unit) {
+fun PlaybackControlButton(icon: ImageVector, iconTint: Color = Color.Black, onClick: () -> Unit) {
     FilledIconButton(
         onClick = onClick,
         modifier = Modifier
@@ -419,10 +492,10 @@ fun PlaybackControlButton(icon: ImageVector, onClick: () -> Unit) {
         shape = RoundedCornerShape(12.dp),
         colors = IconButtonDefaults.filledIconButtonColors(
             containerColor = Color.White,
-            contentColor = Color.Black
+            contentColor = iconTint
         )
     ) {
-        Icon(icon, contentDescription = null)
+        Icon(icon, contentDescription = null, tint = iconTint)
     }
 }
 
