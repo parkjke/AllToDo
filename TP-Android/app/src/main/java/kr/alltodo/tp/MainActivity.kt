@@ -562,9 +562,9 @@ fun TrajectoryListOverlay(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    val usagePerHour = if (item.end_time != null && item.end_time > item.begin_time) {
-                                        val hours = (item.end_time - item.begin_time).toDouble() / (1000.0 * 60.0 * 60.0)
-                                        if (hours > 0) String.format("%.1f%%/h", item.usage.toDouble() / hours) else "0.0%%/h"
+                                    val usagePerSecond = if (item.end_time != null && item.end_time > item.begin_time) {
+                                        val seconds = (item.end_time - item.begin_time).toDouble() / 1000.0
+                                        if (seconds > 0) String.format("%.4f%%/s", item.usage.toDouble() / seconds) else "0.0000%%/s"
                                     } else "N/A"
 
                                     Column(modifier = Modifier.weight(1.1f)) {
@@ -584,10 +584,10 @@ fun TrajectoryListOverlay(
                                         fontSize = 12.sp
                                     )
                                     Text(
-                                        text = usagePerHour,
+                                        text = usagePerSecond,
                                         modifier = Modifier.weight(0.8f),
                                         textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                                        fontSize = 11.sp,
+                                        fontSize = 10.sp, // Slightly smaller to fit precision
                                         color = Color(0xFF616161),
                                         fontWeight = FontWeight.Bold
                                     )
