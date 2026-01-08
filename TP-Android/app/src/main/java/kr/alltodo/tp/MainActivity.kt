@@ -562,35 +562,44 @@ fun TrajectoryListOverlay(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(text = dateStr, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                                        Text(text = "시작: $startTimeStr", fontSize = 10.sp)
-                                        
-                                        // Usage per hour display
-                                        val usagePerHour = if (item.end_time != null && item.end_time > item.begin_time) {
-                                            val hours = (item.end_time - item.begin_time).toDouble() / (1000.0 * 60.0 * 60.0)
-                                            if (hours > 0) String.format("%.1f%%/h", item.usage.toDouble() / hours) else "0.0%%/h"
-                                        } else "N/A"
-                                        Text(text = "효율: $usagePerHour", fontSize = 10.sp, color = Color(0xFF616161))
+                                    val usagePerHour = if (item.end_time != null && item.end_time > item.begin_time) {
+                                        val hours = (item.end_time - item.begin_time).toDouble() / (1000.0 * 60.0 * 60.0)
+                                        if (hours > 0) String.format("%.1f%%/h", item.usage.toDouble() / hours) else "0.0%%/h"
+                                    } else "N/A"
+
+                                    Column(modifier = Modifier.weight(1.1f)) {
+                                        Text(text = dateStr, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, fontSize = 12.sp)
+                                        Text(text = "시작: $startTimeStr", fontSize = 10.sp, color = Color.Gray)
                                     }
                                     Text(
                                         text = "${item.no_of_path}개",
-                                        modifier = Modifier.weight(0.7f),
+                                        modifier = Modifier.weight(0.6f),
                                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                         fontSize = 12.sp
                                     )
                                     Text(
                                         text = durationStr,
-                                        modifier = Modifier.weight(1f),
+                                        modifier = Modifier.weight(0.9f),
                                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                         fontSize = 12.sp
                                     )
-                                    IconButton(onClick = { onDeleteClick(item) }) {
+                                    Text(
+                                        text = usagePerHour,
+                                        modifier = Modifier.weight(0.8f),
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF616161),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    IconButton(
+                                        onClick = { onDeleteClick(item) },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
                                         Icon(
                                             imageVector = Icons.Default.Delete,
                                             contentDescription = "Delete",
                                             tint = Color.Red,
-                                            modifier = Modifier.size(24.dp)
+                                            modifier = Modifier.size(20.dp)
                                         )
                                     }
                                 }
