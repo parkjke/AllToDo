@@ -444,19 +444,13 @@ fun MapControlButton(
     ) {
         if (showIconBorder) {
             val shape = if (icon == Icons.Default.Stop) RoundedCornerShape(2.dp) else CircleShape
+            // Using a Box instead of an Icon to ensure the red fill is perfectly flush with the white border
             Box(
-                contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(24.dp) // Border size matches icon appearance
+                    .size(26.dp)
+                    .background(Color.Red, shape)
                     .border(2.dp, Color.White, shape)
-            ) {
-                Icon(
-                    icon,
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp), // Icon scaled up to fill border
-                    tint = iconTint
-                )
-            }
+            )
         } else {
             Icon(icon, contentDescription = null)
         }
