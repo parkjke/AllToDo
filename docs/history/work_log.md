@@ -4,7 +4,7 @@
     - 궤적 가지치기와 전력 소모 효율성 테스트를 위한 별도의 안드로이드 프로토타입 앱(`TP-Android`)을 구축함.
 - **Battery Efficiency Tracking System**:
     - **DB Schema Expansion**: `TrajectoryEntity`에 `begin_power`, `end_power`, `usage` 필드를 추가하여 세밀한 전력 분석 기반 마련.
-    - **Automated Capture & Analysis**: `BatteryManager` 연동을 통해 기록 시작/종료 시 배터리 잔량을 수집하고, 시간당 소모 효율(**%/h**)을 자동 계산하여 리스트에 시각화함.
+    - **Automated Capture & Analysis**: `BatteryManager` 연동을 통해 기록 시작/종료 시 배터리 잔량을 수집하고, 초당 소모 효율(**%/s**)을 자동 계산하여 리스트에 시각화함.
 - **Dynamic Location Sensitivity Control**:
     - **Real-time Adjustment**: 위치 추적 시간(X, 1, 3, 5초) 및 거리(X, 1, 3, 5미터) 설정을 UI 오버레이에 추가.
     - **On-the-fly Sync**: 설정을 변경하는 즉시 지도 엔진의 `LocationRequest`를 재설정하여 정밀도와 배터리 소모의 균형을 실시간으로 조절 가능하게 함.
