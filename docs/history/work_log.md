@@ -12,8 +12,9 @@
     - **Advanced Customization**: 텍스트를 제거하고 실제 색상 배경과 점 아이콘을 사용한 대화령 커스터마이징 UI 구현. 선택된 상태는 그레이 테두리로 명확히 강조.
     - **Premium Icon Design**: 녹화 버튼에 빨간색 동그라미/네모 아이콘과 **2pt 흰색 테두리**를 적용하여 시인성을 극대화함.
     - **Layout Standardization**: 모든 설정 레이블을 100.dp로 통합하여 수직 정렬을 맞추고, 1pt 그레이 테두리를 버튼 그룹에 적용하여 프리미엄 마감 완성.
-- **Build & Stability Fixes**:
-    - Material 3 버전 호환성을 고려하여 `HorizontalDivider`를 `Divider`로 복구하고, 누락된 `CircleShape` 임포트를 추가하여 빌드 안정성 확보.
+    - [x] 컴파일 에러(HorizontalDivider -> Divider) 수정 완료
+- **UI Label Wrap Fix**:
+    - "위치 추적 시간/거리" 레이블이 두 줄로 나누어지는 현상을 해결하기 위해 너비를 **110.dp**로 확장하고 `maxLines = 1`, `softWrap = false` 옵션을 적용하여 단일 행 정렬을 강제함.
 
 ## 2026-01-08
 ### 🛰️ Android GPS Auth Overlay Encapsulation & Logic Refinement
