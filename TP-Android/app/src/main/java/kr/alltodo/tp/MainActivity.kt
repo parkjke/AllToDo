@@ -625,7 +625,7 @@ fun TrajectoryListOverlay(
                     modifier = Modifier.fillMaxWidth().padding(start = 32.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("위치 추적 시간", modifier = Modifier.width(100.dp), fontWeight = FontWeight.Bold, color = Color(0xFF424242), fontSize = 14.sp)
+                    Text("위치 추적 시간", modifier = Modifier.width(110.dp), fontWeight = FontWeight.Bold, color = Color(0xFF424242), fontSize = 14.sp, maxLines = 1, softWrap = false)
                     Row(
                         modifier = Modifier
                             .background(Color.White, RoundedCornerShape(8.dp))
@@ -661,7 +661,7 @@ fun TrajectoryListOverlay(
                     modifier = Modifier.fillMaxWidth().padding(start = 32.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("위치 추적 거리", modifier = Modifier.width(100.dp), fontWeight = FontWeight.Bold, color = Color(0xFF424242), fontSize = 14.sp)
+                    Text("위치 추적 거리", modifier = Modifier.width(110.dp), fontWeight = FontWeight.Bold, color = Color(0xFF424242), fontSize = 14.sp, maxLines = 1, softWrap = false)
                     Row(
                         modifier = Modifier
                             .background(Color.White, RoundedCornerShape(8.dp))
@@ -706,7 +706,7 @@ fun TrajectoryListOverlay(
                         .padding(start = 32.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("궤적 색깔", modifier = Modifier.width(100.dp), fontWeight = FontWeight.Bold, color = Color(0xFF424242))
+                    Text("궤적 색깔", modifier = Modifier.width(110.dp), fontWeight = FontWeight.Bold, color = Color(0xFF424242), maxLines = 1, softWrap = false)
                     Spacer(modifier = Modifier.width(32.dp))
                     Row(
                         modifier = Modifier
@@ -748,7 +748,7 @@ fun TrajectoryListOverlay(
                         .padding(start = 32.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("궤적 굵기", modifier = Modifier.width(100.dp), fontWeight = FontWeight.Bold, color = Color(0xFF424242))
+                    Text("궤적 굵기", modifier = Modifier.width(110.dp), fontWeight = FontWeight.Bold, color = Color(0xFF424242), maxLines = 1, softWrap = false)
                     Spacer(modifier = Modifier.width(32.dp))
                     Row(
                         modifier = Modifier
