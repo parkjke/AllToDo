@@ -447,13 +447,13 @@ fun MapControlButton(
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(28.dp)
+                    .size(24.dp) // Border size matches icon appearance
                     .border(2.dp, Color.White, shape)
             ) {
                 Icon(
                     icon,
                     contentDescription = null,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(24.dp), // Icon scaled up to fill border
                     tint = iconTint
                 )
             }
