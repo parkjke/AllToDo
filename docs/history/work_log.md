@@ -1,3 +1,20 @@
+## 2026-01-09
+### 🛰️ Android Trajectory Pruning & Battery Efficiency Prototyping (`TP-Android`)
+- **Experimental Native App Development**:
+    - 궤적 가지치기와 전력 소모 효율성 테스트를 위한 별도의 안드로이드 프로토타입 앱(`TP-Android`)을 구축함.
+- **Battery Efficiency Tracking System**:
+    - **DB Schema Expansion**: `TrajectoryEntity`에 `begin_power`, `end_power`, `usage` 필드를 추가하여 세밀한 전력 분석 기반 마련.
+    - **Automated Capture & Analysis**: `BatteryManager` 연동을 통해 기록 시작/종료 시 배터리 잔량을 수집하고, 시간당 소모 효율(**%/h**)을 자동 계산하여 리스트에 시각화함.
+- **Dynamic Location Sensitivity Control**:
+    - **Real-time Adjustment**: 위치 추적 시간(X, 1, 3, 5초) 및 거리(X, 1, 3, 5미터) 설정을 UI 오버레이에 추가.
+    - **On-the-fly Sync**: 설정을 변경하는 즉시 지도 엔진의 `LocationRequest`를 재설정하여 정밀도와 배터리 소모의 균형을 실시간으로 조절 가능하게 함.
+- **Visual-First Playback UI & UX Polish**:
+    - **Advanced Customization**: 텍스트를 제거하고 실제 색상 배경과 점 아이콘을 사용한 대화령 커스터마이징 UI 구현. 선택된 상태는 그레이 테두리로 명확히 강조.
+    - **Premium Icon Design**: 녹화 버튼에 빨간색 동그라미/네모 아이콘과 **2pt 흰색 테두리**를 적용하여 시인성을 극대화함.
+    - **Layout Standardization**: 모든 설정 레이블을 100.dp로 통합하여 수직 정렬을 맞추고, 1pt 그레이 테두리를 버튼 그룹에 적용하여 프리미엄 마감 완성.
+- **Build & Stability Fixes**:
+    - Material 3 버전 호환성을 고려하여 `HorizontalDivider`를 `Divider`로 복구하고, 누락된 `CircleShape` 임포트를 추가하여 빌드 안정성 확보.
+
 ## 2026-01-08
 ### 🛰️ Android GPS Auth Overlay Encapsulation & Logic Refinement
 - **Experimental Logic Encapsulation (Independent Component Pattern)**:
